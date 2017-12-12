@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
@@ -410,12 +411,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-            //TODO: Fail the connection with auth failed.
+            log.warn("Auth expired {}", authTokenExpired);
+            failConnection(new PravegaAuthenticationException(authTokenExpired.toString()));
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            //TODO: Propagate the error.
+            log.warn("Auth failed {}", authTokenCheckFailed);
+            failConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
         }
     }
 

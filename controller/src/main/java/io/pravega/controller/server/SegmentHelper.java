@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -86,12 +87,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -139,12 +140,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -194,12 +195,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -260,12 +261,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -314,12 +315,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -376,12 +377,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -434,12 +435,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -480,12 +481,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 
@@ -527,12 +528,12 @@ public class SegmentHelper {
 
             @Override
             public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                //TODO: Fail the connection with auth failed.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                //TODO: Propagate the error.
+                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
         };
 

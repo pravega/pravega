@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -123,12 +124,12 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
         @Override
         public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-            //TODO: Fail the connection with auth failed.
+            closeConnection(new PravegaAuthenticationException(authTokenExpired.toString()));
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            //TODO: Propagate the error.
+            closeConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
         }
     }
 
@@ -220,7 +221,6 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.debug("Getting segment attribute: {}", attributeId);
-            //TODO: Fetch and send a proper delegationToken
             send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), "", attributeId));
         }).exceptionally(e -> {
             closeConnection(e);
@@ -229,7 +229,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return result;
     }
     
-    private CompletableFuture<WireCommands.SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected, long value) {
+    private CompletableFuture<WireCommands.SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, String delegationToken, long expected, long value) {
         CompletableFuture<WireCommands.SegmentAttributeUpdated> result = new CompletableFuture<>();
         long requestId = requestIdGenerator.get();
         synchronized (lock) {
@@ -237,8 +237,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.trace("Updating segment attribute: {}", attributeId);
-            //TODO: Fetch and send a proper delegationToken
-            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), "", attributeId, value, expected));
+            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), delegationToken, attributeId, value, expected));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;
@@ -266,11 +265,11 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue, String delegationToken) {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
-                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue),
+                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), delegationToken, expectedValue, newValue),
                                              connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).isSuccess();
     }

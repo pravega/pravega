@@ -45,9 +45,10 @@ public interface SegmentMetadataClient extends AutoCloseable {
      * @param attribute The attribute to set
      * @param expectedValue The value the attribute is expected to be
      * @param newValue The new value for the attribute
+     * @param delegationToken delegation token to be handed to the segmentstore.
      * @return If the replacement occurred. (False if the attribute was not expectedValue)
      */
-    abstract boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue);
+    abstract boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue, String delegationToken);
     
     @Override
     abstract void close();

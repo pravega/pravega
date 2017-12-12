@@ -146,7 +146,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue, String delegationToken) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
         return attributes.replace(attribute, expectedValue, newValue);
     }
