@@ -103,7 +103,7 @@ public class SegmentMetadataClientTest {
             }
         }).when(connection).send(new WireCommands.UpdateSegmentAttribute(1, segment.getScopedName(), "", attributeId, 1234,
                                                                          -1234));
-        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234));
+        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234, ""));
     }
 
     @Test(timeout = 10000)

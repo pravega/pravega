@@ -167,7 +167,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
         long newValue = newLocation == null ? NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
         synchronized (lock) {
-            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
+            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue, currentDelegationToken);
         }
     }
 
