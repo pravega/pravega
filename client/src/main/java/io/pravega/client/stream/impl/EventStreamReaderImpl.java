@@ -35,6 +35,7 @@ import java.util.Map.Entry;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -222,9 +223,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public Type read(EventPointer pointer) throws NoSuchEventException {
+    public Type fetchEvent(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
-        // Create SegmentInputBuffer
+        // Create SegmentInputStream
+        @Cleanup
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         pointer.asImpl().getEventLength(), groupState.getLatestDelegationToken());
         inputStream.setOffset(pointer.asImpl().getEventStartOffset());

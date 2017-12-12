@@ -369,7 +369,10 @@ public class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void retentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.builder().type(RetentionPolicy.Type.TIME).value(Duration.ofMinutes(60).toMillis()).build();
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofMinutes(60).toMillis())
+                .build();
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
@@ -436,7 +439,7 @@ public class StreamMetadataTasksTest {
         Map<Integer, Long> map4 = new HashMap<>();
         map4.put(0, 20L);
         map4.put(1, 20L);
-        long recordingTime4 = recordingTime1 + retentionPolicy.getValue() + 2;
+        long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionParam() + 2;
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, map4);
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any());

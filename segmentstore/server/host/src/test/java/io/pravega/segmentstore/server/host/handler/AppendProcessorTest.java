@@ -10,7 +10,9 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -25,6 +27,7 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import lombok.Cleanup;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -44,7 +48,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -339,7 +345,83 @@ public class AppendProcessorTest {
 
         verifyNoMoreInteractions(store);
     }
-    
+
+    /**
+     * Test to ensure newer appends are processed only after successfully sending the DataAppended acknowledgement
+     * back to client. This test tests the following:
+     * - If sending first DataAppended is blocked, ensure future appends are not written to store.
+     * - Once the first DataAppended is sent ensure the remaining appends are written to store and DataAppended ack'ed
+     * back.
+     */
+    @Test(timeout = 15 * 1000)
+    public void testDelayedDataAppended() throws Exception {
+        ReusableLatch firstStoreAppendInvoked = new ReusableLatch();
+        ReusableLatch completeFirstDataAppendedAck = new ReusableLatch();
+        ReusableLatch secondStoreAppendInvoked = new ReusableLatch();
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService nettyExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "Netty-threadPool");
+
+        String streamSegmentName = "testDelayedAppend";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+
+        //Ensure the first DataAppended is hung/delayed.
+        doAnswer(invocation -> {
+            firstStoreAppendInvoked.release();
+            completeFirstDataAppendedAck.await(); // wait, simulating a hung/delayed dataAppended acknowledgement.
+            return null;
+        }).doAnswer( invocation -> {
+            secondStoreAppendInvoked.release();
+            return null;
+        }).when(connection).send(any(DataAppended.class));
+
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+
+        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
+                StreamSegmentInformation.builder().name(streamSegmentName).build());
+        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
+        verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
+
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+        int eventCount = 100;
+        when(store.append(streamSegmentName, data,
+                updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
+                AppendProcessor.TIMEOUT)).thenReturn(result);
+
+        //Trigger the first append, here the sending of DataAppended ack will be delayed/hung.
+        nettyExecutor.submit(() -> processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled
+                .wrappedBuffer(data), null)));
+        firstStoreAppendInvoked.await();
+        verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 100, SegmentMetadata
+                .NULL_ATTRIBUTE_VALUE, eventCount), AppendProcessor.TIMEOUT);
+
+        /* Trigger the next append. This should be completed immediately and should not cause a store.append to be
+        invoked as the previous DataAppended ack is still not sent. */
+        processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled
+                .wrappedBuffer(data),
+                null));
+
+        //Since the first Ack was never sent the next append should not be written to the store.
+        verifyNoMoreInteractions(store);
+
+        //Setup mock for check behaviour after the delayed/hung dataAppended completes.
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
+                AppendProcessor.TIMEOUT)).thenReturn(result);
+        completeFirstDataAppendedAck.release(); //Now ensure the dataAppended sent
+        secondStoreAppendInvoked.await(); // wait until the next store append is invoked.
+
+        //Verify that the next store append invoked.
+        verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
+                AppendProcessor.TIMEOUT);
+        //Verify two DataAppended acks are sent out.
+        verify(connection, times(2)).send(any(DataAppended.class));
+        verify(connection).send(new DataAppended(clientId, 100, Long.MIN_VALUE));
+        verify(connection).send(new DataAppended(clientId, 200, 100));
+    }
+
     @Test
     public void testEventNumbersOldClient() {
         String streamSegmentName = "testAppendSegment";

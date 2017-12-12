@@ -78,6 +78,7 @@ public final class Config {
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
 
     //Transaction configuration
+    public static final long MIN_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.minLeaseValue");
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
     public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
 

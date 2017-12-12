@@ -127,7 +127,7 @@ public class AutoScaleTest extends AbstractScaleTests {
 
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
         log.debug("create scope status {}", createScopeStatus);
-        
+
         //create a stream
         Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);

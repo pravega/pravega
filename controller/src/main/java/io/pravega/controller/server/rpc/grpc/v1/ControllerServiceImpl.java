@@ -230,7 +230,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getLease(),
-                        request.getMaxExecutionTime(),
                         request.getScaleGracePeriod())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(getCurrentDelegationToken())

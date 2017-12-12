@@ -15,7 +15,9 @@ import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -24,9 +26,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import lombok.AccessLevel;
@@ -90,7 +90,11 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         // In other cases, esp. because lock attempt fails, we reschedule this task for execution
                         // at a later point of time.
                         if (ex != null) {
-                            Throwable error = getRealCause(ex);
+                            Throwable error = Exceptions.unwrap(ex);
+                            if (error instanceof RetriesExhaustedException) {
+                                error = Exceptions.unwrap(error.getCause());
+                            }
+
                             if (error instanceof StoreException.WriteConflictException ||
                                     error instanceof StoreException.DataNotFoundException ||
                                     error instanceof StoreException.IllegalStateException) {
@@ -247,14 +251,6 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     @Override
     public boolean containsTxn(final String scope, final String stream, final UUID txnId) {
         return map.containsKey(getKey(scope, stream, txnId));
-    }
-
-    private Throwable getRealCause(Throwable e) {
-        if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
-            return e.getCause();
-        } else {
-            return e;
-        }
     }
 
     private String getKey(final String scope, final String stream, final UUID txid) {

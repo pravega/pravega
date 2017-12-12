@@ -269,16 +269,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             synchronized (lock) {
                 previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
                 Preconditions.checkState(outstandingAppend == append,
-                        "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
-                outstandingAppend = null;
-                if (exception == null) {
-                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                 
-                } else {
-                    if (!conditionalFailed) {
-                        waitingAppends.removeAll(append.getWriterId());
-                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    } 
-                }
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
             }
       
             if (exception != null) {
@@ -292,9 +284,31 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (statsRecorder != null) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
-                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber(), previousEventNumber));
+                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
+                        previousEventNumber);
+                log.trace("Sending DataAppended : {}", dataAppendedAck);
+                connection.send(dataAppendedAck);
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+            }
+
+            /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,
+             *   - clear outstandingAppend to handle the next Append message.
+             *   - ensure latestEventNumbers and waitingAppends are updated.
+             */
+            synchronized (lock) {
+                Preconditions.checkState(outstandingAppend == append,
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
+                outstandingAppend = null;
+                if (exception == null) {
+                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
+                } else {
+                    if (!conditionalFailed) {
+                        waitingAppends.removeAll(append.getWriterId());
+                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                    }
+                }
             }
       
             pauseOrResumeReading();
