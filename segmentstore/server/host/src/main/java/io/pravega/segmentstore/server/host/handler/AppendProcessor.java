@@ -14,6 +14,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -87,6 +89,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final RequestProcessor nextRequestProcessor;
     private final Object lock = new Object();
     private final SegmentStatsRecorder statsRecorder;
+    private final DelegationTokenVerifier tokenVerifier;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -106,10 +109,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param store      The SegmentStore to send append requests to.
      * @param connection The ServerConnection to send responses to.
      * @param next       The RequestProcessor to invoke next.
+     * @param verifier    The token verifier.
      */
     @VisibleForTesting
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
-        this(store, connection, next, null, null);
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
+        this(store, connection, next, null, verifier);
     }
 
     /**
@@ -118,13 +122,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param connection    The ServerConnection to send responses to.
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
-     * @param tokenVerifier
+     * @param tokenVerifier Delegation token verifier.
      */
     AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
+        this.tokenVerifier = tokenVerifier;
     }
 
     //endregion
@@ -152,6 +157,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
+                setupAppend.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
+                    "Update Segment Attribute", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
                 .whenComplete((info, u) -> {
                     try {
@@ -322,6 +334,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
             connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.close();
+        } else if (u instanceof PravegaAuthenticationException) {
+            log.warn("Token check failed while being written by {} on segment {} ", writerId, segment);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat);

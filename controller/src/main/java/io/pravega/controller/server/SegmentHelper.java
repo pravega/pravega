@@ -86,11 +86,6 @@ public class SegmentHelper {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -136,11 +131,6 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -191,11 +181,6 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -260,11 +245,6 @@ public class SegmentHelper {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -311,11 +291,6 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -376,11 +351,6 @@ public class SegmentHelper {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -434,11 +404,6 @@ public class SegmentHelper {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -477,11 +442,6 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -524,11 +484,6 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override

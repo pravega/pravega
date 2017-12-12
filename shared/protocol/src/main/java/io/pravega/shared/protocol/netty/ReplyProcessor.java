@@ -71,7 +71,5 @@ public interface ReplyProcessor {
     
     void processingFailure(Exception error);
 
-    void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired);
-
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
 }

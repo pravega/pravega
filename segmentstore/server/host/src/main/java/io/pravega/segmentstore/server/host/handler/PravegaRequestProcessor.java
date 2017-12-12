@@ -170,6 +170,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+                readSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(0, segment,
+                    "Update Segment Attribute", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
@@ -276,6 +284,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         UUID attributeId = updateSegmentAttribute.getAttributeId();
         long newValue = updateSegmentAttribute.getNewValue();
         long expectedValue = updateSegmentAttribute.getExpectedValue();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segmentName,
+                updateSegmentAttribute.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(updateSegmentAttribute.getRequestId(), segmentName,
+                    "Update Segment Attribute", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         long trace = LoggerHelpers.traceEnter(log, "updateSegmentAttribute", updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
         segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
@@ -300,6 +316,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long requestId = getSegmentAttribute.getRequestId();
         String segmentName = getSegmentAttribute.getSegmentName();
         UUID attributeId = getSegmentAttribute.getAttributeId();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segmentName,
+                getSegmentAttribute.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(getSegmentAttribute.getRequestId(), segmentName,
+                    "Get StreamSegment Attribute", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         long trace = LoggerHelpers.traceEnter(log, "getSegmentAttribute", getSegmentAttribute);
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
                 .thenAccept(properties -> {
@@ -321,6 +345,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamSegmentInfo) {
         String segmentName = getStreamSegmentInfo.getSegmentName();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segmentName,
+                getStreamSegmentInfo.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(getStreamSegmentInfo.getRequestId(), segmentName,
+                    "Get StreamSegment Info", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
                 .thenAccept(properties -> {
                     if (properties != null) {
@@ -340,6 +372,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(request.getSegment(),
+                request.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(request.getRequestId(), request.getSegment(),
+                    "Get Transaction Info", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
                 .thenAccept(properties -> {
                     if (properties != null) {
@@ -420,6 +460,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
             log.info("Closing connection {} while performing {} due to {} ", connection, operation, u.getMessage());
+            connection.close();
+        } else if (u instanceof PravegaAuthenticationException) {
+            log.warn("Authentication error during '{}'.", operation);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", operation);

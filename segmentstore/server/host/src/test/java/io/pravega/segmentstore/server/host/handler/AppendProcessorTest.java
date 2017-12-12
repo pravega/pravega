@@ -58,7 +58,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -88,7 +88,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         InOrder verifier = Mockito.inOrder(store);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName1, clientId, store);
         processor.setupAppend(new SetupAppend(1, clientId, "", streamSegmentName1));
@@ -126,7 +126,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -159,7 +159,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -191,7 +191,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, 100, store);
         processor.setupAppend(new SetupAppend(1, clientId, "", streamSegmentName));
@@ -215,7 +215,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         try {
             processor.append(new Append(streamSegmentName, clientId, data.length, Unpooled.wrappedBuffer(data), null));
             fail();
@@ -235,7 +235,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(segment1, clientId1, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -278,7 +278,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -308,7 +308,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
                 StreamSegmentInformation.builder().name(streamSegmentName).build());
@@ -347,7 +347,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
                 StreamSegmentInformation.builder()
@@ -384,7 +384,7 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = Futures.failedFuture(new UnsupportedOperationException());

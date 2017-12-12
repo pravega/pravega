@@ -107,12 +107,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
 
         @Override
-        public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-            log.warn("Auth expired {}", authTokenExpired);
-            closeConnection(new PravegaAuthenticationException(authTokenExpired.toString()));
-        }
-
-        @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth failed {}", authTokenCheckFailed);
             closeConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
