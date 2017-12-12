@@ -82,7 +82,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
-                () -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis(), getCurrentDelegationToken()),
+                () -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver);
     }
 
@@ -231,7 +231,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(),
                         request.getLease(),
                         request.getMaxExecutionTime(),
-                        request.getScaleGracePeriod(), getCurrentDelegationToken())
+                        request.getScaleGracePeriod())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(getCurrentDelegationToken())
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))
@@ -351,19 +351,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     public boolean checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
-        PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
+        if (isAuthEnabled) {
+            PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
 
-        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel;
-        if (currentInterceptor == null) {
-            //No interceptor, means no authorization enabled
-            allowedLevel = PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+            PravegaAuthHandler.PravegaAccessControlEnum allowedLevel;
+            if (currentInterceptor == null) {
+                //No interceptor, means no authorization enabled
+                allowedLevel = PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+            } else {
+                allowedLevel = currentInterceptor.authorize(resource);
+            }
+            if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
+                return false;
+            }
+            return true;
         } else {
-            allowedLevel = currentInterceptor.authorize(resource);
+            return true;
         }
-        if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
-            return false;
-        }
-        return true;
     }
 
     public boolean checkAuthorizationWithToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
@@ -379,10 +383,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
-
-
     private String getCurrentDelegationToken() {
-        return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        if (isAuthEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
     }
-
 }

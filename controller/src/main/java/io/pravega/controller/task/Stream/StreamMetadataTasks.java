@@ -25,6 +25,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.OperationContext;
@@ -87,28 +88,32 @@ public class StreamMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
+    private final String tokenSigningKey;
     private ClientFactory clientFactory;
     private String requestStreamName;
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
+    private final boolean authEnabled;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                               final ConnectionFactory connectionFactory) {
+                               final ConnectionFactory connectionFactory, boolean authEnabled, String tokenSigningKey) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
-                connectionFactory);
+                connectionFactory, authEnabled, tokenSigningKey);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-                                ConnectionFactory connectionFactory) {
+                                ConnectionFactory connectionFactory, boolean authEnabled, String tokenSigningKey) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        this.authEnabled = authEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         this.setReady();
     }
 
@@ -125,15 +130,14 @@ public class StreamMetadataTasks extends TaskBase {
      * @param stream          stream name.
      * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
-     * @param controllerToken token to present to segmentstore.
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, String controllerToken) {
+    public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream, config, createTimestamp, controllerToken},
-                () -> createStreamBody(scope, stream, config, createTimestamp, controllerToken));
+                new Serializable[]{scope, stream, config, createTimestamp},
+                () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
     /**
@@ -616,7 +620,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
-                                                                          StreamConfiguration config, long timestamp, String controllerToken) {
+                                                                          StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
                     log.debug("{}/{} created in metadata store", scope, stream);
@@ -627,7 +631,7 @@ public class StreamMetadataTasks extends TaskBase {
                             response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
                         List<Integer> newSegments = IntStream.range(0, response.getConfiguration().getScalingPolicy()
                                 .getMinNumSegments()).boxed().collect(Collectors.toList());
-                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, controllerToken)
+                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
@@ -795,10 +799,20 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentHelper,
                 executor,
                 context,
-                connectionFactory);
+                connectionFactory,
+                authEnabled,
+                tokenSigningKey);
     }
 
     @Override
     public void close() throws Exception {
+    }
+
+    public String retrieveDelegationToken() {
+        if (authEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
     }
 }

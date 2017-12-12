@@ -131,7 +131,7 @@ public class ControllerClusterListenerTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory);
+                segmentHelper, executor, host.getHostId(), connectionFactory, false, "");
         txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
                 new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
@@ -207,7 +207,7 @@ public class ControllerClusterListenerTest {
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory);
+                segmentHelper, executor, host.getHostId(), connectionFactory, false, "");
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored

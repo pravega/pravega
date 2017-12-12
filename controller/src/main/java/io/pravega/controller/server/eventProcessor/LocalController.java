@@ -94,7 +94,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis(), PravegaInterceptor.retrieveDelegationToken(tokenSigningKey)).thenApply(x -> {
+        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -288,7 +288,7 @@ public class LocalController implements Controller {
     public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
                                                             final long scaleGracePeriod) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey))
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(pair -> {
                     return new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey());
                 });

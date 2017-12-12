@@ -89,10 +89,10 @@ public class IntermittentCnxnFailureTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory);
+                executor, "host", connectionFactory, false, "");
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory);
+                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, false, "");
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
@@ -116,7 +116,7 @@ public class IntermittentCnxnFailureTest {
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(configuration1, System.currentTimeMillis(), "");
+        controllerService.createStream(configuration1, System.currentTimeMillis());
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException

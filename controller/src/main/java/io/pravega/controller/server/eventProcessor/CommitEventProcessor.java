@@ -17,7 +17,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -25,14 +24,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
 import io.pravega.shared.controller.event.CommitEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This actor processes commit txn events.
@@ -100,8 +98,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 return CompletableFuture.completedFuture(null);
             } else if (epoch == pair.getKey()) {
                 // If the transaction's epoch is same as the stream's current epoch, commit it.
-                //TODO: Generate and get proper token
-                return completeCommit(scope, stream, epoch, txnId, context, PravegaInterceptor.retrieveDelegationToken(""));
+                return completeCommit(scope, stream, epoch, txnId, context, this.streamMetadataTasks.retrieveDelegationToken());
             } else {
                 // Otherwise, postpone commit operation until the stream transitions to next epoch.
                 return postponeCommitEvent(event);

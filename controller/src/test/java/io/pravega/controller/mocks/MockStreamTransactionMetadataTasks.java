@@ -44,8 +44,10 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                               final SegmentHelper segmentHelper,
                                               final ScheduledExecutorService executor,
                                               final String hostId,
-                                              final ConnectionFactory connectionFactory) {
-        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
+                                              final ConnectionFactory connectionFactory,
+                                              boolean authEnabled,
+                                              String tokenSigningKey) {
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, authEnabled, tokenSigningKey);
         this.streamMetadataStore = streamMetadataStore;
     }
 
@@ -54,7 +56,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
                                                                                       final long lease, final long maxExecutionTime,
                                                                                       final long scaleGracePeriod,
-                                                                                      final OperationContext contextOpt, String delegationToken) {
+                                                                                      final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final UUID txnId = UUID.randomUUID();

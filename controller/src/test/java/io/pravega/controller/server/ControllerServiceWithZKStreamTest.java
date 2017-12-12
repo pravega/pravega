@@ -92,7 +92,7 @@ public class ControllerServiceWithZKStreamTest {
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory);
+                executor, "host", connectionFactory, false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -103,7 +103,7 @@ public class ControllerServiceWithZKStreamTest {
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "host", connectionFactory);
+                segmentHelperMock, executor, "host", connectionFactory, false, "");
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
@@ -129,7 +129,7 @@ public class ControllerServiceWithZKStreamTest {
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start, "").get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM).get();

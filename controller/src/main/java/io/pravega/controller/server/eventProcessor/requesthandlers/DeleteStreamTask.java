@@ -11,17 +11,15 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -73,8 +71,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         log.debug("{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
                 .thenComposeAsync(count ->
-                        //TODO: Find a better way to propogate the token
-                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count, PravegaInterceptor.retrieveDelegationToken(""))
+                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count, streamMetadataTasks.retrieveDelegationToken())
                             .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
                                 executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
