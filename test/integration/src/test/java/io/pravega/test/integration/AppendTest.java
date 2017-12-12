@@ -188,7 +188,7 @@ public class AppendTest {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh)));
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh), null));
         return channel;
     }
 

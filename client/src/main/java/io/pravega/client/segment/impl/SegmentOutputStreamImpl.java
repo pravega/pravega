@@ -410,12 +410,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         @Override
-        public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-            log.warn("Auth expired {}", authTokenExpired);
-            failConnection(new PravegaAuthenticationException(authTokenExpired.toString()));
-        }
-
-        @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth failed {}", authTokenCheckFailed);
             failConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));

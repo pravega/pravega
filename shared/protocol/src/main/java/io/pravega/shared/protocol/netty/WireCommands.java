@@ -1461,27 +1461,4 @@ public final class WireCommands {
             return new AuthTokenCheckFailed(requestId);
         }
     }
-
-    @Data
-    public static final class AuthTokenExpired implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.SEGMENT_AUTH_TOKEN_EXPIRED;
-        final long requestId;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.authTokenExpired(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            return new AuthTokenExpired(requestId);
-        }
-    }
-
-
 }

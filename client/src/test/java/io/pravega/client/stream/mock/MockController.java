@@ -211,11 +211,6 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -252,11 +247,6 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -323,11 +313,6 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
-            }
-
-            @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
             }
@@ -372,11 +357,6 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override
@@ -427,11 +407,6 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenExpired.toString()));
             }
 
             @Override

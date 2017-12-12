@@ -123,11 +123,6 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
 
         @Override
-        public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
-            closeConnection(new PravegaAuthenticationException(authTokenExpired.toString()));
-        }
-
-        @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             closeConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
         }
