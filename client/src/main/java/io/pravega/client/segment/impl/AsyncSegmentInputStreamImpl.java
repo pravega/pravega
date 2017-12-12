@@ -104,7 +104,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             log.warn("Processing failure: ", error);
             closeConnection(error);
         }
-        
+
+        @Override
+        public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+            //TODO: Fail the connection with auth failed.
+        }
+
+        @Override
+        public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+            //TODO: Propagate the error.
+        }
+
         private void checkSegment(String segment) {
             Preconditions.checkState(segmentId.getScopedName().equals(segment),
                     "Operating on segmentId {} but received sealed for segment {}",

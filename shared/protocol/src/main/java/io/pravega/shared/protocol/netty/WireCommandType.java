@@ -87,6 +87,9 @@ public enum WireCommandType {
     SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsTruncated::readFrom),
     OPERATION_UNSUPPORTED(57, WireCommands.OperationUnsupported::readFrom),
 
+    SEGMENT_AUTH_TOKEN_EXPIRED(60, WireCommands.AuthTokenExpired::readFrom),
+    AUTH_TOKEN_CHECK_FAILED(61, WireCommands.AuthTokenCheckFailed::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;

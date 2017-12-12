@@ -26,6 +26,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -405,6 +406,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void processingFailure(Exception error) {
             failConnection(error);
+        }
+
+        @Override
+        public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+            //TODO: Fail the connection with auth failed.
+        }
+
+        @Override
+        public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+            //TODO: Propagate the error.
         }
     }
 
