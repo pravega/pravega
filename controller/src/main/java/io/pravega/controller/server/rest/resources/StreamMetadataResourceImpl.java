@@ -127,8 +127,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
-        //TODO: Retrieve token from headers and create an auth object.
-        controllerService.createStream(streamConfiguration, System.currentTimeMillis(), "")
+        //TODO: Retrieve token from headers and authenticate.
+        controllerService.createStream(streamConfiguration, System.currentTimeMillis())
                 .thenApply(streamStatus -> {
                     Response resp = null;
                     if (streamStatus.getStatus() == CreateStreamStatus.Status.SUCCESS) {

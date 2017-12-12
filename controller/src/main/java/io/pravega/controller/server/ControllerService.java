@@ -88,7 +88,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
-                                                              final long createTimestamp, String controllerToken) {
+                                                              final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         try {
@@ -102,7 +102,7 @@ public class ControllerService {
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
-                                                createTimestamp, controllerToken)
+                                                createTimestamp)
                 .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
@@ -253,11 +253,11 @@ public class ControllerService {
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease,
                                                                                final long maxExecutionPeriod,
-                                                                               final long scaleGracePeriod, String delegationToken) {
+                                                                               final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null, delegationToken)
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<Segment> segments = pair.getValue();

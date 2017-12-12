@@ -78,25 +78,21 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     public static String retrieveDelegationToken(String tokenSigningKey) {
-        if (AUTH_ENABLED) {
-            PravegaInterceptor interceptor;
-            if ((interceptor = getCurrentInterceptor()) != null) {
-                return interceptor.getDelegationToken();
-            } else {
-                Map<String, Object> claims = new HashMap();
-
-                claims.put("*", String.valueOf(READ_UPDATE));
-
-                return Jwts.builder()
-                           .setSubject("segmentstoreresource")
-                           .setAudience("segmentstore")
-                           .setClaims(claims)
-                           .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                           .compact();
-            }
+        PravegaInterceptor interceptor;
+        if ((interceptor = getCurrentInterceptor()) != null) {
+            return interceptor.getDelegationToken();
         } else {
-            return "";
-        }
+            Map<String, Object> claims = new HashMap();
+
+            claims.put("*", String.valueOf(READ_UPDATE));
+
+            return Jwts.builder()
+                       .setSubject("segmentstoreresource")
+                       .setAudience("segmentstore")
+                       .setClaims(claims)
+                       .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                       .compact();
+            }
     }
 
     public void setDelegationToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel, String tokenSigningKey) {

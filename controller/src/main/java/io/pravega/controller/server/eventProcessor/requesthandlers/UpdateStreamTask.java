@@ -12,18 +12,16 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamProperty;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -75,8 +73,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream, StreamConfiguration newConfig) {
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                //TODO: get Proper token
-                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy(), PravegaInterceptor.retrieveDelegationToken("")))
+                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy(),
+                        this.streamMetadataTasks.retrieveDelegationToken()))
                 .handle((res, ex) -> {
                     if (ex == null) {
                         return true;

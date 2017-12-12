@@ -116,10 +116,10 @@ public class ScaleRequestHandlerTest {
         connectionFactory = new ConnectionFactoryImpl(false);
         clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory);
+                executor, hostId, connectionFactory, false, "");
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, hostId, connectionFactory);
+                segmentHelper, executor, hostId, connectionFactory, false, "");
 
         long createTimestamp = System.currentTimeMillis();
 
@@ -127,7 +127,7 @@ public class ScaleRequestHandlerTest {
         // mock pravega
         // create a stream
         streamStore.createScope(scope).get();
-        streamMetadataTasks.createStream(scope, stream, config, createTimestamp, "").get();
+        streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 
     @After

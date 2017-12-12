@@ -13,6 +13,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -69,6 +70,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
+    private final boolean authorizationEnabled;
+    private final String tokenSigningKey;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -84,13 +87,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -101,7 +108,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory, boolean authorizationEnabled, String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -109,6 +116,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -117,9 +126,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory);
+                TimeoutServiceConfig.defaultConfig(), connectionFactory, authorizationEnabled, tokenSigningKey);
     }
 
     protected void setReady() {
@@ -186,7 +197,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
-     * @param delegationToken    Delegation token to pass on to the segmentstore.
      * @return transaction id.
      */
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
@@ -194,10 +204,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                       final long lease,
                                                                                       final long maxExecutionPeriod,
                                                                                       final long scaleGracePeriod,
-                                                                                      final OperationContext contextOpt, String delegationToken) {
+                                                                                      final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context, delegationToken);
+            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context);
         }, executor);
     }
 
@@ -287,7 +297,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param maxExecutionPeriod  maximum amount of time for which txn may remain open.
      * @param scaleGracePeriod    amount of time for which txn may remain open after scale operation is initiated.
      * @param ctx                 context.
-     * @param delegationToken
      * @return                    identifier of the created txn.
      */
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
@@ -295,7 +304,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final long lease,
                                                                                    final long maxExecutionPeriod,
                                                                                    final long scaleGracePeriod,
-                                                                                   final OperationContext ctx, String delegationToken) {
+                                                                                   final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease, maxExecutionPeriod, scaleGracePeriod);
 
@@ -328,7 +337,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
         CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                notifyTxnCreation(scope, stream, activeSegments, txnId, delegationToken), executor).whenComplete((v, e) ->
+                notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
                 // Method notifyTxnCreation ensures that notification completes
                 // even in the presence of n/w or segment store failures.
                 log.debug("Txn={}, notified segments stores", txnId));
@@ -604,21 +613,21 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId, String delegationToken) {
+                                                      final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId, delegationToken))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final int segmentNumber, final UUID txnId, String delegationToken) {
+                                                      final int segmentNumber, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, delegationToken), executor);
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -633,6 +642,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final String stream,
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+    }
+
+    public String retrieveDelegationToken() {
+        if (authorizationEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
     }
 
     @Override

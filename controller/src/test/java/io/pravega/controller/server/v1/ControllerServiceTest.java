@@ -86,9 +86,9 @@ public class ControllerServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
+                taskMetadataStore, segmentHelper, executor, "host", connectionFactory, false, "");
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, segmentHelper, executor, "host", connectionFactory);
+                hostStore, segmentHelper, executor, "host", connectionFactory, false, "");
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(), executor, null);

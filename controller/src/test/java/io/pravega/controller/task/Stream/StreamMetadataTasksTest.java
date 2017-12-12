@@ -130,10 +130,10 @@ public class StreamMetadataTasksTest {
         connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory));
+                executor, "host", connectionFactory,  false, ""));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory);
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory, false, "");
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),

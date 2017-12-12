@@ -125,7 +125,8 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
 
-        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory);
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory,
+                false, "");
 
         String scope = "scope1";
         String streamName = "stream1";

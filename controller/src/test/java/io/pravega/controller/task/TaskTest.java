@@ -99,7 +99,7 @@ public class TaskTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(false));
+                executor, HOSTNAME, new ConnectionFactoryImpl(false), false, "");
     }
 
     @Before
@@ -153,11 +153,11 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), "").join();
+        CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
         assertTrue(status.equals(CreateStreamStatus.Status.STREAM_EXISTS));
         streamStore.createScope(SCOPE);
         CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
-                System.currentTimeMillis(), "").join();
+                System.currentTimeMillis()).join();
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
@@ -171,7 +171,7 @@ public class TaskTest {
 
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
-        final TaskData taskData = new TaskData("createStream", "1.0", new Serializable[]{scope, stream, configuration, timestamp, ""});
+        final TaskData taskData = new TaskData("createStream", "1.0", new Serializable[]{scope, stream, configuration, timestamp});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -214,12 +214,12 @@ public class TaskTest {
 
         // Create objects.
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
+                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  false, "");
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
         // Create stream test.
-        completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis(), ""),
+        completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
@@ -249,11 +249,11 @@ public class TaskTest {
 
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
-        final TaskData taskData1 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream1, config1, timestamp1, ""});
+        final TaskData taskData1 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream1, config1, timestamp1});
 
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
-        final TaskData taskData2 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream2, config2, timestamp2, ""});
+        final TaskData taskData2 = new TaskData("createStream", "1.0", new Serializable[]{scope, stream2, config2, timestamp2});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);

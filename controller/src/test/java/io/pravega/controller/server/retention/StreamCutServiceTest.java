@@ -62,7 +62,8 @@ public abstract class StreamCutServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(false);
 
-        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
+        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
+               false, "");
         service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
         service.startAsync();
         service.awaitRunning();

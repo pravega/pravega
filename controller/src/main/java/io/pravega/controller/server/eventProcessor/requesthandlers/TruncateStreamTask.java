@@ -11,20 +11,18 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing truncation operations received from requeststream.
@@ -59,8 +57,8 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                     if (!property.isUpdating()) {
                         throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                     } else {
-                        //TODO: Get proper token
-                        return processTruncate(scope, stream, property.getProperty(), context, PravegaInterceptor.retrieveDelegationToken(""));
+                        return processTruncate(scope, stream, property.getProperty(), context,
+                                this.streamMetadataTasks.retrieveDelegationToken());
                     }
                 });
     }

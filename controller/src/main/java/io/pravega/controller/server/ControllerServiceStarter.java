@@ -149,9 +149,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             SegmentHelper segmentHelper = new SegmentHelper();
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
+                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory,
+                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory);
+                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory,
+                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
 
             streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
             log.info("starting auto retention service asynchronously");
