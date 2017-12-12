@@ -303,7 +303,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public Transaction<Type> beginTxn() {
         TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime(),
-                                                                                      config.getTransactionTimeoutTime(),
                                                                                       config.getTransactionTimeoutScaleGracePeriod()),
                                                          RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();

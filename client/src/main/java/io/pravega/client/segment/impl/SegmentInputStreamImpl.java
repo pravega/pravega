@@ -144,6 +144,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         ByteBuffer result = ByteBuffer.allocate(length);
         offset += buffer.read(result);
         while (result.hasRemaining()) {
+            issueRequestIfNeeded();
             handleRequest();
             offset += buffer.read(result);
         }
@@ -181,7 +182,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      * Issues a request if there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() {
-        if (!receivedEndOfSegment && buffer.capacityAvailable() > readLength) {
+        if (!receivedEndOfSegment && buffer.capacityAvailable() >= readLength) {
             if (outstandingRequest == null) {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {
@@ -200,6 +201,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public void close() {
         log.trace("Closing {}", this);
+        if (outstandingRequest != null) {
+            log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
+            outstandingRequest.cancel(true);
+        }
         asyncInput.close();
     }
 

@@ -185,8 +185,9 @@ public class MultiSegmentStoreTest {
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerUri);
-        groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().startingTime(0).build(),
-                                       Collections.singleton(stream));
+        groupManager.createReaderGroup(readerGroup,
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
+                Collections.singleton(stream));
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

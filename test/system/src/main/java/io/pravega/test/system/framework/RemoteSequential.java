@@ -119,7 +119,7 @@ public class RemoteSequential implements TestExecutor {
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 
-        run.setCpus(1.5); //CPU shares.
+        run.setCpus(0.5); //CPU shares.
         run.setMem(512.0); //amount of memory required for running test in MB.
         run.setDisk(50.0);
         run.setEnv(env);
