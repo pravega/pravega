@@ -83,7 +83,6 @@ public class ReaderGroupStateTest {
         assertEquals(3L, latestPosition.get().get(getStream("S2")).get(getSegment("S2")).longValue());
     }
 
-
     private Segment getSegment(String streamName) {
         return new Segment(SCOPE, streamName, 0);
     }
