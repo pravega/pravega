@@ -76,7 +76,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         log.info("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
-                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
+                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken))
                 .collect(Collectors.toList()));
     }
 
