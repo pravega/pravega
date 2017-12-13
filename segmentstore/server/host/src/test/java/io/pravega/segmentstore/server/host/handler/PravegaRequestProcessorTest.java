@@ -276,14 +276,14 @@ public class PravegaRequestProcessorTest {
                                                                                                      txnid)));
 
         txnid = UUID.randomUUID();
-        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, "", txnid));
+        processor.createTransaction(new WireCommands.CreateTransaction(1, "", streamSegmentName, txnid));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
         order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, "", txnid));
         order.verify(connection).send(Mockito.argThat(t -> {
             return t instanceof TransactionInfo && ((TransactionInfo) t).exists();
         }));
-        processor.abortTransaction(new WireCommands.AbortTransaction(3, streamSegmentName, "", txnid));
+        processor.abortTransaction(new WireCommands.AbortTransaction(3, "", streamSegmentName, txnid));
         order.verify(connection).send(new WireCommands.TransactionAborted(3, streamSegmentName, txnid));
         processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, "", txnid));
         order.verify(connection)
