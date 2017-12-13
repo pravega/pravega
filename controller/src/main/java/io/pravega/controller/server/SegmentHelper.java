@@ -152,7 +152,7 @@ public class SegmentHelper {
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), delegationToken, offset);
+                delegationToken, Segment.getScopedName(scope, stream, segmentNumber), offset);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
