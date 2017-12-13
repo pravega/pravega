@@ -55,7 +55,7 @@ public class LocalControllerTest {
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService, false,"");
+        this.testController = new LocalController(this.mockControllerService, false, "");
         this.executor = Executors.newSingleThreadScheduledExecutor();
     }
 
