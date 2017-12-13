@@ -48,10 +48,12 @@ public class LocalController implements Controller {
 
     private ControllerService controller;
     private final String tokenSigningKey;
+    private final boolean authorizationEnabled;
 
-    public LocalController(ControllerService controller, String tokenSigningKey) {
+    public LocalController(ControllerService controller, boolean authorizationEnabled, String tokenSigningKey) {
         this.controller = controller;
         this.tokenSigningKey = tokenSigningKey;
+        this.authorizationEnabled = authorizationEnabled;
     }
 
     @Override
@@ -281,7 +283,7 @@ public class LocalController implements Controller {
         for (SegmentRange r : ranges) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        return new StreamSegments(rangeMap, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey));
+        return new StreamSegments(rangeMap, retrieveDelegationToken());
     }
 
     @Override
@@ -335,7 +337,7 @@ public class LocalController implements Controller {
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
-                    return new StreamSegmentsWithPredecessors(map, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey));
+                    return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
     }
 
@@ -360,8 +362,20 @@ public class LocalController implements Controller {
     public void close() {
     }
 
+    public String retrieveDelegationToken() {
+        if (authorizationEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
+    }
+
     @Override
     public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
-        return CompletableFuture.completedFuture(PravegaInterceptor.retrieveDelegationToken(tokenSigningKey));
+        String retVal = "";
+        if (authorizationEnabled) {
+            retVal = PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        }
+        return CompletableFuture.completedFuture(retVal);
     }
 }

@@ -230,7 +230,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         long traceId = LoggerHelpers.traceEnter(log, "getReaderGroup");
 
         //TODO: Use a single local controller object.
-        LocalController controller = new LocalController(controllerService, "");
+        //TODO: get a proper security context.
+        LocalController controller = new LocalController(controllerService, false, "");
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, controller,
                 new ClientFactoryImpl(scopeName, controller), new ConnectionFactoryImpl(false));
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();

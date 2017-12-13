@@ -140,12 +140,6 @@ project('shared:protocol') {
 // Use the osdetector-gradle-plugin
 apply plugin: "com.google.osdetector"
 
-def tcnative_classifier = osdetector.classifier;
-// Fedora variants use a different soname for OpenSSL than other linux distributions
-// (see http://netty.io/wiki/forked-tomcat-native.html).
-if (osdetector.os == "linux" && osdetector.release.isLike("fedora")) {
-    tcnative_classifier += "-fedora";
-}
 
 project('client') {
     dependencies {
@@ -157,7 +151,9 @@ project('client') {
         compile "io.grpc:grpc-all:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
-        compile 'io.netty:netty-tcnative:2.0.6.Final:' + tcnative_classifier
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')
@@ -447,7 +443,9 @@ project('controller') {
         // https://mvnrepository.com/artifact/org.jasypt/jasypt
         compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
         compile 'io.jsonwebtoken:jjwt:0.9.0'
-        compile 'io.netty:netty-tcnative:2.0.6.Final:' + tcnative_classifier
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
