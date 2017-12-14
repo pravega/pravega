@@ -22,10 +22,12 @@ public class PravegaAuthManager {
     }
 
     public void registerInterceptors(ServerBuilder<?> builder) {
-        ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
-        for ( PravegaAuthHandler handler : loader) {
-            handler.setServerConfig(serverConfig);
-            builder.intercept(new PravegaInterceptor(handler));
+        if (serverConfig.isAuthorizationEnabled()) {
+            ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
+            for (PravegaAuthHandler handler : loader) {
+                handler.setServerConfig(serverConfig);
+                builder.intercept(new PravegaInterceptor(handler));
+            }
         }
     }
 }
