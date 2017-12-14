@@ -156,6 +156,9 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
             log.info("Awaiting termination of ControllerServiceStarter");
             starter.awaitTerminated();
+        } catch (Exception e) {
+            log.error("Controller Service Main thread exited exceptionally", e);
+            throw e;
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "run", traceId);
         }
