@@ -10,10 +10,9 @@
 package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor
 public class ExtendedS3SegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
