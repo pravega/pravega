@@ -888,7 +888,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Verify that in the end, the contents of the parents is as expected.
-        verifyParentSegmentData(parentData, context);
+        verifySegmentData(parentData.toByteArray(), context);
 
         // Verify calls to completeMerge.
         val expectedMergeOpSources = Arrays.stream(context.transactionAggregators).map(a -> a.getMetadata().getId()).collect(Collectors.toSet());
@@ -1655,9 +1655,55 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         flushAllSegments(context);
 
         // Verify that in the end, the contents of the parents is as expected.
-        verifyParentSegmentData(parentData, context);
+        verifySegmentData(parentData.toByteArray(), context);
         AssertExtensions.assertListEquals("Unexpected callback calls to completeMerge for already processed operations.",
                 expectedMergeOpAck, actualMergeOpAck, Map.Entry::equals);
+    }
+
+    /**
+     * Tests a scenario where data that is about to be added already partially exists in Storage. This would most likely
+     * happen in a recovery situation, where we committed a part of an append operation before failing over.
+     */
+    @Test
+    public void testRecoveryPartialWrite() throws Exception {
+        final int writeLength = 1024;
+        final int partialWriteLength = writeLength / 2;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+
+        // Store written data by segment - so we can check it later.
+        ArrayList<StorageOperation> operations = new ArrayList<>();
+
+        byte[] writtenData = new byte[writeLength];
+        val rnd = new Random(0);
+        rnd.nextBytes(writtenData);
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(context.segmentAggregator.getMetadata().getId(), writtenData, context);
+        operations.add(appendOp);
+        operations.add(generateSealAndUpdateMetadata(context.segmentAggregator.getMetadata().getId(), context));
+
+        // Write half of the data to Storage.
+        context.storage.write(
+                writeHandle(context.segmentAggregator.getMetadata().getName()),
+                0,
+                new ByteArrayInputStream(writtenData),
+                partialWriteLength,
+                TIMEOUT).join();
+
+        // Initialize the SegmentAggregator. This should pick up the half-written operation.
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+        Assert.assertEquals("", partialWriteLength, context.segmentAggregator.getMetadata().getStorageLength());
+
+        // Add all operations we had so far.
+        for (StorageOperation o : operations) {
+            context.segmentAggregator.add(o);
+        }
+
+        flushAllSegments(context);
+
+        // Verify that in the end, the contents of the parents is as expected.
+        verifySegmentData(writtenData, context);
     }
 
     //endregion
@@ -1804,8 +1850,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context) {
-        byte[] expectedData = parentData.toByteArray();
+    private void verifySegmentData(byte[] expectedData, TestContext context) {
         byte[] actualData = new byte[expectedData.length];
         long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
