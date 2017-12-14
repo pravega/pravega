@@ -44,6 +44,8 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -77,6 +79,19 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 @Slf4j
 public class FileSystemStorage implements SyncStorage {
     //region members
+
+    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.GROUP_READ,
+                    PosixFilePermission.OTHERS_READ)));
+
+    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.GROUP_READ,
+                    PosixFilePermission.OTHERS_READ)));
 
     private final FileSystemStorageConfig config;
     private final AtomicBoolean closed;
@@ -150,6 +165,11 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @Override
+    public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doUnseal(handle));
+    }
+
+    @Override
     public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
         execute(targetHandle.getSegmentName(), () -> doConcat(targetHandle, offset, sourceSegment));
     }
@@ -201,11 +221,11 @@ public class FileSystemStorage implements SyncStorage {
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
-            LoggerHelpers.traceLeave(log, "openRead", traceId);
+            LoggerHelpers.traceLeave(log, "openWrite", traceId);
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
             LoggerHelpers.traceLeave(log, "openWrite", traceId);
-            return doOpenRead(streamSegmentName);
+            return FileSystemSegmentHandle.readHandle(streamSegmentName);
         }
     }
 
@@ -259,13 +279,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentProperties doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        Set<PosixFilePermission> perms = new HashSet<>();
-        // add permission as rw-r--r-- 644
-        perms.add(PosixFilePermission.OWNER_WRITE);
-        perms.add(PosixFilePermission.OWNER_READ);
-        perms.add(PosixFilePermission.GROUP_READ);
-        perms.add(PosixFilePermission.OTHERS_READ);
-        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         Files.createDirectories(path.getParent());
@@ -325,13 +339,15 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Set<PosixFilePermission> perms = new HashSet<>();
-        // add permission as r--r--r-- 444
-        perms.add(PosixFilePermission.OWNER_READ);
-        perms.add(PosixFilePermission.GROUP_READ);
-        perms.add(PosixFilePermission.OTHERS_READ);
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), perms);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_ONLY_PERMISSION);
         LoggerHelpers.traceLeave(log, "seal", traceId);
+        return null;
+    }
+
+    private Void doUnseal(SegmentHandle handle) throws IOException {
+        long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_WRITE_PERMISSION);
+        LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }
 
