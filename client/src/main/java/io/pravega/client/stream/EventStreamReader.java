@@ -54,7 +54,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      *         been deleted.
      * @throws NoSuchEventException Reader was not able to fetch the event.
      */
-    T read(EventPointer pointer) throws NoSuchEventException;
+    T fetchEvent(EventPointer pointer) throws NoSuchEventException;
 
     /**
      * Close the reader. No further actions may be performed. If this reader is part of a

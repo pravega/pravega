@@ -105,7 +105,7 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
                 ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                 controllerExecutorService);
 
-        testState = new TestState();
+        testState = new TestState(false);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -120,6 +120,7 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -127,27 +128,29 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
     }
 
-    @Test
+    @Test(timeout = 15 * 60 * 1000)
     public void multiReaderWriterWithFailOverTest() throws Exception {
+        try {
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+            //run the failover test
+            performFailoverTest();
 
-        //run the failover test
-        performFailoverTest();
+            stopWriters();
+            stopReaders();
+            validateResults();
 
-        stopWriters();
-        stopReaders();
-        validateResults();
+            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
-        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-
-        log.info("Test MultiReaderWriterWithFailOver succeeds");
+            log.info("Test MultiReaderWriterWithFailOver succeeds");
+        } finally {
+            testState.checkForAnomalies();
+        }
     }
 }
