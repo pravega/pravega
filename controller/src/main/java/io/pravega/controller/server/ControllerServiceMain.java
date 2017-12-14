@@ -9,15 +9,15 @@
  */
 package io.pravega.controller.server;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import com.google.common.util.concurrent.Monitor;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.util.ZKUtils;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.google.common.util.concurrent.Monitor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -102,60 +102,62 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "run");
         try {
-            // Create store client.
-            log.info("Creating store client");
-            storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+            while (isRunning()) {
+                // Create store client.
+                log.info("Creating store client");
+                storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
-            boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
-                    serviceConfig.isControllerClusterListenerEnabled();
+                boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
+                        serviceConfig.isControllerClusterListenerEnabled();
 
-            CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
-            if (hasZkConnection) {
-                CuratorFramework client = (CuratorFramework) storeClient.getClient();
+                CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
+                if (hasZkConnection) {
+                    CuratorFramework client = (CuratorFramework) storeClient.getClient();
 
-                log.info("Awaiting ZK client connection to ZK server");
-                client.blockUntilConnected();
+                    log.info("Awaiting ZK client connection to ZK server");
+                    client.blockUntilConnected();
 
-                // Await ZK session expiry.
-                log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
-                client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
-            }
-
-            // Start controller services.
-            starter = starterFactory.apply(serviceConfig, storeClient);
-            log.info("Starting controller services");
-            notifyServiceStateChange(ServiceState.STARTING);
-            starter.startAsync();
-
-            log.info("Awaiting controller services start");
-            starter.awaitRunning();
-
-            if (hasZkConnection) {
-                // At this point, wait until either of the two things happen
-                // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
-                // 2. This ControllerServiceMain instance is stopped by invoking stopAsync() method,
-                //    i.e., serviceStopFuture completes.
-                CompletableFuture.anyOf(sessionExpiryFuture, this.serviceStopFuture).join();
-
-                // Problem of curator automatically recreating ZK client on session expiry is mitigated by
-                // employing a custom ZookeeperFactory that always returns the same ZK client to curator
-
-                // Once ZK session expires or once ControllerServiceMain is externally stopped,
-                // stop ControllerServiceStarter.
-                if (sessionExpiryFuture.isDone()) {
-                    log.info("ZK session expired");
-                    storeClient.close();
+                    // Await ZK session expiry.
+                    log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
+                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
                 }
-            } else {
-                this.serviceStopFuture.join();
+
+                // Start controller services.
+                starter = starterFactory.apply(serviceConfig, storeClient);
+                log.info("Starting controller services");
+                notifyServiceStateChange(ServiceState.STARTING);
+                starter.startAsync();
+
+                log.info("Awaiting controller services start");
+                starter.awaitRunning();
+
+                if (hasZkConnection) {
+                    // At this point, wait until either of the two things happen
+                    // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
+                    // 2. This ControllerServiceMain instance is stopped by invoking stopAsync() method,
+                    //    i.e., serviceStopFuture completes.
+                    CompletableFuture.anyOf(sessionExpiryFuture, this.serviceStopFuture).join();
+
+                    // Problem of curator automatically recreating ZK client on session expiry is mitigated by
+                    // employing a custom ZookeeperFactory that always returns the same ZK client to curator
+
+                    // Once ZK session expires or once ControllerServiceMain is externally stopped,
+                    // stop ControllerServiceStarter.
+                    if (sessionExpiryFuture.isDone()) {
+                        log.info("ZK session expired");
+                        storeClient.close();
+                    }
+                } else {
+                    this.serviceStopFuture.join();
+                }
+
+                log.info("Stopping ControllerServiceStarter");
+                notifyServiceStateChange(ServiceState.PAUSING);
+                starter.stopAsync();
+
+                log.info("Awaiting termination of ControllerServiceStarter");
+                starter.awaitTerminated();
             }
-
-            log.info("Stopping ControllerServiceStarter");
-            notifyServiceStateChange(ServiceState.PAUSING);
-            starter.stopAsync();
-
-            log.info("Awaiting termination of ControllerServiceStarter");
-            starter.awaitTerminated();
         } catch (Exception e) {
             log.error("Controller Service Main thread exited exceptionally", e);
             throw e;
