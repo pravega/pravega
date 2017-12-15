@@ -390,7 +390,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             // The given operation begins before the AggregatedAppendOperation. This is likely due to it having been
             // partially written to Storage prior to some recovery event. We must make sure we only include the part that
             // has not yet been written.
-            remainingLength -= aggregatedAppend.getLastStreamSegmentOffset() - operation.getStreamSegmentOffset();
+            long delta = aggregatedAppend.getLastStreamSegmentOffset() - operation.getStreamSegmentOffset();
+            remainingLength -= delta;
+            log.debug("Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage.", this.traceObjectId, delta, operation);
         }
 
         while (remainingLength > 0) {
