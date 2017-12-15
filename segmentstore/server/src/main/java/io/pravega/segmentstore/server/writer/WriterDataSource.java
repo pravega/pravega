@@ -80,13 +80,6 @@ interface WriterDataSource {
     long getClosestValidTruncationPoint(long operationSequenceNumber);
 
     /**
-     * Marks the StreamSegment as deleted in the Container Metadata.
-     *
-     * @param streamSegmentName The name of the StreamSegment to delete.
-     */
-    void deleteStreamSegment(String streamSegmentName);
-
-    /**
      * Gets the StreamSegmentMetadata mapped to the given StreamSegment Id.
      *
      * @param streamSegmentId The Id of the StreamSegment to query for.

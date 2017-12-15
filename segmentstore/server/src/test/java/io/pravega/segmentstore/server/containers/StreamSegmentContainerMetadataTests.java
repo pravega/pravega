@@ -221,7 +221,9 @@ public class StreamSegmentContainerMetadataTests {
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testDeleteStreamSegment() {
         final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
+        final int alreadyDeletedTransactionFrequency = 11;
         ArrayList<Long> segmentIds = new ArrayList<>();
+        HashSet<Long> deletedStreamSegmentIds = new HashSet<>();
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
             segmentIds.add(segmentId);
@@ -229,7 +231,15 @@ public class StreamSegmentContainerMetadataTests {
             for (long j = 0; j < TRANSACTIONS_PER_SEGMENT_COUNT; j++) {
                 final long transactionId = segmentIds.size();
                 segmentIds.add(transactionId);
-                m.mapStreamSegmentId(getName(transactionId), transactionId, segmentId);
+                val tm = m.mapStreamSegmentId(getName(transactionId), transactionId, segmentId);
+                if (segmentIds.size() % alreadyDeletedTransactionFrequency == 0) {
+                    // Mark this transaction as already deleted in Storage.
+                    tm.markDeleted();
+                    deletedStreamSegmentIds.add(transactionId);
+                } else if (segmentIds.size() % alreadyDeletedTransactionFrequency == 1) {
+                    // Decoy: this is merged, but not in Storage.
+                    tm.markMerged();
+                }
             }
         }
 
@@ -254,7 +264,6 @@ public class StreamSegmentContainerMetadataTests {
         }
 
         // Delete stand-alone StreamSegments (and verify Transactions are also deleted).
-        Collection<Long> deletedStreamSegmentIds = new HashSet<>();
         for (int index : streamSegmentsToDelete) {
             long segmentId = segmentIds.get(index);
             String name = m.getStreamSegmentMetadata(segmentId).getName();
@@ -263,8 +272,10 @@ public class StreamSegmentContainerMetadataTests {
             deletedStreamSegmentIds.add(segmentId);
             for (int transIndex = 0; transIndex < TRANSACTIONS_PER_SEGMENT_COUNT; transIndex++) {
                 long transactionId = segmentIds.get(index + transIndex + 1);
-                deletedStreamSegmentIds.add(transactionId);
-                expectedDeletedSegmentNames.add(m.getStreamSegmentMetadata(transactionId).getName());
+                if (deletedStreamSegmentIds.add(transactionId)) {
+                    // We only expect a Transaction to be deleted if it hasn't already been deleted.
+                    expectedDeletedSegmentNames.add(m.getStreamSegmentMetadata(transactionId).getName());
+                }
             }
 
             Collection<String> deletedSegmentNames = extract(m.deleteStreamSegment(name), SegmentMetadata::getName);
