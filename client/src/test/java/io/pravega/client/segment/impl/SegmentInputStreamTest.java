@@ -27,7 +27,6 @@ import org.junit.Test;
 import static io.pravega.test.common.Async.testBlocking;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class SegmentInputStreamTest {
@@ -148,9 +147,24 @@ public class SegmentInputStreamTest {
         fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
         fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
-        assertNull(stream.read());
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
+    }
+    
+    @Test
+    public void testStreamTruncated() throws EndOfSegmentException {
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 6);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
+        fakeNetwork.completeExceptionally(1, new SegmentTruncatedException());
+        fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
+        fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
+        fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream.read());
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream.read());
     }
     
     @Test

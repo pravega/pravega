@@ -19,6 +19,10 @@ public class SegmentTruncatedException extends IOException {
     public SegmentTruncatedException() {
         super();
     }
+    
+    public SegmentTruncatedException(Throwable e) {
+        super(e);
+    }
 
     public SegmentTruncatedException(String string) {
         super(string);
