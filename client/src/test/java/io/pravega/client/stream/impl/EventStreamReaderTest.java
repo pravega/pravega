@@ -263,8 +263,11 @@ public class EventStreamReaderTest {
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(segment, 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig);
         SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment);
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
@@ -273,11 +276,11 @@ public class EventStreamReaderTest {
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-        metadataClient.truncateSegment(segment, length/3);
+        metadataClient.truncateSegment(segment, length / 3);
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         metadataClient.truncateSegment(segment, length);
         ByteBuffer buffer4 = writeInt(stream, 4);
-        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0)); 
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.fetchEvent(event1.getEventPointer()));

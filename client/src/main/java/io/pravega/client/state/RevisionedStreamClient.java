@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state;
 
+import io.pravega.client.stream.TruncatedDataException;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
@@ -45,7 +46,7 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
      * @throws TruncatedDataException If the data at start no longer exists because it has been
      *             truncated. IE: It is below {@link #fetchOldestRevision()}
      */
-    Iterator<Entry<Revision, T>> readFrom(Revision start);
+    Iterator<Entry<Revision, T>> readFrom(Revision start) throws TruncatedDataException;
 
     /**
      * If the supplied revision is the latest revision in the stream write the provided value and return the new revision.
@@ -83,7 +84,7 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
      * {@link #fetchOldestRevision()} to the provided revision. After this call returns if
      * {@link #readFrom(Revision)} is called with an older revision it will throw.
      * 
-     * @param The revision that should be the new oldest Revision.
+     * @param revision The revision that should be the new oldest Revision.
      */
     void truncateToRevision(Revision revision);
     

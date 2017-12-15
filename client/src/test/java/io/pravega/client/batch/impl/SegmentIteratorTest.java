@@ -99,10 +99,11 @@ public class SegmentIteratorTest {
         assertEquals("1", iter.next());
         long segmentLength = metadataClient.fetchCurrentSegmentLength();
         assertEquals(0, segmentLength % 3);
-        metadataClient.truncateSegment(segment, segmentLength*2/3);
+        metadataClient.truncateSegment(segment, segmentLength * 2 / 3);
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iter.next());
         @Cleanup
-        SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, segment, stringSerializer, segmentLength*2/3, length);
+        SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, segment, stringSerializer,
+                                                                      segmentLength * 2 / 3, length);
         assertTrue(iter2.hasNext());
         assertEquals("3", iter2.next());
         assertFalse(iter.hasNext());

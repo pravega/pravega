@@ -85,10 +85,10 @@ public class SegmentMetadataClientTest {
                 processor.segmentTruncated(new SegmentTruncated(1, segment.getScopedName()));
                 return null;
             }
-        }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123l));
+        }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L));
         client.truncateSegment(segment, 123L);
-        Mockito.verify(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123l));
-    }    
+        Mockito.verify(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L));
+    }  
 
     @Test(timeout = 10000)
     public void testGetProperty() throws Exception {

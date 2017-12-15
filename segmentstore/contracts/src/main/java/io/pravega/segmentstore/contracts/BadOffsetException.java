@@ -38,6 +38,8 @@ public class BadOffsetException extends StreamSegmentException {
      * Creates a new instance of the BadOffsetException class.
      *
      * @param streamSegmentName The name of the StreamSegment.
+     * @param expectedOffset The offset that was expected.
+     * @param givenOffset The offset that was actually supplied.
      * @param message           The message of the exception.
      */
     public BadOffsetException(String streamSegmentName, long expectedOffset, long givenOffset, String message) {

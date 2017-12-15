@@ -151,7 +151,7 @@ public class ReadTest {
     }
 
     @Test
-    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException{
+    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
