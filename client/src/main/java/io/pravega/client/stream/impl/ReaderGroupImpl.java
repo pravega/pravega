@@ -205,6 +205,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, SegmentMetadataClientFactory metaFactory) {
+        log.debug("Compute unread bytes from position {}", positions);
         long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
