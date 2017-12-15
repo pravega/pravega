@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -44,9 +45,6 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -80,18 +78,16 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 public class FileSystemStorage implements SyncStorage {
     //region members
 
-    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.GROUP_READ,
-                    PosixFilePermission.OTHERS_READ)));
+    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = ImmutableSet.of(
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.GROUP_READ,
+            PosixFilePermission.OTHERS_READ);
 
-    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(
-                    PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.GROUP_READ,
-                    PosixFilePermission.OTHERS_READ)));
+    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = ImmutableSet.of(
+            PosixFilePermission.OWNER_WRITE,
+            PosixFilePermission.OWNER_READ,
+            PosixFilePermission.GROUP_READ,
+            PosixFilePermission.OTHERS_READ);
 
     private final FileSystemStorageConfig config;
     private final AtomicBoolean closed;
@@ -108,6 +104,7 @@ public class FileSystemStorage implements SyncStorage {
     public FileSystemStorage(FileSystemStorageConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.closed = new AtomicBoolean(false);
+
     }
 
     //endregion
