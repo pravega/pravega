@@ -196,6 +196,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
                                              final long recordingTime, final OperationContext contextOpt) {
+        Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)
@@ -610,7 +611,8 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
+    @VisibleForTesting
+    CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
                                                                           StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
@@ -626,11 +628,18 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() ->
-                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                                                    config.getRetentionPolicy(), context, executor)
-                                            .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
-                                                    context, executor)), executor)
+                                    return withRetries(() -> {
+                                        CompletableFuture<Void> future;
+                                        if (config.getRetentionPolicy() != null) {
+                                            future = streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor);
+                                        } else {
+                                            future = CompletableFuture.completedFuture(null);
+                                        }
+                                        return future
+                                                .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                        context, executor));
+                                    }, executor)
                                             .thenApply(z -> status);
                                 });
                     } else {

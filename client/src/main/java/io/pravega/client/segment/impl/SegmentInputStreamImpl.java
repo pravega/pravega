@@ -155,6 +155,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         ByteBuffer result = ByteBuffer.allocate(length);
         offset += buffer.read(result);
         while (result.hasRemaining()) {
+            issueRequestIfNeeded();
             handleRequest();
             offset += buffer.read(result);
         }
@@ -195,7 +196,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      * Issues a request if there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() throws SegmentTruncatedException {
-        if (!receivedEndOfSegment && !receivedTruncated && buffer.capacityAvailable() > readLength) {
+        if (!receivedEndOfSegment && !receivedTruncated && buffer.capacityAvailable() >= readLength) {
             if (outstandingRequest == null) {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {

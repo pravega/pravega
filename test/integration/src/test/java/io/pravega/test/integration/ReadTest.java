@@ -182,6 +182,14 @@ public class ReadTest {
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
+
+        // Test large write followed by read
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 150000);
     }
 
     @Test
