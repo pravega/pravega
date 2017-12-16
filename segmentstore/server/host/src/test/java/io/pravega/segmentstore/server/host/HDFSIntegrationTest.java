@@ -80,8 +80,8 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor()))
-                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
+                .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
     //endregion
