@@ -80,6 +80,8 @@ import lombok.extern.slf4j.Slf4j;
 public class ExtendedS3Storage implements SyncStorage {
 
     //region members
+    private static final Permission READ_ONLY_PERMISSION = Permission.READ;
+    private static final Permission READ_WRITE_PERMISSION = Permission.FULL_CONTROL;
 
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
@@ -148,6 +150,12 @@ public class ExtendedS3Storage implements SyncStorage {
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
         execute(handle.getSegmentName(), () -> doSeal(handle));
+    }
+
+    @Override
+    public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doUnseal(handle));
+
     }
 
     @Override
@@ -278,7 +286,7 @@ public class ExtendedS3Storage implements SyncStorage {
         PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getRoot() + streamSegmentName, null);
 
         AccessControlList acl = new AccessControlList();
-        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), READ_WRITE_PERMISSION));
         request.setAcl(acl);
 
         /* Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
@@ -329,17 +337,26 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private Void doSeal(SegmentHandle handle) {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
-
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
+        setPermission(handle, READ_ONLY_PERMISSION);
+        LoggerHelpers.traceLeave(log, "seal", traceId);
+        return null;
+    }
 
+    private Void doUnseal(SegmentHandle handle) {
+        long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
+        setPermission(handle, READ_WRITE_PERMISSION);
+        LoggerHelpers.traceLeave(log, "unseal", traceId);
+        return null;
+    }
+
+    private void setPermission(SegmentHandle handle, Permission permission) {
         AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getRoot() + handle.getSegmentName());
         acl.getGrants().clear();
-        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.READ));
+        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
 
         client.setObjectAcl(
                 new SetObjectAclRequest(config.getBucket(), config.getRoot() + handle.getSegmentName()).withAcl(acl));
-        LoggerHelpers.traceLeave(log, "seal", traceId);
-        return null;
     }
 
     /**

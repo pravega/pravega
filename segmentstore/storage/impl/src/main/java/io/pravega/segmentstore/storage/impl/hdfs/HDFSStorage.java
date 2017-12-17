@@ -170,6 +170,11 @@ class HDFSStorage implements SyncStorage {
     }
 
     @Override
+    public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        run(new UnsealOperation(asReadableHandle(handle), this.context));
+    }
+
+    @Override
     public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
         run(new ConcatOperation(asWritableHandle(targetHandle), offset, sourceSegment, this.context));
     }
