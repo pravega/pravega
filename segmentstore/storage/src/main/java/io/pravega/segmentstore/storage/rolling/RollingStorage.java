@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.KeyedSynchronizer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -68,6 +69,7 @@ public class RollingStorage implements SyncStorage {
     //region Members
 
     private final SyncStorage baseStorage;
+    private final KeyedSynchronizer<String> segmentSynchronizer;
     private final SegmentRollingPolicy defaultRollingPolicy;
     private final AtomicBoolean closed;
 
@@ -94,6 +96,7 @@ public class RollingStorage implements SyncStorage {
     public RollingStorage(SyncStorage baseStorage, SegmentRollingPolicy defaultRollingPolicy) {
         this.baseStorage = Preconditions.checkNotNull(baseStorage, "baseStorage");
         this.defaultRollingPolicy = Preconditions.checkNotNull(defaultRollingPolicy, "defaultRollingPolicy");
+        this.segmentSynchronizer = new KeyedSynchronizer<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -121,91 +124,95 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle openRead(String segmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", segmentName);
-        val handle = openHandle(segmentName, true);
-        LoggerHelpers.traceLeave(log, "openRead", traceId, handle);
-        return handle;
+        try (val lock = this.segmentSynchronizer.lock(segmentName)) {
+            val handle = openHandle(segmentName, true);
+            LoggerHelpers.traceLeave(log, "openRead", traceId, handle);
+            return handle;
+        }
     }
 
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
         val h = asReadableHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
-        ensureNotDeleted(h);
         Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
-
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
                     offset, bufferOffset, length, buffer.length));
         }
 
-        if (h.isReadOnly() && !h.isSealed() && offset + length > h.length()) {
-            // We have a non-sealed read-only handle. It's possible that the SegmentChunks may have been modified since
-            // the last time we refreshed it, and we received a request for a read beyond our last known offset. Reload
-            // the handle before attempting the read.
-            val newHandle = (RollingSegmentHandle) openRead(handle.getSegmentName());
-            h.refresh(newHandle);
-            log.debug("Handle refreshed: {}.", h);
-        }
-
-        Preconditions.checkArgument(offset < h.length(), "Offset %s is beyond the last offset %s of the segment.",
-                offset, h.length());
-        Preconditions.checkArgument(offset + length <= h.length(), "Offset %s + length %s is beyond the last offset %s of the segment.",
-                offset, length, h.length());
-
-        // Read in a loop, from each SegmentChunk, until we can't read anymore.
-        // If at any point we encounter a StreamSegmentNotExistsException, fail immediately with StreamSegmentTruncatedException (+inner).
-        val chunks = h.chunks();
-        int currentIndex = CollectionHelpers.binarySearch(chunks, s -> offset < s.getStartOffset() ? -1 : (offset >= s.getLastOffset() ? 1 : 0));
-        assert currentIndex >= 0 : "unable to locate first SegmentChunk index.";
-
-        try {
-            int bytesRead = 0;
-            while (bytesRead < length && currentIndex < chunks.size()) {
-                // Verify if this is a known truncated SegmentChunk; if so, bail out quickly.
-                SegmentChunk current = chunks.get(currentIndex);
-                checkTruncatedSegment(null, h, current);
-                if (current.getLength() == 0) {
-                    // Empty SegmentChunk; don't bother trying to read from it.
-                    continue;
-                }
-
-                long readOffset = offset + bytesRead - current.getStartOffset();
-                int readLength = (int) Math.min(length - bytesRead, current.getLength() - readOffset);
-                assert readOffset >= 0 && readLength >= 0 : "negative readOffset or readLength";
-
-                // Read from the actual SegmentChunk into the given buffer.
-                try {
-                    val sh = this.baseStorage.openRead(current.getName());
-                    int count = this.baseStorage.read(sh, readOffset, buffer, bufferOffset + bytesRead, readLength);
-                    bytesRead += count;
-                    if (readOffset + count >= current.getLength()) {
-                        currentIndex++;
-                    }
-                } catch (StreamSegmentNotExistsException ex) {
-                    log.debug("SegmentChunk '{}' does not exist anymore ({}).", current, h);
-                    checkTruncatedSegment(ex, h, current);
-                }
+        try (val lock = this.segmentSynchronizer.lock(handle.getSegmentName())) {
+            ensureNotDeleted(h);
+            if (h.isReadOnly() && !h.isSealed() && offset + length > h.length()) {
+                // We have a non-sealed read-only handle. It's possible that the SegmentChunks may have been modified since
+                // the last time we refreshed it, and we received a request for a read beyond our last known offset. Reload
+                // the handle before attempting the read.
+                val newHandle = openHandle(handle.getSegmentName(), true);
+                h.refresh(newHandle);
+                log.debug("Handle refreshed: {}.", h);
             }
 
-            LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, bytesRead);
-            return bytesRead;
-        } catch (StreamSegmentTruncatedException ex) {
-            // It's possible that the Segment has been truncated or deleted altogether using another handle. We need to
-            // refresh the handle and throw the appropriate exception.
-            val newHandle = (RollingSegmentHandle) openRead(handle.getSegmentName());
-            h.refresh(newHandle);
-            if (h.isDeleted()) {
-                log.debug("Segment '{}' has been deleted. Cannot read anymore.", h);
-                throw new StreamSegmentNotExistsException(handle.getSegmentName(), ex);
-            } else {
-                throw ex;
+            Preconditions.checkArgument(offset < h.length(), "Offset %s is beyond the last offset %s of the segment.",
+                    offset, h.length());
+            Preconditions.checkArgument(offset + length <= h.length(), "Offset %s + length %s is beyond the last offset %s of the segment.",
+                    offset, length, h.length());
+
+            // Read in a loop, from each SegmentChunk, until we can't read anymore.
+            // If at any point we encounter a StreamSegmentNotExistsException, fail immediately with StreamSegmentTruncatedException (+inner).
+            val chunks = h.chunks();
+            int currentIndex = CollectionHelpers.binarySearch(chunks, s -> offset < s.getStartOffset() ? -1 : (offset >= s.getLastOffset() ? 1 : 0));
+            assert currentIndex >= 0 : "unable to locate first SegmentChunk index.";
+
+            try {
+                int bytesRead = 0;
+                while (bytesRead < length && currentIndex < chunks.size()) {
+                    // Verify if this is a known truncated SegmentChunk; if so, bail out quickly.
+                    SegmentChunk current = chunks.get(currentIndex);
+                    checkTruncatedSegment(null, h, current);
+                    if (current.getLength() == 0) {
+                        // Empty SegmentChunk; don't bother trying to read from it.
+                        continue;
+                    }
+
+                    long readOffset = offset + bytesRead - current.getStartOffset();
+                    int readLength = (int) Math.min(length - bytesRead, current.getLength() - readOffset);
+                    assert readOffset >= 0 && readLength >= 0 : "negative readOffset or readLength";
+
+                    // Read from the actual SegmentChunk into the given buffer.
+                    try {
+                        val sh = this.baseStorage.openRead(current.getName());
+                        int count = this.baseStorage.read(sh, readOffset, buffer, bufferOffset + bytesRead, readLength);
+                        bytesRead += count;
+                        if (readOffset + count >= current.getLength()) {
+                            currentIndex++;
+                        }
+                    } catch (StreamSegmentNotExistsException ex) {
+                        log.debug("SegmentChunk '{}' does not exist anymore ({}).", current, h);
+                        checkTruncatedSegment(ex, h, current);
+                    }
+                }
+
+                LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, bytesRead);
+                return bytesRead;
+            } catch (StreamSegmentTruncatedException ex) {
+                // It's possible that the Segment has been truncated or deleted altogether using another handle. We need to
+                // refresh the handle and throw the appropriate exception.
+                val newHandle = openHandle(handle.getSegmentName(), true);
+                h.refresh(newHandle);
+                if (h.isDeleted()) {
+                    log.debug("Segment '{}' has been deleted. Cannot read anymore.", h);
+                    throw new StreamSegmentNotExistsException(handle.getSegmentName(), ex);
+                } else {
+                    throw ex;
+                }
             }
         }
     }
 
     @Override
     public SegmentProperties getStreamSegmentInfo(String segmentName) throws StreamSegmentException {
+        // No need for locking here as openRead() acquires all necessary locks.
         val handle = (RollingSegmentHandle) openRead(segmentName);
         return StreamSegmentInformation
                 .builder()
@@ -219,6 +226,7 @@ public class RollingStorage implements SyncStorage {
     @SneakyThrows(StreamSegmentException.class)
     public boolean exists(String segmentName) {
         try {
+            // No need for locking here as openRead() acquires all necessary locks.
             // Try to open-read the segment, this checks both the header file and the existence of the last SegmentChunk.
             openRead(segmentName);
             return true;
@@ -242,41 +250,43 @@ public class RollingStorage implements SyncStorage {
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
 
-        // First, check if the segment exists but with no header (it might have been created prior to applying
-        // RollingStorage to this baseStorage).
-        if (this.baseStorage.exists(segmentName)) {
-            throw new StreamSegmentExistsException(segmentName);
-        }
+        try (val lock = this.segmentSynchronizer.lock(segmentName)) {
+            // First, check if the segment exists but with no header (it might have been created prior to applying
+            // RollingStorage to this baseStorage).
+            if (this.baseStorage.exists(segmentName)) {
+                throw new StreamSegmentExistsException(segmentName);
+            }
 
-        // Create the header file, and then serialize the contents to it.
-        // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
-        // attempt); in that case we ignore it and let the creation proceed.
-        SegmentHandle headerHandle = null;
-        try {
+            // Create the header file, and then serialize the contents to it.
+            // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
+            // attempt); in that case we ignore it and let the creation proceed.
+            SegmentHandle headerHandle = null;
             try {
-                this.baseStorage.create(headerName);
-            } catch (StreamSegmentExistsException ex) {
-                checkIfEmptyAndNotSealed(ex, headerName);
-                log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
-            }
-
-            headerHandle = this.baseStorage.openWrite(headerName);
-            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
-        } catch (StreamSegmentExistsException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            if (!Exceptions.mustRethrow(ex) && headerHandle != null) {
-                // If we encountered an error while writing the handle file, delete it before returning the exception,
-                // otherwise we'll leave behind an empty file.
                 try {
-                    log.warn("Could not create Header Segment for '{}', rolling back.", segmentName, ex);
-                    this.baseStorage.delete(headerHandle);
-                } catch (Exception ex2) {
-                    ex.addSuppressed(ex2);
+                    this.baseStorage.create(headerName);
+                } catch (StreamSegmentExistsException ex) {
+                    checkIfEmptyAndNotSealed(ex, headerName);
+                    log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
                 }
-            }
 
-            throw ex;
+                headerHandle = this.baseStorage.openWrite(headerName);
+                serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
+            } catch (StreamSegmentExistsException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                if (!Exceptions.mustRethrow(ex) && headerHandle != null) {
+                    // If we encountered an error while writing the handle file, delete it before returning the exception,
+                    // otherwise we'll leave behind an empty file.
+                    try {
+                        log.warn("Could not create Header Segment for '{}', rolling back.", segmentName, ex);
+                        this.baseStorage.delete(headerHandle);
+                    } catch (Exception ex2) {
+                        ex.addSuppressed(ex2);
+                    }
+                }
+
+                throw ex;
+            }
         }
 
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
@@ -286,42 +296,46 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle openWrite(String segmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", segmentName);
-        val handle = openHandle(segmentName, false);
+        try (val lock = this.segmentSynchronizer.lock(segmentName)) {
+            val handle = openHandle(segmentName, false);
 
-        // Finally, open the Active SegmentChunk for writing.
-        SegmentChunk last = handle.lastChunk();
-        if (last != null && !last.isSealed()) {
-            val activeHandle = this.baseStorage.openWrite(last.getName());
-            handle.setActiveChunkHandle(activeHandle);
+            // Finally, open the Active SegmentChunk for writing.
+            SegmentChunk last = handle.lastChunk();
+            if (last != null && !last.isSealed()) {
+                val activeHandle = this.baseStorage.openWrite(last.getName());
+                handle.setActiveChunkHandle(activeHandle);
+            }
+
+            LoggerHelpers.traceLeave(log, "openWrite", traceId, handle);
+            return handle;
         }
-
-        LoggerHelpers.traceLeave(log, "openWrite", traceId, handle);
-        return handle;
     }
 
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
-        val h = asWritableHandle(handle);
-        ensureNotDeleted(h);
-        ensureNotSealed(h);
-        ensureOffset(h, offset);
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
-
-        // We run this in a loop because we may have to split the write over multiple SegmentChunks in order to avoid exceeding
-        // any SegmentChunk's maximum length.
         int bytesWritten = 0;
-        while (bytesWritten < length) {
-            if (h.getActiveChunkHandle() == null || h.lastChunk().getLength() >= h.getRollingPolicy().getMaxLength()) {
-                rollover(h);
-            }
+        try (val lock = this.segmentSynchronizer.lock(handle.getSegmentName())) {
+            val h = asWritableHandle(handle);
+            ensureNotDeleted(h);
+            ensureNotSealed(h);
+            ensureOffset(h, offset);
 
-            SegmentChunk last = h.lastChunk();
-            int writeLength = (int) Math.min(length - bytesWritten, h.getRollingPolicy().getMaxLength() - last.getLength());
-            assert writeLength > 0 : "non-positive write length";
-            long chunkOffset = offset + bytesWritten - last.getStartOffset();
-            this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, data, writeLength);
-            last.increaseLength(writeLength);
-            bytesWritten += writeLength;
+            // We run this in a loop because we may have to split the write over multiple SegmentChunks in order to avoid
+            // exceeding any SegmentChunk's maximum length.
+            while (bytesWritten < length) {
+                if (h.getActiveChunkHandle() == null || h.lastChunk().getLength() >= h.getRollingPolicy().getMaxLength()) {
+                    rollover(h);
+                }
+
+                SegmentChunk last = h.lastChunk();
+                int writeLength = (int) Math.min(length - bytesWritten, h.getRollingPolicy().getMaxLength() - last.getLength());
+                assert writeLength > 0 : "non-positive write length";
+                long chunkOffset = offset + bytesWritten - last.getStartOffset();
+                this.baseStorage.write(h.getActiveChunkHandle(), chunkOffset, data, writeLength);
+                last.increaseLength(writeLength);
+                bytesWritten += writeLength;
+            }
         }
 
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, bytesWritten);
@@ -329,18 +343,9 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
-        val h = asWritableHandle(handle);
-        ensureNotDeleted(h);
-        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
-        sealActiveChunk(h);
-        SegmentHandle headerHandle = h.getHeaderHandle();
-        if (headerHandle != null) {
-            this.baseStorage.seal(headerHandle);
+        try (val lock = this.segmentSynchronizer.lock(handle.getSegmentName())) {
+            sealNoLock(handle);
         }
-
-        h.markSealed();
-        log.debug("Sealed Header for '{}'.", h.getSegmentName());
-        LoggerHelpers.traceLeave(log, "seal", traceId, handle);
     }
 
     @Override
@@ -350,70 +355,74 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void concat(SegmentHandle targetHandle, long targetOffset, String sourceSegment) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle, targetOffset, sourceSegment);
+        Preconditions.checkArgument(!targetHandle.getSegmentName().equals(sourceSegment), "Cannot concat a Segment into itself.");
         val target = asWritableHandle(targetHandle);
-        ensureOffset(target, targetOffset);
-        ensureNotDeleted(target);
-        ensureNotSealed(target);
-        long traceId = LoggerHelpers.traceEnter(log, "concat", target, targetOffset, sourceSegment);
+        try (val targetLock = this.segmentSynchronizer.lock(target.getSegmentName());
+             val sourceLock = this.segmentSynchronizer.lock(sourceSegment)) {
+            ensureOffset(target, targetOffset);
+            ensureNotDeleted(target);
+            ensureNotSealed(target);
 
-        // We can only use a Segment as a concat source if it is Sealed.
-        RollingSegmentHandle source = (RollingSegmentHandle) openWrite(sourceSegment);
-        Preconditions.checkState(source.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
-                sourceSegment, target.getSegmentName());
-        if (source.length() == 0) {
-            // Source is empty; do not bother with concatenation.
-            log.debug("Concat source '{}' is empty. Deleting instead of concatenating.", source);
-            delete(source);
-            return;
-        }
-
-        // We can only use a Segment as a concat source if all of its SegmentChunks exist.
-        refreshChunkExistence(source);
-        Preconditions.checkState(source.chunks().stream().allMatch(SegmentChunk::exists),
-                "Cannot use Segment '%s' as concat source because it is truncated.", source.getSegmentName());
-
-        if (shouldConcatNatively(source, target)) {
-            // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
-            // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
-            // having a lot of very small SegmentChunks around if the application has a lot of small transactions.
-            log.debug("Concat '{}' into '{}' using native method.", source, target);
-            SegmentChunk lastTarget = target.lastChunk();
-            if (lastTarget == null || lastTarget.isSealed()) {
-                // Make sure the last SegmentChunk of the target is not sealed, otherwise we can't concat into it.
-                rollover(target);
+            // We can only use a Segment as a concat source if it is Sealed.
+            RollingSegmentHandle source = openHandle(sourceSegment, false);
+            Preconditions.checkState(source.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
+                    sourceSegment, target.getSegmentName());
+            if (source.length() == 0) {
+                // Source is empty; do not bother with concatenation.
+                log.debug("Concat source '{}' is empty. Deleting instead of concatenating.", source);
+                deleteNoLock(source); // We already own the lock for the source segment.
+                return;
             }
 
-            SegmentChunk lastSource = source.lastChunk();
-            this.baseStorage.concat(target.getActiveChunkHandle(), target.lastChunk().getLength(), lastSource.getName());
-            target.lastChunk().increaseLength(lastSource.getLength());
-            if (source.getHeaderHandle() != null) {
-                try {
-                    this.baseStorage.delete(source.getHeaderHandle());
-                } catch (StreamSegmentNotExistsException ex) {
-                    // It's ok if it's not there anymore.
-                    log.warn("Attempted to delete concat source Header '{}' but it doesn't exist.", source.getHeaderHandle().getSegmentName(), ex);
+            // We can only use a Segment as a concat source if all of its SegmentChunks exist.
+            refreshChunkExistence(source);
+            Preconditions.checkState(source.chunks().stream().allMatch(SegmentChunk::exists),
+                    "Cannot use Segment '%s' as concat source because it is truncated.", source.getSegmentName());
+
+            if (shouldConcatNatively(source, target)) {
+                // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
+                // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
+                // having a lot of very small SegmentChunks around if the application has a lot of small transactions.
+                log.debug("Concat '{}' into '{}' using native method.", source, target);
+                SegmentChunk lastTarget = target.lastChunk();
+                if (lastTarget == null || lastTarget.isSealed()) {
+                    // Make sure the last SegmentChunk of the target is not sealed, otherwise we can't concat into it.
+                    rollover(target);
                 }
+
+                SegmentChunk lastSource = source.lastChunk();
+                this.baseStorage.concat(target.getActiveChunkHandle(), target.lastChunk().getLength(), lastSource.getName());
+                target.lastChunk().increaseLength(lastSource.getLength());
+                if (source.getHeaderHandle() != null) {
+                    try {
+                        this.baseStorage.delete(source.getHeaderHandle());
+                    } catch (StreamSegmentNotExistsException ex) {
+                        // It's ok if it's not there anymore.
+                        log.warn("Attempted to delete concat source Header '{}' but it doesn't exist.", source.getHeaderHandle().getSegmentName(), ex);
+                    }
+                }
+            } else {
+                // Generate new SegmentChunk entries from the SegmentChunks of the Source Segment(but update their start offsets).
+                log.debug("Concat '{}' into '{}' using header merge method.", source, target);
+
+                if (target.getHeaderHandle() == null) {
+                    // We need to concat into a Segment that does not have a Header (yet). Create one before continuing.
+                    createHeader(target);
+                }
+
+                List<SegmentChunk> newSegmentChunks = rebase(source.chunks(), target.length());
+                sealActiveChunk(target);
+                serializeBeginConcat(target, source);
+                this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(), source.getHeaderHandle().getSegmentName());
+                target.increaseHeaderLength(source.getHeaderLength());
+                target.addChunks(newSegmentChunks);
+
+                // After we do a header merge, it's possible that the (new) last chunk may still have space to write to.
+                // Unseal it now so that future writes/concats will not unnecessarily create chunks. Note that this will not
+                // unseal the segment (even though it's unsealed) - that is determined by the Header file seal status.
+                unsealLastChunkIfNecessary(target);
             }
-        } else {
-            // Generate new SegmentChunk entries from the SegmentChunks of the Source Segment(but update their start offsets).
-            log.debug("Concat '{}' into '{}' using header merge method.", source, target);
-
-            if (target.getHeaderHandle() == null) {
-                // We need to concat into a Segment that does not have a Header (yet). Create one before continuing.
-                createHeader(target);
-            }
-
-            List<SegmentChunk> newSegmentChunks = rebase(source.chunks(), target.length());
-            sealActiveChunk(target);
-            serializeBeginConcat(target, source);
-            this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(), source.getHeaderHandle().getSegmentName());
-            target.increaseHeaderLength(source.getHeaderLength());
-            target.addChunks(newSegmentChunks);
-
-            // After we do a header merge, it's possible that the (new) last chunk may still have space to write to.
-            // Unseal it now so that future writes/concats will not unnecessarily create chunks. Note that this will not
-            // unseal the segment (even though it's unsealed) - that is determined by the Header file seal status.
-            unsealLastChunkIfNecessary(target);
         }
 
         LoggerHelpers.traceLeave(log, "concat", traceId, target, targetOffset, sourceSegment);
@@ -421,6 +430,55 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
+        try (val lock = this.segmentSynchronizer.lock(handle.getSegmentName())) {
+            deleteNoLock(handle);
+        }
+    }
+
+    @Override
+    public void truncate(SegmentHandle handle, long truncationOffset) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "truncate", handle, truncationOffset);
+
+        try (val lock = this.segmentSynchronizer.lock(handle.getSegmentName())) {
+            // Delete all SegmentChunks which are entirely before the truncation offset.
+            val h = asWritableHandle(handle);
+            ensureNotDeleted(h);
+            if (h.getHeaderHandle() == null) {
+                // No header means the Segment is made up of a single SegmentChunk. We can't do anything.
+                LoggerHelpers.traceLeave(log, "truncate", traceId, h, -1);
+                return;
+            }
+
+            Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
+                    "truncationOffset must be non-negative and at most the length of the Segment.");
+            val last = h.lastChunk();
+            if (last != null && canTruncate(last, truncationOffset)) {
+                // If we were asked to truncate the entire Segment, then rollover at this point so we can delete all existing
+                // data.
+                rollover(h);
+            }
+
+            deleteChunks(h, s -> canTruncate(s, truncationOffset));
+        }
+
+        LoggerHelpers.traceLeave(log, "truncate", traceId, handle, truncationOffset);
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return true;
+    }
+
+    //endregion
+
+    //region SegmentChunk Operations
+
+    /**
+     * Same as delete(SegmentHandle), but does not enforce Segment locks.
+     * This is needed because KeyedSynchronizer provides non-reentrant locks, so we can't re-acquire the same lock on the
+     * same key from the same thread.
+     */
+    private void deleteNoLock(SegmentHandle handle) throws StreamSegmentException {
         val h = asReadableHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
 
@@ -441,8 +499,8 @@ public class RollingStorage implements SyncStorage {
             // We need to seal the whole Segment to prevent anyone else from creating new SegmentChunks while we're deleting
             // them, after which we delete all SegmentChunks and finally the header file.
             if (!h.isSealed()) {
-                val writeHandle = h.isReadOnly() ? (RollingSegmentHandle) openWrite(handle.getSegmentName()) : h;
-                seal(writeHandle);
+                val writeHandle = h.isReadOnly() ? openHandle(handle.getSegmentName(), false) : h;
+                sealNoLock(writeHandle);
             }
 
             deleteChunks(h, s -> true);
@@ -458,38 +516,25 @@ public class RollingStorage implements SyncStorage {
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
 
-    @Override
-    public void truncate(SegmentHandle handle, long truncationOffset) throws StreamSegmentException {
-        // Delete all SegmentChunks which are entirely before the truncation offset.
+    /**
+     * Same as seal(SegmentHandle), but does not enforce Segment locks.
+     * This is needed because KeyedSynchronizer provides non-reentrant locks, so we can't re-acquire the same lock on the
+     * same key from the same thread.
+     */
+    private void sealNoLock(SegmentHandle handle) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
-        if (h.getHeaderHandle() == null) {
-            // No header means the Segment is made up of a single SegmentChunk. We can't do anything.
-            return;
+        sealActiveChunk(h);
+        SegmentHandle headerHandle = h.getHeaderHandle();
+        if (headerHandle != null) {
+            this.baseStorage.seal(headerHandle);
         }
 
-        long traceId = LoggerHelpers.traceEnter(log, "truncate", h, truncationOffset);
-        Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
-                "truncationOffset must be non-negative and at most the length of the Segment.");
-        val last = h.lastChunk();
-        if (last != null && canTruncate(last, truncationOffset)) {
-            // If we were asked to truncate the entire Segment, then rollover at this point so we can delete all existing
-            // data.
-            rollover(h);
-        }
-
-        deleteChunks(h, s -> canTruncate(s, truncationOffset));
-        LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset);
+        h.markSealed();
+        log.debug("Sealed Header for '{}'.", h.getSegmentName());
+        LoggerHelpers.traceLeave(log, "seal", traceId, handle);
     }
-
-    @Override
-    public boolean supportsTruncation() {
-        return true;
-    }
-
-    //endregion
-
-    //region SegmentChunk Operations
 
     private void rollover(RollingSegmentHandle handle) throws StreamSegmentException {
         Preconditions.checkArgument(handle.getHeaderHandle() != null, "Cannot rollover a Segment with no header.");
