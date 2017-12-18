@@ -84,7 +84,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder)))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                        bookkeeper.getZkClient(), setup.getExecutor()));
+                        bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
 
