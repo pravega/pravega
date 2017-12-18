@@ -14,6 +14,7 @@ import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.controller.server.ControllerService;
 
+import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
@@ -42,7 +43,7 @@ public class RESTServer extends AbstractIdleService {
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(ControllerService controllerService, RESTServerConfig restServerConfig) {
+    public RESTServer(ControllerService controllerService, PravegaAuthManager pravegaAuthManager, RESTServerConfig restServerConfig) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
@@ -50,7 +51,7 @@ public class RESTServer extends AbstractIdleService {
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
-        resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
+        resourceObjs.add(new StreamMetadataResourceImpl(controllerService, pravegaAuthManager));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         this.resourceConfig = ResourceConfig.forApplication(controllerApplication);

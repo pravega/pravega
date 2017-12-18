@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.File;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -29,6 +30,7 @@ public class GRPCServer extends AbstractIdleService {
     private final String objectId;
     private final Server server;
     private final GRPCServerConfig config;
+    @Getter
     private final PravegaAuthManager pravegaAuthManager;
 
     /**

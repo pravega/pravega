@@ -135,7 +135,7 @@ public class StreamMetaDataTests {
     public void setup() {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
-        restServer = new RESTServer(mockControllerService, serverConfig);
+        restServer = new RESTServer(mockControllerService, null, serverConfig);
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
