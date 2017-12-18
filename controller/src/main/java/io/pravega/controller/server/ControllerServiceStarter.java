@@ -223,7 +223,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(controllerService, serviceConfig.getRestServerConfig().get());
+                restServer = new RESTServer(controllerService, grpcServer.getPravegaAuthManager(), serviceConfig.getRestServerConfig().get());
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();
