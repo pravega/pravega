@@ -108,12 +108,6 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public void deleteStreamSegment(String streamSegmentName) {
-            log.info("{}: DeleteSegment (SegmentName={}).", this.traceObjectId, streamSegmentName);
-            this.containerMetadata.deleteStreamSegment(streamSegmentName);
-        }
-
-        @Override
         public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
             return this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
         }
