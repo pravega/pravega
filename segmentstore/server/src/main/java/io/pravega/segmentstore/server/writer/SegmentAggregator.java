@@ -1286,7 +1286,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private void updateMetadataForTransactionPostMerger(UpdateableSegmentMetadata transactionMetadata) {
         // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is marked as deleted.
         transactionMetadata.markDeleted();
-        this.dataSource.deleteStreamSegment(transactionMetadata.getName()); // This may be redundant...
 
         // Complete the merger (in the ReadIndex and whatever other listeners we might have).
         this.dataSource.completeMerge(transactionMetadata.getParentId(), transactionMetadata.getId());

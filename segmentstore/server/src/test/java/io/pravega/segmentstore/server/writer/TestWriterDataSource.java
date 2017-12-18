@@ -305,11 +305,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public void deleteStreamSegment(String streamSegmentName) {
-        this.metadata.deleteStreamSegment(streamSegmentName);
-    }
-
-    @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         Consumer<Long> callback;
         synchronized (this.lock) {
