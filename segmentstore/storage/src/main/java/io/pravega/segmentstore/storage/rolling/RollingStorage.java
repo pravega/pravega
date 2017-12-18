@@ -725,8 +725,8 @@ public class RollingStorage implements SyncStorage {
     private List<SegmentChunk> rebase(List<SegmentChunk> segmentChunks, long newStartOffset) {
         AtomicLong segmentOffset = new AtomicLong(newStartOffset);
         return segmentChunks.stream()
-                            .map(s -> s.withNewOffset(segmentOffset.getAndAdd(s.getLength())))
-                            .collect(Collectors.toList());
+                .map(s -> s.withNewOffset(segmentOffset.getAndAdd(s.getLength())))
+                .collect(Collectors.toList());
     }
 
     @SneakyThrows(StreamingException.class)
