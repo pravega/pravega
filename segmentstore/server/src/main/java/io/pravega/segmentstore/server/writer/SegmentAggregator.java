@@ -386,6 +386,15 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private void aggregateAppendOperation(StorageOperation operation, AggregatedAppendOperation aggregatedAppend, int maxLength) {
         long remainingLength = operation.getLength();
+        if (operation.getStreamSegmentOffset() < aggregatedAppend.getLastStreamSegmentOffset()) {
+            // The given operation begins before the AggregatedAppendOperation. This is likely due to it having been
+            // partially written to Storage prior to some recovery event. We must make sure we only include the part that
+            // has not yet been written.
+            long delta = aggregatedAppend.getLastStreamSegmentOffset() - operation.getStreamSegmentOffset();
+            remainingLength -= delta;
+            log.debug("Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage.", this.traceObjectId, delta, operation);
+        }
+
         while (remainingLength > 0) {
             // All append lengths are integers, so it's safe to cast here.
             int lengthToAdd = (int) Math.min(maxLength - aggregatedAppend.getLength(), remainingLength);
@@ -428,8 +437,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         if (aggregatedAppend == null) {
-            // No operations or last operation not an AggregatedAppend - create a new one.
-            aggregatedAppend = new AggregatedAppendOperation(this.metadata.getId(), operationOffset, operationSequenceNumber);
+            // No operations or last operation not an AggregatedAppend - create a new one, while making sure the first
+            // offset is not below the current StorageLength (otherwise we risk re-writing data that's already in Storage).
+            long offset = Math.max(operationOffset, this.metadata.getStorageLength());
+            aggregatedAppend = new AggregatedAppendOperation(this.metadata.getId(), offset, operationSequenceNumber);
             this.operations.add(aggregatedAppend);
         }
 

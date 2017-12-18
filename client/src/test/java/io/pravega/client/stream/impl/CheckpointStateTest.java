@@ -29,6 +29,7 @@ public class CheckpointStateTest {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("foo", ImmutableSet.of(), Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("foo"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
     
     @Test
@@ -44,6 +45,9 @@ public class CheckpointStateTest {
         Map<Segment, Long> completedCheckpoint = state.getPositionsForCompletedCheckpoint("foo");
         assertNotNull(completedCheckpoint);
         assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L), completedCheckpoint);
+        state.clearCheckpointsThrough("foo");
+        assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L),
+                state.getPositionsForLatestCompletedCheckpoint().get());
     }
 
     @Test
@@ -59,6 +63,7 @@ public class CheckpointStateTest {
         state.clearCheckpointsThrough("foo");
         assertEquals(null, state.getCheckpointForReader("a"));
         assertEquals(null, state.getCheckpointForReader("b"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
 
     private Segment getSegment(String name) {
