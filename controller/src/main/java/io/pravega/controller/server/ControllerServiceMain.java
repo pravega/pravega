@@ -162,6 +162,9 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
             log.error("Controller Service Main thread exited exceptionally", e);
             throw e;
         } finally {
+            if (storeClient != null) {
+                storeClient.close();
+            }
             LoggerHelpers.traceLeave(log, this.objectId, "run", traceId);
         }
     }
