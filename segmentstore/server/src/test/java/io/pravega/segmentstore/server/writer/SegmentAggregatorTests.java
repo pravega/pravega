@@ -1693,7 +1693,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 TIMEOUT).join();
 
         // Initialize the SegmentAggregator. This should pick up the half-written operation.
-        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
         Assert.assertEquals("", partialWriteLength, context.segmentAggregator.getMetadata().getStorageLength());
 
         // Add all operations we had so far.
