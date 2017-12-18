@@ -189,7 +189,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy,
+                                                                   OperationContext context, Executor executor) {
+        Preconditions.checkNotNull(retentionPolicy);
         int bucket = getBucket(scope, stream);
         List<String> list;
         if (bucketedStreams.containsKey(bucket)) {

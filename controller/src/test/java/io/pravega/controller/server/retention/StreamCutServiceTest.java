@@ -95,6 +95,11 @@ public abstract class StreamCutServiceTest {
         String scope = "scope";
         String streamName = "stream";
         Stream stream = new StreamImpl(scope, streamName);
+
+        AssertExtensions.assertThrows("Null retention policy check",
+                () -> streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, streamName, null, null, executor).join(),
+                e -> e instanceof NullPointerException);
+
         streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
 
         // verify that at least one of the buckets got the notification
