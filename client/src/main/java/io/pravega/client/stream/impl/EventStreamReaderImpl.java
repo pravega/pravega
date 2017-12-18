@@ -79,7 +79,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException {
+    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
@@ -212,7 +212,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
     
-    private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException {
+    private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
         @Cleanup
@@ -263,7 +263,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         } catch (EndOfSegmentException e) {
             throw new NoSuchEventException(e.getMessage());
         } catch (NoSuchSegmentException | SegmentTruncatedException e) {
-            throw new TruncatedDataException("Event no longer exists.");
+            throw new NoSuchEventException("Event no longer exists.");
         }
     }
 

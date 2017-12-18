@@ -78,7 +78,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         try {
             issueRequestIfNeeded();
         } catch (SegmentTruncatedException e) {
-            log.warn(asyncInput + " is already truncated at it's initial offset of " + offset);
+            log.warn("{} is already truncated at it's initial offset of {}", asyncInput, offset);
         }
     }
 
