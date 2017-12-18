@@ -107,8 +107,8 @@ public class ServiceBuilder implements AutoCloseable {
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
 
         // Setup Thread Pools.
-        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "segment-store");
-        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage");
+        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "core");
+        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage-io");
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
     }
 
