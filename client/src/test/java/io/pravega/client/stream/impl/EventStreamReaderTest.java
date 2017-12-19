@@ -283,7 +283,7 @@ public class EventStreamReaderTest {
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
-        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.fetchEvent(event1.getEventPointer()));
+        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(event1.getEventPointer()));
         reader.close();
     }
     
