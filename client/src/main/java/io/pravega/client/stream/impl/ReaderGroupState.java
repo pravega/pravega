@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
@@ -25,10 +26,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -47,6 +50,8 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private Revision revision;
     @GuardedBy("$lock")
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final CheckpointState checkpointState = new CheckpointState();
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
@@ -205,6 +210,20 @@ public class ReaderGroupState implements Revisioned {
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
     }
+
+    @Synchronized
+    Optional<Map<Stream, Map<Segment, Long>>> getPositionsForLastCompletedCheckpoint() {
+        Optional<Map<Segment, Long>> positions = checkpointState.getPositionsForLatestCompletedCheckpoint();
+        if (positions.isPresent()) {
+            Map<Stream, Map<Segment, Long>> result = new HashMap<>();
+            for (Entry<Segment, Long> entry : positions.get().entrySet()) {
+                result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+            }
+            return Optional.of(result);
+        } else {
+            return Optional.empty();
+        }
+    }
     
     @Synchronized
     boolean hasOngoingCheckpoint() {
@@ -350,7 +369,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segment) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to release a segment that was not assigned to it " + segment);
@@ -374,7 +393,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             Long offset = state.unassignedSegments.remove(segment);
             if (offset == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
@@ -417,7 +436,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segmentCompleted) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);

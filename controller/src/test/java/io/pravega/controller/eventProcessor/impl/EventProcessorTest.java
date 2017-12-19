@@ -131,6 +131,7 @@ public class EventProcessorTest {
             this.testEvents = testEvents.clone();
         }
 
+        @Override
         protected void beforeStart() {
             for (int i : testEvents) {
                 this.getSelfWriter().write(new TestEvent(i));

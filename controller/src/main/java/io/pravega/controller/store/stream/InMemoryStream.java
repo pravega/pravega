@@ -52,6 +52,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> historyTable;
     @GuardedBy("lock")
     private Data<Integer> indexTable;
+    @GuardedBy("lock")
+    private Data<Integer> retentionSet;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -650,6 +652,54 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> checkScopeExists() throws StoreException {
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createRetentionSet(byte[] retention) {
+        Preconditions.checkNotNull(retention);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            this.retentionSet = new Data<>(retention, 0);
+            result.complete(null);
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getRetentionSet() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.retentionSet == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+            } else {
+                result.complete(copy(retentionSet));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> updateRetentionSet(Data<Integer> retention) {
+        Preconditions.checkNotNull(retention);
+        Preconditions.checkNotNull(retention.getData());
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        synchronized (lock) {
+            if (retentionSet == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "retentionSet for stream: " + getName()));
+            } else if (retentionSet.getVersion().equals(retention.getVersion())) {
+                retentionSet = new Data<>(Arrays.copyOf(retention.getData(), retention.getData().length), retention.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
+                        "retentionSet for stream: " + getName()));
+            }
+        }
+        return result;
     }
 
     private Data<Integer> copy(Data<Integer> input) {

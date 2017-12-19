@@ -88,11 +88,17 @@ public class TestState {
     //region Properties
 
     /**
+     * Gets the throughput measured in Operations per Second.
+     */
+    double getOperationsPerSecond() {
+        return this.successfulOperationCount.get() / getElapsedSeconds();
+    }
+
+    /**
      * Gets the throughput since the last time reset() was called in Bytes/Second.
      */
     double getThroughput() {
-        double durationSeconds = (this.lastAppendTime.get() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
-        return this.producedLength.get() / durationSeconds;
+        return this.producedLength.get() / getElapsedSeconds();
     }
 
     /**
@@ -226,6 +232,10 @@ public class TestState {
      */
     LatencyCollection getDurations(OperationType operationType) {
         return this.durations.get(operationType);
+    }
+
+    private double getElapsedSeconds() {
+        return (this.lastAppendTime.get() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
     }
 
     //endregion

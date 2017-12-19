@@ -144,7 +144,7 @@ message ScalingPolicy {
         BY_RATE_IN_KBYTES_PER_SEC = 1;
         BY_RATE_IN_EVENTS_PER_SEC = 2;
     }
-    ScalingPolicyType type = 1;
+    ScalingPolicyType scaleType = 1;
     int32 targetRate = 2;
     int32 scaleFactor = 3;
     int32 minNumSegments = 4;
@@ -156,8 +156,8 @@ message RetentionPolicy {
         TIME = 1;
         SIZE = 2;
     }
-    RetentionPolicyType type = 1;
-    int64 value = 2;
+    RetentionPolicyType retentionType = 1;
+    int64 retentionParam = 2;
 }
 
 message StreamConfig {
@@ -204,8 +204,7 @@ message TxnId {
 message CreateTxnRequest {
     StreamInfo streamInfo = 1;
     int64 lease = 2;
-    int64 maxExecutionTime = 3;
-    int64 scaleGracePeriod = 4;
+    int64 scaleGracePeriod = 3;
 }
 
 message CreateTxnResponse {

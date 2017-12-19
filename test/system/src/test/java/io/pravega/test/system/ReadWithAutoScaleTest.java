@@ -131,7 +131,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
+    @Test(timeout = 10 * 60 * 1000) //timeout of 10 mins.
     public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
@@ -227,6 +227,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
+            long count;
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -234,7 +235,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
-                        readCount.incrementAndGet();
+                        count = readCount.incrementAndGet();
+                        log.debug("Reader {}, read count {}", id, count);
+                    } else {
+                        log.debug("Null event, reader {}, read count {}", id, readCount.get());
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);

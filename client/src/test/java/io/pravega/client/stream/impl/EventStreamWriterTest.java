@@ -14,6 +14,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
@@ -328,7 +329,7 @@ public class EventStreamWriterTest {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0, 0, 0))
+        Mockito.when(controller.createTransaction(stream, 0, 0))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);
@@ -362,7 +363,7 @@ public class EventStreamWriterTest {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0, 0, 0))
+        Mockito.when(controller.createTransaction(stream, 0,  0))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
         Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);
@@ -409,7 +410,7 @@ public class EventStreamWriterTest {
     }
 
     @Test
-    public void testSegmentSealedInFlush() throws EndOfSegmentException {
+    public void testSegmentSealedInFlush() throws EndOfSegmentException, SegmentTruncatedException {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
@@ -443,12 +444,12 @@ public class EventStreamWriterTest {
         writer.flush();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
     @Test
-    public void testRetryFlushSegmentSealed() throws EndOfSegmentException {
+    public void testRetryFlushSegmentSealed() throws EndOfSegmentException, SegmentTruncatedException {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
@@ -486,12 +487,12 @@ public class EventStreamWriterTest {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
     @Test
-    public void testRetryCloseSegmentSealed() throws EndOfSegmentException {
+    public void testRetryCloseSegmentSealed() throws EndOfSegmentException, SegmentTruncatedException {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
@@ -529,14 +530,14 @@ public class EventStreamWriterTest {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertTrue(outputStream2.isClosed());
         //the connection to outputStream is closed with the failConnection during SegmentSealed Callback.
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
     @Test
-    public void testSegmentSealedInClose() throws EndOfSegmentException {
+    public void testSegmentSealedInClose() throws EndOfSegmentException, SegmentTruncatedException {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
@@ -570,7 +571,7 @@ public class EventStreamWriterTest {
         writer.close();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 

@@ -152,13 +152,11 @@ public interface Controller extends AutoCloseable {
      * 
      * @param stream           Stream name
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
-     * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
-                                              final long scaleGracePeriod);
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod);
 
     /**
      * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.

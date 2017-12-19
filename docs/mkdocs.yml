@@ -23,6 +23,7 @@ pages:
       - 'Terminology': 'terminology.md'
       - 'Key Features': 'key-features.md'
       - 'Pravega FAQ': 'faq.md'
+      - 'Segment Store Service': 'segment-store-service.md'
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
       - 'REST API - Controller': 'rest/restapis.md'

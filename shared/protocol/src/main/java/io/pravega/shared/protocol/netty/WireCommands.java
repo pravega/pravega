@@ -11,6 +11,7 @@ package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.CorruptedFrameException;
 import java.io.DataInput;
@@ -42,7 +43,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 3;
+    public static final int WIRE_VERSION = 4;
     public static final int OLDEST_COMPATIBLE_VERSION = 1;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -65,7 +66,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException;
+        WireCommand readFrom(ByteBufInputStream in, int length) throws IOException;
     }
 
     @Data
@@ -291,7 +292,31 @@ public final class WireCommands {
             return "Invalid event number: " + eventNumber +" for writer: "+ writerId;
         }
     }
-    
+
+    @Data
+    public static final class OperationUnsupported implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.OPERATION_UNSUPPORTED;
+        final long requestId;
+        final String operationName;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.operationUnsupported(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(operationName);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String operationName = in.readUTF();
+            return new OperationUnsupported(requestId, operationName);
+        }
+    }
+
     @Data
     public static final class Padding implements WireCommand {
         final WireCommandType type = WireCommandType.PADDING;
@@ -799,7 +824,7 @@ public final class WireCommands {
         final boolean isSealed;
         final boolean isDeleted;
         final long lastModified;
-        final long segmentLength;
+        final long writeOffset;
         final long startOffset;
 
         @Override
@@ -815,7 +840,7 @@ public final class WireCommands {
             out.writeBoolean(isSealed);
             out.writeBoolean(isDeleted);
             out.writeLong(lastModified);
-            out.writeLong(segmentLength);
+            out.writeLong(writeOffset);
             out.writeLong(startOffset);
         }
 

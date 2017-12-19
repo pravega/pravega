@@ -91,11 +91,11 @@ class SegmentStoreAdapter extends StoreAdapter {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    SingletonStorageFactory factory = new SingletonStorageFactory(setup.getExecutor());
+                    SingletonStorageFactory factory = new SingletonStorageFactory(setup.getStorageExecutor());
                     this.storage.set(factory.createStorageAdapter());
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
-                    this.storeExecutor.set(setup.getExecutor());
+                    this.storeExecutor.set(setup.getCoreExecutor());
                     return factory;
                 }));
         this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
@@ -116,11 +116,11 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.zkClient.start();
             return builder.withDataLogFactory(setup -> {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
-                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
+                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getCoreExecutor());
             });
         } else {
             // No Bookies -> InMemory Tier1.
-            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()));
+            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getCoreExecutor()));
         }
     }
 
@@ -219,6 +219,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }
 
+    @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
         return this.storeExecutor.get() != null ? ExecutorServiceHelpers.getSnapshot(this.storeExecutor.get()) : null;
     }

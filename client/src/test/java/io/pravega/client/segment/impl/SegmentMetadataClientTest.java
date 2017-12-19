@@ -19,10 +19,13 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -39,8 +42,11 @@ public class SegmentMetadataClientTest {
     public void testCurrentStreamLength() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
@@ -54,19 +60,49 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName()));
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         assertEquals(123, length);
     }
+    
+    @Test(timeout = 10000)
+    public void testTruncate() throws Exception {
+        Segment segment = new Segment("scope", "testTruncate", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                processor.segmentTruncated(new SegmentTruncated(1, segment.getScopedName()));
+                return null;
+            }
+        }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L));
+        client.truncateSegment(segment, 123L);
+        Mockito.verify(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L));
+    }  
 
     @Test(timeout = 10000)
     public void testGetProperty() throws Exception {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
+        @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
@@ -108,10 +144,14 @@ public class SegmentMetadataClientTest {
     public void testReconnects() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
         MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
+        @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
@@ -132,7 +172,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(getSegmentInfo2);
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(endpoint, processor);
         order.verify(connection).send(getSegmentInfo1);
@@ -146,7 +186,12 @@ public class SegmentMetadataClientTest {
     public void testExceptionOnSend() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
         ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
+        Mockito.when(cf.getInternalExecutor()).thenReturn(executor);
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
@@ -172,9 +217,10 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection2).send(getSegmentInfo2);
+        @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         order.verify(cf, Mockito.times(2)).establishConnection(Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).send(getSegmentInfo1);
         order.verify(connection1).close();

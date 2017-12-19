@@ -29,13 +29,12 @@ import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -61,28 +60,18 @@ public final class ServiceStarter {
 
     //region Constructor
 
-    public ServiceStarter(ServiceBuilderConfig config, Options options) {
+    public ServiceStarter(ServiceBuilderConfig config) {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
-        this.serviceBuilder = createServiceBuilder(options);
+        this.serviceBuilder = createServiceBuilder();
     }
 
-    private ServiceBuilder createServiceBuilder(Options options) {
+    private ServiceBuilder createServiceBuilder() {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
-        if (options.bookKeeper) {
-            attachBookKeeper(builder);
-        }
-
-        if (options.rocksDb) {
-            attachRocksDB(builder);
-        }
-
+        attachDataLogFactory(builder);
+        attachRocksDB(builder);
         attachStorage(builder);
-
-        if (options.zkSegmentManager) {
-            attachZKSegmentManager(builder);
-        }
-
+        attachZKSegmentManager(builder);
         return builder;
     }
 
@@ -149,9 +138,17 @@ public final class ServiceStarter {
         }
     }
 
-    private void attachBookKeeper(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+    private void attachDataLogFactory(ServiceBuilder builder) {
+        builder.withDataLogFactory(setup -> {
+            switch (this.serviceConfig.getDataLogTypeImplementation()) {
+                case BOOKKEEPER:
+                    return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getCoreExecutor());
+                case INMEMORY:
+                    return new InMemoryDurableDataLogFactory(setup.getCoreExecutor());
+                default:
+                    throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getDataLogTypeImplementation());
+            }
+        });
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
@@ -160,30 +157,20 @@ public final class ServiceStarter {
 
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
-            try {
-                ServiceConfig.StorageTypes storageChoice = ServiceConfig.StorageTypes.valueOf(this.serviceConfig
-                        .getStorageImplementation());
-                switch (storageChoice) {
-                    case HDFS:
-                        HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
-
-                    case FILESYSTEM:
-                        FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
-
-                    case EXTENDEDS3:
-                        ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
-
-                    case INMEMORY:
-                        return new InMemoryStorageFactory(setup.getExecutor());
-
-                    default:
-                        throw new IllegalStateException("Undefined storage implementation");
-                }
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
+            switch (this.serviceConfig.getStorageImplementation()) {
+                case HDFS:
+                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
+                    return new HDFSStorageFactory(hdfsConfig, setup.getStorageExecutor());
+                case FILESYSTEM:
+                    FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
+                    return new FileSystemStorageFactory(fsConfig, setup.getStorageExecutor());
+                case EXTENDEDS3:
+                    ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
+                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getStorageExecutor());
+                case INMEMORY:
+                    return new InMemoryStorageFactory(setup.getStorageExecutor());
+                default:
+                    throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getStorageImplementation());
             }
         });
     }
@@ -194,7 +181,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
-                        setup.getExecutor()));
+                        setup.getCoreExecutor()));
     }
 
     private CuratorFramework createZKClient() {
@@ -230,8 +217,7 @@ public final class ServiceStarter {
             // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
             log.info("Segment store configuration:");
             config.forEach((key, value) -> log.info("{} = {}", key, value));
-            serviceStarter.set(new ServiceStarter(config, Options.builder()
-                    .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
+            serviceStarter.set(new ServiceStarter(config));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -239,17 +225,10 @@ public final class ServiceStarter {
 
         try {
             serviceStarter.get().start();
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        log.info("Caught interrupt signal...");
-                        serviceStarter.get().shutdown();
-                    } catch (Exception e) {
-                        // do nothing
-                    }
-                }
-            });
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.info("Caught interrupt signal...");
+                serviceStarter.get().shutdown();
+            }));
 
             Thread.sleep(Long.MAX_VALUE);
         } catch (InterruptedException ex) {
@@ -257,16 +236,6 @@ public final class ServiceStarter {
         } finally {
             serviceStarter.get().shutdown();
         }
-    }
-
-    //endregion
-
-    //region Options
-    @Builder
-    public static class Options {
-        final boolean bookKeeper;
-        final boolean rocksDb;
-        final boolean zkSegmentManager;
     }
 
     //endregion

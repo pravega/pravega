@@ -10,10 +10,8 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-
-import java.io.DataInput;
+import io.netty.buffer.ByteBufInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * The various types of commands that can be sent over the wire.
@@ -87,6 +85,7 @@ public enum WireCommandType {
     NO_SUCH_TRANSACTION(54, WireCommands.NoSuchTransaction::readFrom),
     INVALID_EVENT_NUMBER(55, WireCommands.InvalidEventNumber::readFrom),
     SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsTruncated::readFrom),
+    OPERATION_UNSUPPORTED(57, WireCommands.OperationUnsupported::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
@@ -103,7 +102,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
+    public WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }

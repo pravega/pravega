@@ -19,7 +19,7 @@ import lombok.Getter;
 /**
  * Log Operation that indicates a StreamSegment is to be truncated.
  */
-public class StreamSegmentTruncateOperation extends MetadataOperation implements SegmentOperation {
+public class StreamSegmentTruncateOperation extends StorageOperation implements SegmentOperation {
     //region Members
 
     private static final byte CURRENT_VERSION = 0;
@@ -42,7 +42,7 @@ public class StreamSegmentTruncateOperation extends MetadataOperation implements
      * @param offset          The Offset at which to truncate.
      */
     public StreamSegmentTruncateOperation(long streamSegmentId, long offset) {
-        super();
+        super(streamSegmentId);
         Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
         this.streamSegmentId = streamSegmentId;
         this.streamSegmentOffset = offset;
@@ -50,6 +50,11 @@ public class StreamSegmentTruncateOperation extends MetadataOperation implements
 
     protected StreamSegmentTruncateOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
+    }
+
+    @Override
+    public long getLength() {
+        return 0;
     }
 
     //endregion

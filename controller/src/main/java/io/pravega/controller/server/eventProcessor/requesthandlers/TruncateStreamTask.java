@@ -73,7 +73,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete) {
-        log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
+        log.info("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
                 .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
@@ -81,7 +81,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     }
 
     private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut) {
-        log.debug("{}/{} truncating segments", scope, stream);
+        log.info("{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()
                 .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut))

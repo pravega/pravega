@@ -28,9 +28,11 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.LocalVolume;
+import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.model.v2.Result;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -43,12 +45,10 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 @Slf4j
 public abstract class MarathonBasedService implements Service {
 
-    static final boolean FORCE_IMAGE = true;
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String CONTAINER_TYPE = "DOCKER";
+    static final String CONTAINER_TYPE = "MESOS";
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
-    static final String NETWORK_TYPE = "HOST";
     private static final String TCP = "tcp://";
     final String id;
     final Marathon marathonClient;
@@ -71,7 +71,9 @@ public abstract class MarathonBasedService implements Service {
             GetAppResponse app = marathonClient.getApp(this.id);
             log.debug("App Details: {}", app);
             //app is not running until the desired instance count is equal to the number of task/docker containers
-            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
+            // and the state of application is healthy.
+            if ((app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue())
+                    && app.getApp().getTasksRunning().intValue() == app.getApp().getTasksHealthy().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
@@ -129,16 +131,25 @@ public abstract class MarathonBasedService implements Service {
 
     CompletableFuture<Void> waitUntilServiceRunning() {
         return Futures.loop(() -> !isRunning(), //condition
-                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
+                () -> Futures.delayedFuture(Duration.ofSeconds(10), executorService),
                 executorService);
     }
 
     Volume createVolume(final String containerPath, final String hostPath, final String mode) {
-        Volume v = new Volume();
+        LocalVolume v = new LocalVolume();
         v.setContainerPath(containerPath);
         v.setHostPath(hostPath);
         v.setMode(mode);
         return v;
+    }
+
+    HealthCheck setHealthCheck(final int gracePeriodSeconds, final String protocol,
+                               final boolean ignoreHttp1xx, final int intervalSeconds, final
+                               int timeoutSeconds, final int maxConsecutiveFailures, final int port) {
+        HealthCheck hc = setHealthCheck(gracePeriodSeconds, protocol, ignoreHttp1xx, intervalSeconds, timeoutSeconds,
+                maxConsecutiveFailures);
+        hc.setPort(port);
+        return hc;
     }
 
     HealthCheck setHealthCheck(final int gracePeriodSeconds, final String protocol,
@@ -194,5 +205,12 @@ public abstract class MarathonBasedService implements Service {
         return Futures.loop(() -> isDeploymentPresent(deploymentID), //condition
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
+    }
+
+    PortDefinition createPortDefinition(int port) {
+        PortDefinition pd = new PortDefinition();
+        pd.setPort(port);
+        pd.setProtocol("tcp");
+        return pd;
     }
 }

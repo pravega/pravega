@@ -25,4 +25,10 @@ public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream {
     public ByteArraySegment getData() {
         return new ByteArraySegment(this.buf, 0, this.count, true);
     }
+
+    @Override
+    public void write(byte[] array) {
+        this.write(array, 0, array.length);
+    }
+
 }

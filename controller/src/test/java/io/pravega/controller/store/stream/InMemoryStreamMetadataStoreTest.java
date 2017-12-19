@@ -18,7 +18,7 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
     public void setupTaskStore() throws Exception {
-        store = StreamStoreFactory.createInMemoryStore(executor);
+        store = StreamStoreFactory.createInMemoryStore(1, executor);
     }
 
     @Override

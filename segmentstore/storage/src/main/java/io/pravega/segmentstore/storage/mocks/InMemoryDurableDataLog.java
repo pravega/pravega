@@ -88,13 +88,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     @Override
     public void initialize(Duration timeout) {
-        long newEpoch;
-        try {
-            newEpoch = this.entries.acquireLock(this.clientId);
-        } catch (DataLogWriterNotPrimaryException ex) {
-            throw new CompletionException(ex);
-        }
-
+        long newEpoch = this.entries.acquireLock(this.clientId);
         synchronized (this.entries) {
             this.epoch = newEpoch;
             Entry last = this.entries.getLast();
@@ -116,7 +110,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public long getEpoch() {
         ensurePreconditions();
-        return this.epoch;
+        synchronized (this.entries) {
+            return this.epoch;
+        }
     }
 
     @Override
@@ -281,7 +277,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
         }
 
-        long acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
+        long acquireLock(String clientId) {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             this.writeLock.set(clientId);
             return this.epoch.incrementAndGet();

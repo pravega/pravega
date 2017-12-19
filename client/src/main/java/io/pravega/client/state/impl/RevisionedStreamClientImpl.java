@@ -9,15 +9,18 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -99,7 +102,11 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            long endOffset = meta.fetchCurrentStreamLength();
+            SegmentInfo segmentInfo = meta.getSegmentInfo();
+            long endOffset = segmentInfo.getWriteOffset();
+            if (startOffset < segmentInfo.getStartingOffset()) {
+                throw new TruncatedDataException("Data at the supplied revision has been truncated.");
+            }
             log.trace("Creating iterator from {} until {}", startOffset, endOffset);
             return new StreamIterator(startOffset, endOffset);
         }
@@ -108,7 +115,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchLatestRevision() {
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentStreamLength();
+            long streamLength = meta.fetchCurrentSegmentLength();
             return new RevisionImpl(segment, streamLength, 0);
         }
     }
@@ -142,6 +149,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException(
                             "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
+                } catch (SegmentTruncatedException e) {
+                    throw new TruncatedDataException(e);
                 }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);
@@ -169,7 +178,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Revision fetchOldestRevision() {
-        return new RevisionImpl(segment, 0, 0);
+        long startingOffset = meta.getSegmentInfo().getStartingOffset();
+        return new RevisionImpl(segment, startingOffset, 0);
+    }
+    
+    @Override
+    public void truncateToRevision(Revision newStart) {
+        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
     }
 
     @Override

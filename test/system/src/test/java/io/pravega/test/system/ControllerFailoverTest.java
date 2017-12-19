@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -146,7 +146,7 @@ public class ControllerFailoverTest {
         long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
         TxnSegments txnSegments = controller1.createTransaction(
-                stream1, lease, maxExecutionTime, scaleGracePeriod).join();
+                stream1, lease, scaleGracePeriod).join();
         log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
