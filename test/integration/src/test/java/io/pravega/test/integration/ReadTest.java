@@ -24,6 +24,7 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -150,7 +151,7 @@ public class ReadTest {
     }
 
     @Test
-    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
+    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
@@ -181,6 +182,14 @@ public class ReadTest {
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
+
+        // Test large write followed by read
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 150000);
     }
 
     @Test
@@ -254,7 +263,7 @@ public class ReadTest {
 
             for (int i = 0; i < 100; i++) {
                 pointer = reader.readNextEvent(5000).getEventPointer();
-                read = reader.read(pointer);
+                read = reader.fetchEvent(pointer);
                 assertEquals(testString + i, read);
             }
         } catch (NoSuchEventException e) {

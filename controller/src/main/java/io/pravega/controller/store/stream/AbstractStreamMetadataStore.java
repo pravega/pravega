@@ -71,11 +71,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
+    protected final int bucketCount;
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -111,6 +113,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         this.hostIndex = hostIndex;
+        this.bucketCount = bucketCount;
     }
 
     /**
@@ -461,6 +464,27 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> addStreamCutToRetentionSet(final String scope, final String name, final StreamCutRecord streamCut,
+                                                              final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.addStreamCutToRetentionSet(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String name,
+                                                                                  final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getRetentionStreamCuts(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String name, final StreamCutRecord streamCut,
+                                                         final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
+    }
+
+    @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
                                                                          final String streamName,
                                                                          final UUID txnId,
@@ -716,6 +740,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private TxnResource getTxnResource(String str) {
         return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
+
+    int getBucket(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        return scopedStreamName.hashCode() % bucketCount;
+    }
+
+    String getScopedStreamName(String scope, String stream) {
+        return String.format("%s/%s", scope, stream);
     }
 }
 

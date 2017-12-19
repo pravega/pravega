@@ -18,7 +18,8 @@ import lombok.Data;
 public class SegmentInfo {
 
     private final Segment segment;
-    private final long length;
+    private final long startingOffset;
+    private final long writeOffset;
     private final boolean isSealed;
     private final long lastModifiedTime;
 

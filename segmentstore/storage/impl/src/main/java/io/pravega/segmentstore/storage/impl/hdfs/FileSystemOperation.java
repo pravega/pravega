@@ -360,6 +360,17 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
+     * Sets the Sealed attribute to false on the file represented by the given descriptor.
+     *
+     * @param file The FileDescriptor of the file to unseal.
+     * @throws IOException If an exception occurred.
+     */
+    void makeUnsealed(FileDescriptor file) throws IOException {
+        setBooleanAttributeValue(file.getPath(), SEALED_ATTRIBUTE, false);
+        log.debug("MakeUnsealed '{}'.", file.getPath());
+    }
+
+    /**
      * Determines whether the given FileStatus indicates the file is read-only.
      *
      * @param fs The FileStatus to check.
@@ -410,7 +421,7 @@ abstract class FileSystemOperation<T> {
      * @param file The FileDescriptor of the file to set.
      * @throws IOException If an exception occurred.
      */
-    private void makeReadWrite(FileDescriptor file) throws IOException {
+    void makeReadWrite(FileDescriptor file) throws IOException {
         this.context.fileSystem.setPermission(file.getPath(), READWRITE_PERMISSION);
         log.debug("MakeReadWrite '{}'.", file.getPath());
         file.markReadWrite();

@@ -27,7 +27,6 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,15 +56,12 @@ public class AutoScaleProcessor {
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
-    private final Executor executor;
     private final ScheduledExecutorService maintenanceExecutor;
 
     AutoScaleProcessor(AutoScalerConfig configuration,
-                       Executor executor,
                        ScheduledExecutorService maintenanceExecutor) {
         this.configuration = configuration;
         this.maintenanceExecutor = maintenanceExecutor;
-        this.executor = executor;
 
         serializer = new JavaSerializer<>();
         writerConfig = EventWriterConfig.builder().build();
@@ -86,8 +82,8 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, executor, maintenanceExecutor);
+    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
         maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
@@ -95,9 +91,8 @@ public class AutoScaleProcessor {
 
     @VisibleForTesting
     AutoScaleProcessor(AutoScalerConfig configuration, ClientFactory cf,
-                       Executor executor,
                        ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, executor, maintenanceExecutor);
+        this(configuration, maintenanceExecutor);
         clientFactory.set(cf);
     }
 

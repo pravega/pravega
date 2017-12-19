@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -273,6 +274,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         synchronized (this.lock) {
+            // Perform the same validation checks as the ReadIndex would do.
+            SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
+            Preconditions.checkArgument(startOffset >= sm.getStorageLength(),
+                    "startOffset must be larger than refer to an offset beyond the Segment's StorageLength offset.");
+            Preconditions.checkArgument(startOffset + length <= sm.getLength(),
+                    "startOffset+length must be less than the length of the Segment.");
+            Preconditions.checkArgument(startOffset >= Math.min(sm.getStartOffset(), sm.getStorageLength()),
+                    "startOffset is before the Segment's StartOffset.");
+
             ad = this.appendData.getOrDefault(streamSegmentId, null);
         }
 
@@ -291,11 +302,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @Override
     public long getClosestValidTruncationPoint(long operationSequenceNumber) {
         return this.metadata.getClosestValidTruncationPoint(operationSequenceNumber);
-    }
-
-    @Override
-    public void deleteStreamSegment(String streamSegmentName) {
-        this.metadata.deleteStreamSegment(streamSegmentName);
     }
 
     @Override

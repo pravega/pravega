@@ -190,7 +190,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
-                                                          request.getMaxExecutionTime(),
                                                           request.getScaleGracePeriod())
                 .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                         .setTxnId(ModelHelper.decode(pair.getKey()))
@@ -221,6 +220,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId(),

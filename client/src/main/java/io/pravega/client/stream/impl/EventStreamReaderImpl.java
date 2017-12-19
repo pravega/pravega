@@ -13,9 +13,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.NoSuchEventException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -23,6 +27,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -35,6 +40,7 @@ import java.util.Map.Entry;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,6 +50,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
+    private final SegmentMetadataClientFactory metadataClientFactory;
 
     private final Orderer orderer;
     private final ReaderConfig config;
@@ -58,10 +65,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
-    EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, ReaderGroupStateManager groupState,
-            Orderer orderer, Supplier<Long> clock, ReaderConfig config) {
+    EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
+            SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
+            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
+        this.metadataClientFactory = metadataClientFactory;
         this.groupState = groupState;
         this.orderer = orderer;
         this.clock = clock;
@@ -70,7 +79,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException {
+    public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
@@ -95,6 +104,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     } catch (EndOfSegmentException e) {
                         handleEndOfSegment(segmentReader);
                         buffer = null;
+                    } catch (SegmentTruncatedException e) {
+                        handleSegmentTruncated(segmentReader);
+                        buffer = null;
                     }
                 }
             } while (buffer == null && timer.getElapsedMillis() < timeout);
@@ -111,7 +123,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     null);
         }
     }
-    
+
     private EventRead<Type> createEmptyEvent(String checkpoint) {
         return new EventReadImpl<>(lastRead, null, getPosition(), null, checkpoint);
     }
@@ -199,6 +211,20 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             throw e;
         }
     }
+    
+    private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
+        Segment segmentId = segmentReader.getSegmentId();
+        log.info("{} encountered truncation for segment {} ", this, segmentId);
+        @Cleanup
+        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId);
+        try {
+            long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
+            segmentReader.setOffset(startingOffset);
+        } catch (NoSuchSegmentException e) {
+            handleEndOfSegment(segmentReader);
+        }
+        throw new TruncatedDataException();
+    }
 
     @Override
     public ReaderConfig getConfig() {
@@ -222,9 +248,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public Type read(EventPointer pointer) throws NoSuchEventException {
+    public Type fetchEvent(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
-        // Create SegmentInputBuffer
+        // Create SegmentInputStream
+        @Cleanup
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         pointer.asImpl().getEventLength());
         inputStream.setOffset(pointer.asImpl().getEventStartOffset());
@@ -235,6 +262,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             return result;
         } catch (EndOfSegmentException e) {
             throw new NoSuchEventException(e.getMessage());
+        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+            throw new NoSuchEventException("Event no longer exists.");
         }
     }
 
