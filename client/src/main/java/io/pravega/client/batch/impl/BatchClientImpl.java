@@ -87,14 +87,16 @@ public class BatchClientImpl implements BatchClient {
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer) {
         @Cleanup
         SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        long segmentLength = metadataClient.fetchCurrentSegmentLength();
-        return readSegment(segment, deserializer, 0, segmentLength);
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, segmentInfo.getStartingOffset(), segmentInfo.getWriteOffset());
     }
 
     @Override
-    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset,
-                                              long endingOffset) {
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset);
+    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset) {
+        @Cleanup
+        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, segmentInfo.getWriteOffset());
     }
 
 }
