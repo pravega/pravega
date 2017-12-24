@@ -216,7 +216,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.debug("Getting segment attribute: {}", attributeId);
-            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), "", attributeId));
+            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(),
+                    controller.getOrRefeshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()).join(), attributeId));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;

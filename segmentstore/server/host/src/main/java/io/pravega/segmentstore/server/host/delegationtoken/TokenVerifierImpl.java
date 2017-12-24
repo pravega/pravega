@@ -35,7 +35,8 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                 Jws<Claims> claims = Jwts.parser()
                                          .setSigningKey(config.getTokenSigningKey().getBytes())
                                          .parseClaimsJws(token);
-                Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry -> resource.startsWith(entry.getKey())
+                Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry -> (resource.startsWith(entry.getKey())
+                        || resource.equals("*"))
                         && expectedLevel.compareTo(PravegaAuthHandler.PravegaAccessControlEnum.valueOf(entry.getValue().toString()))
                         < 0).findFirst();
                 if (matchingClaim.isPresent()) {
