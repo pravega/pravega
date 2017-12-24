@@ -101,7 +101,7 @@ public class BatchClientImpl implements BatchClient {
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset,
                                               long endingOffset) {
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset, latestDelegationToken);
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset);
     }
 
 }

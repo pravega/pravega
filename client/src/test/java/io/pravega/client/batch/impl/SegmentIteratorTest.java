@@ -42,7 +42,7 @@ public class SegmentIteratorTest {
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment);
         long length = metadataClient.getSegmentInfo("").getLength();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length, "");
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertTrue(iter.hasNext());
         assertTrue(iter.hasNext());
         assertEquals("1", iter.next());
@@ -66,7 +66,7 @@ public class SegmentIteratorTest {
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment);
         long length = metadataClient.getSegmentInfo("").getLength();
         @Cleanup
-        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length, "");
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertEquals(0, iter.getOffset());
         assertEquals("1", iter.next());
         assertEquals(length / 3, iter.getOffset());

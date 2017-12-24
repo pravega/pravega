@@ -45,12 +45,12 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize, String delegationToken) {
-        return createInputStreamForSegment(segment, delegationToken);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+        return createInputStreamForSegment(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
         return getMockStream(segment);
     }
 

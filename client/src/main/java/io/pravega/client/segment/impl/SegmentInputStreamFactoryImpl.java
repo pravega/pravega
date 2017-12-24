@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.common.concurrent.Futures;
 import java.util.concurrent.ExecutionException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
@@ -27,12 +28,13 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
-        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE, delegationToken);
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
+        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize, String delegationToken) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefeshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
     AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
