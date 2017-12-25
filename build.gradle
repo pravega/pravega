@@ -493,6 +493,8 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')

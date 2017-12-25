@@ -36,18 +36,24 @@ public class PravegaAuthManager {
     }
 
     public boolean authenticate(String resource, MultivaluedMap<String, String> headers, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
-        Map<String, String> paramMap = new HashMap<>();
-        headers.keySet().stream().forEach(key -> {
-            try {
-                paramMap.put(key, headers.getFirst(key));
-            } catch (IllegalArgumentException e) {
-            }
-        });
-        String method = paramMap.get("method");
+        boolean retVal = false;
+        try {
+            Map<String, String> paramMap = new HashMap<>();
+            headers.keySet().stream().forEach(key -> {
+                try {
+                    paramMap.put(key, headers.getFirst(key));
+                } catch (IllegalArgumentException e) {
+                }
+            });
+            String method = paramMap.get("method");
 
-        PravegaAuthHandler handler = getHandler(method);
-        return handler.authenticate(paramMap) &&
-                handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
+            PravegaAuthHandler handler = getHandler(method);
+            retVal = handler.authenticate(paramMap) &&
+                    handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
+        } catch (RuntimeException e) {
+            throw new PravegaAuthenticationException(e);
+        }
+        return retVal;
     }
 
 

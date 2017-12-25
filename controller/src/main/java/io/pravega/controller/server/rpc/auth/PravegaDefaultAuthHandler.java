@@ -33,17 +33,22 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
         userMap = new ConcurrentHashMap<>();
     }
 
-    //TODO: Add tests for wrong file
     private void loadPasswdFile(String userPasswdFile) {
         try (FileReader reader = new FileReader(userPasswdFile);
              BufferedReader lineReader = new BufferedReader(reader)
         ) {
             String line = lineReader.readLine();
             while ( !Strings.isNullOrEmpty(line)) {
-                if (!Strings.isNullOrEmpty(line) && !line.startsWith("#")) {
+                if (!line.startsWith("#")) {
                     String[] userFields = line.split(":");
                     if (userFields.length >= 2) {
-                        userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(userFields[2])));
+                        String acls;
+                        if (userFields.length == 2) {
+                            acls = "";
+                        } else {
+                            acls = userFields[2];
+                        }
+                        userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(acls)));
                     }
                 }
                 line = lineReader.readLine();
@@ -62,8 +67,8 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     public boolean authenticate(Map<String, String> headers) {
         String userName = headers.get("username");
         String passwd = headers.get("password");
-        Preconditions.checkNotNull(userName, "Username not found in header");
-        Preconditions.checkNotNull(passwd, "Password not found in header");
+        Preconditions.checkArgument(userName != null, "Username not found in header");
+        Preconditions.checkArgument(passwd != null, "Password not found in header");
 
         StrongPasswordEncryptor encryptor = new StrongPasswordEncryptor();
         return userMap.containsKey(userName) && encryptor.checkPassword(passwd, userMap.get(userName).encryptedPassword);
@@ -104,8 +109,17 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     private List<PravegaAcl> getAcls(String aclString) {
         return  Arrays.stream(aclString.split(";")).map(acl -> {
             String[] splits = acl.split(",");
-            return new PravegaAcl(splits[0],
-                    PravegaAccessControlEnum.valueOf(splits[1]));
+            if (splits.length == 0) {
+                return null;
+            }
+            String resource = splits[0];
+            String aclVal = "READ";
+            if (splits.length >= 2) {
+                aclVal = splits[1];
+
+            }
+            return new PravegaAcl(resource,
+                    PravegaAccessControlEnum.valueOf(aclVal));
         }).collect(Collectors.toList());
     }
 
