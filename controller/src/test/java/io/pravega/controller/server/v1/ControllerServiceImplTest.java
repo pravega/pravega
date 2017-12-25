@@ -461,6 +461,12 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void delegationTokenTests() {
+        //TODO: Test for creation of token in context and out of context.
+        //TODO: Add tests for checkAuthorizationWithToken and checkAuthorization.
+    }
+
+    @Test
     public void createTransactionFailureTest() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
 

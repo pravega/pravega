@@ -10,7 +10,14 @@
 package io.pravega.client.auth;
 
 public class PravegaAuthenticationException extends Exception {
+    Exception cause;
     public PravegaAuthenticationException(String message) {
         super(message);
+        cause = this;
+    }
+
+    public PravegaAuthenticationException(Exception e) {
+        super(e.getMessage());
+        cause = e;
     }
 }

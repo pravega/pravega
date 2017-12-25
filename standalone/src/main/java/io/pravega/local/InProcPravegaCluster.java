@@ -261,7 +261,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, false)
                                          .with(AutoScalerConfig.TLS_ENABLED, false)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, "config/cert.pem"))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, "/Users/kandha/IdeaProjects/pravega/config/cert.pem"))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
