@@ -9,12 +9,17 @@
  */
 package io.pravega.segmentstore.server.host.delegationtoken;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.*;
 
@@ -48,7 +53,19 @@ public class TokenVerifierImplTest {
             finalTokenVerifier.verifyToken("xyz", null, PravegaAuthHandler.PravegaAccessControlEnum.READ);
         });
 
-        //TODO: Add more tests.. wildcard check, level mismatch, timer expiry.
+        Map<String, Object> claims = new HashMap();
+
+        claims.put("*", String.valueOf(READ_UPDATE));
+
+        String token = Jwts.builder()
+                           .setSubject("segmentstoreresource")
+                           .setAudience("segmentstore")
+                           .setClaims(claims)
+                           .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
+                           .compact();
+        assertTrue("Wildcard check should pass", finalTokenVerifier.verifyToken("xyz", token, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+
+        //TODO: Add more tests..  level mismatch, timer expiry.
     }
 
     @After

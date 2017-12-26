@@ -36,16 +36,16 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                                          .setSigningKey(config.getTokenSigningKey().getBytes())
                                          .parseClaimsJws(token);
                 Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry -> (resource.startsWith(entry.getKey())
-                        || resource.equals("*"))
+                        || entry.getKey().equals("*"))
                         && expectedLevel.compareTo(PravegaAuthHandler.PravegaAccessControlEnum.valueOf(entry.getValue().toString()))
-                        < 0).findFirst();
+                        <= 0).findFirst();
                 if (matchingClaim.isPresent()) {
                     log.debug("Found a matching claim {} for resource {}", matchingClaim, resource);
-                    return false;
+                    return true;
                 } else {
                     log.debug("Could not find a matching claim {} for resource {} in claims {}",
                             expectedLevel, resource, claims);
-                    return true;
+                    return false;
                 }
             } catch (JwtException e) {
                 log.warn("Claim verification failed for resource {} because {}", resource, e);
