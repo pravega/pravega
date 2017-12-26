@@ -318,8 +318,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() > this.length) {
-            throw new BadOffsetException(this.name, String.format("Truncation Offset must be at least %d and at most %d, given %d.",
-                    this.startOffset, this.length, operation.getStreamSegmentOffset()));
+            String msg = String.format("Truncation Offset must be at least %d and at most %d, given %d.",
+                                       this.startOffset, this.length, operation.getStreamSegmentOffset());
+            throw new BadOffsetException(this.name, this.startOffset, operation.getStreamSegmentOffset(), msg);
         }
     }
 

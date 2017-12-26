@@ -420,15 +420,28 @@ public class PravegaRequestProcessorTest {
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
+        // Truncate at the same offset - verify idempotence.
+        processor.truncateSegment(new WireCommands.TruncateSegment(4, streamSegmentName, truncateOffset));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
+        // Truncate at a lower offset - verify failure.
+        processor.truncateSegment(new WireCommands.TruncateSegment(5, streamSegmentName, truncateOffset - 1));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
         // Delete.
-        processor.deleteSegment(new WireCommands.DeleteSegment(4, streamSegmentName));
+        processor.deleteSegment(new WireCommands.DeleteSegment(6, streamSegmentName));
         assertFalse(append(streamSegmentName, 4, store));
 
         // Verify connection response with same order.
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         order.verify(connection).send(new WireCommands.SegmentSealed(2, streamSegmentName));
         order.verify(connection).send(new WireCommands.SegmentTruncated(3, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(4, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentTruncated(4, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(5, streamSegmentName, truncateOffset));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(6, streamSegmentName));
+        order.verifyNoMoreInteractions();
     }
 
     @Test(timeout = 20000)
