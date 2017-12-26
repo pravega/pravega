@@ -37,15 +37,16 @@ public class PravegaAuthManagerTest {
         file = File.createTempFile("passwd", ".txt");
         StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
 
-        FileWriter writer = new FileWriter(file.getAbsolutePath());
-        writer.write(":\n");
-        writer.write("::\n");
-        writer.write(":::\n");
-        writer.write("dummy:password:\n");
-        writer.write("dummy1:password:readresource;;\n");
-        writer.write("dummy2:password:readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
-        writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
-        writer.close();
+        try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
+            writer.write(":\n");
+            writer.write("::\n");
+            writer.write(":::\n");
+            writer.write("dummy:password:\n");
+            writer.write("dummy1:password:readresource;;\n");
+            writer.write("dummy2:password:readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
+            writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
+            writer.close();
+        }
 
     }
 
