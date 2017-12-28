@@ -54,7 +54,6 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
@@ -203,12 +202,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
-        CompletableFuture<Pair<Set<Segment>, String>> unread = controller.getSuccessors(position);
-        Pair<Set<Segment>, String> unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
-        for (Segment s : unreadVal.getLeft()) {
+        CompletableFuture<StreamSegmentSuccessors> unread = controller.getSuccessors(position);
+        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
+        for (Segment s : unreadVal.getSegments()) {
             @Cleanup
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
-            totalLength += metadataClient.fetchCurrentSegmentLength(unreadVal.getRight());
+            totalLength += metadataClient.fetchCurrentSegmentLength(unreadVal.getDelegationToken());
         }
         for (long bytesRead : position.getPositions().values()) {
             totalLength -= bytesRead;

@@ -82,7 +82,6 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -645,7 +644,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from) {
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
@@ -674,7 +673,7 @@ public class ControllerImpl implements Controller {
             }
         }
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
-        return CompletableFuture.completedFuture(Pair.of(unread, delegationToken));
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(unread, delegationToken));
     }
 
     private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {

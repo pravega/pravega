@@ -24,5 +24,5 @@ public interface PravegaCredentials {
      * Returns authorization headers used by this specific authentication type.
      * @return The map of authentication headers and values.
      */
-    Map<String, String> getAuthorizationHeaders();
+    Map<String, String> getAuthHeaders();
 }

@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
@@ -35,14 +36,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
 
@@ -342,7 +342,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from) {
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
         throw new NotImplementedException("getSuccessors");
     }
 
@@ -366,7 +366,7 @@ public class LocalController implements Controller {
         if (authorizationEnabled) {
             return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
         } else {
-            return "";
+            return StringUtils.EMPTY;
         }
     }
 

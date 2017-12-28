@@ -73,7 +73,7 @@ public interface ClientFactory extends AutoCloseable {
 
 
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return withScope(scope, controllerUri, null, false, "");
+        return withScope(scope, controllerUri, null, false, null);
     }
 
     /**
@@ -156,4 +156,5 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Override
     void close();
+
 }

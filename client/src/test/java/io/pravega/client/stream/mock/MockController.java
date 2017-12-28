@@ -24,6 +24,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
@@ -59,7 +60,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -433,12 +433,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from) {
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
         StreamConfiguration configuration = createdStreams.get(from.getStream());
         if (configuration.getScalingPolicy().getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }
-        return CompletableFuture.completedFuture(Pair.of(Collections.emptySet(), ""));
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(Collections.emptySet(), ""));
     }
 
     @Override

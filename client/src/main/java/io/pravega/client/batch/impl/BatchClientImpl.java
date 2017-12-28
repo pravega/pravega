@@ -27,15 +27,14 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import lombok.Cleanup;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -76,12 +75,12 @@ public class BatchClientImpl implements BatchClient {
                                                              RuntimeException::new);
         SortedSet<Segment> result = new TreeSet<>();
         result.addAll(segments.keySet());
-        Pair<Set<Segment>, String> successors = getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
+        StreamSegmentSuccessors successors = getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
                 RuntimeException::new);
 
-        result.addAll(successors.getLeft());
-        latestDelegationToken = successors.getRight();
-        return Iterators.transform(result.iterator(), s -> segmentToInfo(s, successors.getRight()));
+        result.addAll(successors.getSegments());
+        latestDelegationToken = successors.getDelegationToken();
+        return Iterators.transform(result.iterator(), s -> segmentToInfo(s, successors.getDelegationToken()));
     }
 
     private SegmentInfo segmentToInfo(Segment s, String delegationToken) {

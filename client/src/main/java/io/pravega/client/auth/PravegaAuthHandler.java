@@ -11,6 +11,16 @@ package io.pravega.client.auth;
 
 import java.util.Map;
 
+/**
+ * Custom authorization/authentication handlers implment this interface.
+ * The implementations are loaded from the classpath using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
+ * Pravega controller also implements this interface through `PravegaDefaultAuthHandler`.
+ *
+ * Each custom auth handler is registered with a unique name.
+ * A client selects its auth handler by setting a grpc header with a name "method". T
+ * his is done by implementing `PravegaCredentials` interface and passing it to client calls.
+ *
+ */
 public interface PravegaAuthHandler {
 
     enum  PravegaAccessControlEnum {

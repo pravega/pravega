@@ -1122,7 +1122,7 @@ public class ControllerImplTest {
         segments.put(new Segment(scope, stream, 0), 4L);
         segments.put(new Segment(scope, stream, 1), 6L);
         StreamCut cut = new StreamCut(s, segments);
-        Set<Segment> successors = controllerClient.getSuccessors(cut).get().getLeft();
+        Set<Segment> successors = controllerClient.getSuccessors(cut).get().getSegments();
         assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
                                      new Segment(scope, stream, 2), new Segment(scope, stream, 3),
                                      new Segment(scope, stream, 4), new Segment(scope, stream, 5),

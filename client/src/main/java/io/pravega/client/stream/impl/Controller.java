@@ -19,11 +19,9 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Stream Controller APIs.
@@ -241,7 +239,7 @@ public interface Controller extends AutoCloseable {
      * @param from The position from which to find the remaining bytes.
      * @return The total number of bytes beyond the provided positions.
      */
-    CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from);
+    CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from);
 
     // Controller Apis that are called by writers and readers
 
