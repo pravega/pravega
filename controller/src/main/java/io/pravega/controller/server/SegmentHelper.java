@@ -38,7 +38,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 @Slf4j
 public class SegmentHelper {
-    
+
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -95,7 +95,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -147,7 +149,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -202,7 +206,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -268,7 +274,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -323,7 +331,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -386,7 +396,10 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed)
+                );
             }
         };
 
@@ -445,7 +458,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -490,13 +505,15 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(), 
+        WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
                 Segment.getScopedName(scope, stream, segmentNumber), delegationToken, extracted.getLeft(), extracted.getRight());
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -536,7 +553,9 @@ public class SegmentHelper {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 

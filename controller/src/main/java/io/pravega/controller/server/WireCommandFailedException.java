@@ -22,6 +22,7 @@ public class WireCommandFailedException extends RuntimeException implements Retr
         ConnectionFailed,
         UnknownHost,
         PreconditionFailed,
+        AuthFailed,
     }
 
     private final WireCommandType type;
