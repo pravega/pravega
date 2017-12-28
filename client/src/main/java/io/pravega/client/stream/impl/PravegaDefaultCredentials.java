@@ -27,7 +27,7 @@ public class PravegaDefaultCredentials implements PravegaCredentials {
     }
 
     @Override
-    public Map<String, String> getAuthorizationHeaders() {
+    public Map<String, String> getAuthHeaders() {
         Map<String, String> retVal = new HashMap<>();
         retVal.put("userName", this.userName);
         retVal.put("password", this.password);
