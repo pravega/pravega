@@ -237,7 +237,7 @@ public interface Controller extends AutoCloseable {
      * Returns all the segments that come after the provided cutpoint. 
      * 
      * @param from The position from which to find the remaining bytes.
-     * @return The total number of bytes beyond the provided positions.
+     * @return The segments beyond a given cut position.
      */
     CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from);
 
