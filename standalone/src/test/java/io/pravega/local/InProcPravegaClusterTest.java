@@ -28,8 +28,8 @@ import org.junit.Test;
  */
 @Slf4j
 public class InProcPravegaClusterTest {
-    private LocalPravegaEmulator localPravega;
     boolean authEnabled = false;
+    private LocalPravegaEmulator localPravega;
 
     @Before
     public void setUp() throws Exception {
