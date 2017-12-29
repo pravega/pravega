@@ -17,7 +17,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
 import javax.ws.rs.core.MultivaluedMap;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class PravegaAuthManager {
     private final GRPCServerConfig serverConfig;
     private final Map<String, PravegaAuthHandler> handlerMap;
@@ -59,13 +61,17 @@ public class PravegaAuthManager {
 
 
     public void registerInterceptors(ServerBuilder<?> builder) {
-        if (serverConfig.isAuthorizationEnabled()) {
-            ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
-            for (PravegaAuthHandler handler : loader) {
-                handler.setServerConfig(serverConfig);
-                handlerMap.put(handler.getHandlerName(), handler);
-                builder.intercept(new PravegaInterceptor(handler));
+        try {
+            if (serverConfig.isAuthorizationEnabled()) {
+                ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
+                for (PravegaAuthHandler handler : loader) {
+                    handler.setServerConfig(serverConfig);
+                    handlerMap.put(handler.getHandlerName(), handler);
+                    builder.intercept(new PravegaInterceptor(handler));
+                }
             }
+        } catch (Exception e) {
+            log.warn("Exception {} while loading the auth handlers", e);
         }
     }
 }

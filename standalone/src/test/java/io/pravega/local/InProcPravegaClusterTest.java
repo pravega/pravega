@@ -29,6 +29,7 @@ import org.junit.Test;
 @Slf4j
 public class InProcPravegaClusterTest {
     private LocalPravegaEmulator localPravega;
+    boolean authEnabled = false;
 
     @Before
     public void setUp() throws Exception {
@@ -43,6 +44,7 @@ public class InProcPravegaClusterTest {
                                            .segmentStorePort(TestUtils.getAvailableListenPort())
                                            .zkPort(TestUtils.getAvailableListenPort())
                                            .restServerPort(TestUtils.getAvailableListenPort())
+                                           .enableAuth(authEnabled)
                                            .build();
         localPravega.start();
     }
@@ -64,8 +66,8 @@ public class InProcPravegaClusterTest {
         StreamManager streamManager = StreamManager.create(URI.create(
                 localPravega.getInProcPravegaCluster().getControllerURI()),
                 new PravegaDefaultCredentials("1111_aaaa", "arvind"),
-                false,
-                "config/cert.pem");
+                authEnabled,
+                "../config/cert.pem");
 
         streamManager.createScope(scope);
         Assert.assertTrue("Stream creation is not successful ",
