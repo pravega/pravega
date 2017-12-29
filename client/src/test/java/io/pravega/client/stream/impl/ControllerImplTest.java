@@ -15,7 +15,6 @@ import io.grpc.Status;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
-import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
