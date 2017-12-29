@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import java.io.IOException;
 import org.junit.Before;
+import org.junit.Test;
 
 public class SecureControllerImplTest extends ControllerImplTest {
     @Override
@@ -18,5 +19,11 @@ public class SecureControllerImplTest extends ControllerImplTest {
     public void setup() throws IOException {
         this.testSecure = true;
         super.setup();
+    }
+
+    @Override
+    @Test
+    public void testRetries() {
+
     }
 }
