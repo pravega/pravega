@@ -15,6 +15,7 @@ import io.grpc.Status;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -54,6 +55,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -95,6 +97,7 @@ public class ControllerImplTest {
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    boolean testSecure;
 
     // Global variable to track number of attempts to verify retries.
     private final AtomicInteger retryAttempts = new AtomicInteger(0);
@@ -108,6 +111,8 @@ public class ControllerImplTest {
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
+    private NettyServerBuilder serverBuilder;
+    private PravegaCredentials creds;
 
     @Before
     public void setup() throws IOException {
@@ -610,13 +615,19 @@ public class ControllerImplTest {
         };
 
         serverPort = TestUtils.getAvailableListenPort();
-        testGRPCServer = NettyServerBuilder.forPort(serverPort)
-                .addService(testServerImpl)
+        serverBuilder = NettyServerBuilder.forPort(serverPort)
+                                          .addService(testServerImpl);
+        if (testSecure) {
+         serverBuilder = serverBuilder.useTransportSecurity(new File("../config/cert.pem"),
+                 new File("../config/key.pem"));
+         creds = new PravegaDefaultCredentials("1111_aaaa", "admin");
+        }
+        testGRPCServer = serverBuilder
                 .build()
                 .start();
         executor = Executors.newSingleThreadScheduledExecutor();
         controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build(), executor, creds, testSecure, "../config/cert.pem" );
     }
 
     @After
