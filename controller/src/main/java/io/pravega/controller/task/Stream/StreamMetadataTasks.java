@@ -196,6 +196,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
                                              final long recordingTime, final OperationContext contextOpt) {
+        Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)
@@ -236,9 +237,9 @@ public class StreamMetadataTasks extends TaskBase {
 
     private Optional<StreamCutRecord> findTruncationRecord(RetentionPolicy policy, List<StreamCutRecord> retentionSet,
                                                            StreamCutRecord newRecord, long recordingTime) {
-        switch (policy.getType()) {
+        switch (policy.getRetentionType()) {
             case TIME:
-                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getValue())
+                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionParam())
                         .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
             case SIZE:
                 // get latest record from retentionSet and find most recent record such that latest.size - mostRecent.size > policy
@@ -246,7 +247,7 @@ public class StreamMetadataTasks extends TaskBase {
                 Optional<StreamCutRecord> latestOpt = Optional.ofNullable(newRecord);
 
                 return latestOpt.flatMap(latest ->
-                        retentionSet.stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getValue())
+                        retentionSet.stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionParam())
                                 .max(streamCutRecordComparator));
             default:
                 throw new NotImplementedException("Size based retention");
@@ -444,7 +445,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    log.debug("Scale for stream {}/{} failed with exception {}", scope, stream, cause);
+                                    log.warn("Scale for stream {}/{} failed with exception {}", scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
@@ -617,11 +618,12 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
+    @VisibleForTesting
+    CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
                                                                           StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    log.debug("{}/{} created in metadata store", scope, stream);
+                    log.info("{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -633,11 +635,18 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() ->
-                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                                                    config.getRetentionPolicy(), context, executor)
-                                                    .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
-                                                            context, executor)), executor)
+                                    return withRetries(() -> {
+                                        CompletableFuture<Void> future;
+                                        if (config.getRetentionPolicy() != null) {
+                                            future = streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor);
+                                        } else {
+                                            future = CompletableFuture.completedFuture(null);
+                                        }
+                                        return future
+                                                .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                        context, executor));
+                                    }, executor)
                                             .thenApply(z -> status);
                                 });
                     } else {
@@ -757,7 +766,7 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentNumber,
                 hostControllerStore,
                 this.connectionFactory), executor)
-                .thenApply(WireCommands.StreamSegmentInfo::getSegmentLength);
+                .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
     }
 
     private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {

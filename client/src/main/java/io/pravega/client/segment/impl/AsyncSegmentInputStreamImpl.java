@@ -22,6 +22,7 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -64,18 +65,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            //TODO: It's not clear how we should be handling this case. (It should be impossible...)
-            closeConnection(new IllegalArgumentException(noSuchSegment.toString()));
+            log.info("Received noSuchSegment {}", noSuchSegment);
+            CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getRequestId());
+            if (future != null) {
+                future.completeExceptionally(new SegmentTruncatedException("Segment no longer exists."));
+            }
+        }
+        
+        @Override
+        public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
+            log.info("Received segmentIsTruncated {}", segmentIsTruncated);
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getRequestId());
+            if (future != null) {
+                future.completeExceptionally(new SegmentTruncatedException());
+            }
         }
         
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
             log.info("Received segmentSealed {}", segmentIsSealed);
-            checkSegment(segmentIsSealed.getSegment());
-            CompletableFuture<SegmentRead> future;
-            synchronized (lock) {
-                future = outstandingRequests.remove(segmentIsSealed.getRequestId());
-            }
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsSealed.getSegment(), segmentIsSealed.getRequestId());
             if (future != null) {
                 future.complete(new WireCommands.SegmentRead(segmentIsSealed.getSegment(),
                         segmentIsSealed.getRequestId(),
@@ -87,14 +96,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void segmentRead(WireCommands.SegmentRead segmentRead) {
-            checkSegment(segmentRead.getSegment());
             log.trace("Received read result {}", segmentRead);
-            CompletableFuture<SegmentRead> future;
-            synchronized (lock) {
-                future = outstandingRequests.remove(segmentRead.getOffset());
-            }
+            CompletableFuture<SegmentRead> future = grabFuture(segmentRead.getSegment(), segmentRead.getOffset());
             if (future != null) {
                 future.complete(segmentRead);
+            }
+        }
+
+        private CompletableFuture<SegmentRead> grabFuture(String segment, long requestId) {
+            checkSegment(segment);
+            synchronized (lock) {
+                return outstandingRequests.remove(requestId);
             }
         }
 

@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,6 +36,9 @@ public class CheckpointState {
      */
     @GuardedBy("$lock")
     private final Map<String, Map<Segment, Long>> checkpointPositions = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private Map<Segment, Long> lastCheckpointPosition;
     
     @Synchronized
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
@@ -83,6 +87,8 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
+                //checkpoint operation completed for all readers, update the last checkpoint position.
+                lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
         }
     }
@@ -98,6 +104,11 @@ public class CheckpointState {
             return null;
         }
         return checkpointPositions.get(checkpointId);
+    }
+
+    @Synchronized
+    Optional<Map<Segment, Long>> getPositionsForLatestCompletedCheckpoint() {
+        return Optional.ofNullable(lastCheckpointPosition);
     }
     
     @Synchronized

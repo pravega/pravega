@@ -49,6 +49,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
+    private boolean receivedTruncated = false;
+    @GuardedBy("$lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
@@ -73,7 +75,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         this.readLength = Math.min(DEFAULT_READ_LENGTH, bufferSize);
         this.buffer = new CircularBuffer(Math.max(bufferSize, readLength + 1));
 
-        issueRequestIfNeeded();
+        try {
+            issueRequestIfNeeded();
+        } catch (SegmentTruncatedException e) {
+            log.warn("{} is already truncated at it's initial offset of {}", asyncInput, offset);
+        }
     }
 
     @Override
@@ -86,6 +92,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
+            receivedTruncated = false;
             outstandingRequest = null;        
         }
     }
@@ -101,7 +108,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      */
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         log.trace("Read called at offset {}", offset);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         long originalOffset = offset;
@@ -119,13 +126,17 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         }
     }
 
-    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException {
+    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         fillBuffer();
+        if (receivedTruncated) {
+            throw new SegmentTruncatedException();
+        }
         while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
-            if (Futures.getAndHandleExceptions(outstandingRequest, e -> issueRequestIfNeeded(), timeout) == null) {
+            Futures.await(outstandingRequest, timeout);
+            if (!outstandingRequest.isDone()) {
                 return null;
             }
             handleRequest();
@@ -144,6 +155,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         ByteBuffer result = ByteBuffer.allocate(length);
         offset += buffer.read(result);
         while (result.hasRemaining()) {
+            issueRequestIfNeeded();
             handleRequest();
             offset += buffer.read(result);
         }
@@ -155,8 +167,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         return outstandingRequest != null && Futures.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
     }
 
-    private void handleRequest() {
-        WireCommands.SegmentRead segmentRead = outstandingRequest.join();
+    private void handleRequest() throws SegmentTruncatedException {
+        if (outstandingRequest.isCompletedExceptionally()) {
+            issueRequestIfNeeded();
+        }
+        SegmentRead segmentRead = outstandingRequest.join();
         verifyIsAtCorrectOffset(segmentRead);
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
@@ -180,13 +195,17 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     /**
      * Issues a request if there is enough room for another request, and we aren't already waiting on one
      */
-    private void issueRequestIfNeeded() {
-        if (!receivedEndOfSegment && buffer.capacityAvailable() > readLength) {
+    private void issueRequestIfNeeded() throws SegmentTruncatedException {
+        if (!receivedEndOfSegment && !receivedTruncated && buffer.capacityAvailable() >= readLength) {
             if (outstandingRequest == null) {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {
                 Throwable e = Futures.getException(outstandingRequest);
                 Throwable realException = Exceptions.unwrap(e);
+                if (realException instanceof SegmentTruncatedException) {
+                    receivedTruncated = true;
+                    throw new SegmentTruncatedException(e);
+                }
                 if (!(realException instanceof Error || realException instanceof InterruptedException
                         || realException instanceof CancellationException)) {
                     log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
@@ -200,6 +219,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public void close() {
         log.trace("Closing {}", this);
+        if (outstandingRequest != null) {
+            log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
+            outstandingRequest.cancel(true);
+        }
         asyncInput.close();
     }
 
@@ -208,9 +231,13 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public void fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        issueRequestIfNeeded();
-        while (dataWaitingToGoInBuffer()) {
-            handleRequest();
+        try {      
+            issueRequestIfNeeded();
+            while (dataWaitingToGoInBuffer()) {
+                handleRequest();
+            }
+        } catch (SegmentTruncatedException e) {
+            log.warn("Encountered exception filling buffer", e);
         }
     }
     

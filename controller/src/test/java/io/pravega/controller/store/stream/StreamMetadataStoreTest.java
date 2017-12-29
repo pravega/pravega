@@ -656,7 +656,10 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeRetain";
         final String stream = "StreamRetain";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.builder().type(RetentionPolicy.Type.TIME).value(Duration.ofDays(2).toMillis()).build();
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofDays(2).toMillis())
+                .build();
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
@@ -716,7 +719,8 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeSize";
         final String stream = "StreamSize";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.builder().type(RetentionPolicy.Type.SIZE).value(100).build();
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.SIZE)
+                .retentionParam(100L).build();
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 

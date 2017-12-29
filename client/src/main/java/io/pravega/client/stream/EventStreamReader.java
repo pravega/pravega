@@ -29,11 +29,14 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * @return An instance of {@link EventRead}, which contains the next event in the stream. In the case the timeout
      *         is reached, {@link EventRead#getEvent()} returns null.
      * @throws ReinitializationRequiredException Is throw in the event that
-     *         {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
-     *         {@link ReaderGroup#updateConfig(ReaderGroupConfig, java.util.Set)} was called
-     *         which requires readers to be reinitialized.
+     *             {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
+     *             {@link ReaderGroup#updateConfig(ReaderGroupConfig, java.util.Set)} was called
+     *             which requires readers to be reinitialized.
+     * @throws TruncatedDataException if the data that would be read next has been truncated away
+     *             and can no longer be read. (If following this readNextEvent is called again it
+     *             will resume from the next available event.)
      */
-    EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException;
+    EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException;
 
     /**
      * Gets the configuration that this reader was created with.
@@ -54,7 +57,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      *         been deleted.
      * @throws NoSuchEventException Reader was not able to fetch the event.
      */
-    T read(EventPointer pointer) throws NoSuchEventException;
+    T fetchEvent(EventPointer pointer) throws NoSuchEventException;
 
     /**
      * Close the reader. No further actions may be performed. If this reader is part of a

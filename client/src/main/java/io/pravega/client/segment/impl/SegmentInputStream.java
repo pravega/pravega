@@ -49,8 +49,9 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
+     * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    public default ByteBuffer read() throws EndOfSegmentException {
+    public default ByteBuffer read() throws EndOfSegmentException, SegmentTruncatedException {
         return read(Long.MAX_VALUE);
     }
     
@@ -67,8 +68,9 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
+     * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException;
+    public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException, SegmentTruncatedException;
     
     /**
      * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.
