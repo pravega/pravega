@@ -69,6 +69,11 @@ public class WireCommandsTest {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, buf));
     }
 
+    @Test
+    public void testAuthTokenCheckFalied() throws IOException {
+        testCommand(new WireCommands.AuthTokenCheckFailed(l));
+    }
+
     /*
      * Test that we are able to decode the message of a previous version.
      * Specifically here, we create a data structure that corresponds to the
