@@ -81,6 +81,7 @@ public class StreamMetaDataTests {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     ControllerService mockControllerService;
+    PravegaAuthManager authManager = null;
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
@@ -132,7 +133,6 @@ public class StreamMetaDataTests {
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.FAILURE).build());
     private CompletableFuture<UpdateStreamStatus> updateStreamStatus4 = CompletableFuture.
             completedFuture(UpdateStreamStatus.newBuilder().setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build());
-    PravegaAuthManager authManager = null;
 
     @Before
     public void setup() {
