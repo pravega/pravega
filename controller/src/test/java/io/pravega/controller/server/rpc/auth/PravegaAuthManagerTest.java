@@ -45,6 +45,7 @@ public class PravegaAuthManagerTest {
             writer.write("dummy1:password:readresource;;\n");
             writer.write("dummy2:password:readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
             writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
+            writer.write("dummy4:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;*,READ_UPDATE\n");
             writer.close();
         }
 
@@ -104,6 +105,12 @@ public class PravegaAuthManagerTest {
 
         assertTrue("Write access for write resource should return true",
                 manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
+
+        //Check the wildcard access
+        map.putSingle("username", "dummy4");
+        assertTrue("Write access for write resource should return true",
+                manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
+
 
         map.putSingle("method", "testHandler");
         assertTrue("Test handler should be called", manager.authenticate("any", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
