@@ -111,7 +111,6 @@ public class PravegaAuthManagerTest {
         assertTrue("Write access for write resource should return true",
                 manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
 
-
         map.putSingle("method", "testHandler");
         assertTrue("Test handler should be called", manager.authenticate("any", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
 
