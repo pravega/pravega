@@ -150,7 +150,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 in.setOffset(offset.get());
                 try {
                     data = in.read();
-                } catch (EndOfSegmentException e) {
+                } catch (EndOfSegmentException | SegmentTruncatedException e) {
                     throw new IllegalStateException(
                             "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 }
@@ -180,13 +180,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Revision fetchOldestRevision() {
-        long startingOffset = meta.getSegmentInfo().getStartingOffset();
+        long startingOffset = meta.getSegmentInfo(currentDelegationToken).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
+        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment(), currentDelegationToken);
     }
 
     @Override

@@ -88,18 +88,18 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, "");
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment);
-        long length = metadataClient.getSegmentInfo().getWriteOffset();
+        long length = metadataClient.getSegmentInfo("").getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertEquals("1", iter.next());
-        long segmentLength = metadataClient.fetchCurrentSegmentLength();
+        long segmentLength = metadataClient.fetchCurrentSegmentLength("");
         assertEquals(0, segmentLength % 3);
-        metadataClient.truncateSegment(segment, segmentLength * 2 / 3);
+        metadataClient.truncateSegment(segment, segmentLength * 2 / 3, "");
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iter.next());
         @Cleanup
         SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, segment, stringSerializer,

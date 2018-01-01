@@ -265,7 +265,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return result;
     }
 
-    private CompletableFuture<WireCommands.SegmentTruncated> truncateSegmentAsync(Segment segment, long offset) {
+    private CompletableFuture<WireCommands.SegmentTruncated> truncateSegmentAsync(Segment segment, long offset, String delegationToken) {
         CompletableFuture<WireCommands.SegmentTruncated> result = new CompletableFuture<>();
         long requestId = requestIdGenerator.get();
         synchronized (lock) {
@@ -273,7 +273,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.trace("Truncating segment: {}", segment);
-            send(c, new WireCommands.TruncateSegment(requestId, segment.getScopedName(), offset));
+            send(c, new WireCommands.TruncateSegment(requestId, delegationToken, segment.getScopedName(), offset));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;
@@ -322,16 +322,16 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public SegmentInfo getSegmentInfo(String delegationToken) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
         StreamSegmentInfo info = future.join();
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(), info.getLastModified());
     }
 
     @Override
-    public void truncateSegment(Segment segment, long offset) {
+    public void truncateSegment(Segment segment, long offset, String delegationToken) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> truncateSegmentAsync(segment, offset),
+                                   .runAsync(() -> truncateSegmentAsync(segment, offset, delegationToken),
                                              connectionFactory.getInternalExecutor());
         future.join();
     }
