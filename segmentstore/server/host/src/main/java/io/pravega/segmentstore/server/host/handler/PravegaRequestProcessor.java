@@ -169,6 +169,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void readSegment(ReadSegment readSegment) {
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+                readSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(readSegment.getOffset(), segment,
+                    "Seal Segment", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
 
@@ -484,6 +492,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(createTransaction.getSegment(),
+                createTransaction.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(createTransaction.getRequestId(), createTransaction.getSegment(),
+                    "Create Transaction", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         Collection<AttributeUpdate> attributes = Collections.singleton(
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
         log.debug("Creating transaction {} ", createTransaction);
@@ -500,6 +516,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long requestId = commitTx.getRequestId();
         log.debug("Committing transaction {} ", commitTx);
 
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(commitTx.getSegment(),
+                commitTx.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(commitTx.getRequestId(), commitTx.getSegment(),
+                    "Commit Transaction", new PravegaAuthenticationException("Token verification failed"));
+        }
         // Seal and Merge can execute concurrently, as long as they are invoked in the correct order (first Seal, then Merge).
         // If Seal fails for whatever reason (except already sealed), then Merge will also fail because the txn is not sealed,
         // but invoking them in parallel does provide benefits in terms of reduced latency.
@@ -531,6 +553,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void abortTransaction(AbortTransaction abortTx) {
         long requestId = abortTx.getRequestId();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(abortTx.getSegment(),
+                abortTx.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(abortTx.getRequestId(), abortTx.getSegment(),
+                    "Abort Transaction", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(abortTx.getSegment(), abortTx.getTxid());
         log.debug("Aborting transaction {} ", abortTx);
         segmentStore.deleteStreamSegment(transactionName, TIMEOUT)
@@ -549,6 +579,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         log.debug("Sealing segment {} ", sealSegment);
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+                sealSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(sealSegment.getRequestId(), segment,
+                    "Seal Segment", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
@@ -567,6 +605,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void truncateSegment(TruncateSegment truncateSegment) {
         String segment = truncateSegment.getSegment();
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+                truncateSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(truncateSegment.getRequestId(), segment,
+                    "Truncate Segment", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         long offset = truncateSegment.getTruncationOffset();
         log.debug("Truncating segment {} at offset {} ", segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
@@ -578,6 +624,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void deleteSegment(DeleteSegment deleteSegment) {
         String segment = deleteSegment.getSegment();
         log.debug("Deleting segment {} ", deleteSegment);
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+                deleteSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(deleteSegment.getRequestId(), segment,
+                    "Delete Segment", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
@@ -590,6 +644,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(updateSegmentPolicy.getSegment(),
+                updateSegmentPolicy.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(),
+                    "Update Segment Policy", new PravegaAuthenticationException("Token verification failed"));
+        }
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
