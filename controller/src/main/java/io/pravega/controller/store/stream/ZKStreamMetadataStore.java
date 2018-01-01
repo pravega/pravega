@@ -219,6 +219,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(final String scope, final String stream, final RetentionPolicy retentionPolicy,
                                                                    final OperationContext context, final Executor executor) {
+        Preconditions.checkNotNull(retentionPolicy);
         int bucket = getBucket(scope, stream);
         String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
         byte[] serialize = SerializationUtils.serialize(retentionPolicy);

@@ -26,7 +26,8 @@ public class ServiceConfig {
     //region Config Names
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 20);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
@@ -91,10 +92,16 @@ public class ServiceConfig {
     private final int containerCount;
 
     /**
-     * The number of threads in the common thread pool.
+     * The number of threads in the core Segment Store Thread Pool.
      */
     @Getter
-    private final int threadPoolSize;
+    private final int coreThreadPoolSize;
+
+    /**
+     * The number of threads in the Thread Pool used for accessing Storage.
+     */
+    @Getter
+    private final int storageThreadPoolSize;
 
     /**
      * The TCP Port number to listen to.
@@ -188,7 +195,8 @@ public class ServiceConfig {
      */
     private ServiceConfig(TypedProperties properties) throws ConfigurationException {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
-        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.coreThreadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 
         int publishedPort;
