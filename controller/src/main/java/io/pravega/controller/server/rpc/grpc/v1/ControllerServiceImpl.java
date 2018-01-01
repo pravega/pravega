@@ -72,7 +72,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getControllerServerList called.");
         authenticateExecuteAndProcessResults(aVoid -> true,
                 () -> controllerService.getControllerServerList()
-                                       .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
+                                     .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
                 responseObserver);
     }
 
