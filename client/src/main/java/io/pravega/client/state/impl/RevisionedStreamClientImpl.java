@@ -150,10 +150,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 in.setOffset(offset.get());
                 try {
                     data = in.read();
-                } catch (EndOfSegmentException | SegmentTruncatedException e) {
-                    throw new IllegalStateException(
-                            "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
-                }
+                } catch (EndOfSegmentException e) {
+                throw new IllegalStateException(
+                        "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
+            } catch (SegmentTruncatedException e) {
+                throw new TruncatedDataException(e);
+            }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);
             }
