@@ -67,9 +67,9 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor()))
+                .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                                                            bookkeeper.getZkClient(), setup.getExecutor()));
+                                                            bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
     //endregion

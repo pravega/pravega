@@ -147,7 +147,7 @@ public class StreamMetadataTasksTest {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        streamStorePartialMock.createScope(SCOPE);
+        streamStorePartialMock.createScope(SCOPE).join();
 
         long start = System.currentTimeMillis();
         streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
@@ -456,6 +456,46 @@ public class StreamMetadataTasksTest {
         assertTrue(list.contains(streamCut4));
         assertTrue(truncProp.isUpdating());
         assertTrue(truncProp.getProperty().getStreamCut().get(0) == 1L && truncProp.getProperty().getStreamCut().get(1) == 1L);
+    }
+
+    @Test(timeout = 30000)
+    public void retentionPolicyUpdateTest() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+
+        String stream = "test";
+        final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy).build();
+
+        // add stream without retention policy
+        streamMetadataTasks.createStreamBody(SCOPE, stream, noRetentionConfig, System.currentTimeMillis()).join();
+        String scopedStreamName = String.format("%s/%s", SCOPE, stream);
+
+        // verify that stream is not added to bucket
+        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+
+        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofMinutes(60).toMillis())
+                .build();
+
+        final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy)
+                .retentionPolicy(retentionPolicy).build();
+
+        // now update stream with a retention policy
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, withRetentionConfig, null, executor).join();
+        UpdateStreamEvent update = new UpdateStreamEvent(SCOPE, stream);
+        task.execute(update).join();
+
+        // verify that bucket has the stream.
+        assertTrue(streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+
+        // update stream such that stream is updated with null retention policy
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, noRetentionConfig, null, executor).join();
+        task.execute(update).join();
+
+        // verify that the stream is no longer present in the bucket
+        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
     }
 
     @Test(timeout = 30000)

@@ -12,10 +12,13 @@ package io.pravega.client.batch.impl;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TruncatedDataException;
 import java.util.NoSuchElementException;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -23,6 +26,7 @@ import lombok.SneakyThrows;
 @Beta
 public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
 
+    private final Segment segment;
     private final Serializer<T> deserializer;
     @Getter
     private final long startingOffset;
@@ -30,7 +34,8 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final SegmentInputStream input;
 
     public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
-                               Serializer<T> deserializer, long startingOffset, long endingOffset) {
+            Serializer<T> deserializer, long startingOffset, long endingOffset) {
+        this.segment = segment;
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
@@ -49,7 +54,11 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         if (!hasNext()) {
             throw new NoSuchElementException();
         } 
-        return deserializer.deserialize(input.read());
+        try {
+            return deserializer.deserialize(input.read());
+        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
+            throw new TruncatedDataException("Segment " + segment + " has been truncated.");
+        }
     }
 
     @Override

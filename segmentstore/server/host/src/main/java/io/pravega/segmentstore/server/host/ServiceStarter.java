@@ -146,9 +146,9 @@ public final class ServiceStarter {
         builder.withDataLogFactory(setup -> {
             switch (this.serviceConfig.getDataLogTypeImplementation()) {
                 case BOOKKEEPER:
-                    return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor());
+                    return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getCoreExecutor());
                 case INMEMORY:
-                    return new InMemoryDurableDataLogFactory(setup.getExecutor());
+                    return new InMemoryDurableDataLogFactory(setup.getCoreExecutor());
                 default:
                     throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getDataLogTypeImplementation());
             }
@@ -164,15 +164,15 @@ public final class ServiceStarter {
             switch (this.serviceConfig.getStorageImplementation()) {
                 case HDFS:
                     HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                    return new HDFSStorageFactory(hdfsConfig, setup.getStorageExecutor());
                 case FILESYSTEM:
                     FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                    return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                    return new FileSystemStorageFactory(fsConfig, setup.getStorageExecutor());
                 case EXTENDEDS3:
                     ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getStorageExecutor());
                 case INMEMORY:
-                    return new InMemoryStorageFactory(setup.getExecutor());
+                    return new InMemoryStorageFactory(setup.getStorageExecutor());
                 default:
                     throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getStorageImplementation());
             }
@@ -185,7 +185,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
-                        setup.getExecutor()));
+                        setup.getCoreExecutor()));
     }
 
     private CuratorFramework createZKClient() {

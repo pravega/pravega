@@ -203,13 +203,13 @@ public class StreamSegmentMapper extends SegmentStateMapper {
                         this.storage.create(segmentName, rollingPolicy, timer.getRemaining()),
                         ex -> handleStorageCreateException(segmentName, Exceptions.unwrap(ex), timer))
                 .thenComposeAsync(segmentProps -> saveState(segmentProps, attributes, timer.getRemaining())
-                                .thenRun(() -> {
+                                .thenRunAsync(() -> {
                                     // Need to create the state file before we throw any further exceptions in order to recover from
                                     // previous partial executions (where we created a segment but no or empty state file).
                                     if (segmentProps.getLength() > 0) {
                                         throw new CompletionException(new StreamSegmentExistsException(segmentName));
                                     }
-                                }),
+                                }, this.executor),
                         this.executor);
     }
 

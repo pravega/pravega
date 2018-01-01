@@ -149,7 +149,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
-        return new EventStreamReaderImpl<T>(inFactory, s, stateManager, new Orderer(), milliTime, config);
+        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config);
     }
     
     @Override

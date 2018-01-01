@@ -37,7 +37,7 @@ public class BookkeeperService extends MarathonBasedService {
     private static final int BK_PORT = 3181;
     private final URI zkUri;
     private int instances = 3;
-    private double cpu = 0.1;
+    private double cpu = 0.5;
     private double mem = 1024.0;
 
     public BookkeeperService(final String id, final URI zkUri) {

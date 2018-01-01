@@ -108,7 +108,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         .thenComposeAsync(this::flush, this.executor)
                         .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
-                        .thenRun(this::endIteration),
+                        .thenRunAsync(this::endIteration, this.executor),
                 this.executor);
     }
 
@@ -266,12 +266,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         // Flush everything we can flush.
         val flushFutures = this.aggregators.values().stream()
                                            .filter(SegmentAggregator::mustFlush)
-                                           .map(a -> a.flush(this.config.getFlushTimeout(), this.executor))
+                                           .map(a -> a.flush(this.config.getFlushTimeout()))
                                            .collect(Collectors.toList());
 
         return Futures
                 .allOfWithResults(flushFutures)
-                .thenAccept(flushResults -> {
+                .thenAcceptAsync(flushResults -> {
                     FlushStageResult result = new FlushStageResult();
                     flushResults.forEach(result::withFlushResult);
                     if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
@@ -279,7 +279,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     }
 
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
-                });
+                }, this.executor);
     }
 
     /**
@@ -363,9 +363,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
             // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
             // having a registered aggregator that is not initialized.
-            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer);
+            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
             try {
-                result.initialize(this.config.getFlushTimeout(), this.executor).join(); // TODO: get rid of this join() at one point.
+                result.initialize(this.config.getFlushTimeout()).join(); // TODO: get rid of this join() at one point.
                 this.aggregators.put(streamSegmentId, result);
             } catch (Exception ex) {
                 result.close();
