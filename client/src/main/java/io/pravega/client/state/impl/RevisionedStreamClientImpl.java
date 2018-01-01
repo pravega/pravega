@@ -21,6 +21,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -50,6 +51,9 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
+    private final Controller controller;
+    private final String currentDelegationToken;
+
     private final Object lock = new Object();
 
     @Override
@@ -102,7 +106,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = meta.getSegmentInfo();
+            SegmentInfo segmentInfo = meta.getSegmentInfo(currentDelegationToken);
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException("Data at the supplied revision has been truncated.");
@@ -115,7 +119,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchLatestRevision() {
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentSegmentLength();
+            long streamLength = meta.fetchCurrentSegmentLength(currentDelegationToken);
             return new RevisionImpl(segment, streamLength, 0);
         }
     }
@@ -146,12 +150,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 in.setOffset(offset.get());
                 try {
                     data = in.read();
-                } catch (EndOfSegmentException | SegmentTruncatedException e) {
-                    throw new IllegalStateException(
-                            "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
-                } catch (SegmentTruncatedException e) {
-                    throw new TruncatedDataException(e);
-                }
+                } catch (EndOfSegmentException e) {
+                throw new IllegalStateException(
+                        "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
+            } catch (SegmentTruncatedException e) {
+                throw new TruncatedDataException(e);
+            }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);
             }
@@ -172,7 +176,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
         long newValue = newLocation == null ? NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
         synchronized (lock) {
-            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
+            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue, currentDelegationToken);
         }
     }
 
@@ -181,7 +185,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long startingOffset = meta.getSegmentInfo(currentDelegationToken).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
-    
+
     @Override
     public void truncateToRevision(Revision newStart) {
         meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment(), currentDelegationToken);
