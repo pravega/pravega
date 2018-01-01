@@ -136,6 +136,12 @@ public class InMemoryStorage implements SyncStorage {
     }
 
     @Override
+    public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        ensurePreconditions();
+        getStreamSegmentData(handle.getSegmentName()).markUnsealed();
+    }
+
+    @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentNotExistsException {
         ensurePreconditions();
         return getStreamSegmentData(streamSegmentName).getInfo();
@@ -320,6 +326,13 @@ public class InMemoryStorage implements SyncStorage {
             synchronized (this.lock) {
                 checkOpened();
                 this.sealed = true;
+            }
+        }
+
+        void markUnsealed() {
+            synchronized (this.lock) {
+                checkOpened();
+                this.sealed = false;
             }
         }
 

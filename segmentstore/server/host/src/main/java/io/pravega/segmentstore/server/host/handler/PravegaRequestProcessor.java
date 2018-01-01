@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -90,8 +91,8 @@ import java.util.concurrent.CompletionException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -468,6 +469,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", operation);
             connection.send(new OperationUnsupported(requestId, operation));
+        } else if (u instanceof BadOffsetException) {
+            log.warn("Bad offset when preforming '{}'.", operation);
+            BadOffsetException badOffset = (BadOffsetException) u;
+            connection.send(new SegmentIsTruncated(requestId, segment,  badOffset.getExpectedOffset()));
         } else {
             log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem

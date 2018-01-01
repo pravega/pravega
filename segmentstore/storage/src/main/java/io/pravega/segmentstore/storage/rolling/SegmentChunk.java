@@ -106,6 +106,13 @@ class SegmentChunk {
     }
 
     /**
+     * Records the fact that this SegmentChunk has been unsealed.
+     */
+    synchronized void markUnsealed() {
+        this.sealed = false;
+    }
+
+    /**
      * Gets a value indicating whether this SegmentChunk exists or not.
      */
     synchronized boolean exists() {

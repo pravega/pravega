@@ -10,21 +10,20 @@
 package io.pravega.client.state.impl;
 
 import io.pravega.client.ClientFactory;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.test.common.AssertExtensions;
 import java.util.Iterator;
 import java.util.Map.Entry;
-
 import lombok.Cleanup;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -41,7 +40,9 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
@@ -79,7 +80,9 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
@@ -112,7 +115,9 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
@@ -139,6 +144,54 @@ public class RevisionedStreamClientTest {
         assertEquals(ra, client.getMark());
         assertTrue(client.compareAndSetMark(ra, null));
         assertEquals(null, client.getMark());
+    }
+    
+    @Test
+    public void testSegmentTruncation() {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
+        
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
+        
+        Revision r0 = client.fetchLatestRevision();
+        client.writeUnconditionally("a");
+        Revision ra = client.fetchLatestRevision();
+        client.writeUnconditionally("b");
+        Revision rb = client.fetchLatestRevision();
+        client.writeUnconditionally("c");
+        Revision rc = client.fetchLatestRevision();
+        assertEquals(r0, client.fetchOldestRevision());
+        client.truncateToRevision(r0);
+        assertEquals(r0, client.fetchOldestRevision());
+        client.truncateToRevision(ra);
+        assertEquals(ra, client.fetchOldestRevision());
+        client.truncateToRevision(r0);
+        assertEquals(ra, client.fetchOldestRevision());
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> client.readFrom(r0));
+        Iterator<Entry<Revision, String>> iterA = client.readFrom(ra);
+        assertTrue(iterA.hasNext());
+        Iterator<Entry<Revision, String>> iterB = client.readFrom(ra);
+        assertTrue(iterB.hasNext());
+        assertEquals("b", iterA.next().getValue());
+        assertEquals("b", iterB.next().getValue());
+        client.truncateToRevision(rb);
+        assertTrue(iterA.hasNext());
+        assertEquals("c", iterA.next().getValue());
+        client.truncateToRevision(rc);
+        assertFalse(iterA.hasNext());
+        assertTrue(iterB.hasNext());
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> iterB.next());
+        
     }
     
 }

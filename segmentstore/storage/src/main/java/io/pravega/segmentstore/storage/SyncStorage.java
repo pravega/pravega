@@ -18,6 +18,7 @@ import java.io.InputStream;
 
 /**
  * Defines an abstraction for Permanent Storage.
+ * Note: not all operations defined here are needed in the (async) Storage interface.
  */
 @SuppressWarnings("checkstyle:JavadocMethod")
 public interface SyncStorage extends AutoCloseable {
@@ -150,6 +151,18 @@ public interface SyncStorage extends AutoCloseable {
      *                                         fenced out).
      */
     void seal(SegmentHandle handle) throws StreamSegmentException;
+
+    /**
+     * Un-Seals a StreamSegment. After this operation completes successfully, the Segment can be written to again..
+     *
+     * @param handle A read-only or read-write SegmentHandle that points to a Segment to Seal. Since open-write will only
+     *               return a read-only handle for a Sealed Segment, this is the only modify operation that allows a
+     *               read-only handle as input.
+     * @throws StreamSegmentNotExistsException When the given Segment does not exist in Storage.
+     * @throws StorageNotPrimaryException      When this Storage instance is no longer primary for this Segment (it was
+     *                                         fenced out).
+     */
+    void unseal(SegmentHandle handle) throws StreamSegmentException;
 
     /**
      * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the end

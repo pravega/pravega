@@ -445,7 +445,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    log.debug("Scale for stream {}/{} failed with exception {}", scope, stream, cause);
+                                    log.warn("Scale for stream {}/{} failed with exception {}", scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
@@ -619,11 +619,12 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
+    @VisibleForTesting
+    CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
                                                                           StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    log.debug("{}/{} created in metadata store", scope, stream);
+                    log.info("{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -635,11 +636,18 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() ->
-                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                                                    config.getRetentionPolicy(), context, executor)
-                                            .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
-                                                    context, executor)), executor)
+                                    return withRetries(() -> {
+                                        CompletableFuture<Void> future;
+                                        if (config.getRetentionPolicy() != null) {
+                                            future = streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor);
+                                        } else {
+                                            future = CompletableFuture.completedFuture(null);
+                                        }
+                                        return future
+                                                .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                        context, executor));
+                                    }, executor)
                                             .thenApply(z -> status);
                                 });
                     } else {
@@ -751,7 +759,7 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentNumber,
                 hostControllerStore,
                 this.connectionFactory, delegationToken), executor)
-                .thenApply(WireCommands.StreamSegmentInfo::getSegmentLength);
+                .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
     }
 
     private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber, String delegationToken) {
