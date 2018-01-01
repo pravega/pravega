@@ -421,12 +421,12 @@ public class PravegaRequestProcessorTest {
                 .join().getStartOffset());
 
         // Truncate at the same offset - verify idempotence.
-        processor.truncateSegment(new WireCommands.TruncateSegment(4, streamSegmentName, truncateOffset));
+        processor.truncateSegment(new WireCommands.TruncateSegment(4, "", streamSegmentName, truncateOffset));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at a lower offset - verify failure.
-        processor.truncateSegment(new WireCommands.TruncateSegment(5, streamSegmentName, truncateOffset - 1));
+        processor.truncateSegment(new WireCommands.TruncateSegment(5, "", streamSegmentName, truncateOffset - 1));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
