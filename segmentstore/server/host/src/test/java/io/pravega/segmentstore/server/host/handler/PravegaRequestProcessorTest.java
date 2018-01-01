@@ -431,7 +431,7 @@ public class PravegaRequestProcessorTest {
                 .join().getStartOffset());
 
         // Delete.
-        processor.deleteSegment(new WireCommands.DeleteSegment(4, "", streamSegmentName));
+        processor.deleteSegment(new WireCommands.DeleteSegment(6, "", streamSegmentName));
         assertFalse(append(streamSegmentName, 4, store));
 
         // Verify connection response with same order.
