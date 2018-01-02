@@ -40,6 +40,6 @@ public class AppendProcessorAuthFailedTest {
     @Test
     public void setupAppend() {
         processor.setupAppend(new WireCommands.SetupAppend(100L, UUID.randomUUID(), "token", "segment"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100l));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 }
