@@ -38,6 +38,7 @@ public class PravegaAuthManagerTest {
         StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
+            writer.write("#:\n");
             writer.write(":\n");
             writer.write("::\n");
             writer.write(":::\n");
@@ -84,8 +85,12 @@ public class PravegaAuthManagerTest {
         assertThrows(PravegaAuthenticationException.class, () ->
         manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
 
-        //Specify a valid method and parameters but invalid resource for default interceptor.
+        //Specify a valid method but no password for default interceptor.
         map.putSingle("username", "dummy3");
+        assertThrows(PravegaAuthenticationException.class, () ->
+                manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+
+        //Specify a valid method and parameters but invalid resource for default interceptor.
         map.putSingle("password", "password");
         assertFalse("Not existent resource should return false",
                 manager.authenticate("invalid", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
@@ -95,6 +100,10 @@ public class PravegaAuthManagerTest {
         map.putSingle("password", "password");
         assertTrue("Read access for read resource should return true",
                 manager.authenticate("readresource", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+
+        //Stream/scope access should be extended to segment.
+        assertTrue("Read access for read resource should return true",
+                manager.authenticate("readresource/segment", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
 
         //Levels of access
         assertFalse("Write access for read resource should return false",

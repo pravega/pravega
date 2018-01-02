@@ -38,6 +38,7 @@ public class AutoScaleProcessorTest {
     private static final String STREAM3 = "stream3";
     private static final String STREAM4 = "stream4";
     ScheduledExecutorService maintenanceExecutor;
+    private boolean authEnabled = false;
 
     @Before
     public void setup() {
@@ -85,6 +86,9 @@ public class AutoScaleProcessorTest {
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                                .with(AutoScalerConfig.AUTH_USERNAME, "admin")
+                                .with(AutoScalerConfig.AUTH_PASSWD, "passwd")
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 maintenanceExecutor);
@@ -119,6 +123,13 @@ public class AutoScaleProcessorTest {
         assertTrue(Futures.await(result2));
         assertTrue(Futures.await(result3));
         assertTrue(Futures.await(result4));
+    }
+
+    @Test (timeout = 10000)
+    public void scaleTestWithAuth() {
+        authEnabled = true;
+        this.scaleTest();
+        authEnabled = false;
     }
 
     @Test(timeout = 10000)

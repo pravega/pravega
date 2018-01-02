@@ -162,6 +162,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Delegation token verification failed");
             handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                     "Update Segment Attribute", new PravegaAuthenticationException("Token verification failed"));
+            return;
         }
 
         store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
