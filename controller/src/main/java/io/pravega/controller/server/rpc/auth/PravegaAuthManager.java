@@ -67,7 +67,10 @@ public class PravegaAuthManager {
                 for (PravegaAuthHandler handler : loader) {
                     try {
                         handler.setServerConfig(serverConfig);
-                        handlerMap.put(handler.getHandlerName(), handler);
+                        if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != handler) {
+                            log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
+                            continue;
+                        }
                         builder.intercept(new PravegaInterceptor(handler));
                     } catch (Exception e) {
                         log.warn("Exception {} while initializing auth handler {}", e, handler);
