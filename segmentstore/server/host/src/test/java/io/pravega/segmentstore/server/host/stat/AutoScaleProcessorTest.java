@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -125,7 +126,7 @@ public class AutoScaleProcessorTest {
         assertTrue(Futures.await(result4));
     }
 
-    @Test (timeout = 10000)
+    @Ignore
     public void scaleTestWithAuth() {
         authEnabled = true;
         this.scaleTest();
