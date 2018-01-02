@@ -44,7 +44,7 @@ public class PravegaRequestProcessorAuthFailedTest {
     @Test
     public void updateSegmentAttribute() {
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(100L, "segment",
-                 "token", null, 0,0));
+                 "token", null, 0, 0));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 
@@ -70,7 +70,7 @@ public class PravegaRequestProcessorAuthFailedTest {
 
     @Test
     public void createSegment() {
-        processor.createSegment(new WireCommands.CreateSegment(100L, "token", "segment", (byte)0, 0));
+        processor.createSegment(new WireCommands.CreateSegment(100L, "token", "segment", (byte) 0, 0));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 
@@ -112,7 +112,7 @@ public class PravegaRequestProcessorAuthFailedTest {
 
     @Test
     public void updateSegmentPolicy() {
-        processor.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(100L, "segment", "token", (byte)0, 0));
+        processor.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(100L, "segment", "token", (byte) 0, 0));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 }
