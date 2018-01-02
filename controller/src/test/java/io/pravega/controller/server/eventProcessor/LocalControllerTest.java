@@ -51,11 +51,12 @@ public class LocalControllerTest {
     private ControllerService mockControllerService;
     private LocalController testController;
     private ScheduledExecutorService executor;
+    boolean authEnabled = false;
 
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService, false, "");
+        this.testController = new LocalController(this.mockControllerService, authEnabled, "secret");
         this.executor = Executors.newSingleThreadScheduledExecutor();
     }
 
