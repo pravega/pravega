@@ -101,9 +101,6 @@ public class PravegaAuthManagerTest {
                 executor,
                 creds, true, "../config/cert.pem");
 
-
-
-
         MultivaluedMap<String, String> map = new MultivaluedHashMap();
 
         //Without specifying a valid handler.
