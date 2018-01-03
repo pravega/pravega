@@ -65,7 +65,7 @@ public class InProcPravegaClusterTest {
         @Cleanup
         StreamManager streamManager = StreamManager.create(URI.create(
                 localPravega.getInProcPravegaCluster().getControllerURI()),
-                new PravegaDefaultCredentials("1111_aaaa", "arvind"),
+                new PravegaDefaultCredentials("1111_aaaa", "admin"),
                 authEnabled,
                 "../config/cert.pem");
 

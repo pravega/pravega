@@ -45,7 +45,7 @@ public class ReadFromDeletedStreamTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, null, null);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, null, null, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
         server.startListening();
 
         streamManager.createScope("test");
