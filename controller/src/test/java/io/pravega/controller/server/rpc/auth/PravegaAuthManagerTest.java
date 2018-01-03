@@ -19,6 +19,7 @@ import io.pravega.client.stream.impl.PravegaDefaultCredentials;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
@@ -38,7 +39,13 @@ import static org.junit.Assert.assertTrue;
 
 public class PravegaAuthManagerTest {
 
-    private final ControllerServiceGrpc.ControllerServiceImplBase serviceImpl = new ControllerServiceGrpc.ControllerServiceImplBase() {};
+    private final ControllerServiceGrpc.ControllerServiceImplBase serviceImpl = new ControllerServiceGrpc.ControllerServiceImplBase() {
+        @Override
+        public void createScope(io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo request,
+                                io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus> responseObserver) {
+            responseObserver.onNext(Controller.CreateScopeStatus.newBuilder().build());
+        }
+    };
     private ControllerImpl client;
 
     private File file;
