@@ -12,11 +12,19 @@ package io.pravega.controller.server.rpc.auth;
 import io.grpc.ServerBuilder;
 import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.client.auth.PravegaAuthenticationException;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.PravegaCredentials;
+import io.pravega.client.stream.impl.PravegaDefaultCredentials;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.io.FileWriter;
+import java.net.URI;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import org.jasypt.util.password.StrongPasswordEncryptor;
@@ -29,6 +37,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class PravegaAuthManagerTest {
+
+    private final ControllerServiceGrpc.ControllerServiceImplBase serviceImpl = new ControllerServiceGrpc.ControllerServiceImplBase() {};
+    private ControllerImpl client;
 
     private File file;
 
@@ -66,8 +77,25 @@ public class PravegaAuthManagerTest {
                                                       .build();
 
         PravegaAuthManager manager = new PravegaAuthManager(config);
-        ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
+        int port = TestUtils.getAvailableListenPort();
+        ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(new File("../config/cert.pem"),
+                new File("../config/key.pem"));
+
+        server.addService(serviceImpl);
         manager.registerInterceptors(server);
+        server.build().start();
+
+        InlineExecutor executor = new InlineExecutor();
+        PravegaCredentials creds = new PravegaDefaultCredentials("1111_aaaa", "admin");
+
+        final ControllerImpl controllerClient = new ControllerImpl(
+                URI.create("tcp://localhost:" + port),
+                ControllerImplConfig.builder().retryAttempts(1).build(),
+                executor,
+                creds, true, "../config/cert.pem");
+
+
+
 
         MultivaluedMap<String, String> map = new MultivaluedHashMap();
 
@@ -123,6 +151,7 @@ public class PravegaAuthManagerTest {
         map.putSingle("method", "testHandler");
         assertTrue("Test handler should be called", manager.authenticate("any", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
 
+        assertThrows(RetriesExhaustedException.class, () -> controllerClient.createScope("hi").join());
     }
 
 
