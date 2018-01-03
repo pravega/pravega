@@ -84,6 +84,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
      * No calls to external classes occur. No network calls occur via any methods in this object.
+     * Note: In a failure scenario SegmentOutputStreamImpl.State#failConnection can be invoked before
+     * SegmentOutputStreamImpl.State#newConnection is invoked as we do not want connection setup and teardown to occur
+     * within the scope of the lock.
      */
     @ToString(of = {"closed", "exception", "eventNumber"})
     private final class State {
@@ -530,6 +533,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {
+                             // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
                              state.failConnection(e1);
                              throw Lombok.sneakyThrow(e1);
                          }
