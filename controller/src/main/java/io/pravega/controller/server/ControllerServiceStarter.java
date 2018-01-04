@@ -25,8 +25,8 @@ import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.retention.StreamCutService;
 import io.pravega.controller.server.rest.RESTServer;
+import io.pravega.controller.server.retention.StreamCutService;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
@@ -37,10 +37,11 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
+import io.pravega.controller.task.TaskSweeper;
+import io.pravega.controller.util.Config;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -49,8 +50,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import io.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -145,7 +144,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            connectionFactory = new ConnectionFactoryImpl(false);
+            connectionFactory = new ConnectionFactoryImpl();
             SegmentHelper segmentHelper = new SegmentHelper();
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
@@ -223,7 +222,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(controllerService, grpcServer.getPravegaAuthManager(), serviceConfig.getRestServerConfig().get());
+                restServer = new RESTServer(this.localController,
+                        controllerService,
+                        grpcServer.getPravegaAuthManager(),
+                        serviceConfig.getRestServerConfig().get());
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

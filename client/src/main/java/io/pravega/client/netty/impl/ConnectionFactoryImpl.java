@@ -38,6 +38,7 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -57,14 +58,14 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
                                                                                                     "clientInternal");
+    private final String certFile;
 
     /**
      * Actual implementation of ConnectionFactory interface.
-     *
-     * @param ssl Whether connection should use SSL or not.
      */
-    public ConnectionFactoryImpl(boolean ssl) {
-        this.ssl = ssl;
+    public ConnectionFactoryImpl() {
+        this.ssl = Boolean.getBoolean(System.getProperty("io.pravega.auth.enabled"));
+        this.certFile = System.getProperty("io.pravega.auth.certfile");
         try {
             this.group = new EpollEventLoopGroup();
         } catch (ExceptionInInitializerError | UnsatisfiedLinkError | NoClassDefFoundError e) {
@@ -81,10 +82,16 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                sslCtx = SslContextBuilder.forClient()
-                                          .trustManager(FingerprintTrustManagerFactory
-                                                  .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
-                                          .build();
+                if (this.certFile == null) {
+                    sslCtx = SslContextBuilder.forClient()
+                                              .trustManager(FingerprintTrustManagerFactory
+                                                      .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
+                                              .build();
+                } else {
+                    sslCtx = SslContextBuilder.forClient()
+                                              .trustManager(new File(this.certFile))
+                                              .build();
+                }
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }

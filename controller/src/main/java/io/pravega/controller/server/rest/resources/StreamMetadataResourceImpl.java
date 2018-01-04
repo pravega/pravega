@@ -16,9 +16,12 @@ import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rest.ModelHelper;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -29,32 +32,27 @@ import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.rest.ModelHelper;
-import io.pravega.controller.server.rest.v1.ApiV1;
-import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.client.stream.StreamConfiguration;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.ws.rs.container.AsyncResponse;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.SecurityContext;
-
+import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.SecurityContext;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
 import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
@@ -72,8 +70,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private final ControllerService controllerService;
     private final PravegaAuthManager pravegaAuthManager;
+    private final LocalController localController;
 
-    public StreamMetadataResourceImpl(ControllerService controllerService, PravegaAuthManager pravegaAuthManager) {
+    public StreamMetadataResourceImpl(LocalController localController, ControllerService controllerService, PravegaAuthManager pravegaAuthManager) {
+        this.localController = localController;
         this.controllerService = controllerService;
         this.pravegaAuthManager = pravegaAuthManager;
     }
@@ -293,11 +293,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
-        //TODO: Use a single local controller object.
         //TODO: get a proper security context.
-        LocalController controller = new LocalController(controllerService, false, "");
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, controller,
-                new ClientFactoryImpl(scopeName, controller), new ConnectionFactoryImpl(false));
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
+                new ClientFactoryImpl(scopeName, this.localController), new ConnectionFactoryImpl());
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);
