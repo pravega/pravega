@@ -16,7 +16,6 @@ import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
@@ -227,17 +226,14 @@ public class AsyncStorageWrapper implements Storage {
 
     private void cleanupIfNeeded(int taskId, String[] segmentNames) {
         synchronized (this.lastTasks) {
-            ArrayList<String> toRemove = new ArrayList<>();
             for (String s : segmentNames) {
                 // A segment entry can be safely cleaned up if the last registered task has the same id as the one
                 // we got in this method (that means no more tasks have been added).
                 val task = this.lastTasks.get(s);
                 if (task != null && task.taskId == taskId) {
-                    toRemove.add(s);
+                    this.lastTasks.remove(s);
                 }
             }
-
-            toRemove.forEach(this.lastTasks::remove);
         }
     }
 
@@ -246,7 +242,7 @@ public class AsyncStorageWrapper implements Storage {
     //region RunningTask
 
     @RequiredArgsConstructor
-    private static class RunningTask {
+    private static final class RunningTask {
         private final int taskId;
         private final CompletableFuture<?> task;
     }
