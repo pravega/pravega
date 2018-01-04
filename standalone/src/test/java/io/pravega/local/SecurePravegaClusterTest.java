@@ -9,6 +9,7 @@
  */
 package io.pravega.local;
 
+import org.junit.After;
 import org.junit.Before;
 
 /**
@@ -22,5 +23,13 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
         System.setProperty("io.pravega.auth.enabled", "true");
         System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
         super.setUp();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        System.setProperty("io.pravega.auth.enabled", "false");
+        System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
     }
 }
