@@ -105,8 +105,8 @@ public final class ServiceStarter {
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
         this.tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier);
+        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
+                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

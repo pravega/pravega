@@ -245,6 +245,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
+                        .with(ServiceConfig.ENABLE_TLS, this.enableAuth)
+                        .with(ServiceConfig.KEY_FILE, "../config/key.pem")
+                        .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)

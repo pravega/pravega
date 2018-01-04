@@ -85,7 +85,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder, null);
+                    statsRecorder, null, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
             server.startListening();
 
             controllerWrapper.awaitRunning();
