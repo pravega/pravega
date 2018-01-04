@@ -45,11 +45,11 @@ import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 @Slf4j
 public class ClientFactoryImpl implements ClientFactory {
@@ -72,7 +72,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl();
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);

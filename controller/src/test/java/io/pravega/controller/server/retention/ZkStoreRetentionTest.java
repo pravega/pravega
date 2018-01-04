@@ -26,13 +26,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.TestingServerStarter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +34,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -123,7 +122,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl();
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory,
                 false, "");

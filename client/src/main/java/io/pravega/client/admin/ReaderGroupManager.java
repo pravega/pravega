@@ -32,9 +32,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl(false));
+        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl());
     }
-    
+
     /**
      * Creates a new ReaderGroup
      * 

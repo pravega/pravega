@@ -13,7 +13,6 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PravegaCredentials;
 import io.pravega.client.stream.impl.StreamCut;
-
 import java.net.URI;
 
 /**
@@ -30,6 +29,7 @@ public interface StreamManager extends AutoCloseable {
     public static StreamManager create(URI controller) {
         return create(controller, null, false, "");
     }
+
 
     public static StreamManager create(URI controller, PravegaCredentials credentials, boolean isTlsEnabled, String tlsCertFile) {
         return new StreamManagerImpl(controller, credentials, isTlsEnabled, tlsCertFile);

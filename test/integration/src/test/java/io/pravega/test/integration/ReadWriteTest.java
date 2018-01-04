@@ -139,7 +139,7 @@ public class ReadWriteTest {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl();
              ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 

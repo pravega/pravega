@@ -60,7 +60,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -161,7 +160,7 @@ public class ReadTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl();
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());

@@ -63,7 +63,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -207,7 +206,7 @@ public class AppendTest {
         server.startListening();
 
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl();
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());

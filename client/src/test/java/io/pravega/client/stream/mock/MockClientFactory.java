@@ -35,13 +35,13 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl();
         this.controller = new MockController("localhost", 0, connectionFactory);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory);
     }
 
     public MockClientFactory(String scope, Controller controller) {
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl();
         this.controller = controller;
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }

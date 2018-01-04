@@ -57,16 +57,6 @@ import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Data;
-import lombok.Getter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -82,6 +72,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Data;
+import lombok.Getter;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -127,7 +126,7 @@ public class StreamMetadataTasksTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl();
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory,  false, ""));

@@ -9,6 +9,11 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -25,18 +30,14 @@ import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-
+import io.pravega.shared.NameUtils;
+import io.pravega.test.common.TestUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,8 +52,6 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
-
-import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -138,7 +137,8 @@ public class StreamMetaDataTests {
     public void setup() {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
-        restServer = new RESTServer(mockControllerService, authManager, serverConfig);
+        LocalController controller = new LocalController(mockControllerService, false, "");
+        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig);
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();

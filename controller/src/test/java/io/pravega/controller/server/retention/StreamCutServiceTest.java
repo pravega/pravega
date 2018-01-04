@@ -25,10 +25,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +33,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -60,7 +59,7 @@ public abstract class StreamCutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl();
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
                false, "");

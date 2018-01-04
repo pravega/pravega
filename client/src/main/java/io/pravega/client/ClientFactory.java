@@ -61,19 +61,21 @@ public interface ClientFactory extends AutoCloseable {
      * @param scope The scope string.
      * @param controllerUri The URI for controller.
      * @param creds Optional credentials to connect to controller.
-     * @param enableTls Flag to signal that TLS is enabled.
-     * @param tlsCertFile Pointer to file containing TLS certificate.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri, PravegaCredentials creds, boolean enableTls, String tlsCertFile) {
-        val connectionFactory = new ConnectionFactoryImpl(false);
+    static ClientFactory withScope(String scope, URI controllerUri, PravegaCredentials creds) {
+
+        val connectionFactory = new ConnectionFactoryImpl();
+        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.auth.enabled"));
+        String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
+
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
                 connectionFactory.getInternalExecutor(), creds, enableTls, tlsCertFile), connectionFactory);
     }
 
 
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return withScope(scope, controllerUri, null, false, null);
+        return withScope(scope, controllerUri, null);
     }
 
     /**

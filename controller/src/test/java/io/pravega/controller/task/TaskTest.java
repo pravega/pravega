@@ -99,7 +99,7 @@ public class TaskTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(false), false, "");
+                executor, HOSTNAME, new ConnectionFactoryImpl(), false, "");
     }
 
     @Before
