@@ -41,8 +41,8 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -241,7 +241,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         getConnection().thenAccept(c -> {
             log.debug("Getting segment attribute: {}", attributeId);
             send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(),
-                    controller.getOrRefeshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()).join(), attributeId));
+                    controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()).join(), attributeId));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;

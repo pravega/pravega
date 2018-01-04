@@ -162,7 +162,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefeshDelegationTokenFor(segment.getScope(), segment.getStreamName()), RuntimeException::new);
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStreamName()), RuntimeException::new);
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig(), delegationToken);
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer, controller, delegationToken);

@@ -469,7 +469,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         return CompletableFuture.completedFuture("");
     }
 }
