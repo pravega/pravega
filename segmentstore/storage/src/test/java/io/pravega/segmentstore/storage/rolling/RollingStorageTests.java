@@ -28,13 +28,11 @@ import java.util.function.Function;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
  * Unit tests for the RollingStorage class.
  */
-@Ignore
 public class RollingStorageTests extends RollingStorageTestBase {
     private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
     private static final String SEGMENT_NAME = "RollingSegment";

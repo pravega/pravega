@@ -128,7 +128,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private void authenticate(String resourceName, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
         if (pravegaAuthManager != null ) {
-            pravegaAuthManager.authenticate(resourceName, headers.getRequestHeaders(), level);
+            if (!pravegaAuthManager.authenticate(resourceName, headers.getRequestHeaders(), level)) {
+                throw new PravegaAuthenticationException("Auth failed for " + resourceName);
+            }
         }
     }
 
