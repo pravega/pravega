@@ -19,6 +19,8 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Override
     public void setUp() throws Exception {
         this.authEnabled = true;
+        System.setProperty("io.pravega.auth.enabled", "true");
+        System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
         super.setUp();
     }
 }
