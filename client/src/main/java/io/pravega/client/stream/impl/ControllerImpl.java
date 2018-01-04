@@ -911,11 +911,11 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "getOrRefeshDelegationTokenFor", scope, streamName);
+        long traceId = LoggerHelpers.traceEnter(log, "getOrRefreshDelegationTokenFor", scope, streamName);
 
         final CompletableFuture<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> callback = new RPCAsyncCallback<>();

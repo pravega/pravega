@@ -16,7 +16,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -277,5 +276,5 @@ public interface Controller extends AutoCloseable {
      * @param streamName    Name of the stream.
      * @return
      */
-    CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName);
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
 }
