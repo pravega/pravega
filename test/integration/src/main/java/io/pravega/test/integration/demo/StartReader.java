@@ -28,7 +28,7 @@ public class StartReader {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
                                                                 "localhost",
-                                                                StartLocalService.CONTROLLER_PORT);
+                                                                StartLocalService.SERVICE_PORT);
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
