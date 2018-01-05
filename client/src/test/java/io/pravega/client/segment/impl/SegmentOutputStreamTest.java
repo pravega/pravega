@@ -9,7 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
@@ -53,7 +52,13 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
 public class SegmentOutputStreamTest {
@@ -123,10 +128,10 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         doThrow(ConnectionFailedException.class).doNothing().when(connection).send(any(SetupAppend.class));
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT));
-        verify(connection).send(new SetupAppend(2, cid, SEGMENT));
+        verify(connection).send(new SetupAppend(1, cid, "", SEGMENT));
+        verify(connection).send(new SetupAppend(2, cid, "", SEGMENT));
     }
 
     @Test(timeout = 10000)
