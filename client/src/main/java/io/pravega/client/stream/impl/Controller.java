@@ -271,10 +271,10 @@ public interface Controller extends AutoCloseable {
     void close();
 
     /**
-     * Refreshes an expired/non-existant delegation token.
+     * Refreshes an expired/non-existent delegation token.
      * @param scope         Scope of the stream.
      * @param streamName    Name of the stream.
-     * @return
+     * @return              The delegation token for the given stream.
      */
     CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
 }

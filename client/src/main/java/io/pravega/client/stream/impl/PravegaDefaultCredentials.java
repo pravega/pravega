@@ -13,12 +13,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class PravegaDefaultCredentials implements PravegaCredentials {
-    private final String password;
-    private final String userName;
+    private final HashMap<String, String> credsMap;
 
     public PravegaDefaultCredentials(String password, String userName) {
-        this.password = password;
-        this.userName = userName;
+        credsMap = new HashMap<>();
+        credsMap.put("userName", userName);
+        credsMap.put("password", password);
     }
 
     @Override
@@ -28,9 +28,6 @@ public class PravegaDefaultCredentials implements PravegaCredentials {
 
     @Override
     public Map<String, String> getAuthHeaders() {
-        Map<String, String> retVal = new HashMap<>();
-        retVal.put("userName", this.userName);
-        retVal.put("password", this.password);
-        return retVal;
+        return credsMap;
     }
 }

@@ -12,7 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,8 +36,7 @@ public class PravegaCredsWrapper extends Credentials {
 
         return metadata.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
                 e -> {
-                    List<String> list = new ArrayList<>();
-                    list.add(e.getValue());
+                    List<String> list = Collections.singletonList(e.getValue());
                     return list;
                 }));
     }
@@ -54,6 +53,6 @@ public class PravegaCredsWrapper extends Credentials {
 
     @Override
     public void refresh() throws IOException {
-
+        // All the Pravega credentials are purely map based. They are not supposed to be refreshed through this flow.
     }
 }
