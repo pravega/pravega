@@ -27,12 +27,21 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return create(controller, null, false, "");
+
+        return create(controller, null);
     }
 
-
-    public static StreamManager create(URI controller, PravegaCredentials credentials, boolean isTlsEnabled, String tlsCertFile) {
-        return new StreamManagerImpl(controller, credentials, isTlsEnabled, tlsCertFile);
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param controller The Controller URI.
+     * @param credentials PravegaCredentials implementation used to validate this client.
+     * @return Instance of Stream Manager implementation.
+     */
+    static StreamManager create(URI controller, PravegaCredentials credentials) {
+        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.auth.enabled"));
+        String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
+        return new StreamManagerImpl(controller, credentials, enableTls, tlsCertFile);
     }
 
     /**

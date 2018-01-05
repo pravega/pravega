@@ -137,10 +137,6 @@ project('shared:protocol') {
     }
 }
 
-// Use the osdetector-gradle-plugin
-apply plugin: "com.google.osdetector"
-
-
 project('client') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion

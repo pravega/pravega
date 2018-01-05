@@ -121,7 +121,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Revisioned stream client
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
-                                                               SynchronizerConfig config);
+            SynchronizerConfig config);
 
     /**
      * Creates a new StateSynchronizer that will work on the specified stream.

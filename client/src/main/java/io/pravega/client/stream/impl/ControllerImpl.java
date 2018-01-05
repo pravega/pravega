@@ -104,12 +104,12 @@ public class ControllerImpl implements Controller {
     // Flag to indicate if the client is closed.
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    // The gRPC client for the Controller Service.
-    private ControllerServiceGrpc.ControllerServiceStub client;
-
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
     private PravegaCredentials creds;
+
+    // The gRPC client for the Controller Service.
+    private final ControllerServiceGrpc.ControllerServiceStub client;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -178,11 +178,12 @@ public class ControllerImpl implements Controller {
         }
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        this.client = ControllerServiceGrpc.newStub(this.channel);
+        ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         if (creds != null) {
             PravegaCredsWrapper wrapper = new PravegaCredsWrapper(creds);
-            this.client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
+            client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
+        this.client = client;
     }
 
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
