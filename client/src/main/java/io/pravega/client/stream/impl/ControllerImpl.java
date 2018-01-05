@@ -106,7 +106,6 @@ public class ControllerImpl implements Controller {
 
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
-    private PravegaCredentials creds;
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
@@ -144,17 +143,16 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
-     * @param creds          The credentials if any.
+     * @param credentials    The credentials or null if none.
      * @param enableTls      The flag to turn on TLS for controller interactions.
      * @param tlsCertFile    File containing the public certificate for TLS.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, PravegaCredentials creds,
+                          final ScheduledExecutorService executor, PravegaCredentials credentials,
                           boolean enableTls, String tlsCertFile) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
-        this.creds = creds;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
                                 .retryingOn(StatusRuntimeException.class)
@@ -179,8 +177,8 @@ public class ControllerImpl implements Controller {
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
-        if (creds != null) {
-            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(creds);
+        if (credentials != null) {
+            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;

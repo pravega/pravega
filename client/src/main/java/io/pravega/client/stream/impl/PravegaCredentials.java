@@ -11,6 +11,9 @@ package io.pravega.client.stream.impl;
 
 import java.util.Map;
 
+/**
+ * This interface represents the credentials passed to Pravega for authentication and authorizing the access.
+ */
 public interface PravegaCredentials {
     /**
      * Returns the authentication type.

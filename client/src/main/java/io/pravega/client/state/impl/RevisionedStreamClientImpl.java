@@ -151,7 +151,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 try {
                     data = in.read();
                 } catch (EndOfSegmentException e) {
-                throw new IllegalStateException(
+                    throw new IllegalStateException(
                         "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
             } catch (SegmentTruncatedException e) {
                 throw new TruncatedDataException(e);
