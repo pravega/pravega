@@ -19,7 +19,6 @@ import lombok.Cleanup;
 public class StartLocalService {
     
     static final int SERVICE_PORT = 6000;
-    static final int CONTROLLER_PORT = 9090;
     static final String SCOPE = "Scope";
     static final String STREAM_NAME = "Foo";
 
@@ -33,7 +32,7 @@ public class StartLocalService {
         server.startListening();
         
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.CONTROLLER_PORT);
+        MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.SERVICE_PORT);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, null);
         
