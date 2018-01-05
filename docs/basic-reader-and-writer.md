@@ -48,7 +48,7 @@ public void run(String routingKey, String message) {
              
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
                 message, routingKey, scope, streamName);
-         final AckFuture writeFuture = writer.writeEvent(routingKey, message);
+         final CompletableFuture writeFuture = writer.writeEvent(routingKey, message);
     }
 }
 ```
