@@ -16,7 +16,6 @@ import static org.junit.Assert.fail;
 import io.pravega.common.concurrent.Futures;
 import java.io.Serializable;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IntSummaryStatistics;
@@ -81,7 +80,7 @@ public class ReaderCheckpointTest {
     private URI controllerURI;
 
     @Environment
-    public static void initialize() throws Exception {
+    public static void initialize() {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();
@@ -117,7 +116,7 @@ public class ReaderCheckpointTest {
     }
 
     @Before
-    public void setup() throws URISyntaxException {
+    public void setup() {
         controllerURI = fetchControllerURI();
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
@@ -125,7 +124,7 @@ public class ReaderCheckpointTest {
     }
 
     @Test
-    public void readerCheckpointTest() throws Exception {
+    public void readerCheckpointTest() {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);

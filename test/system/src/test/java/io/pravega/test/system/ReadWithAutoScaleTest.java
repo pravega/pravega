@@ -69,7 +69,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     @Environment
-    public static void setup() throws Exception {
+    public static void setup() {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();
@@ -113,7 +113,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         Controller controller = getController();
 

@@ -37,7 +37,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.io.Serializable;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -54,7 +53,7 @@ public class MultiSegmentStoreTest {
     private Service controllerInstance = null;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws MarathonException {
 
         // 1. Check if zk is running, if not start it.
         Service zkService = Utils.createZookeeperService();

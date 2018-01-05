@@ -63,7 +63,7 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws MarathonException {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();
@@ -116,7 +116,7 @@ public class PravegaTest {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         Service conService = Utils.createPravegaControllerService(null);
 
@@ -141,7 +141,7 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Test(timeout = 10 * 60 * 1000)
-    public void simpleTest() throws InterruptedException, URISyntaxException {
+    public void simpleTest() throws InterruptedException {
 
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();

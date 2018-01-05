@@ -31,6 +31,7 @@ public class Utils {
     public static final int MARATHON_CONTROLLER_PORT = 9092;
     public static final int REST_PORT = 9091;
     public static final String DOCKER_NETWORK = "docker-network";
+    public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
 
     /**
      * Get Configuration from environment or system property.
@@ -43,32 +44,32 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
-        return Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+        return DOCKER_BASED ? new ZookeeperDockerService("zookeeper")
                 : new ZookeeperService("zookeeper");
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
-        return Utils.isDockerLocalExecEnabled() ?
+        return DOCKER_BASED ?
                 new BookkeeperDockerService("bookkeeper", zkUri) :
                 new BookkeeperService("bookkeeper", zkUri);
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
-        return Utils.isDockerLocalExecEnabled()
+        return DOCKER_BASED
                 ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
         URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
+        if (DOCKER_BASED) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
             hdfsUri = hdfsService.getServiceDetails().get(0);
         }
-        return Utils.isDockerLocalExecEnabled() ?
+        return DOCKER_BASED ?
                 new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
     }
@@ -88,7 +89,7 @@ public class Utils {
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 
-    public static boolean isDockerLocalExecEnabled() {
+    public static boolean isDockerExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
         return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
 

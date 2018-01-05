@@ -55,7 +55,7 @@ public class PravegaControllerTest {
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {
             int port = conUri.get(i).getPort();
-            boolean boolPort =  Utils.isDockerLocalExecEnabled() ? (port == 9090 ||  port == 9091) : (port == 9092 || port == 10080);
+            boolean boolPort =  Utils.DOCKER_BASED ? (port == 9090 ||  port == 9091) : (port == 9092 || port == 10080);
             assertEquals(true, boolPort);
         }
         log.debug("ControllerTest  execution completed");

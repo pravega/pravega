@@ -32,12 +32,9 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -54,9 +51,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_READERS = 5;
     private static final int NUM_WRITERS = 5;
-    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(25 * 60);
     private final String scope = "testReadTxnWriteScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
@@ -68,7 +62,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     private StreamManager streamManager;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
+    public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = startPravegaControllerInstances(zkUri);
@@ -92,7 +86,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
@@ -139,7 +133,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 25 * 60 * 1000)
+    @Test(timeout = 30 * 60 * 1000)
     public void readTxnWriteScaleWithFailoverTest() throws Exception {
         try {
             createWriters(clientFactory, NUM_WRITERS, scope, stream);

@@ -116,7 +116,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         //create a scope
         Controller controller = getController();
@@ -148,7 +148,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     }
 
     @Test (timeout = 300000) // 5 minutes
-    public void scaleTests() throws URISyntaxException, InterruptedException {
+    public void scaleTests() {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
@@ -169,8 +169,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTest() {
 
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
@@ -209,7 +208,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest() {
 
         final ControllerImpl controller = getController();
 
@@ -241,8 +240,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTxnTest() {
 
         ControllerImpl controller = getController();
 

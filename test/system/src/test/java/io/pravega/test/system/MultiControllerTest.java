@@ -32,10 +32,10 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -65,7 +65,7 @@ public class MultiControllerTest {
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
@@ -89,7 +89,7 @@ public class MultiControllerTest {
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
@@ -117,7 +117,6 @@ public class MultiControllerTest {
     @Test(timeout = 300000)
     public void multiControllerTest() throws ExecutionException, InterruptedException {
 
-        Assume.assumeTrue("Docker swarm based execution is enabled",  Utils.isDockerLocalExecEnabled());
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with all 3 controller instances running");
@@ -153,7 +152,7 @@ public class MultiControllerTest {
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
                 createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
                 throwable -> throwable instanceof RetriesExhaustedException);
-        if (!Utils.isDockerLocalExecEnabled()) {
+        if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
                     createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
@@ -168,7 +167,7 @@ public class MultiControllerTest {
     }
 
     private void withControllerURIDiscover() throws ExecutionException, InterruptedException {
-        if (!Utils.isDockerLocalExecEnabled()) {
+        if (!DOCKER_BASED) {
             Assert.assertTrue(createScopeWithSimpleRetry(
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()).get());
         }
