@@ -9,15 +9,15 @@
  */
 package io.pravega.client.auth;
 
+/**
+ * Exception thrown when there is any error during authentication/authorization.
+ */
 public class PravegaAuthenticationException extends Exception {
-    Exception cause;
     public PravegaAuthenticationException(String message) {
         super(message);
-        cause = this;
     }
 
     public PravegaAuthenticationException(Exception e) {
-        super(e.getMessage());
-        cause = e;
+        super(e.getMessage(), e);
     }
 }

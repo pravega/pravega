@@ -66,7 +66,7 @@ public class PravegaAuthManager {
                 ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
                 for (PravegaAuthHandler handler : loader) {
                     try {
-                        handler.setServerConfig(serverConfig);
+                        handler.initialize(serverConfig);
                         if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
                             log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
                             continue;

@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * Custom authorization/authentication handlers implement this interface.
  * The implementations are loaded from the classpath using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
- * Pravega controller also implements this interface through `PravegaDefaultAuthHandler`.
+ * Pravega controller also implements this interface through {@link #PravegaDefaultAuthHandler}.
  *
  * Each custom auth handler is registered with a unique name.
  * A client selects its auth handler by setting a grpc header with a name "method". T
@@ -45,13 +45,13 @@ public interface PravegaAuthHandler {
     boolean authenticate(Map<String, String> headers);
 
     /**
-     * Authorizes the access to a given resources. Pravega controller passes the HTTP headers associated with the call.
+     * Authorizes the access to a given resource. Pravega controller passes the HTTP headers associated with the call.
      * The implementations of this interface should return the maximum level of authorization possible for the user represented
      * by the headers.
      *
      * @param resource the resource that needs to be accessed.
      * @param headers the context for authorization.
-     * @return The level of authorization. Throws exception if not authorized.
+     * @return The level of authorization. Throws exception {@link PravegaAuthenticationException} if not authorized.
      */
     PravegaAccessControlEnum authorize(String resource, Map<String, String> headers);
 
@@ -60,5 +60,5 @@ public interface PravegaAuthHandler {
      *
      * @param serverConfig The server configuration.
      */
-    void setServerConfig(Object serverConfig);
+    void initialize(Object serverConfig);
 }

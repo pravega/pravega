@@ -85,7 +85,7 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     }
 
     @Override
-    public void setServerConfig(Object serverConfig) {
+    public void initialize(Object serverConfig) {
         loadPasswdFile(((GRPCServerConfig) serverConfig).getUserPasswdFile());
     }
 
