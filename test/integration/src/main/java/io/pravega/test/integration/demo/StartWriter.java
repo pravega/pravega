@@ -24,7 +24,7 @@ public class StartWriter {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
                                                                 "localhost",
-                                                                StartLocalService.PORT);
+                                                                StartLocalService.CONTROLLER_PORT);
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         MockClientFactory clientFactory = streamManager.getClientFactory();
