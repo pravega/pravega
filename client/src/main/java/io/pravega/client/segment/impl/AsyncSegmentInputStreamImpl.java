@@ -51,7 +51,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
-    private String delegationToken;
+    private final String delegationToken;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
