@@ -20,19 +20,20 @@ public class PasswdFileCreatorTool {
     public static void main(String[] args) throws IOException {
         String fileName = args[0];
 
-        FileWriter writer = new FileWriter(fileName);
         StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
-        BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
-        while (true) {
-            String s = bufferRead.readLine();
-            if (Strings.isNullOrEmpty(s)) {
-                break;
+        try (FileWriter writer = new FileWriter(fileName);
+             BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in))) {
+            while (true) {
+                String s = bufferRead.readLine();
+                if (Strings.isNullOrEmpty(s)) {
+                    break;
+                }
+                String[] lists = s.split(":");
+                String toWrite = lists[0] + ":" + passwordEncryptor.encryptPassword(lists[1])
+                        + ":" + lists[2];
+                writer.write(toWrite + "\n");
+                writer.flush();
             }
-            String[] lists = s.split(":");
-            String toWrite = lists[0] + ":" + passwordEncryptor.encryptPassword(lists[1])
-                    + ":" + lists[2];
-            writer.write(toWrite + "\n");
-            writer.flush();
         }
     }
 }
