@@ -91,8 +91,8 @@ import java.util.concurrent.CompletionException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -174,7 +174,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
             log.warn("Delegation token verification failed");
             handleException(readSegment.getOffset(), segment,
-                    "Seal Segment", new PravegaAuthenticationException("Token verification failed"));
+                    "Read Segment", new PravegaAuthenticationException("Token verification failed"));
             return;
         }
 

@@ -14,7 +14,6 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.pravega.client.auth.PravegaAuthHandler;
-import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Map;
 import java.util.Optional;
@@ -49,7 +48,7 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                 }
             } catch (JwtException e) {
                 log.warn("Claim verification failed for resource {} because {}", resource, e);
-                throw new RuntimeException(new PravegaAuthenticationException(e.getMessage()));
+                return false;
             }
         } else {
             return true;

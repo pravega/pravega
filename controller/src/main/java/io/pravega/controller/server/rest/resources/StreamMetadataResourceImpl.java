@@ -101,7 +101,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         try {
             authenticate(createScopeRequest.getScopeName(), READ_UPDATE);
         } catch (PravegaAuthenticationException e) {
-            log.warn("Create scope for {} failed due to authentication failure.", createScopeRequest.getScopeName());
+            log.warn("Create scope for {} failed due to authentication failure {}.", createScopeRequest.getScopeName(), e);
             asyncResponse.resume(Response.status(Status.UNAUTHORIZED).build());
             LoggerHelpers.traceLeave(log, "createScope", traceId);
             return;
@@ -157,8 +157,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
 
         try {
-            authenticate(scopeName + "/" + createStreamRequest.getStreamName(),
-                    READ_UPDATE);
+            authenticate(scopeName + "/" + createStreamRequest.getStreamName(), READ_UPDATE);
         } catch (PravegaAuthenticationException e) {
             log.warn("Create stream for {} failed due to authentication failure.", createStreamRequest.getStreamName());
             asyncResponse.resume(Response.status(Status.UNAUTHORIZED).build());

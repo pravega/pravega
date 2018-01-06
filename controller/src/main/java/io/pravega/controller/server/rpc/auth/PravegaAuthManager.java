@@ -16,12 +16,21 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import javax.ws.rs.core.MultivaluedMap;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Auth manager class for Pravega controller. This manages the handlers for grpc and REST together.
+ * In case of grpc, the routing of the authenticate function to specific registered interceptor is taken care by grpc
+ * interceptor mechanism.
+ * In case of REST calls, this class routes the call to specific PravegaAuthHandler.
+ */
 @Slf4j
 public class PravegaAuthManager {
     private final GRPCServerConfig serverConfig;
+    @GuardedBy("this")
     private final Map<String, PravegaAuthHandler> handlerMap;
 
     public PravegaAuthManager(GRPCServerConfig serverConfig) {
@@ -30,23 +39,28 @@ public class PravegaAuthManager {
     }
 
     private PravegaAuthHandler getHandler(String handlerName) throws PravegaAuthenticationException {
-        if (handlerMap.containsKey(handlerName)) {
-            return handlerMap.get(handlerName);
+        PravegaAuthHandler retVal;
+        synchronized (this) {
+                retVal = handlerMap.get(handlerName);
+            }
+            if (retVal == null) {
+            throw new PravegaAuthenticationException("Handler does not exist for method " + handlerName);
         }
-        throw new PravegaAuthenticationException("Handler does not exist for method " + handlerName);
-
+        return retVal;
     }
 
+    /**
+     * API to authenticate and authroize access to a given resource.
+     * @param resource The resource identifier for which the access needs to be controlled.
+     * @param headers  Custom headers used for authentication.
+     * @param level    Expected level of access.
+     * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
+     * @throws PravegaAuthenticationException Exception faced during authentication/authorization.
+     */
     public boolean authenticate(String resource, MultivaluedMap<String, String> headers, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
         boolean retVal = false;
         try {
-            Map<String, String> paramMap = new HashMap<>();
-            headers.keySet().stream().forEach(key -> {
-                try {
-                    paramMap.put(key, headers.getFirst(key));
-                } catch (IllegalArgumentException e) {
-                }
-            });
+            Map<String, String> paramMap = headers.entrySet().stream().collect(Collectors.toMap(k -> k.getKey(), k -> k.getValue().get(0)));
             String method = paramMap.get("method");
 
             PravegaAuthHandler handler = getHandler(method);
@@ -58,8 +72,11 @@ public class PravegaAuthManager {
         return retVal;
     }
 
-
-
+    /**
+     * Loads the custom implementations of the PravegaAuthHandler interface dynamically. Registers the interceptors with grpc.
+     * Stores the implementation in a local map for routing the REST auth request.
+     * @param builder The grpc service builder to register the interceptors.
+     */
     public void registerInterceptors(ServerBuilder<?> builder) {
         try {
             if (serverConfig.isAuthorizationEnabled()) {
@@ -67,18 +84,21 @@ public class PravegaAuthManager {
                 for (PravegaAuthHandler handler : loader) {
                     try {
                         handler.initialize(serverConfig);
-                        if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
-                            log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
-                            continue;
+                        synchronized (this) {
+                            if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
+                                log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
+                                continue;
+                            }
                         }
                         builder.intercept(new PravegaInterceptor(handler));
                     } catch (Exception e) {
-                        log.warn("Exception {} while initializing auth handler {}", e, handler);
+                        log.warn("Exception while initializing auth handler {}", handler, e);
                     }
+
                 }
             }
         } catch (Exception e) {
-            log.warn("Exception {} while loading the auth handlers", e);
+            log.warn("Exception while loading the auth handlers", e);
         }
     }
 }

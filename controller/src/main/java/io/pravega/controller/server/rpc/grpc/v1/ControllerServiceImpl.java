@@ -9,9 +9,12 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -24,8 +27,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -43,15 +46,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import io.pravega.client.stream.impl.ModelHelper;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -327,7 +326,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             CompletableFuture<T> result = call.get();
             result.whenComplete(
                     (value, ex) -> {
-                        log.debug("result = " + (value == null ? "null" : value.toString()));
+                        log.debug("result =  {}", value);
 
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);

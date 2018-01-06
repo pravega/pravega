@@ -16,6 +16,7 @@ import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,25 +36,24 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
 
     private void loadPasswdFile(String userPasswdFile) {
         try (FileReader reader = new FileReader(userPasswdFile);
-             BufferedReader lineReader = new BufferedReader(reader)
-        ) {
-            String line = lineReader.readLine();
-            while ( !Strings.isNullOrEmpty(line)) {
-                if (!line.startsWith("#")) {
-                    String[] userFields = line.split(":");
-                    if (userFields.length >= 2) {
-                        String acls;
-                        if (userFields.length == 2) {
-                            acls = "";
-                        } else {
-                            acls = userFields[2];
-                        }
-                        userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(acls)));
-                    }
+             BufferedReader lineReader = new BufferedReader(reader)) {
+            String line;
+            while ( !Strings.isNullOrEmpty(line = lineReader.readLine())) {
+                if (line.startsWith("#")) {
+                    continue;
                 }
-                line = lineReader.readLine();
+                String[] userFields = line.split(":");
+                if (userFields.length >= 2) {
+                    String acls;
+                    if (userFields.length == 2) {
+                        acls = "";
+                    } else {
+                        acls = userFields[2];
+                    }
+                    userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(acls)));
+                }
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new CompletionException(e);
         }
     }

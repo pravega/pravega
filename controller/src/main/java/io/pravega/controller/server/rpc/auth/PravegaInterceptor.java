@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.grpc.Context;
 import io.grpc.Contexts;
@@ -23,9 +24,11 @@ import io.pravega.client.auth.PravegaAuthHandler;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 
+@Slf4j
 public class PravegaInterceptor implements ServerInterceptor {
     private static final boolean AUTH_ENABLED = true;
     private static final String AUTH_CONTEXT = "PravegaContext";
@@ -38,6 +41,7 @@ public class PravegaInterceptor implements ServerInterceptor {
     private String delegationToken;
 
     PravegaInterceptor(PravegaAuthHandler handler) {
+        Preconditions.checkNotNull(handler, "handler can not be null");
         this.handler = handler;
     }
 
@@ -50,6 +54,7 @@ public class PravegaInterceptor implements ServerInterceptor {
                 paramMap.put(key,
                         headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
             } catch (IllegalArgumentException e) {
+                log.warn("Error while marshalling some of the headers", e);
             }
         });
         String method = paramMap.get("method");
