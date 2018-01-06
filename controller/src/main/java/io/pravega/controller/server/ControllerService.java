@@ -88,7 +88,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
-                                                              final long createTimestamp) {
+            final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         try {
@@ -98,7 +98,6 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
@@ -345,10 +344,8 @@ public class ControllerService {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
-
         return streamStore.createScope(scope);
     }
-
 
     /**
      * Controller Service API to delete scope.

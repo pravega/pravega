@@ -11,12 +11,13 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import java.util.Set;
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
+import lombok.Data;
 import lombok.Getter;
 
-@EqualsAndHashCode
-@AllArgsConstructor
+/**
+ * Successor segments of a given segment.
+ */
+@Data
 public class StreamSegmentSuccessors {
     @Getter
     private final Set<Segment> segments;
