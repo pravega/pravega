@@ -11,17 +11,19 @@ package io.pravega.segmentstore.server.host.delegationtoken;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
 import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class TokenVerifierImplTest {
 
@@ -40,7 +42,7 @@ public class TokenVerifierImplTest {
         DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl(config);
 
         //Auth disabled. No token is checked.
-        tokenVerifier.verifyToken("xyz", null, PravegaAuthHandler.PravegaAccessControlEnum.READ);
+        tokenVerifier.verifyToken("xyz", null, READ);
 
         //Auth enabled, error on null token
         config = AutoScalerConfig.builder()
@@ -50,7 +52,7 @@ public class TokenVerifierImplTest {
         tokenVerifier = new TokenVerifierImpl(config);
         DelegationTokenVerifier finalTokenVerifier = tokenVerifier;
         assertThrows(IllegalArgumentException.class, () -> {
-            finalTokenVerifier.verifyToken("xyz", null, PravegaAuthHandler.PravegaAccessControlEnum.READ);
+            finalTokenVerifier.verifyToken("xyz", null, READ);
         });
 
         Map<String, Object> claims = new HashMap();
@@ -63,9 +65,31 @@ public class TokenVerifierImplTest {
                            .setClaims(claims)
                            .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
                            .compact();
-        assertTrue("Wildcard check should pass", finalTokenVerifier.verifyToken("xyz", token, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertTrue("Wildcard check should pass", finalTokenVerifier.verifyToken("xyz", token, READ));
 
         //TODO: Add more tests..  level mismatch, timer expiry.
+        //Level mismatch test
+        claims = new HashMap<>();
+        claims.put("xyz", String.valueOf(READ));
+
+        token = Jwts.builder()
+                           .setSubject("segmentstoreresource")
+                           .setAudience("segmentstore")
+                           .setClaims(claims)
+                           .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
+                           .compact();
+        assertFalse("Level check should fail", finalTokenVerifier.verifyToken("xyz", token, READ_UPDATE));
+
+        claims = new HashMap<>();
+        claims.put("xyz", String.valueOf(READ_UPDATE));
+        token = Jwts.builder()
+                    .setSubject("segmentstoreresource")
+                    .setAudience("segmentstore")
+                    .setClaims(claims)
+                    .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
+                    .setExpiration(new Date())
+                    .compact();
+        assertFalse("Level check should fail", finalTokenVerifier.verifyToken("xyz", token, READ_UPDATE));
     }
 
     @After

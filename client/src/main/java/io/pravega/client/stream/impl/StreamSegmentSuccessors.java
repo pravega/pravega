@@ -12,15 +12,12 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import java.util.Set;
 import lombok.Data;
-import lombok.Getter;
 
 /**
  * Successor segments of a given segment.
  */
 @Data
 public class StreamSegmentSuccessors {
-    @Getter
     private final Set<Segment> segments;
-    @Getter
     private final String delegationToken;
 }
