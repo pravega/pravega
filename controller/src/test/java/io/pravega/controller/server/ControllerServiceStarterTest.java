@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.stream.impl.PravegaDefaultCredentials;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClient;
@@ -20,15 +21,14 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.test.common.TestUtils;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Optional;
 
 /**
  * ControllerServiceStarter tests.
@@ -39,9 +39,11 @@ public abstract class ControllerServiceStarterTest {
     protected StoreClient storeClient;
     private final boolean disableControllerCluster;
     private final int grpcPort;
+    private final boolean enableAuth;
 
-    ControllerServiceStarterTest(final boolean disableControllerCluster) {
+    ControllerServiceStarterTest(final boolean disableControllerCluster, boolean enableAuth) {
         this.disableControllerCluster = disableControllerCluster;
+        this.enableAuth = enableAuth;
         this.grpcPort = TestUtils.getAvailableListenPort();
     }
 
@@ -75,7 +77,11 @@ public abstract class ControllerServiceStarterTest {
         }
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(uri);
+        StreamManager streamManager = new StreamManagerImpl(uri,
+                new PravegaDefaultCredentials("1111_aaaa", "admin"),
+                enableAuth,
+                "../config/cert.pem");
+
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);
         streamManager.close();
@@ -110,7 +116,13 @@ public abstract class ControllerServiceStarterTest {
                 .hostMonitorConfig(hostMonitorConfig)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.empty())
-                .grpcServerConfig(Optional.of(GRPCServerConfigImpl.builder().port(grpcPort).build()))
+                .grpcServerConfig(Optional.of(GRPCServerConfigImpl.builder()
+                                                                  .port(grpcPort)
+                                                                  .authorizationEnabled(enableAuth)
+                                                                  .tlsEnabled(enableAuth)
+                                                                  .tlsCertFile("../config/cert.pem")
+                                                                  .tlsKeyFile("../config/key.pem")
+                                                                  .build()))
                 .restServerConfig(Optional.empty())
                 .build();
     }
