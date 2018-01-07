@@ -16,7 +16,12 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
  * In-memory store based ControllerServiceStarter tests.
  */
 public class InMemoryControllerServiceStarterTest extends ControllerServiceStarterTest {
-    public InMemoryControllerServiceStarterTest(boolean auth) {
+
+    public InMemoryControllerServiceStarterTest() {
+        this(false);
+    }
+
+    InMemoryControllerServiceStarterTest(boolean auth) {
         super(true, auth);
         System.setProperty("io.pravega.auth.enabled", "true");
         System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
