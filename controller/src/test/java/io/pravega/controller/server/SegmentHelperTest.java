@@ -170,7 +170,7 @@ public class SegmentHelperTest {
         );
     }
 
-    class MockHostControllerStore implements HostControllerStore {
+    private static class MockHostControllerStore implements HostControllerStore {
 
         @Override
         public Map<Host, Set<Integer>> getHostContainersMap() {
