@@ -62,6 +62,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth = false;
+    private boolean enableTls = false;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -106,7 +107,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
-                                boolean startRestServer, int restServerPort, boolean enableMetrics, boolean enableAuth) {
+                                boolean startRestServer, int restServerPort, boolean enableMetrics, boolean enableAuth,
+                                boolean enableTls) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -140,6 +142,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.restServerPort = restServerPort;
         this.enableMetrics = enableMetrics;
         this.enableAuth = enableAuth;
+        this.enableTls = enableTls;
     }
 
     @Synchronized
@@ -245,7 +248,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
-                        .with(ServiceConfig.ENABLE_TLS, this.enableAuth)
+                        .with(ServiceConfig.ENABLE_TLS, this.enableTls)
                         .with(ServiceConfig.KEY_FILE, "../config/key.pem")
                         .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -267,7 +270,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.AUTH_PASSWD, "1111_aaaa")
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
-                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableAuth)
+                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
                                          .with(AutoScalerConfig.TLS_CERT_FILE, "../config/cert.pem"))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
@@ -320,7 +323,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCHost("localhost")
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
-                .tlsEnabled(this.enableAuth)
+                .tlsEnabled(this.enableTls)
                 .tlsCertFile("../config/cert.pem")
                 .tlsKeyFile("../config/key.pem")
                 .userPasswdFile("../config/passwd")
