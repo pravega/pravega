@@ -26,7 +26,11 @@ import lombok.val;
 class LogMetadata {
     //region Members
 
-    private static final byte SERIALIZATION_VERSION = 0;
+    /**
+     * Version 0: Base.
+     * Version 1: Added LedgerMetadata.lastAddConfirmed.
+     */
+    private static final byte SERIALIZATION_VERSION = 1;
     /**
      * The initial epoch to use for the Log.
      */
@@ -246,7 +250,7 @@ class LogMetadata {
      */
     byte[] serialize() {
         // Serialization version (Byte), Epoch (Long), TruncationAddress (3*Long), Ledger Length (Int), Ledgers.
-        val length = Byte.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES + (Long.BYTES + Integer.BYTES) * this.ledgers.size();
+        val length = Byte.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES + (Long.BYTES + Integer.BYTES + Long.BYTES) * this.ledgers.size();
         ByteBuffer bb = ByteBuffer.allocate(length);
         bb.put(SERIALIZATION_VERSION);
         bb.putLong(this.epoch);
@@ -260,6 +264,7 @@ class LogMetadata {
         this.ledgers.forEach(lm -> {
             bb.putLong(lm.getLedgerId());
             bb.putInt(lm.getSequence());
+            bb.putLong(lm.getLastAddConfirmed());
         });
         return bb.array();
     }
@@ -272,7 +277,7 @@ class LogMetadata {
      */
     static LogMetadata deserialize(byte[] serialization) {
         ByteBuffer bb = ByteBuffer.wrap(serialization);
-        bb.get(); // We skip version for now because we only have one.
+        byte version = bb.get(); // We skip version for now because we only have one.
         long epoch = bb.getLong();
 
         // Truncation Address.
@@ -285,7 +290,13 @@ class LogMetadata {
         for (int i = 0; i < ledgerCount; i++) {
             long ledgerId = bb.getLong();
             int seq = bb.getInt();
-            ledgers.add(new LedgerMetadata(ledgerId, seq));
+            long lac = LedgerMetadata.NO_LAST_ADD_CONFIRMED;
+            if (version >= 1) {
+                // LastAddConfirmed was added in Version 1.
+                lac = bb.getLong();
+            }
+
+            ledgers.add(new LedgerMetadata(ledgerId, seq, lac));
         }
 
         return new LogMetadata(epoch, Collections.unmodifiableList(ledgers), new LedgerAddress(truncationSeqNo, truncationLedgerId));
