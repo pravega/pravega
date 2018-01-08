@@ -185,6 +185,18 @@ public class TableHelper {
                 previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete));
     }
 
+    /**
+     * A method to compute size of stream in bytes from start till given stream cut.
+     * Note: this computed size is absolute size and even if the stream has been truncated, this size is computed for the
+     * entire amount of data that was written into the stream.
+     *
+     * @param indexTable index table for the stream
+     * @param historyTable history table for the stream
+     * @param segmentTable segment table for the stream
+     * @param streamCut stream cut to compute size till
+     * @param sealedSegmentsRecord record for all the sealed segments for the given stream.
+     * @return size (in bytes) of stream till the given stream cut.
+     */
     public static long computeSizeTill(final byte[] indexTable, final byte[] historyTable, final byte[] segmentTable,
                                        final Map<Integer, Long> streamCut, final SealedSegmentsRecord sealedSegmentsRecord) {
         Preconditions.checkNotNull(streamCut);
@@ -214,7 +226,6 @@ public class TableHelper {
 
             size.addAndGet(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
                 Segment epochSegment = getSegment(epochSegmentNumber, segmentTable);
-                // toDelete.add(epoch.segment overlaps cut.segment && epoch < cut.segment.epoch)
                 return cutMapSegments.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getNumber() == epochSegment.getNumber() ||
                         (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).map(sealedSegmentSizeMap::get).reduce((x, y) -> x + y).orElse(0L));

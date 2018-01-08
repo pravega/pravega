@@ -708,27 +708,21 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentRecord) {
         Preconditions.checkNotNull(sealedSegmentRecord);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
         synchronized (lock) {
             this.sealedSegments = new Data<>(sealedSegmentRecord, 0);
-            result.complete(null);
+            return CompletableFuture.completedFuture(null);
         }
-        return result;
     }
 
     @Override
     CompletableFuture<Data<Integer>> getSealedSegmentsRecord() {
-        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
-
         synchronized (lock) {
             if (this.sealedSegments == null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             } else {
-                result.complete(copy(sealedSegments));
+                return CompletableFuture.completedFuture(copy(sealedSegments));
             }
         }
-        return result;
     }
 
     @Override
@@ -736,21 +730,19 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(sealedSegments.getData());
 
-        final CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (lock) {
             if (this.sealedSegments == null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "sealedSegments for stream: " + getName()));
             } else if (this.sealedSegments.getVersion().equals(sealedSegments.getVersion())) {
                 this.sealedSegments = new Data<>(Arrays.copyOf(sealedSegments.getData(), sealedSegments.getData().length),
                         sealedSegments.getVersion() + 1);
-                result.complete(null);
+                return CompletableFuture.completedFuture(null);
             } else {
-                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
+                return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT,
                         "sealedSegments for stream: " + getName()));
             }
         }
-        return result;
     }
 
     private Data<Integer> copy(Data<Integer> input) {

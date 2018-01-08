@@ -1049,7 +1049,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     // idempotent check
                     if (!lastRecord.isPartial()) {
-                        if (lastRecord.getSegments().stream().noneMatch(x -> sealedSegments.keySet().contains(x)) &&
+                        if (lastRecord.getSegments().stream().noneMatch(sealedSegments::containsKey) &&
                                 newSegments.stream().allMatch(x -> lastRecord.getSegments().contains(x))) {
                             log.debug("{}/{} scale already completed for epoch {}.", scope, name, activeEpoch);
 

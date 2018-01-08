@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream.tables;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -23,10 +24,10 @@ public class SealedSegmentsRecord implements Serializable {
     private final Map<Integer, Long> sealedSegmentsSizeMap;
 
     public SealedSegmentsRecord(Map<Integer, Long> sealedSegmentsSizeMap) {
-        this.sealedSegmentsSizeMap = Collections.unmodifiableMap(sealedSegmentsSizeMap);
+        this.sealedSegmentsSizeMap = Collections.unmodifiableMap(new HashMap<>(sealedSegmentsSizeMap));
     }
 
     public Map<Integer, Long> getSealedSegmentsSizeMap() {
-        return Collections.unmodifiableMap(sealedSegmentsSizeMap);
+        return sealedSegmentsSizeMap;
     }
 }

@@ -836,12 +836,12 @@ public interface StreamMetadataStore {
     /**
      * Method to get size till the supplied stream cut map.
      *
-     * @param scope scope
-     * @param stream stream
-     * @param streamCut stream cut
-     * @param context context
+     * @param scope scope name
+     * @param stream stream name
+     * @param streamCut stream cut to get the size till
+     * @param context operation context
      * @param executor executor
-     * @return size of stream till streamCut
+     * @return A CompletableFuture which, when completed, will contain size of stream till given streamCut.
      */
     CompletableFuture<Long> getSizeTill(final String scope, final String stream, final Map<Integer, Long> streamCut,
                                         final OperationContext context, final ScheduledExecutorService executor);

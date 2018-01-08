@@ -366,7 +366,7 @@ interface Stream {
     /**
      * Method to get stream size till the given stream cut
      * @param streamCut stream cut
-     * @return size of stream till given cut
+     * @return A CompletableFuture, that when completed, will contain size of stream till given cut.
      */
     CompletableFuture<Long> getSizeTill(Map<Integer, Long> streamCut);
 

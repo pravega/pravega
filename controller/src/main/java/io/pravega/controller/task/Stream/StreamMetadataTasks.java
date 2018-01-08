@@ -83,6 +83,7 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
 @Slf4j
 public class StreamMetadataTasks extends TaskBase {
 
+    public static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
@@ -211,8 +212,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<StreamCutRecord> checkGenerateStreamCut(String scope, String stream, OperationContext context,
                                                            StreamCutRecord latestCut, long recordingTime) {
-        if (latestCut == null || recordingTime - latestCut.getRecordingTime() >
-                Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis()) {
+        if (latestCut == null || recordingTime - latestCut.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
             return generateStreamCut(scope, stream, context)
                     .thenCompose(newRecord -> streamMetadataStore.addStreamCutToRetentionSet(scope, stream, newRecord, context, executor)
                         .thenApply(x -> newRecord));
