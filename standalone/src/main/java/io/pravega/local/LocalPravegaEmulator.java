@@ -22,7 +22,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
-    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort, boolean enableAuth) {
+    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort, boolean enableAuth, boolean enableTls) {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
                 .isInProcZK(true)
@@ -38,6 +38,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .restServerPort(restServerPort)
                 .enableMetrics(false)
                 .enableAuth(enableAuth)
+                .enableTls(enableTls)
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
         inProcPravegaCluster.setSegmentStorePorts(new int[] {segmentStorePort});

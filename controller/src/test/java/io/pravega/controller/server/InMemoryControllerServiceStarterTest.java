@@ -23,7 +23,7 @@ public class InMemoryControllerServiceStarterTest extends ControllerServiceStart
 
     InMemoryControllerServiceStarterTest(boolean auth) {
         super(true, auth);
-        System.setProperty("io.pravega.auth.enabled", "true");
+        System.setProperty("io.pravega.tls.enabled", "true");
         System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
     }
 

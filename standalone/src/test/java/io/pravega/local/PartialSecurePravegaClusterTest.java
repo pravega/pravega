@@ -15,13 +15,13 @@ import org.junit.Before;
 /**
  * Unit tests for secure standalone cluster.
  */
-public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
+public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override
     public void setUp() throws Exception {
         this.authEnabled = true;
-        this.tlsEnabled = true;
-        System.setProperty("io.pravega.tls.enabled", "true");
+        this.tlsEnabled = false;
+        System.setProperty("io.pravega.tls.enabled", "false");
         System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
         super.setUp();
     }
