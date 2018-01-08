@@ -68,7 +68,7 @@ public class SegmentHelperTest {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0, 0l,
+        CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0, 0L,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
