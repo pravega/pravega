@@ -41,8 +41,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private static final String ENV_SEPARATOR = ";;";
     private static final String KEY_VALUE_SEPARATOR = "::";
     private final long instances = 1;
-    private final double cpu = 0.1;
-    private final double mem = 1000.0;
+    private final double cpu = 0.5;
+    private final double mem = 1741.0;
     private final URI zkUri;
     private final URI conUri;
     private final URI hdfsUri;

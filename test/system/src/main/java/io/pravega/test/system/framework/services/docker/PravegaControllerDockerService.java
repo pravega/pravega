@@ -34,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PravegaControllerDockerService extends DockerBasedService {
 
     private final int instances = 1;
-    private final double cpu = 0.1;
+    private final double cpu = 0.5;
     private final double mem = 700.0;
     private final URI zkUri;
 

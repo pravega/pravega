@@ -37,7 +37,7 @@ public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
     private final long instances = 3;
-    private final double cpu = 0.1;
+    private final double cpu = 0.5;
     private final double mem = 1024.0;
     private final URI zkUri;
 
