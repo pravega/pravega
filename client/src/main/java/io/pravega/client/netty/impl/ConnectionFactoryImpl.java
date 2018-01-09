@@ -82,22 +82,22 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         final SslContext sslCtx;
         if (ssl) {
             try {
+                SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
                 if (this.certFile == null) {
-                    sslCtx = SslContextBuilder.forClient()
-                                              .trustManager(FingerprintTrustManagerFactory
-                                                      .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
-                                              .build();
+                    sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
+                                                      .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
                 } else {
-                    sslCtx = SslContextBuilder.forClient()
-                                              .trustManager(new File(this.certFile))
-                                              .build();
+                    sslCtxFactory = SslContextBuilder.forClient()
+                                              .trustManager(new File(this.certFile));
                 }
+                sslCtx = sslCtxFactory.build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
         } else {
             sslCtx = null;
         }
+
         AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
         ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
