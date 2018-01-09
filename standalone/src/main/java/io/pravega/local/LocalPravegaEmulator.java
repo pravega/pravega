@@ -59,6 +59,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .zkPort(conf.getZkPort())
                     .restServerPort(conf.getRestServerPort())
                     .enableAuth(true)
+                    .enableTls(false)
                     .build();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {
