@@ -79,17 +79,20 @@ public class StreamMetaDataTests {
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
-    ControllerService mockControllerService;
-    PravegaAuthManager authManager = null;
+    protected final String scope1 = "scope1";
+    protected final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
+    protected final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
+    protected ControllerService mockControllerService;
+    protected PravegaAuthManager authManager = null;
+    protected Client client;
+
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
-    Client client;
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final String stream3 = "stream3";
     private final String stream4 = "stream4";
-    protected final String scope1 = "scope1";
 
     private final ScalingConfig scalingPolicyCommon = new ScalingConfig();
     private final ScalingConfig scalingPolicyCommon2 = new ScalingConfig();
@@ -105,12 +108,10 @@ public class StreamMetaDataTests {
             .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();
 
-    protected final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest3 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest4 = new CreateStreamRequest();
     private final CreateStreamRequest createStreamRequest5 = new CreateStreamRequest();
-    protected final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest2 = new UpdateStreamRequest();
     private final UpdateStreamRequest updateStreamRequest3 = new UpdateStreamRequest();
 
