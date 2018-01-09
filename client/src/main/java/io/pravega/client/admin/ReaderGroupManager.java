@@ -16,6 +16,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.PravegaCredentials;
 import java.net.URI;
 import java.util.Set;
 
@@ -32,7 +33,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl());
+        return withScope(scope, controllerUri, null);
+    }
+
+    public static ReaderGroupManager withScope(String scope, URI controllerUri, PravegaCredentials credentials) {
+        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl(), credentials);
     }
 
     /**
