@@ -62,6 +62,12 @@ public class AsyncSegmentInputStreamTest {
                 return null;            
             }
         }).doAnswer(new Answer<Void>() {
+        @Override
+        public Void answer(InvocationOnMock invocation) throws Throwable {
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100));
+            return null;
+        }
+        }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
@@ -72,6 +78,8 @@ public class AsyncSegmentInputStreamTest {
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
+        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "", 5678));
+        inOrder.verify(c).close();
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "", 5678));
         inOrder.verify(c).close();
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "",  5678));
