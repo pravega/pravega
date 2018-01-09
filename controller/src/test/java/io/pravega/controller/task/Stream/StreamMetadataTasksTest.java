@@ -94,6 +94,8 @@ import static org.mockito.Mockito.spy;
 
 public class StreamMetadataTasksTest {
 
+    protected boolean authEnabled = false;
+
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -129,10 +131,10 @@ public class StreamMetadataTasksTest {
         connectionFactory = new ConnectionFactoryImpl();
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  false, ""));
+                executor, "host", connectionFactory,  authEnabled, "key"));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory, false, "");
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory, authEnabled, "key");
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
