@@ -11,6 +11,7 @@ package io.pravega.client.netty.impl;
 
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -83,7 +84,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         if (ssl) {
             try {
                 SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
-                if (this.certFile == null) {
+                if (Strings.isNullOrEmpty(this.certFile)) {
                     sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
                 } else {
