@@ -66,7 +66,7 @@ public interface ClientFactory extends AutoCloseable {
     static ClientFactory withScope(String scope, URI controllerUri, PravegaCredentials creds) {
 
         val connectionFactory = new ConnectionFactoryImpl();
-        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.auth.enabled"));
+        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
         String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
 
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),

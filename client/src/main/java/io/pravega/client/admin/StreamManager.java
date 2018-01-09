@@ -39,7 +39,7 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     static StreamManager create(URI controller, PravegaCredentials credentials) {
-        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.auth.enabled"));
+        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
         String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
         return new StreamManagerImpl(controller, credentials, enableTls, tlsCertFile);
     }

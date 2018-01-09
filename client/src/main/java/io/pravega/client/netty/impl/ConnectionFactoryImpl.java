@@ -64,7 +64,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
      * Actual implementation of ConnectionFactory interface.
      */
     public ConnectionFactoryImpl() {
-        this.ssl = Boolean.parseBoolean(System.getProperty("io.pravega.auth.enabled"));
+        this.ssl = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
         this.certFile = System.getProperty("io.pravega.auth.certfile");
         try {
             this.group = new EpollEventLoopGroup();
