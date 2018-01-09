@@ -94,9 +94,8 @@ import static org.mockito.Mockito.spy;
 
 public class StreamMetadataTasksTest {
 
-    protected boolean authEnabled = false;
-
     private static final String SCOPE = "scope";
+    protected boolean authEnabled = false;
     private final String stream1 = "stream1";
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
