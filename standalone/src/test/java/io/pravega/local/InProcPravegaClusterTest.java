@@ -29,6 +29,7 @@ import org.junit.Test;
 @Slf4j
 public class InProcPravegaClusterTest {
     boolean authEnabled = false;
+    boolean tlsEnabled = false;
     private LocalPravegaEmulator localPravega;
 
     @Before
@@ -45,6 +46,7 @@ public class InProcPravegaClusterTest {
                                            .zkPort(TestUtils.getAvailableListenPort())
                                            .restServerPort(TestUtils.getAvailableListenPort())
                                            .enableAuth(authEnabled)
+                                           .enableTls(tlsEnabled)
                                            .build();
         localPravega.start();
     }
@@ -62,7 +64,7 @@ public class InProcPravegaClusterTest {
         String streamName = "Stream";
         int numSegments = 10;
 
-        System.setProperty("io.pravega.auth.enabled", String.valueOf(authEnabled));
+        System.setProperty("io.pravega.tls.enabled", String.valueOf(tlsEnabled));
         System.setProperty("io.pravega.auth.certFile",  "../config/cert.pem");
 
         @Cleanup
