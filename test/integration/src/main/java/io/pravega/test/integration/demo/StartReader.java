@@ -15,6 +15,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockStreamManager;
 
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -27,8 +28,8 @@ public class StartReader {
     public static void main(String[] args) throws Exception {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                                                                "localhost",
-                                                                StartLocalService.PORT);
+                                                                InetAddress.getLocalHost().getHostAddress(),
+                                                                StartLocalService.SERVICE_PORT);
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
