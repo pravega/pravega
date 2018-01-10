@@ -76,6 +76,11 @@ public class ServiceConfig {
         HDFS,
 
         /**
+         * Storage is implemented by Apache Bookkeeper.
+         */
+        BOOKKEEPER,
+
+        /**
          * InMemory Storage. Contents will be lost when the process exits.
          */
         INMEMORY
