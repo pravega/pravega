@@ -55,10 +55,10 @@ public interface BatchClient {
      * segment ending at the current end of the segment.
      * 
      * Offsets can be obtained by calling {@link SegmentIterator#getOffset()} or
-     * {@link SegmentInfo#getLength()}. There is no validation that the provided offset actually
+     * {@link SegmentInfo#getWriteOffset()}. There is no validation that the provided offset actually
      * aligns to an event. If it does not, the deserializer will be passed corrupt data. This means
-     * that it is invalid to for example attempt to divide a segment by simply passing a starting
-     * offset that is half of the segment lenght.
+     * that it is invalid to, for example, attempt to divide a segment by simply passing a starting
+     * offset that is half of the segment length.
      * 
      * @param <T> The type of events written to the segment.
      * @param segment The segment to read from

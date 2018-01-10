@@ -27,9 +27,9 @@ public class SegmentInfo {
     
     /**
      * The offset at which data is available. In the event the stream has never been truncated this
-     * is 0. However if all data below a certain offset has been truncated, that offset will be
+     * is 0. However, if all data below a certain offset has been truncated, that offset will be
      * provide here. (Offsets are left absolute even if data is truncated so that positions in the
-     * segment can be refered to consistantly)
+     * segment can be referred to consistently)
      */
     private final long startingOffset;
     
