@@ -138,8 +138,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
                 .thenApply(result -> {
-                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
-                            result.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
+                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
                         CREATE_STREAM.reportSuccessValue(1);
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
@@ -150,7 +149,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     
                     return result;
                 });
-
     }
 
     @Override
