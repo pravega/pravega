@@ -15,6 +15,7 @@ import io.grpc.Status;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -625,8 +626,13 @@ public class ControllerImplTest {
                 .build()
                 .start();
         executor = Executors.newSingleThreadScheduledExecutor();
-        controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor, creds, testSecure, "../config/cert.pem" );
+        controllerClient = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(
+                        PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
+                                           .enableTls(testSecure)
+                                           .pravegaTrustStore("../config/cert.pem")
+                                                 .build())
+                .retryAttempts(1).build(), executor);
     }
 
     @After
@@ -641,7 +647,12 @@ public class ControllerImplTest {
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
         final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
-                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+                ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
+                                             .pravegaTrustStore("../config/cert.pem")
+                                             .enableTls(testSecure)
+                                             .build())
+                                    .retryAttempts(1).build(),
+                this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
@@ -659,7 +670,11 @@ public class ControllerImplTest {
                 .start();
         final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
-                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+                ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
+                                                                               .pravegaTrustStore("../config/cert.pem")
+                                                                               .enableTls(testSecure)
+                                                                               .build())
+                                    .retryAttempts(1).build(), this.executor);
         createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
@@ -673,8 +688,11 @@ public class ControllerImplTest {
     public void testRetries() throws IOException, ExecutionException, InterruptedException {
 
         // Verify retries exhausted error after multiple attempts.
-        final ControllerImpl controller1 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(3).build(), this.executor);
+        final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
+                                                 .enableTls(testSecure)
+                                                 .pravegaTrustStore("../config/cert.pem").build())
+                .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamretryfailure")
                 .scope("scope1")
@@ -695,8 +713,11 @@ public class ControllerImplTest {
 
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
-        final ControllerImpl controller2 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(4).build(), this.executor);
+        final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
+                                                 .enableTls(testSecure)
+                                                 .pravegaTrustStore("../config/cert.pem").build())
+                .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()
                 .streamName("streamretrysuccess")
                 .scope("scope1")

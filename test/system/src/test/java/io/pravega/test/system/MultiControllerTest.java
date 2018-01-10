@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -186,8 +187,10 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+        final ControllerImpl controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURI).build())
+                                    .build(), EXECUTOR_SERVICE);
         return controllerClient.createScope(scopeName);
     }
 }

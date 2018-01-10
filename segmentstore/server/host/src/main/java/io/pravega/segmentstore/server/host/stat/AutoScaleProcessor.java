@@ -16,6 +16,7 @@ import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -114,10 +115,13 @@ public class AutoScaleProcessor {
                     if (clientFactory.get() == null) {
                         ClientFactory factory = null;
                         if (configuration.isAuthEnabled()) {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri(),
-                                    new PravegaDefaultCredentials(configuration.getAuthPasswd(), configuration.getAuthUsername()));
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    PravegaClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                    .credentials(new PravegaDefaultCredentials(configuration.getAuthPasswd(), configuration.getAuthUsername()))
+                                    .build());
                         } else {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri());
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    PravegaClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
                         }
                         clientFactory.compareAndSet(null, factory);
                     }

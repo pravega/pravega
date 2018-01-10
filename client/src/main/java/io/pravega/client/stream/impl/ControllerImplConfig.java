@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.PravegaClientConfig;
 import java.io.Serializable;
 import lombok.Builder;
 import lombok.Data;
@@ -21,16 +22,14 @@ public class ControllerImplConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
-    private final PravegaCredentials credentials;
-    private final boolean enableTls;
-    private final String tlsCertFile;
+    private final PravegaClientConfig clientConfig;
 
     public static final class ControllerImplConfigBuilder {
         private int initialBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private boolean enableTls = false;
-        private String tlsCertFile = "";
+        private PravegaClientConfig config = PravegaClientConfig.builder().controllerURI(null)
+        .credentials(null).enableTls(false).pravegaTrustStore("").build();
     }
 }

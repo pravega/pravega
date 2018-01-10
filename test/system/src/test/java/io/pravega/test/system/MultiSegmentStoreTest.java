@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -156,7 +157,7 @@ public class MultiSegmentStoreTest {
         String stream = "teststream" + RandomStringUtils.randomAlphanumeric(10);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerUri);
+        StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder().controllerURI(controllerUri).build());
         Assert.assertTrue(streamManager.createScope(scope));
 
         // Create stream with large number of segments so that most segment containers are used.
@@ -167,7 +168,8 @@ public class MultiSegmentStoreTest {
                 .build()));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(scope,
+                PravegaClientConfig.builder().controllerURI(controllerUri).build());
 
         log.info("Invoking writer with controller URI: {}", controllerUri);
         @Cleanup
@@ -185,7 +187,7 @@ public class MultiSegmentStoreTest {
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(readerGroup,
                 ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
                 Collections.singleton(stream));

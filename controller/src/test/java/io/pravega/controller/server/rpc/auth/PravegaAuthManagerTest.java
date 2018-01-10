@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.stream.impl.ControllerImpl;
@@ -95,11 +96,11 @@ public class PravegaAuthManagerTest {
         InlineExecutor executor = new InlineExecutor();
         PravegaCredentials creds = new PravegaDefaultCredentials("1111_aaaa", "admin");
 
-        final ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("tcp://localhost:" + port),
-                ControllerImplConfig.builder().retryAttempts(1).build(),
-                executor,
-                creds, true, "../config/cert.pem");
+        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(PravegaClientConfig.builder()
+                             .controllerURI(URI.create("tcp://localhost:" + port)).build())
+                .retryAttempts(1).build(),
+                executor);
 
         MultivaluedMap<String, String> map = new MultivaluedHashMap();
 

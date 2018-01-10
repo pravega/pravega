@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.state.SynchronizerConfig;
@@ -24,11 +25,9 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.PravegaCredentials;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Set;
 import lombok.Lombok;
@@ -48,14 +47,13 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
-    public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory, PravegaCredentials creds) {
+    public ReaderGroupManagerImpl(String scope, PravegaClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder()
-                                                                                .credentials(creds)
-                                                                                .build(),
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
+
         this.connectionFactory = connectionFactory;
-        this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory, creds);
+        this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
     public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory, ConnectionFactory connectionFactory) {

@@ -61,7 +61,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
-import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -113,44 +112,28 @@ public class ControllerImpl implements Controller {
     /**
      * Creates a new instance of the Controller client class.
      *
-     * @param controllerURI The controller rpc URI. This can be of 2 types
-     *                      1. tcp://ip1:port1,ip2:port2,...
-     *                          This is used if the controller endpoints are static and can be directly accessed.
-     *                      2. pravega://ip1:port1,ip2:port2,...
-     *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      * @param config        The configuration for this client implementation.
      * @param executor      The executor service to be used for handling retries.
      */
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
+    public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(controllerURI, config, executor, config.getCredentials(), config.isEnableTls(), config.getTlsCertFile());
-    }
-
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, PravegaCredentials creds,
-                          boolean enableTls, String tlsCertFile) {
-        this(NettyChannelBuilder.forTarget(controllerURI.toString())
+        this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory())
                                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
-                config, executor, creds, enableTls, tlsCertFile);
-        log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
+                config, executor);
+        log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
     }
 
     /**
      * Creates a new instance of the Controller client class.
-     *
-     * @param channelBuilder The channel builder to connect to the service instance.
+     *  @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
-     * @param credentials    The credentials or null if none.
-     * @param enableTls      The flag to turn on TLS for controller interactions.
-     * @param tlsCertFile    File containing the public certificate for TLS.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, PravegaCredentials credentials,
-                          boolean enableTls, String tlsCertFile) {
+                          final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
@@ -158,10 +141,11 @@ public class ControllerImpl implements Controller {
                                 .retryingOn(StatusRuntimeException.class)
                                 .throwingOn(Exception.class);
 
-        if (enableTls) {
+        if (config.getClientConfig().isEnableTls()) {
             SslContextBuilder sslContextBuilder = null;
-            if (!Strings.isNullOrEmpty(tlsCertFile)) {
-                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
+            String trustStore = config.getClientConfig().getPravegaTrustStore();
+            if (!Strings.isNullOrEmpty(trustStore)) {
+                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(trustStore));
             } else {
                 sslContextBuilder = GrpcSslContexts.forClient();
             }
@@ -177,17 +161,12 @@ public class ControllerImpl implements Controller {
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
+        PravegaCredentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
             PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;
-    }
-
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
-        this(channelBuilder, config, executor, null, false, null);
-
     }
 
     @Override
