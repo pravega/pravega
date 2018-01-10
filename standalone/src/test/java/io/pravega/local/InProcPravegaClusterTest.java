@@ -9,6 +9,7 @@
  */
 package io.pravega.local;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -68,9 +69,10 @@ public class InProcPravegaClusterTest {
         System.setProperty("io.pravega.auth.certfile",  "../config/cert.pem");
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(URI.create(
-                localPravega.getInProcPravegaCluster().getControllerURI()),
-                new PravegaDefaultCredentials("1111_aaaa", "admin"));
+        StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder()
+                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
+                .build());
 
         streamManager.createScope(scope);
         Assert.assertTrue("Stream creation is not successful ",

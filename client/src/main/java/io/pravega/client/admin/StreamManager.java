@@ -9,11 +9,10 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.PravegaCredentials;
 import io.pravega.client.stream.impl.StreamCut;
-import java.net.URI;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -23,25 +22,11 @@ public interface StreamManager extends AutoCloseable {
     /**
      * Creates a new instance of StreamManager.
      *
-     * @param controller The Controller URI.
+     * @param clientConfig Configuration for the client connection to Pravega.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(URI controller) {
-
-        return create(controller, null);
-    }
-
-    /**
-     * Creates a new instance of StreamManager.
-     *
-     * @param controller The Controller URI.
-     * @param credentials PravegaCredentials implementation used to validate this client.
-     * @return Instance of Stream Manager implementation.
-     */
-    static StreamManager create(URI controller, PravegaCredentials credentials) {
-        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
-        String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
-        return new StreamManagerImpl(controller, credentials, enableTls, tlsCertFile);
+    public static StreamManager create(PravegaClientConfig clientConfig) {
+        return new StreamManagerImpl(clientConfig);
     }
 
     /**

@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -105,18 +106,21 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                                                                                   "ReadWriteAndAutoScaleWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect,
-                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+        controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                            .clientConfig( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                                            .maxBackoffMillis(5000).build(),
+
                                         controllerExecutorService);
         testState = new TestState(false);
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
-        streamManager = new StreamManagerImpl(controllerURIDirect);
+        streamManager = new StreamManagerImpl( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, AUTO_SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
 
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
+        readerGroupManager = ReaderGroupManager.withScope(scope,
+                PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
     @After

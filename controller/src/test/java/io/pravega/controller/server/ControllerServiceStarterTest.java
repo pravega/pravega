@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.PravegaDefaultCredentials;
@@ -77,10 +78,10 @@ public abstract class ControllerServiceStarterTest {
         }
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(uri,
-                new PravegaDefaultCredentials("1111_aaaa", "admin"),
-                enableAuth,
-                "../config/cert.pem");
+        StreamManager streamManager = new StreamManagerImpl(PravegaClientConfig.builder().controllerURI(uri)
+                .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
+                .enableTls(enableAuth)
+                .pravegaTrustStore("../config/cert.pem").build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);

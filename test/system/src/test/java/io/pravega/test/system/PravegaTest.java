@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -129,8 +130,9 @@ public class PravegaTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl();
-        ControllerImpl controller = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerUri).build())
+                                    .build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());
@@ -150,7 +152,7 @@ public class PravegaTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, PravegaClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
@@ -164,7 +166,7 @@ public class PravegaTest {
             Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, PravegaClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
                                        Collections.singleton(STREAM_NAME));
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

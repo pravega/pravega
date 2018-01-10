@@ -10,14 +10,13 @@
 package io.pravega.client.admin;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.PravegaCredentials;
-import java.net.URI;
 import java.util.Set;
 
 /**
@@ -29,15 +28,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      * Creates a new instance of ReaderGroupManager.
      *
      * @param scope The Scope string.
-     * @param controllerUri The Controller URI.
+     * @param clientConfig Configuration for the client.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return withScope(scope, controllerUri, null);
-    }
-
-    public static ReaderGroupManager withScope(String scope, URI controllerUri, PravegaCredentials credentials) {
-        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl(), credentials);
+    public static ReaderGroupManager withScope(String scope, PravegaClientConfig clientConfig) {
+        return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl());
     }
 
     /**

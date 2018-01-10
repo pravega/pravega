@@ -29,8 +29,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.PravegaCredentials;
-import java.net.URI;
 import lombok.val;
 
 /**
@@ -59,23 +57,14 @@ public interface ClientFactory extends AutoCloseable {
      * Creates a new instance of Client Factory.
      *
      * @param scope The scope string.
-     * @param controllerUri The URI for controller.
-     * @param creds Optional credentials to connect to controller.
+     * @param config Configuration for the client.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri, PravegaCredentials creds) {
+    static ClientFactory withScope(String scope, PravegaClientConfig config) {
 
         val connectionFactory = new ConnectionFactoryImpl();
-        boolean enableTls = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
-        String tlsCertFile = System.getProperty("io.pravega.auth.certfile");
-
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
-                connectionFactory.getInternalExecutor(), creds, enableTls, tlsCertFile), connectionFactory);
-    }
-
-
-    static ClientFactory withScope(String scope, URI controllerUri) {
-        return withScope(scope, controllerUri, null);
+        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
+                connectionFactory.getInternalExecutor()), connectionFactory);
     }
 
     /**

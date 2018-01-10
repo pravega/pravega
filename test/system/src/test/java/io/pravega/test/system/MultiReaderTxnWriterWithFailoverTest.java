@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -101,17 +102,19 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                                                                                   "MultiReaderTxnWriterWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect,
-                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+        controller = new ControllerImpl(
+                                        ControllerImplConfig.builder()
+                                                            .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                                            .maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
         testState = new TestState(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl(controllerURIDirect);
+        streamManager = new StreamManagerImpl( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
+        readerGroupManager = ReaderGroupManager.withScope(scope,  PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
     @After
