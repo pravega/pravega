@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Server;
 import io.grpc.Status;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -645,8 +646,14 @@ public class ControllerImplTest {
     public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
 
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
-        final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
-                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
+                                                         .keepAliveTime(10, TimeUnit.SECONDS);
+        if(testSecure) {
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
+        } else {
+            builder = builder.usePlaintext(true);
+        }
+        final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
                                              .pravegaTrustStore("../config/cert.pem")
                                              .enableTls(testSecure)
@@ -663,13 +670,25 @@ public class ControllerImplTest {
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
-        Server testServer = NettyServerBuilder.forPort(serverPort2)
-                .addService(testServerImpl)
-                .permitKeepAliveTime(5, TimeUnit.SECONDS)
-                .build()
+        NettyServerBuilder testServerBuilder = NettyServerBuilder.forPort(serverPort2)
+                                                                 .addService(testServerImpl)
+                                                                 .permitKeepAliveTime(5, TimeUnit.SECONDS);
+
+        if (testSecure) {
+           testServerBuilder = testServerBuilder.useTransportSecurity(new File("../config/cert.pem"), new File("../config/key.pem"));
+        }
+
+        Server testServer = testServerBuilder.build()
                 .start();
-        final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
-                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
+
+        builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
+                           .keepAliveTime(10, TimeUnit.SECONDS);
+        if(testSecure) {
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
+        } else {
+            builder = builder.usePlaintext(true);
+        }
+        final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
                                                                                .pravegaTrustStore("../config/cert.pem")
                                                                                .enableTls(testSecure)
