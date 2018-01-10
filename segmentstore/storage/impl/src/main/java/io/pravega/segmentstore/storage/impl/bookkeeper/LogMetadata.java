@@ -15,20 +15,23 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.val;
 
 /**
  * Metadata for a Ledger-based log.
  */
+@NotThreadSafe
 class LogMetadata {
     //region Members
 
     /**
      * Version 0: Base.
-     * Version 1: Added LedgerMetadata.lastAddConfirmed.
+     * Version 1: Added LedgerMetadata.Status.
      */
     private static final byte SERIALIZATION_VERSION = 1;
     /**
@@ -109,15 +112,9 @@ class LogMetadata {
      * Creates a new instance of the LogMetadata class which contains an additional ledger.
      *
      * @param ledgerId       The Id of the Ledger to add.
-     * @param incrementEpoch If true, the new LogMetadata object will have its epoch incremented (compared to this object's).
      * @return A new instance of the LogMetadata class.
      */
-    LogMetadata addLedger(long ledgerId, boolean incrementEpoch) {
-        long newEpoch = this.epoch;
-        if (incrementEpoch) {
-            newEpoch++;
-        }
-
+    LogMetadata addLedger(long ledgerId) {
         // Copy existing ledgers.
         List<LedgerMetadata> newLedgers = new ArrayList<>(this.ledgers.size() + 1);
         newLedgers.addAll(this.ledgers);
@@ -125,7 +122,7 @@ class LogMetadata {
         // Create and add metadata for the new ledger.
         int sequence = this.ledgers.size() == 0 ? INITIAL_LEDGER_SEQUENCE : this.ledgers.get(this.ledgers.size() - 1).getSequence() + 1;
         newLedgers.add(new LedgerMetadata(ledgerId, sequence));
-        return new LogMetadata(newEpoch, Collections.unmodifiableList(newLedgers), this.truncationAddress)
+        return new LogMetadata(this.epoch + 1, Collections.unmodifiableList(newLedgers), this.truncationAddress)
                 .withUpdateVersion(this.updateVersion.get());
     }
 
@@ -142,6 +139,63 @@ class LogMetadata {
         val newLedgers = this.ledgers.stream().filter(lm -> lm.getLedgerId() >= upToAddress.getLedgerId()).collect(Collectors.toList());
         return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), upToAddress)
                 .withUpdateVersion(this.updateVersion.get());
+    }
+
+    /**
+     * Removes LedgerMetadatas for those Ledgers that are known to be empty.
+     *
+     * @param skipCountFromEnd The number of Ledgers to spare, counting from the end of the LedgerMetadata list.
+     * @return A new instance of LogMetadata with the updated ledger list.
+     */
+    LogMetadata removeEmptyLedgers(int skipCountFromEnd) {
+        val newLedgers = new ArrayList<LedgerMetadata>();
+        int cutoffIndex = this.ledgers.size() - skipCountFromEnd;
+        for (int i = 0; i < cutoffIndex; i++) {
+            LedgerMetadata lm = this.ledgers.get(i);
+            if (lm.getStatus() != LedgerMetadata.Status.Empty) {
+                // Not Empty or Unknown: keep it!
+                newLedgers.add(lm);
+            }
+        }
+
+        // Add the ones from the end, as instructed.
+        for (int i = cutoffIndex; i < this.ledgers.size(); i++) {
+            newLedgers.add(this.ledgers.get(i));
+        }
+
+        return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), this.truncationAddress)
+                .withUpdateVersion(this.updateVersion.get());
+    }
+
+    /**
+     * Updates the LastAddConfirmed on individual LedgerMetadatas based on the provided argument.
+     *
+     * @param lastAddConfirmed A Map of LedgerId to LastAddConfirmed based on which we can update the status.
+     * @return This (unmodified) instance if lastAddConfirmed.isEmpty() or a new instance of the LogMetadata class with
+     * the updated LedgerMetadatas.
+     */
+    LogMetadata updateLedgerStatus(Map<Long, Long> lastAddConfirmed) {
+        if (lastAddConfirmed.isEmpty()) {
+            // Nothing to change.
+            return this;
+        }
+
+        val newLedgers = this.ledgers.stream()
+                .map(lm -> {
+                    long lac = lastAddConfirmed.getOrDefault(lm.getLedgerId(), Long.MIN_VALUE);
+                    if (lm.getStatus() == LedgerMetadata.Status.Unknown && lac != Long.MIN_VALUE) {
+                        LedgerMetadata.Status e = lac == Ledgers.NO_ENTRY_ID
+                                ? LedgerMetadata.Status.Empty
+                                : LedgerMetadata.Status.NotEmpty;
+                        lm = new LedgerMetadata(lm.getLedgerId(), lm.getSequence(), e);
+                    }
+
+                    return lm;
+                })
+                .collect(Collectors.toList());
+        return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), this.truncationAddress)
+                .withUpdateVersion(this.updateVersion.get());
+
     }
 
     /**
@@ -250,7 +304,7 @@ class LogMetadata {
      */
     byte[] serialize() {
         // Serialization version (Byte), Epoch (Long), TruncationAddress (3*Long), Ledger Length (Int), Ledgers.
-        val length = Byte.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES + (Long.BYTES + Integer.BYTES + Long.BYTES) * this.ledgers.size();
+        val length = Byte.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES + (Long.BYTES + Integer.BYTES + Byte.BYTES) * this.ledgers.size();
         ByteBuffer bb = ByteBuffer.allocate(length);
         bb.put(SERIALIZATION_VERSION);
         bb.putLong(this.epoch);
@@ -264,7 +318,7 @@ class LogMetadata {
         this.ledgers.forEach(lm -> {
             bb.putLong(lm.getLedgerId());
             bb.putInt(lm.getSequence());
-            bb.putLong(lm.getLastAddConfirmed());
+            bb.put(lm.getStatus().getValue());
         });
         return bb.array();
     }
@@ -290,13 +344,13 @@ class LogMetadata {
         for (int i = 0; i < ledgerCount; i++) {
             long ledgerId = bb.getLong();
             int seq = bb.getInt();
-            long lac = LedgerMetadata.NO_LAST_ADD_CONFIRMED;
+            LedgerMetadata.Status empty = LedgerMetadata.Status.Unknown;
             if (version >= 1) {
-                // LastAddConfirmed was added in Version 1.
-                lac = bb.getLong();
+                // Status was added in Version 1.
+                empty = LedgerMetadata.Status.valueOf(bb.get());
             }
 
-            ledgers.add(new LedgerMetadata(ledgerId, seq, lac));
+            ledgers.add(new LedgerMetadata(ledgerId, seq, empty));
         }
 
         return new LogMetadata(epoch, Collections.unmodifiableList(ledgers), new LedgerAddress(truncationSeqNo, truncationLedgerId));

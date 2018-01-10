@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -18,11 +19,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Getter
 class LedgerMetadata {
-    /**
-     * Defines a special value for LastAddConfirmed that indicates this has not yet been set.
-     */
-    static final long NO_LAST_ADD_CONFIRMED = -1;
-
     /**
      * The BookKeeper-assigned Ledger Id.
      */
@@ -34,22 +30,43 @@ class LedgerMetadata {
     private final int sequence;
 
     /**
-     * The Entry Id of the Last Confirmed Add inside this Ledger. Only applies to closed ledgers.
+     * Gets the current status of this Ledger.
      */
-    private final long lastAddConfirmed;
+    private final Status status;
 
     /**
-     * Creates a new instance of the LedgerMetadata class with no defined LastAddConfirmed.
+     * Creates a new instance of the LedgerMetadata class with an unknown Empty Status.
      *
      * @param ledgerId The BookKeeper-assigned Ledger Id.
      * @param sequence The metadata-assigned sequence number.
      */
     LedgerMetadata(long ledgerId, int sequence) {
-        this(ledgerId, sequence, NO_LAST_ADD_CONFIRMED);
+        this(ledgerId, sequence, Status.Unknown);
     }
 
     @Override
     public String toString() {
-        return String.format("Id = %d, Sequence = %d, LAC = %d", this.ledgerId, this.sequence, this.lastAddConfirmed);
+        return String.format("Id = %d, Sequence = %d, Status = %s", this.ledgerId, this.sequence, this.status);
+    }
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    enum Status {
+        Unknown((byte) 0),
+        Empty((byte) 1),
+        NotEmpty((byte) 2);
+        @Getter
+        private final byte value;
+
+        static Status valueOf(byte b) {
+            if (b == Unknown.value) {
+                return Unknown;
+            } else if (b == Empty.value) {
+                return Empty;
+            } else if (b == NotEmpty.value) {
+                return NotEmpty;
+            }
+
+            throw new IllegalArgumentException("Unsupported Status " + b);
+        }
     }
 }
