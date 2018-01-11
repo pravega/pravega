@@ -59,11 +59,19 @@ public interface GRPCServerConfig {
     boolean isTlsEnabled();
 
     /**
+     * The truststore to be used while talking to segmentstore over TLS.
+     *
+     * @return A path pointing to a trust store.
+     */
+    String getTlsTrustStore();
+
+    /**
      * X.509 certificate file to be used for TLS.
      *
      * @return A file which contains the TLS certificate.
      */
     String getTlsCertFile();
+
 
     /**
      * File containing the private key for the X.509 certificate used for TLS.
@@ -77,4 +85,5 @@ public interface GRPCServerConfig {
      * @return The string to be used for signing the token.
      */
     String getTokenSigningKey();
+
 }

@@ -13,7 +13,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.client.auth.PravegaAuthenticationException;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.StreamConfiguration;
@@ -71,11 +71,13 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     private final ControllerService controllerService;
     private final PravegaAuthManager pravegaAuthManager;
     private final LocalController localController;
+    private final ConnectionFactory connectionFactory;
 
-    public StreamMetadataResourceImpl(LocalController localController, ControllerService controllerService, PravegaAuthManager pravegaAuthManager) {
+    public StreamMetadataResourceImpl(LocalController localController, ControllerService controllerService, PravegaAuthManager pravegaAuthManager, ConnectionFactory connectionFactory) {
         this.localController = localController;
         this.controllerService = controllerService;
         this.pravegaAuthManager = pravegaAuthManager;
+        this.connectionFactory = connectionFactory;
     }
 
     /**
@@ -296,7 +298,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         //TODO: get a proper security context.
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
-                new ClientFactoryImpl(scopeName, this.localController), new ConnectionFactoryImpl());
+                new ClientFactoryImpl(scopeName, this.localController), this.connectionFactory);
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);

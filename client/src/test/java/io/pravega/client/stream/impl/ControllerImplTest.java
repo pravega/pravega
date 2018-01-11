@@ -648,7 +648,7 @@ public class ControllerImplTest {
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
                                                          .keepAliveTime(10, TimeUnit.SECONDS);
-        if(testSecure) {
+        if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
             builder = builder.usePlaintext(true);
@@ -683,7 +683,7 @@ public class ControllerImplTest {
 
         builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
                            .keepAliveTime(10, TimeUnit.SECONDS);
-        if(testSecure) {
+        if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
             builder = builder.usePlaintext(true);
