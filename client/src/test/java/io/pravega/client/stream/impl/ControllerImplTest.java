@@ -590,6 +590,13 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void getDelegationToken(io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo request,
+                                           io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver) {
+                responseObserver.onNext(Controller.DelegationToken.newBuilder().setDelegationToken("token").build());
+                responseObserver.onCompleted();
+            }
+
+            @Override
             public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
                 if (request.getScope().equals("scope1")) {
                     responseObserver.onNext(DeleteScopeStatus.newBuilder().setStatus(
@@ -747,6 +754,13 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testGetDelegationToken() throws Exception {
+        CompletableFuture<String> delegationTokenFuture;
+        delegationTokenFuture = controllerClient.getOrRefreshDelegationTokenFor("stream1", "scope1");
+        assertEquals(delegationTokenFuture.get(), "token");
+    }
+
+        @Test
     public void testCreateStream() throws Exception {
         CompletableFuture<Boolean> createStreamStatus;
         createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
