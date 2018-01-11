@@ -34,9 +34,16 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.*;
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -331,7 +338,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      *
      * @param referenceSegmentsList Reference segment list.
      * @param targetSegmentsList Target segment list.
-     * @return Number of splits/merges
+     * @return Number of splits/merges.
      */
     private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
         return referenceSegmentsList.stream().filter(
