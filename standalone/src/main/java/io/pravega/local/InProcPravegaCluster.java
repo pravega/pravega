@@ -324,6 +324,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
+                .tlsTrustStore("../config/cert.pem")
                 .tlsCertFile("../config/cert.pem")
                 .tlsKeyFile("../config/key.pem")
                 .userPasswdFile("../config/passwd")
