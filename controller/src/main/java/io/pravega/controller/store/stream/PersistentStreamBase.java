@@ -34,17 +34,12 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.util.AbstractMap;
+import java.util.*;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -307,10 +302,40 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             long scaleTs = record.getLeft();
                             CompletableFuture<List<Segment>> list = Futures.allOfWithResults(
                                     record.getRight().stream().map(this::getSegment)
-                                    .collect(Collectors.toList()));
+                                            .collect(Collectors.toList()));
 
-                            return list.thenApply(segments -> new ScaleMetadata(scaleTs, segments));
-                        }).collect(Collectors.toList())));
+                            return list.thenApply(segments -> new ImmutablePair<>(scaleTs, segments));
+                        }).collect(Collectors.toList())))
+                .thenApply(scalePair -> {
+                    final AtomicReference<List<Segment>> previous = new AtomicReference<>();
+                    return scalePair.stream().sorted(Comparator.comparingLong(ImmutablePair::getLeft))
+                            .map(pair -> {
+                                long splits = 0;
+                                long merges = 0;
+                                if (previous.get() != null) {
+                                    splits = findSegmentSplitsMerges(previous.get(), pair.right);
+                                    merges = findSegmentSplitsMerges(pair.right, previous.get());
+                                }
+                                previous.set(pair.getRight());
+                                return new ScaleMetadata(pair.left, pair.right, splits, merges);
+                    }).collect(Collectors.toList());
+        });
+    }
+
+    /**
+     * Method to calculate number of splits and merges.
+     *
+     * Principle to calculate the number of splits and merges:
+     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
+     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
+     *
+     * @param referenceSegmentsList Reference segment list.
+     * @param targetSegmentsList Target segment list.
+     * @return Number of splits/merges
+     */
+    private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
+        return referenceSegmentsList.stream().filter(
+                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     /**

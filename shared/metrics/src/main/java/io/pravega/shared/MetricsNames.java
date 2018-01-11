@@ -81,11 +81,6 @@ public final class MetricsNames {
     public static final String OPEN_TRANSACTIONS = "controller.transactions_opened";     // Dynamic Gauge
     public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions_timedout";     // Dynamic Counter
 
-    // Stream segment counts (Dynamic)
-    public static final String SEGMENTS_COUNT = "controller.segments_count";   // Dynamic Gauge
-    public static final String SEGMENTS_SPLITS = "controller.segment_splits"; // Dynamic Counter
-    public static final String SEGMENTS_MERGES = "controller.segment_merges"; // Dynamic Counter
-
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
