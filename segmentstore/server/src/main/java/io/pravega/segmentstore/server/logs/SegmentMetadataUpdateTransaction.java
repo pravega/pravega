@@ -466,7 +466,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             }
         }
 
-        if (newAttributeCount > SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT) {
+        if (newAttributeCount > SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT && newAttributeCount > this.attributeValues.size()) {
+            // We only want to prevent exceeding the max attribute count if the number of attributes increased. Should
+            // we ever want to decrease this limit in the future, we need to make sure that we can still remove/replace
+            // attributes of existing segments, but not increase their count.
             throw new TooManyAttributesException(this.name, SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT);
         }
     }
