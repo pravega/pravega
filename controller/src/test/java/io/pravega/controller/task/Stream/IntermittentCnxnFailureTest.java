@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -85,7 +86,7 @@ public class IntermittentCnxnFailureTest {
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory, false, "");

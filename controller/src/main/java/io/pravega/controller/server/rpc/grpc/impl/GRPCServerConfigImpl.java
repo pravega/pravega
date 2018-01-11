@@ -9,13 +9,12 @@
  */
 package io.pravega.controller.server.rpc.grpc.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import com.google.common.base.Preconditions;
+import java.util.Optional;
 import lombok.Builder;
 import lombok.Data;
-
-import java.util.Optional;
 
 /**
  * gRPC server config.
@@ -31,11 +30,12 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
+    private final String tlsTrustStore;
 
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswdFile, boolean tlsEnabled,
-                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey) {
+                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey, String tlsTrustStore) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
         if (publishedRPCHost != null) {
@@ -53,6 +53,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsEnabled = tlsEnabled;
         this.tlsCertFile = tlsCertFile;
         this.tlsKeyFile = tlsKeyFile;
+        this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
     }
 }
