@@ -138,6 +138,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     CREATE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
 
+                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                        CREATE_STREAM.reportSuccessValue(1);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                    }
                     return result;
                 });
     }
