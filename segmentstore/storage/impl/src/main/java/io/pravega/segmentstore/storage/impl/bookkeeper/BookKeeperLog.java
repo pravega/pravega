@@ -659,7 +659,7 @@ class BookKeeperLog implements DurableDataLog {
      * @param newLedger         The newly added Ledger.
      * @param clearEmptyLedgers If true, the new metadata will not not contain any pointers to empty Ledgers. Setting this
      *                          to true will not remove a pointer to the last few ledgers in the Log (controlled by
-     *                          Ledgers.MIN_FENCE_LEDGER_COUNT, even if they are indeed empty (this is so we don't interfere
+     *                          Ledgers.MIN_FENCE_LEDGER_COUNT), even if they are indeed empty (this is so we don't interfere
      *                          with any ongoing fencing activities as another instance of this Log may not have yet been
      *                          fenced out).
      * @return A new instance of the LogMetadata, which includes the new ledger.

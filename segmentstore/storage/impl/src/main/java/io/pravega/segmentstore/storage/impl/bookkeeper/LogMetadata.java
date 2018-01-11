@@ -63,7 +63,7 @@ class LogMetadata {
     private final long epoch;
 
     /**
-     * An ordered list of LedgerMetadatas that represent the ledgers in the log.
+     * An ordered list of LedgerMetadata instances that represent the ledgers in the log.
      */
     @Getter
     private final List<LedgerMetadata> ledgers;
@@ -142,7 +142,7 @@ class LogMetadata {
     }
 
     /**
-     * Removes LedgerMetadatas for those Ledgers that are known to be empty.
+     * Removes LedgerMetadata instances for those Ledgers that are known to be empty.
      *
      * @param skipCountFromEnd The number of Ledgers to spare, counting from the end of the LedgerMetadata list.
      * @return A new instance of LogMetadata with the updated ledger list.
@@ -168,11 +168,11 @@ class LogMetadata {
     }
 
     /**
-     * Updates the LastAddConfirmed on individual LedgerMetadatas based on the provided argument.
+     * Updates the LastAddConfirmed on individual LedgerMetadata instances based on the provided argument.
      *
      * @param lastAddConfirmed A Map of LedgerId to LastAddConfirmed based on which we can update the status.
      * @return This (unmodified) instance if lastAddConfirmed.isEmpty() or a new instance of the LogMetadata class with
-     * the updated LedgerMetadatas.
+     * the updated LedgerMetadata instances.
      */
     LogMetadata updateLedgerStatus(Map<Long, Long> lastAddConfirmed) {
         if (lastAddConfirmed.isEmpty()) {
