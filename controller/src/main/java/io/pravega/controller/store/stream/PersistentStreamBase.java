@@ -313,20 +313,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                             return list.thenApply(segments -> new ImmutablePair<>(scaleTs, segments));
                         }).collect(Collectors.toList())))
-                .thenApply(scalePair -> {
-                    final AtomicReference<List<Segment>> previous = new AtomicReference<>();
-                    return scalePair.stream().sorted(Comparator.comparingLong(ImmutablePair::getLeft))
-                            .map(pair -> {
-                                long splits = 0;
-                                long merges = 0;
-                                if (previous.get() != null) {
-                                    splits = findSegmentSplitsMerges(previous.get(), pair.right);
-                                    merges = findSegmentSplitsMerges(pair.right, previous.get());
-                                }
-                                previous.set(pair.getRight());
-                                return new ScaleMetadata(pair.left, pair.right, splits, merges);
-                    }).collect(Collectors.toList());
-        });
+                .thenApply(this::mapToScaleMetadata);
+    }
+
+    private List<ScaleMetadata> mapToScaleMetadata(List<ImmutablePair<Long, List<Segment>>> scalePair) {
+        final AtomicReference<List<Segment>> previous = new AtomicReference<>();
+        return scalePair.stream().sorted(Comparator.comparingLong(ImmutablePair::getLeft))
+                .map(pair -> {
+                    long splits = 0;
+                    long merges = 0;
+                    if (previous.get() != null) {
+                        splits = findSegmentSplitsMerges(previous.get(), pair.right);
+                        merges = findSegmentSplitsMerges(pair.right, previous.get());
+                    }
+                    previous.set(pair.getRight());
+                    return new ScaleMetadata(pair.left, pair.right, splits, merges);
+        }).collect(Collectors.toList());
     }
 
     /**
