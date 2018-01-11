@@ -144,10 +144,9 @@ public class ControllerImpl implements Controller {
         if (config.getClientConfig().isEnableTls()) {
             SslContextBuilder sslContextBuilder = null;
             String trustStore = config.getClientConfig().getPravegaTrustStore();
+            sslContextBuilder = GrpcSslContexts.forClient();
             if (!Strings.isNullOrEmpty(trustStore)) {
-                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(trustStore));
-            } else {
-                sslContextBuilder = GrpcSslContexts.forClient();
+                sslContextBuilder = sslContextBuilder.trustManager(new File(trustStore));
             }
             try {
                 channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
