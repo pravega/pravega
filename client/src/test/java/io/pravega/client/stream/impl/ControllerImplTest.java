@@ -631,6 +631,7 @@ public class ControllerImplTest {
                 .clientConfig(
                         PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
                                            .enableTls(testSecure)
+                                           .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
                                            .pravegaTrustStore("../config/cert.pem")
                                                  .build())
                 .retryAttempts(1).build(), executor);
