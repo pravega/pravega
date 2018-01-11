@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
@@ -45,7 +47,8 @@ public class PingTest {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                 .build();
-        restServer = new RESTServer(null, mockControllerService, null, serverConfig);
+        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
+                new ConnectionFactoryImpl(PravegaClientConfig.builder().build()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();

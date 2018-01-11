@@ -65,13 +65,12 @@ public class InProcPravegaClusterTest {
         String streamName = "Stream";
         int numSegments = 10;
 
-        System.setProperty("io.pravega.tls.enabled", String.valueOf(tlsEnabled));
-        System.setProperty("io.pravega.auth.certfile",  "../config/cert.pem");
-
         @Cleanup
         StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                 .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
+                .enableTls(this.tlsEnabled)
+                .pravegaTrustStore("../config/cert.pem")
                 .build());
 
         streamManager.createScope(scope);

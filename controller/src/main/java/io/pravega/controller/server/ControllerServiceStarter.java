@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -144,7 +145,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            connectionFactory = new ConnectionFactoryImpl();
+            PravegaClientConfig clientConfig = PravegaClientConfig.builder()
+                                                                  .enableTls(serviceConfig.getGRPCServerConfig().get().isTlsEnabled())
+                                                                  .pravegaTrustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                                                                  .build();
+            connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
@@ -225,7 +230,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 restServer = new RESTServer(this.localController,
                         controllerService,
                         grpcServer.getPravegaAuthManager(),
-                        serviceConfig.getRestServerConfig().get());
+                        serviceConfig.getRestServerConfig().get(),
+                        connectionFactory);
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

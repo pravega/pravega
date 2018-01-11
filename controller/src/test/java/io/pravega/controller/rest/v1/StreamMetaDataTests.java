@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -139,7 +141,8 @@ public class StreamMetaDataTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
-        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig);
+        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
+                new ConnectionFactoryImpl(PravegaClientConfig.builder().build()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();

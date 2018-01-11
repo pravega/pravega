@@ -27,7 +27,16 @@ public class PravegaClientConfig {
         This is used to autodiscovery the controller endpoints from an initial controller list.
     */
     private final URI controllerURI;
+    /**
+     * Flag to enable TLS. TODO: This can be read from the URL.
+     */
     private final boolean enableTls;
+    /**
+     * Credentials to be passed on to the Pravega controller for authentication and authorization.
+     */
     private final PravegaCredentials credentials;
+    /**
+     * Path to an optional truststore. If this is null or empty, the default JVM trust store is used.
+     */
     private final String pravegaTrustStore;
 }

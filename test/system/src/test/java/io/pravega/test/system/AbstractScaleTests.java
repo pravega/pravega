@@ -35,7 +35,7 @@ abstract class AbstractScaleTests {
     @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
     @Getter(lazy = true)
-    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl();
+    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
     @Getter(lazy = true)
     private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
             ControllerImplConfig.builder().clientConfig(

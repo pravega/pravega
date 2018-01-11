@@ -29,6 +29,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -53,20 +54,18 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private static final Integer POOL_SIZE = Integer.valueOf(
             System.getProperty("pravega.client.internal.threadpool.size",
                     String.valueOf(Runtime.getRuntime().availableProcessors())));
-    private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
+    private final PravegaClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
                                                                                                     "clientInternal");
-    private final String certFile;
-
     /**
      * Actual implementation of ConnectionFactory interface.
+     * @param clientConfig Configuration object holding details about connection to the segmentstore.
      */
-    public ConnectionFactoryImpl() {
-        this.ssl = Boolean.parseBoolean(System.getProperty("io.pravega.tls.enabled"));
-        this.certFile = System.getProperty("io.pravega.auth.certfile");
+    public ConnectionFactoryImpl(PravegaClientConfig clientConfig) {
+        this.clientConfig = clientConfig;
         try {
             this.group = new EpollEventLoopGroup();
         } catch (ExceptionInInitializerError | UnsatisfiedLinkError | NoClassDefFoundError e) {
@@ -81,15 +80,15 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         Preconditions.checkNotNull(location);
         Exceptions.checkNotClosed(closed.get(), this);
         final SslContext sslCtx;
-        if (ssl) {
+        if (clientConfig.isEnableTls()) {
             try {
                 SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
-                if (Strings.isNullOrEmpty(this.certFile)) {
+                if (Strings.isNullOrEmpty(clientConfig.getPravegaTrustStore())) {
                     sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
                 } else {
                     sslCtxFactory = SslContextBuilder.forClient()
-                                              .trustManager(new File(this.certFile));
+                                              .trustManager(new File(clientConfig.getPravegaTrustStore()));
                 }
                 sslCtx = sslCtxFactory.build();
             } catch (SSLException | NoSuchAlgorithmException e) {

@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -72,7 +73,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl();
+        this.connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
