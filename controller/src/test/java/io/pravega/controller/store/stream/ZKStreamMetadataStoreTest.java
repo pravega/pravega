@@ -134,22 +134,25 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 2);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
-        assertTrue(scaleIncidents.get(1).getSegments().size() == 3);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
+        assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
 
         // scale again
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
+        scale(scope, stream, scaleIncidents.get(1).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 3);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(2).getSegments().size() == 2);
 
         // scale again
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
+        scale(scope, stream, scaleIncidents.get(2).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 4);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(2).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(3).getSegments().size() == 2);
     }
 
     @Test
