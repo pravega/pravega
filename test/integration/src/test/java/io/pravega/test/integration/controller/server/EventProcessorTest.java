@@ -11,6 +11,7 @@ package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
@@ -158,7 +159,7 @@ public class EventProcessorTest {
         }
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
