@@ -1,5 +1,6 @@
 package io.pravega.client.netty.impl;
 
+import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -14,22 +15,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@RequiredArgsConstructor
-public class RawClient {
+public class RawClient implements AutoCloseable {
 
-    private final ConnectionFactory connectionFactory;
-    private final CompletableFuture<ClientConnection> connection = new CompletableFuture<>();
+    private final CompletableFuture<ClientConnection> connection;
     
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     
-    private final class ResponseProcessor extends FailingReplyProcessor {
+    private final class ResponseProcessor extends FailingReplyProcessor {; 
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
@@ -71,6 +69,10 @@ public class RawClient {
         }
     }
     
+    RawClient(ConnectionFactory connectionFactory, PravegaNodeUri endpoint) {
+        connection = connectionFactory.establishConnection(endpoint, responseProcessor);
+    }
+    
     private void failRequest(long requestId, Exception e) {
         CompletableFuture<Reply> future;
         synchronized (lock) {
@@ -93,11 +95,13 @@ public class RawClient {
     
     private void closeConnection(Throwable exceptionToInflightRequests) {
         log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
-        try {
-            connection.close();
-        } catch (Exception e) {
-            log.warn("Exception tearing down connection: ", e);
-        }
+        connection.thenAccept(c -> {
+            try {
+                c.close();
+            } catch (Exception e) {
+                log.warn("Exception tearing down connection: ", e);
+            }
+        });
         failAllInflight(exceptionToInflightRequests);
     }
     
@@ -113,23 +117,24 @@ public class RawClient {
         }
     }
     
-    public void connect(PravegaNodeUri endpoint) {
-        CompletableFuture<ClientConnection> c = connectionFactory.establishConnection(endpoint, responseProcessor);
-        c.then
-    }
-    
     public CompletableFuture<Reply> sendRequest(long requestId, WireCommand request) {
+        log.debug("Sending request: {}", request);
+        ClientConnection c = connection.join();
         CompletableFuture<Reply> reply = new CompletableFuture<>();
         synchronized (lock) {
             requests.put(requestId, reply);
         }
-        log.debug("Sending request: {}", request);
         try {
-            connection.send(request);
+            c.send(request);
         } catch (ConnectionFailedException e) {
             reply.completeExceptionally(e);
         }
         return reply;
+    }
+    
+    @Override
+    public void close() {
+        closeConnection(new ConnectionClosedException());
     }
 
 }
