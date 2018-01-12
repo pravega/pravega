@@ -11,7 +11,6 @@ package io.pravega.client.netty.impl;
 
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -22,6 +21,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -29,7 +30,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
-import io.pravega.client.PravegaClientConfig;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -40,7 +41,6 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,18 +54,21 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private static final Integer POOL_SIZE = Integer.valueOf(
             System.getProperty("pravega.client.internal.threadpool.size",
                     String.valueOf(Runtime.getRuntime().availableProcessors())));
+    private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
-    private final PravegaClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
                                                                                                     "clientInternal");
+    private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+
     /**
      * Actual implementation of ConnectionFactory interface.
-     * @param clientConfig Configuration object holding details about connection to the segmentstore.
+     *
+     * @param ssl Whether connection should use SSL or not.
      */
-    public ConnectionFactoryImpl(PravegaClientConfig clientConfig) {
-        this.clientConfig = clientConfig;
+    public ConnectionFactoryImpl(boolean ssl) {
+        this.ssl = ssl;
         try {
             this.group = new EpollEventLoopGroup();
         } catch (ExceptionInInitializerError | UnsatisfiedLinkError | NoClassDefFoundError e) {
@@ -80,24 +83,18 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         Preconditions.checkNotNull(location);
         Exceptions.checkNotClosed(closed.get(), this);
         final SslContext sslCtx;
-        if (clientConfig.isEnableTls()) {
+        if (ssl) {
             try {
-                SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
-                if (Strings.isNullOrEmpty(clientConfig.getPravegaTrustStore())) {
-                    sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
-                                                      .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
-                } else {
-                    sslCtxFactory = SslContextBuilder.forClient()
-                                              .trustManager(new File(clientConfig.getPravegaTrustStore()));
-                }
-                sslCtx = sslCtxFactory.build();
+                sslCtx = SslContextBuilder.forClient()
+                                          .trustManager(FingerprintTrustManagerFactory
+                                                  .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
+                                          .build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
         } else {
             sslCtx = null;
         }
-
         AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
         ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
@@ -131,6 +128,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                         Channel ch = future.channel();
                         log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
+                        allChannels.add(ch); // Once a channel is closed the channel group implementation removes it.
                         connectionComplete.complete(handler);
                     } else {
                         connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
@@ -160,6 +158,10 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
             group.shutdownGracefully();
             executor.shutdown();
         }
+    }
+
+    public int getActiveChannelCount() {
+        return allChannels.size();
     }
 
     @Override
