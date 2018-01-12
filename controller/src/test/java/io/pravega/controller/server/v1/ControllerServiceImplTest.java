@@ -326,7 +326,12 @@ public abstract class ControllerServiceImplTest {
 
         //Truncate the stream
         ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
-        this.controllerService.truncateStream(Controller.StreamCut.newBuilder().build(), result3);
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                                                                  .setStreamInfo(StreamInfo.newBuilder()
+                                                                                           .setScope(SCOPE1)
+                                                                                           .setStream(STREAM1)
+                                                                                           .build())
+                .putCut(0, 0).build(), result3);
         UpdateStreamStatus truncateStreamStatus = result3.get();
     }
 
