@@ -529,7 +529,7 @@ public class StreamMetadataTasksTest {
         assertTrue(truncProp.isUpdating());
         assertTrue(truncProp.getProperty().getStreamCut().get(0) == 9L && truncProp.getProperty().getStreamCut().get(1) == 10L);
     }
-tab
+
     @Test(timeout = 30000)
     public void retentionPolicyUpdateTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
