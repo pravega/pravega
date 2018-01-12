@@ -492,7 +492,7 @@ public class TableHelper {
      * Add a new row to index table.
      *
      * @param timestamp     timestamp
-     * @param historyOffset historyOffset
+     * @param historyOffset history Offset
      * @return
      */
     public static byte[] createIndexTable(final long timestamp, final int historyOffset) {

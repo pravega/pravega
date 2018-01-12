@@ -519,7 +519,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null).get();
         // verify two stream cuts are in retention set. Cut 1 and 3.
-        // verify that Truncation not not happened.
+        // verify that Truncation has not happened.
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).get();
 
@@ -529,7 +529,7 @@ public class StreamMetadataTasksTest {
         assertTrue(truncProp.isUpdating());
         assertTrue(truncProp.getProperty().getStreamCut().get(0) == 9L && truncProp.getProperty().getStreamCut().get(1) == 10L);
     }
-
+tab
     @Test(timeout = 30000)
     public void retentionPolicyUpdateTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
