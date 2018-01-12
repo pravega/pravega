@@ -22,6 +22,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -30,6 +32,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.pravega.client.PravegaClientConfig;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -60,6 +63,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
                                                                                                     "clientInternal");
+    private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+
     /**
      * Actual implementation of ConnectionFactory interface.
      * @param clientConfig Configuration object holding details about connection to the segmentstore.
@@ -97,7 +102,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         } else {
             sslCtx = null;
         }
-
         AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
         ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
@@ -131,6 +135,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                         Channel ch = future.channel();
                         log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
+                        allChannels.add(ch); // Once a channel is closed the channel group implementation removes it.
                         connectionComplete.complete(handler);
                     } else {
                         connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
@@ -160,6 +165,10 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
             group.shutdownGracefully();
             executor.shutdown();
         }
+    }
+
+    public int getActiveChannelCount() {
+        return allChannels.size();
     }
 
     @Override
