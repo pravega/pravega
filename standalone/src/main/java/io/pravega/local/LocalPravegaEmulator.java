@@ -46,8 +46,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     public static void main(String[] args) {
         try {
-            System.setProperty("io.pravega.tls.enabled", String.valueOf(true));
-            System.setProperty("io.pravega.auth.certfile",  "../config/cert.pem");
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
                     .include(System.getProperties())
