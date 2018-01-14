@@ -118,6 +118,8 @@ public class AutoScaleProcessor {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     PravegaClientConfig.builder().controllerURI(configuration.getControllerUri())
                                     .credentials(new PravegaDefaultCredentials(configuration.getAuthPasswd(), configuration.getAuthUsername()))
+                                    .enableTls(configuration.isTlsEnabled())
+                                    .pravegaTrustStore(configuration.getTlsCertFile())
                                     .build());
                         } else {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
