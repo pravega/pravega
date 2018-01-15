@@ -24,13 +24,17 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.PravegaClientConfig;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -77,7 +81,12 @@ public class ConnectionFactoryImplTest {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc()));
+                     SslHandler handler = sslCtx.newHandler(ch.alloc());
+                     SSLEngine sslEngine = handler.engine();
+                     SSLParameters sslParameters = sslEngine.getSSLParameters();
+                     sslParameters.setEndpointIdentificationAlgorithm("LDAPS");
+                     sslEngine.setSSLParameters(sslParameters);
+                     p.addLast(handler);
                  }
              }
          });
@@ -93,12 +102,12 @@ public class ConnectionFactoryImplTest {
     }
 
     @Test
-    public void establishConnection() {
+    public void establishConnection() throws ConnectionFailedException {
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
                                     .enableTls(ssl)
                                     .pravegaTrustStore("../config/cert.pem")
                                    .build());
-        factory.establishConnection(new PravegaNodeUri("localhost", port), new ReplyProcessor() {
+        ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new ReplyProcessor() {
             @Override
             public void hello(WireCommands.Hello hello) {
 
@@ -243,6 +252,7 @@ public class ConnectionFactoryImplTest {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
 
             }
-        });
+        }).join();
+        connection.send(new WireCommands.Hello(0, 0));
     }
 }
