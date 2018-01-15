@@ -520,7 +520,7 @@ project('standalone') {
 
         def extDirs
         if (System.getProperty("java.ext.dirs") != null) {
-            extDirs = "-Djava.ext.dirs" + System.getProperty("java.ext.dirs")
+            extDirs = "-Djava.ext.dirs=" + System.getProperty("java.ext.dirs")
         }
 
 
