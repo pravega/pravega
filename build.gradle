@@ -19,7 +19,8 @@ buildscript {
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
-        classpath 'org.kordamp:markdown-gradle-plugin:1.1.0'
+        classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
+        classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
     }
 }
 
@@ -29,8 +30,6 @@ allprojects {
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
     }
-    apply plugin: 'org.kordamp.markdown.convert'
-
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
     apply from: "$rootDir/gradle/checkstyle.gradle"
@@ -66,9 +65,6 @@ allprojects {
         }
     }
 }
-
-markdownToHtml.sourceDir = file("$rootDir/docs")
-markdownToHtml.outputDir = file("$rootDir/docsHtmlFormat")
 
 project('common') {
     dependencies {
@@ -754,3 +750,29 @@ class DockerPushTask extends Exec {
         }
     }
 }
+
+apply from: "$rootDir/gradle/mkdocs.gradle"
+mkdocs {
+    sourcesDir = "$rootDir/documentation"
+    buildDir = "$rootDir/documentation/mkdocs"
+    updateSiteUrl = false
+}
+remotes {
+    webServer {
+        host = hostname
+        user = username
+        identity = file("$rootDir/pravegaio.pem")
+    }
+}
+
+task deploy {
+    dependsOn 'mkdocsBuild'
+    doLast {
+        ssh.run {
+            session(remotes.webServer) {
+                put from: "$rootDir/documentation/mkdocs/$pravegaVersion", into: '/var/www/pravega.io/docs'
+            }
+        }
+    }
+}
+

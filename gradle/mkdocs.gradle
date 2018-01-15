@@ -1,0 +1,5 @@
+def gradleProject = project
+if (gradleProject == gradleProject.rootProject) {
+    apply plugin: 'org.hidetake.ssh'
+    apply plugin: 'ru.vyarus.mkdocs'
+}
