@@ -238,10 +238,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             result.add(segmentMetadata);
             segmentMetadata.markDeleted();
 
-            // Find any transactions that point to this StreamSegment (as a parent).
+            // Find any transactions that point to this StreamSegment (as a parent) which haven't already been deleted
+            // or fully merged in Storage.
             this.metadataById
                     .values().stream()
-                    .filter(m -> m.getParentId() == segmentMetadata.getId())
+                    .filter(m -> m.getParentId() == segmentMetadata.getId() && !m.isDeleted())
                     .forEach(m -> {
                         m.markDeleted();
                         result.add(m);

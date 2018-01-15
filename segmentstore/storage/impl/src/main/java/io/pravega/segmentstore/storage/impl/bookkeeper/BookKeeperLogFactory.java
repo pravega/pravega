@@ -107,12 +107,15 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Initialization
 
     private BookKeeper startBookKeeperClient() throws Exception {
-        // AddEntryTimeout is in Seconds, not Millis.
-        int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        // These two are in Seconds, not Millis.
+        int writeTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        int readTimeout = (int) Math.ceil(this.config.getBkReadTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
                 .setClientTcpNoDelay(true)
-                .setAddEntryTimeout(entryTimeout)
+                .setAddEntryTimeout(writeTimeout)
+                .setReadEntryTimeout(readTimeout)
+                .setGetBookieInfoTimeout(readTimeout)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
         if (this.config.getBkLedgerPath().isEmpty()) {

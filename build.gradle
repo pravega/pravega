@@ -473,6 +473,8 @@ project('standalone') {
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
 
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common

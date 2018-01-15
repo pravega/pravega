@@ -132,6 +132,12 @@ public class SegmentHelper {
                 log.info("truncateSegment {}/{}/{} SegmentTruncated", scope, stream, segmentNumber);
                 result.complete(true);
             }
+            
+            @Override
+            public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
+                log.info("truncateSegment {}/{}/{} SegmentIsTruncated", scope, stream, segmentNumber);
+                result.complete(true);
+            }
 
             @Override
             public void processingFailure(Exception error) {
