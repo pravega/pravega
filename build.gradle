@@ -171,6 +171,7 @@ project('plugins') {
         compile project(':client')
     }
 }
+
 project('test:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
