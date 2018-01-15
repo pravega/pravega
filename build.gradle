@@ -165,6 +165,12 @@ project('client') {
         exclude "**/impl/**";
     }
 }
+
+project('plugins') {
+    dependencies {
+        compile project(':client')
+    }
+}
 project('test:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
@@ -509,8 +515,16 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
+        print systemProperties
+
+        def extDirs
+        if (System.getProperty("java.ext.dirs") != null) {
+            extDirs = "-Djava.ext.dirs" + System.getProperty("java.ext.dirs")
+        }
+
+
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
-        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
+        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n", extDirs
     }
 }
 
