@@ -27,6 +27,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
@@ -134,7 +135,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc()));
+                     SslHandler handler = sslCtx.newHandler(ch.alloc());
+                     p.addLast(handler);
                  }
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
