@@ -97,7 +97,7 @@ public class PravegaAuthManager {
 
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.warn("Exception while loading the auth handlers", e);
         }
     }
