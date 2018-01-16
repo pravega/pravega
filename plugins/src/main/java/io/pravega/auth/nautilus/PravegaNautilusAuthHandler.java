@@ -11,15 +11,12 @@ package io.pravega.auth.nautilus;
 
 import io.pravega.client.auth.PravegaAuthHandler;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PravegaNautilusAuthHandler implements PravegaAuthHandler {
-    private static final Logger LOG = LoggerFactory.getLogger(PravegaAuthHandler.class);
 
     @Override
     public String getHandlerName() {
-        LOG.info("LOUD AND CLEAR!!!!!");
+        System.out.println("LOUD AND CLEAR!!!!!");
         return "nautilus";
     }
 
