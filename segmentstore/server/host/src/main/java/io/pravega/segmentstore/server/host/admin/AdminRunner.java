@@ -9,6 +9,10 @@
  */
 package io.pravega.segmentstore.server.host.admin;
 
+import com.google.common.base.Strings;
+import io.pravega.segmentstore.server.host.admin.commands.Command;
+import io.pravega.segmentstore.server.host.admin.commands.CommandArgs;
+import io.pravega.segmentstore.server.host.admin.commands.State;
 import java.util.Collection;
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -22,34 +26,31 @@ public final class AdminRunner {
         Scanner input = new Scanner(System.in);
         System.out.print(System.lineSeparator() + "> ");
         String line;
-        while ((line = input.nextLine()) != null) {
-            Parser.Command parsedCommand = Parser.parse(line);
-            CommandBase cmd = null;
+        State state = new State();
+        while (!Strings.isNullOrEmpty(line = input.nextLine())) {
+            Parser.Command pc = Parser.parse(line);
+            CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);
             try {
-                cmd = Commands.get(parsedCommand);
+                Command cmd = Command.Factory.get(pc.getComponent(), pc.getName(), cmdArgs);
                 if (cmd == null) {
                     // No command was found.
-                    printHelp(parsedCommand);
+                    printHelp(pc);
+                } else {
+                    cmd.execute();
                 }
             } catch (IllegalArgumentException ex) {
                 // We found a command, but had the wrong arguments to it.
                 System.out.println("Bad command syntax: " + ex.getMessage());
-                printCommandDetails(parsedCommand);
-            }
-
-            if (cmd != null) {
-                try {
-                    cmd.execute();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+                printCommandDetails(pc);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
 
             System.out.print(System.lineSeparator() + "> ");
         }
     }
 
-    private static void printCommandSummary(CommandBase.CommandDescriptor d) {
+    private static void printCommandSummary(Command.CommandDescriptor d) {
         System.out.println(String.format("%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
@@ -58,7 +59,7 @@ public final class AdminRunner {
     }
 
     private static void printCommandDetails(Parser.Command command) {
-        CommandBase.CommandDescriptor d = Commands.getDescriptor(command);
+        Command.CommandDescriptor d = Command.Factory.getDescriptor(command.getComponent(), command.getName());
         if (d == null) {
             printHelp(command);
             return;
@@ -69,14 +70,14 @@ public final class AdminRunner {
     }
 
     private static void printHelp(Parser.Command command) {
-        Collection<CommandBase.CommandDescriptor> commands;
+        Collection<Command.CommandDescriptor> commands;
         if (command == null || command.getComponent().equals("help")) {
             // All commands.
-            commands = Commands.getDescriptors();
+            commands = Command.Factory.getDescriptors();
             System.out.println("All available commands:");
         } else {
             // Commands specific to a component.
-            commands = Commands.getDescriptors(command.getComponent());
+            commands = Command.Factory.getDescriptors(command.getComponent());
             if (commands.isEmpty()) {
                 System.out.println(String.format("No commands are available for component '%s'.", command.getComponent()));
             } else {
@@ -95,7 +96,7 @@ public final class AdminRunner {
                 .forEach(AdminRunner::printCommandSummary);
     }
 
-    private static String formatArgName(CommandBase.ArgDescriptor ad) {
+    private static String formatArgName(Command.ArgDescriptor ad) {
         return String.format("<%s>", ad.getName());
     }
 }

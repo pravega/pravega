@@ -24,7 +24,7 @@ final class Parser {
     private static final String SCANNER_PATTERN = "[^\"\\s]+|\"(\\\\.|[^\\\\\"])*\"";
 
     /**
-     * Parses the given String into a command, separating elements by spaces, and treating characters between double quotes(")
+     * Parses the given String into a Command, separating elements by spaces, and treating characters between double quotes(")
      * as a single element. The first element is the Command Component, the second is the Command Name and the rest will
      * be gathered as an ordered list of arguments.
      *
@@ -45,18 +45,18 @@ final class Parser {
     }
 
     /**
-     * Represents a parsed command.
+     * Represents a parsed Command.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     static class Command {
         private final String component;
-        private final String command;
+        private final String name;
         private final List<String> args;
 
         @Override
         public String toString() {
-            return String.format("%s %s (%s)", this.component, this.command, String.join(", ", this.args));
+            return String.format("%s %s (%s)", this.component, this.name, String.join(", ", this.args));
         }
     }
 }
