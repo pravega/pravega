@@ -21,9 +21,11 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -41,6 +45,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -137,7 +142,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
@@ -153,7 +158,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Tests the BookKeeperLogFactory and its initialization.
      */
     @Test
-    public void testFactoryInitialize() throws Exception {
+    public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
@@ -289,6 +294,60 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
                 restartFirstBookie();
+            }
+        }
+    }
+
+    /**
+     * Tests the ability of BookKeeperLog to automatically remove empty ledgers during initialization.
+     */
+    @Test
+    public void testRemoveEmptyLedgers() throws Exception {
+        final int count = 100;
+        final int writeEvery = count / 10;
+        final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
+        val allLedgers = new ArrayList<Map.Entry<Long, LedgerMetadata.Status>>();
+        final Predicate<Integer> shouldExist = index -> (index >= allLedgers.size() - Ledgers.MIN_FENCE_LEDGER_COUNT)
+                || (allLedgers.get(index).getValue() != LedgerMetadata.Status.Empty);
+
+        for (int i = 0; i < count; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+
+                boolean shouldAppend = shouldAppendAnything.test(i);
+                val currentMetadata = log.loadMetadata();
+                val lastLedger = currentMetadata.getLedgers().get(currentMetadata.getLedgers().size() - 1);
+                allLedgers.add(new AbstractMap.SimpleImmutableEntry<>(lastLedger.getLedgerId(),
+                        shouldAppend ? LedgerMetadata.Status.NotEmpty : LedgerMetadata.Status.Empty));
+                val metadataLedgers = currentMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toSet());
+
+                // Verify Log Metadata does not contain old empty ledgers.
+                for (int j = 0; j < allLedgers.size(); j++) {
+                    val e = allLedgers.get(j);
+                    val expectedExist = shouldExist.test(j);
+                    Assert.assertEquals("Unexpected state for metadata. AllLedgerCount=" + allLedgers.size() +
+                                    ", LedgerIndex=" + j + ", LedgerStatus=" + e.getValue(),
+                            expectedExist, metadataLedgers.contains(e.getKey()));
+                }
+
+                // Append some data to this Ledger, if needed.
+                if (shouldAppend) {
+                    log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+            }
+        }
+
+        // Verify that these ledgers have also been deleted from BookKeeper.
+        for (int i = 0; i < allLedgers.size(); i++) {
+            val e = allLedgers.get(i);
+            if (shouldExist.test(i)) {
+                // This should not throw any exceptions.
+                Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get());
+            } else {
+                AssertExtensions.assertThrows(
+                        "Ledger not deleted from BookKeeper.",
+                        () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
+                        ex -> true);
             }
         }
     }
