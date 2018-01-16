@@ -89,6 +89,11 @@ project('common') {
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
+project('authplugin') {
+    dependencies {
+    }
+}
+
 project ('shared') {
     dependencies {
         compile project(':common')
@@ -151,6 +156,7 @@ project('client') {
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
 
         compile project(':common')
+        compile project(':authplugin')
         compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
@@ -516,16 +522,15 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
-        print systemProperties
-
-        def extDirs
-        if (System.getProperty("java.ext.dirs") != null) {
-            extDirs = "-Djava.ext.dirs=" + System.getProperty("java.ext.dirs")
-        }
-
-
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
-        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n", extDirs
+
+        def argsToJvm = ["-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
+     /*   if (systemProperties.get("extDirs") != null) {
+            argsToJvm += "-Djava.ext.dirs=" + systemProperties.get("extDirs")
+        }*/
+
+        print argsToJvm
+        jvmArgs argsToJvm
     }
 }
 
