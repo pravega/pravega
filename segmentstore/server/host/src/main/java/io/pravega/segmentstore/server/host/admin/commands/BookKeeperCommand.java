@@ -10,12 +10,12 @@
 package io.pravega.segmentstore.server.host.admin.commands;
 
 /**
- * Base for all Config-related commands.
+ * Base for any BookKeeper-related commands.
  */
-abstract class ConfigCommand extends Command {
-    static final String COMPONENT = "config";
+abstract class BookKeeperCommand extends Command {
+    static final String COMPONENT = "bk";
 
-    ConfigCommand(CommandArgs args) {
+    BookKeeperCommand(CommandArgs args) {
         super(args);
     }
 }

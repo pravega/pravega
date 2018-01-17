@@ -11,13 +11,12 @@ package io.pravega.segmentstore.server.host.admin.commands;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import java.util.Collections;
 import java.util.Properties;
 
 /**
  * Updates the shared State with new config values.
  */
-public class ConfigSetCommand extends Command {
+class ConfigSetCommand extends Command {
     /**
      * Creates a new instance of the ConfigSetCommand class.
      *
@@ -42,9 +41,9 @@ public class ConfigSetCommand extends Command {
         getCommandArgs().getState().getConfigBuilder().include(newValues);
     }
 
-    static CommandDescriptor getDescriptor() {
+    static CommandDescriptor descriptor() {
         return new CommandDescriptor(ConfigCommand.COMPONENT, "set",
                 "Sets one or more config values for use during this session.",
-                Collections.singletonList(new ArgDescriptor("name=value list", "Space-separated name=value pairs.")));
+                new ArgDescriptor("name=value list", "Space-separated name=value pairs."));
     }
 }

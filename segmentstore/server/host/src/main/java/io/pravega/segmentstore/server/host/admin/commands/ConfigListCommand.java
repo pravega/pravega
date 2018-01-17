@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 /**
  * Lists the contents of the shared Configuration.
  */
-public class ConfigListCommand extends ConfigCommand {
+class ConfigListCommand extends ConfigCommand {
     /**
      * Creates a new instance of the Command class.
      *
@@ -31,7 +31,7 @@ public class ConfigListCommand extends ConfigCommand {
                 System.out.println(String.format("%s=%s", name, value)));
     }
 
-    static CommandDescriptor getDescriptor() {
+    static CommandDescriptor descriptor() {
         return new CommandDescriptor(ConfigCommand.COMPONENT, "list", "Lists all configuration set during this session.");
     }
 }

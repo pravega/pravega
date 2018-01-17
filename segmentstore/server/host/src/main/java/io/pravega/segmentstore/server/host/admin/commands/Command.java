@@ -10,11 +10,11 @@
 package io.pravega.segmentstore.server.host.admin.commands;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -72,15 +72,17 @@ public abstract class Command {
     /**
      * Describes a Command.
      */
-    @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
     @Getter
     public static class CommandDescriptor {
         private final String component;
         private final String name;
         private final String description;
-        private final List<ArgDescriptor> args;
-        protected CommandDescriptor(String component, String name, String description){
-            this(component, name, description, Collections.emptyList());
+        private final ArgDescriptor[] args;
+        CommandDescriptor(String component, String name, String description, ArgDescriptor... args){
+            this.component = Exceptions.checkNotNullOrEmpty(component, "component");
+            this.name = Exceptions.checkNotNullOrEmpty(name, "name");
+            this.description = Exceptions.checkNotNullOrEmpty(description, "description");
+            this.args = args;
         }
     }
 
@@ -95,8 +97,11 @@ public abstract class Command {
         private static final HashMap<String, HashMap<String, CommandInfo>> COMMANDS = new HashMap<>();
 
         static {
-            register(ConfigListCommand::getDescriptor, ConfigListCommand::new);
-            register(ConfigSetCommand::getDescriptor, ConfigSetCommand::new);
+            register(ConfigListCommand::descriptor, ConfigListCommand::new);
+            register(ConfigSetCommand::descriptor, ConfigSetCommand::new);
+            register(BookKeeperLedgerCleanupCommand::descriptor, BookKeeperLedgerCleanupCommand::new);
+            register(BookKeeperListLogsCommand::descriptor, BookKeeperListLogsCommand::new);
+            register(BookKeeperLogDetailsCommand::descriptor, BookKeeperLogDetailsCommand::new);
         }
 
         /**

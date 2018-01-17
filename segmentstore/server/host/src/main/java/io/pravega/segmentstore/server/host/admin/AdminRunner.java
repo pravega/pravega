@@ -13,6 +13,7 @@ import com.google.common.base.Strings;
 import io.pravega.segmentstore.server.host.admin.commands.Command;
 import io.pravega.segmentstore.server.host.admin.commands.CommandArgs;
 import io.pravega.segmentstore.server.host.admin.commands.State;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -51,10 +52,10 @@ public final class AdminRunner {
     }
 
     private static void printCommandSummary(Command.CommandDescriptor d) {
-        System.out.println(String.format("%s %s %s: %s",
+        System.out.println(String.format("\t%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
-                String.join(" ", d.getArgs().stream().map(AdminRunner::formatArgName).collect(Collectors.toList())),
+                String.join(" ", Arrays.stream(d.getArgs()).map(AdminRunner::formatArgName).collect(Collectors.toList())),
                 d.getDescription()));
     }
 
@@ -66,7 +67,9 @@ public final class AdminRunner {
         }
 
         printCommandSummary(d);
-        d.getArgs().forEach(ad -> System.out.println(String.format("\t%s: %s", formatArgName(ad), ad.getDescription())));
+        for (Command.ArgDescriptor ad : d.getArgs()) {
+            System.out.println(String.format("\t\t%s: %s", formatArgName(ad), ad.getDescription()));
+        }
     }
 
     private static void printHelp(Parser.Command command) {
