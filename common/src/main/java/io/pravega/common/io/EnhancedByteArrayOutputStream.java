@@ -9,8 +9,9 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.util.ByteArraySegment;
 import java.io.ByteArrayOutputStream;
+
+import io.pravega.common.util.ByteArraySegment;
 
 /**
  * A ByteArrayOutputStream that exposes the contents as a ByteArraySegment, without requiring a memory copy.

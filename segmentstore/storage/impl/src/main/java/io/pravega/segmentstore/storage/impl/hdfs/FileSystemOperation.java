@@ -31,7 +31,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 
 /**
  * Base for any Operation that accesses the FileSystem.
@@ -344,7 +343,6 @@ abstract class FileSystemOperation<T> {
             setBooleanAttributeValue(file.getPath(), WRITING_ATTRIBUTE, true);
         } else {
             this.context.fileSystem.removeXAttr(file.getPath(), WRITING_ATTRIBUTE);
-            DistributedFileSystem d;
         }
     }
 
