@@ -51,18 +51,21 @@ public interface BatchClient {
     <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer);
 
     /**
-     * Provides a SegmentIterator to read the events after the startingOffset but before the
-     * endingOffset in the requested segment.
+     * Provides a SegmentIterator to read the events after the startingOffset in the requested
+     * segment ending at the current end of the segment.
      * 
-     * Offsets can be obtained by calling {@link SegmentIterator#getOffset()} or {@link SegmentInfo#getLength()}
+     * Offsets can be obtained by calling {@link SegmentIterator#getOffset()} or
+     * {@link SegmentInfo#getWriteOffset()}. There is no validation that the provided offset actually
+     * aligns to an event. If it does not, the deserializer will be passed corrupt data. This means
+     * that it is invalid to, for example, attempt to divide a segment by simply passing a starting
+     * offset that is half of the segment length.
      * 
      * @param <T> The type of events written to the segment.
      * @param segment The segment to read from
      * @param deserializer A deserializer to be used to parse events
      * @param startingOffset The offset to start iterating from.
-     * @param endingOffset The offset to stop iterating at.
      * @return A SegmentIterator over the requested segment at startingOffset
      */
-    <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset, long endingOffset);
+    <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset);
     
 }
