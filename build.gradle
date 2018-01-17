@@ -422,7 +422,13 @@ project('controller') {
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=controller"]
-
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+        }
+    }
     applicationDistribution.from('src/conf') {
         into "conf"
         rename "application.conf", "controller.conf"
@@ -484,7 +490,16 @@ project('standalone') {
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=pravega"]
+                                 "-Dlog.name=pravega",
+                                 "-Xdebug",
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    startScripts {
+        classpath += files('./pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+        }
+    }
 
     dependencies {
         compile project(':common')
@@ -524,13 +539,11 @@ project('standalone') {
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
 
-        def argsToJvm = ["-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
-     /*   if (systemProperties.get("extDirs") != null) {
-            argsToJvm += "-Djava.ext.dirs=" + systemProperties.get("extDirs")
-        }*/
+        if (systemProperties.get("extDirs") != null) {
+            classpath += files(systemProperties.get("extDirs"))
+        }
 
-        print argsToJvm
-        jvmArgs argsToJvm
+        jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
     }
 }
 
