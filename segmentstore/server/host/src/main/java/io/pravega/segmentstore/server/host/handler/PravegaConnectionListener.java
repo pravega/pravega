@@ -70,7 +70,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "localhost", port, streamSegmentStore, null);
+        this(ssl, "0.0.0.0", port, streamSegmentStore, null);
     }
 
     /**
