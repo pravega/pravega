@@ -20,18 +20,17 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
- * Storage adapter for Apache bookkeeper based storage.
+ * Storage adapter for Apache BookKeeper based storage.
  *
- * Each segment is represented by a log built on top of bookkeeper ledgers. This implementation follows some of recommendations
+ * Each segment is represented by a log built on top of BookKeeper ledgers. This implementation follows some recommendations
  * here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
  * This log is called a LogStorage. A LogStorage consists of a number of ledgers and metadata for the segment and the ledgers.
- * The metadata is stored in ZK. It is accessed using the async curator framework.
+ * The metadata is stored in ZK. It is accessed using the curator framework.
  *
  * Fencing: The recommended implementation of fencing as described in the URL ensures that the latest caller owns the log.
  * In case of Storage implementation the requirement is different. A Storage with higher epoch is supposed to own the log,
@@ -45,7 +44,7 @@ import org.apache.curator.framework.CuratorFramework;
  * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK conditionally.
  *    We ensure that only one such action is successful. In case such a ledger already exists, the call fails.
  *
- * Concat: Apache bookkeeper does not have a native concat which appends two ledgers on the server side. To overcome this,
+ * Concat: Apache BookKeeper does not have a native concat which appends two ledgers on the server side. To overcome this,
  * concatenation is implemented as a pure metadata operation. Here is the algorithm used for concat() call:
  *
  * 1. Get the target and source ledgers.
@@ -87,7 +86,7 @@ class BookKeeperStorage implements SyncStorage {
     //region SyncStorage implementation
 
     /**
-     * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
+     * Initialize the bookkeeper based storage.
      *
      * @param containerEpoch The Container Epoch to initialize with (ignored here).
      */
@@ -98,7 +97,7 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentHandle openRead(String streamSegmentName) {
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         ensureInitializedAndNotClosed();
 
@@ -108,16 +107,12 @@ class BookKeeperStorage implements SyncStorage {
             LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
             return handle;
         } else {
-            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+            throw new StreamSegmentNotExistsException(streamSegmentName);
         }
     }
 
     @Override
-    public int read(SegmentHandle handle,
-                                           long offset,
-                                           byte[] buffer,
-                                           int bufferOffset,
-                                           int length) {
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName());
         ensureInitializedAndNotClosed();
         Timer timer = new Timer();
@@ -136,7 +131,7 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) {
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         ensureInitializedAndNotClosed();
 
@@ -156,53 +151,43 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentHandle openWrite(String streamSegmentName) {
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         ensureInitializedAndNotClosed();
 
-        try {
-            manager.fence(streamSegmentName);
-        } catch (Exception e) {
-            throw new CompletionException(e);
-        }
+        manager.fence(streamSegmentName);
         SegmentHandle retVal = BookKeeperSegmentHandle.writeHandle(streamSegmentName);
         LoggerHelpers.traceLeave(log, "openWrite", traceId, streamSegmentName);
         return retVal;
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) {
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         ensureInitializedAndNotClosed();
 
         manager.create(streamSegmentName);
         StreamSegmentInformation segmentProperties = StreamSegmentInformation.builder()
-                                                                             .deleted(false)
-                                                                             .length(0)
                                                                              .name(streamSegmentName)
-                                                                             .sealed(false)
                                                                              .build();
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return segmentProperties;
     }
 
     @Override
-    public void write(SegmentHandle handle,
-                      long offset,
-                      InputStream data,
-                      int length) {
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
 
         Timer timer = new Timer();
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
-        Preconditions.checkArgument(handle instanceof BookKeeperSegmentHandle, "handle must be instance of bookkeeper segment handle.");
+        Preconditions.checkArgument(handle instanceof BookKeeperSegmentHandle, "handle must be instance of BookKeeper segment handle.");
         int lengthWritten = manager.write(handle.getSegmentName(), offset, data, length);
         BookKeeperStorageMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
         BookKeeperStorageMetrics.WRITE_BYTES.add(lengthWritten);
     }
 
     @Override
-    public void seal(SegmentHandle handle) {
+    public void seal(SegmentHandle handle) throws StreamSegmentException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         ensureInitializedAndNotClosed();
 
@@ -210,19 +195,19 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public void unseal(SegmentHandle handle) throws StreamSegmentException {
-        //TODO: Unseal this.
+    public void unseal(SegmentHandle handle) {
+        throw new UnsupportedOperationException("Unseal is not implemented for BookKeeperStorage");
     }
 
     @Override
-    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) {
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
         manager.concat(targetHandle.getSegmentName(), sourceSegment, offset);
     }
 
     @Override
     public void truncate(SegmentHandle handle, long offset) throws StreamSegmentException {
-        //TODO: Implement this
+        throw new UnsupportedOperationException("Truncate is not implemented for BookKeeperStorage");
     }
 
     @Override
@@ -231,7 +216,7 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public void delete(SegmentHandle handle) {
+    public void delete(SegmentHandle handle) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
         manager.delete(handle.getSegmentName());
     }

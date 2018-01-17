@@ -19,6 +19,9 @@ import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
 
+/**
+ * Configuration for BookKeeper Storage client.
+ */
 public class BookKeeperStorageConfig {
     public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
@@ -31,7 +34,7 @@ public class BookKeeperStorageConfig {
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
-    public static final Property<Integer> BK_READ_ENTRIES_IN_ONE_GO = Property.named("bkReadEntriesInOneGo", 10);
+    public static final Property<Integer> BK_READ_AHEAD_COUNT = Property.named("bkReadAheadCount", 10);
 
     public static final String COMPONENT_CODE = "bookkeeperstorage";
 
@@ -93,7 +96,7 @@ public class BookKeeperStorageConfig {
      *  Number of entries that are read in one call to BookKeeper.
      */
     @Getter
-    private final int bkReadEntriesInOneGo;
+    private final int bkReadAheadCount;
 
     private final byte[] bkPassword;
 
@@ -118,7 +121,7 @@ public class BookKeeperStorageConfig {
         }
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
-        this.bkReadEntriesInOneGo = properties.getInt(BK_READ_ENTRIES_IN_ONE_GO);
+        this.bkReadAheadCount = properties.getInt(BK_READ_AHEAD_COUNT);
     }
 
     /**

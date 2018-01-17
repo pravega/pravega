@@ -18,6 +18,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 
+/**
+ * Factory for BookKeeper Storage adapters.
+ */
 public class BookKeeperStorageFactory implements StorageFactory {
     private final BookKeeperStorageConfig config;
     private final ExecutorService executor;

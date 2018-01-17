@@ -29,7 +29,7 @@ class LedgerData {
     private final long containerEpoch;
 
     // Temporary variables. These are not persisted to ZK.
-    //These are interpreted from bookkeeper and may be updated inproc.
+    //These are interpreted from BookKeeper and may be updated inproc.
     @GuardedBy("this")
     private long length;
     private boolean isReadonly;

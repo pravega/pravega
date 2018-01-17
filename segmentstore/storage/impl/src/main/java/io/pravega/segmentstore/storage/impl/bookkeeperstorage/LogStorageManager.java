@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -77,7 +78,7 @@ class LogStorageManager {
      * @Param bookkeeper the BK instance
      * @Param zkClient
      */
-    public LedgerData create(String streamSegmentName) {
+    public LedgerData create(String streamSegmentName) throws StreamSegmentException {
         LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0, false);
 
         /* Create the node for the segment in the ZK. */
@@ -109,7 +110,7 @@ class LogStorageManager {
      *
      * @param streamSegmentName name of the segment to be fenced.
      */
-    public LogStorage fence(String streamSegmentName) throws Exception {
+    public LogStorage fence(String streamSegmentName) throws StreamSegmentException {
         boolean tryAgain = true;
         boolean needFencing = false;
 
@@ -139,7 +140,7 @@ class LogStorageManager {
                         tryAgain = true;
                         continue;
                     } else {
-                        throw new CompletionException(exc);
+                        translateZKException(streamSegmentName, exc);
                     }
                 }
             }
@@ -155,7 +156,7 @@ class LogStorageManager {
     }
 
     /**
-     * Initializes the bookkeeper and curator objects.
+     * Initializes the BookKeeper and curator objects.
      *
      * @param containerEpoch the epoc to be used for the fencing and create calls.
      */
@@ -202,7 +203,7 @@ class LogStorageManager {
      * @param length Size of the data to be read.
      * @return  A CompletableFuture which contains the actual read size once the read is complete.
      */
-    public int read(String segmentName, long offset, byte[] buffer, int bufferOffset, int length) {
+    public int read(String segmentName, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
         int currentLength = length;
         long currentOffset = offset;
         int currentBufferOffset = bufferOffset;
@@ -239,7 +240,7 @@ class LogStorageManager {
      * @param length size of the data to be written.
      * @return A CompletableFuture which completes once the write is complete.
      */
-    public int write(String segmentName, long offset, InputStream data, int length) {
+    public int write(String segmentName, long offset, InputStream data, int length) throws StreamSegmentException {
         log.info("Writing {} at offset {} for segment {}", length, offset, segmentName);
 
         LogStorage ledger = getOrRetrieveStorageLedger(segmentName, false);
@@ -271,7 +272,7 @@ class LogStorageManager {
      * @param segmentName name of the segment.
      * @return A CompletableFuture which completes once the seal operation is complete.
      */
-    public void seal(String segmentName) {
+    public void seal(String segmentName) throws StreamSegmentException {
         LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName, false);
         /** Check whether this segmentstore is the current owner. */
         if (ledger.getContainerEpoch() > this.containerEpoch) {
@@ -305,7 +306,7 @@ class LogStorageManager {
      * @param offset offset at which the merge happens.
      * @return A completable future which completes once the concat operation is complete.
      */
-    public void concat(String segmentName, String sourceSegment, long offset) {
+    public void concat(String segmentName, String sourceSegment, long offset) throws StreamSegmentException {
         List<CuratorOp> curatorOps;
         try {
         curatorOps = this.getZKOperationsForConcat(segmentName, sourceSegment, offset);
@@ -330,7 +331,7 @@ class LogStorageManager {
      * @param segmentName name of the segment to be deleted.
      * @return A CompletableFuture which completes once the delete is complete.
      */
-    public void delete(String segmentName) {
+    public void delete(String segmentName) throws StreamSegmentException {
         LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName, false);
         if (ledger.getContainerEpoch() > this.containerEpoch) {
             throw new CompletionException(new StorageNotPrimaryException(segmentName));
@@ -376,7 +377,7 @@ class LogStorageManager {
         return future;
     }
 
-    public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) {
+    public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) throws StreamSegmentException {
         try {
             return zkClient.transactionOp().create().forPath(getZkPath(segmentName) + "/" + newKey, value.serialize());
         } catch (Exception e) {
@@ -393,7 +394,7 @@ class LogStorageManager {
      * @param readOnly          whether a readonly copy of BK is expected or a copy for write.
      * @return Properties of the given segment.
      */
-    public SegmentProperties getOrRetrieveStorageLedgerDetails(String streamSegmentName, boolean readOnly) {
+    public SegmentProperties getOrRetrieveStorageLedgerDetails(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
         LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName, readOnly);
         return StreamSegmentInformation.builder()
                                        .name(streamSegmentName)
@@ -450,7 +451,7 @@ class LogStorageManager {
         return ld;
     }
 
-    private LogStorage getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
+    private LogStorage getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
 
         synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
@@ -467,7 +468,7 @@ class LogStorageManager {
         return retrieveStorageLedgerMetadata(streamSegmentName, readOnly);
     }
 
-    private LogStorage retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) {
+    private LogStorage retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
 
         Stat stat = new Stat();
         byte[] bytes = null;
@@ -515,7 +516,7 @@ class LogStorageManager {
         int currentBufferOffset = bufferOffset;
         boolean readingDone = false;
         long firstEntryId = ledgerData.getNearestEntryIDToOffset(currentOffset);
-        int entriesInOneRound = config.getBkReadEntriesInOneGo();
+        int entriesInOneRound = config.getBkReadAheadCount();
 
         while (!readingDone) {
 
@@ -567,7 +568,7 @@ class LogStorageManager {
         return length - lengthRemaining;
     }
 
-    private LogStorage fenceLedgersAndCreateOneAtEnd(String streamSegmentName, LogStorage ledger) throws Exception {
+    private LogStorage fenceLedgersAndCreateOneAtEnd(String streamSegmentName, LogStorage ledger) throws StreamSegmentException {
         LogStorage logStorage = fenceAllTheLedgers(streamSegmentName, ledger);
         log.info("Made all the ledgers readonly. Adding a new ledger at {} for {}",
                 logStorage.getLength(), streamSegmentName);
@@ -576,8 +577,13 @@ class LogStorageManager {
         return logStorage;
     }
 
-    private LogStorage fenceAllTheLedgers(String streamSegmentName, LogStorage ledger) throws Exception {
-        List<String> children = zkClient.getChildren().forPath(getZkPath(streamSegmentName));
+    private LogStorage fenceAllTheLedgers(String streamSegmentName, LogStorage ledger) throws StreamSegmentException {
+        List<String> children = null;
+        try {
+            children = zkClient.getChildren().forPath(getZkPath(streamSegmentName));
+        } catch (Exception e) {
+            translateZKException(streamSegmentName, e);
+        }
         if (children.size() == 0) {
             LedgerData ledgerData = createLedgerAt(streamSegmentName, 0);
             ledger.addToList(0, ledgerData);
@@ -679,11 +685,11 @@ class LogStorageManager {
 
     //region ZK private helper methods
 
-    private void translateZKException(String streamSegmentName, Throwable exc) {
+    private void translateZKException(String streamSegmentName, Throwable exc) throws StreamSegmentException {
         if (exc instanceof KeeperException.NodeExistsException) {
-            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+            throw new StreamSegmentExistsException(streamSegmentName);
         } else if (exc instanceof KeeperException.NoNodeException) {
-            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+            throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (exc instanceof KeeperException.BadVersionException) {
             throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
         } else {
