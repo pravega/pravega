@@ -753,8 +753,8 @@ class DockerPushTask extends Exec {
 
 apply from: "$rootDir/gradle/mkdocs.gradle"
 mkdocs {
-    sourcesDir = "$rootDir/documentation"
-    buildDir = "$rootDir/documentation/mkdocs"
+    sourcesDir = "$rootDir"
+    buildDir = "$rootDir/mkdocs"
     updateSiteUrl = false
 }
 remotes {
@@ -770,7 +770,7 @@ task deploy {
     doLast {
         ssh.run {
             session(remotes.webServer) {
-                put from: "$rootDir/documentation/mkdocs/$pravegaVersion", into: '/var/www/pravega.io/docs'
+                put from: "$rootDir/mkdocs/$pravegaVersion", into: '/var/www/pravega.io/docs'
             }
         }
     }
