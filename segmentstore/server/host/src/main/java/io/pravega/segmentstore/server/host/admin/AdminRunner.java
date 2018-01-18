@@ -71,7 +71,7 @@ public final class AdminRunner {
         System.out.println(String.format("\t%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
-                String.join(" ", Arrays.stream(d.getArgs()).map(AdminRunner::formatArgName).collect(Collectors.toList())),
+                Arrays.stream(d.getArgs()).map(AdminRunner::formatArgName).collect(Collectors.joining(" ")),
                 d.getDescription()));
     }
 
