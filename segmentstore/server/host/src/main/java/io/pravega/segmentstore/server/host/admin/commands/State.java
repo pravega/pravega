@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.host.admin.commands;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Getter;
 
@@ -19,9 +21,23 @@ import lombok.Getter;
  */
 public class State implements AutoCloseable {
     @Getter
-    private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig.builder();
+    private final ServiceBuilderConfig.Builder configBuilder;
     @Getter
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "admin-tools");
+
+    /**
+     * Creates a new instance of the State class.
+     *
+     * @throws IOException If unable to read specified config properties file (assuming it exists).
+     */
+    public State() throws IOException {
+        this.configBuilder = ServiceBuilderConfig.builder();
+        try {
+            this.configBuilder.include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"));
+        } catch (FileNotFoundException ex) {
+            // Nothing to do here.
+        }
+    }
 
     @Override
     public void close() {

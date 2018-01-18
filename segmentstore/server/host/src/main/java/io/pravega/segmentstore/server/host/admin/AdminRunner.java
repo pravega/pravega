@@ -14,36 +14,55 @@ import ch.qos.logback.classic.LoggerContext;
 import com.google.common.base.Strings;
 import io.pravega.segmentstore.server.host.admin.commands.Command;
 import io.pravega.segmentstore.server.host.admin.commands.CommandArgs;
+import io.pravega.segmentstore.server.host.admin.commands.ConfigListCommand;
 import io.pravega.segmentstore.server.host.admin.commands.State;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.val;
 import org.slf4j.LoggerFactory;
 
 /**
  * Main entry point for the Admin tools.
  */
 public final class AdminRunner {
+    /**
+     * Main entry point for the Admin Tools Runner.
+     * <p>
+     * To speed up setup, create a config.properties file and put the following properties (at a minimum):
+     * <p>
+     * pravegaservice.containerCount={number of containers}
+     * pravegaservice.zkURL={host:port for ZooKeeper}
+     * bookkeeper.bkLedgerPath={path in ZooKeeper where BookKeeper stores Ledger metadata}
+     * bookkeeper.zkMetadataPath={path in ZooKeeper where Pravega stores BookKeeperLog metadata}
+     * <p>
+     * Then invoke this program with:
+     * -Dpravega.configurationFile=config.properties
+     *
+     * @param args Arguments.
+     * @throws Exception If one occurred.
+     */
     public static void main(String[] args) throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
-        System.out.println("Admin tools. Type \"help\" for list of commands.");
-        Scanner input = new Scanner(System.in);
-        System.out.print(System.lineSeparator() + "> ");
-        String line;
+
+        System.out.println("Pravega Admin Tools.\n");
         @Cleanup
         State state = new State();
 
-        //TODO: remove next lines after testing
-        Command.Factory.get("config", "set",
-                new CommandArgs(Arrays.asList(
-                        "pravegaservice.containerCount=4",
-                        "pravegaservice.zkURL=localhost:9000",
-                        "bookkeeper.bkLedgerPath=/pravega/selftest/bookkeeper/ledgers",
-                        "bookkeeper.zkMetadataPath=/pravega/selftest/segmentstore/containers"), state))
-                       .execute();
+        // Output loaded config.
+        System.out.println("Initial configuration:");
+        val initialConfigCmd = new ConfigListCommand(new CommandArgs(Collections.emptyList(), state));
+        initialConfigCmd.execute();
+
+        // Continuously accept new commands as long as the user entered one.
+        System.out.println("\nType \"help\" for list of commands.");
+        Scanner input = new Scanner(System.in);
+        System.out.print(System.lineSeparator() + "> ");
+        String line;
         while (!Strings.isNullOrEmpty(line = input.nextLine())) {
             Parser.Command pc = Parser.parse(line);
             CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);

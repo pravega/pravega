@@ -14,20 +14,20 @@ import com.google.common.base.Preconditions;
 /**
  * Lists the contents of the shared Configuration.
  */
-class ConfigListCommand extends ConfigCommand {
+public class ConfigListCommand extends ConfigCommand {
     /**
      * Creates a new instance of the Command class.
      *
      * @param args The arguments for the command.
      */
-    ConfigListCommand(CommandArgs args) {
+    public ConfigListCommand(CommandArgs args) {
         super(args);
     }
 
     @Override
     public void execute() {
         Preconditions.checkArgument(getCommandArgs().getArgs().size() == 0, "Not expecting any arguments.");
-        getCommandArgs().getState().getConfigBuilder().build().forEach((name, value) -> output("%s=%s", name, value));
+        getCommandArgs().getState().getConfigBuilder().build().forEach((name, value) -> output("\t%s=%s", name, value));
     }
 
     static CommandDescriptor descriptor() {
