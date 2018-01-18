@@ -9,13 +9,22 @@
  */
 package io.pravega.segmentstore.server.host.admin.commands;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Getter;
 
 /**
  * Keeps state between commands.
  */
-public class State {
+public class State implements AutoCloseable {
     @Getter
     private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig.builder();
+    @Getter
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "admin-tools");
+
+    @Override
+    public void close() {
+        this.executor.shutdown();
+    }
 }

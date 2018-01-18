@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
+import io.pravega.common.VisibleForDebugging;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
@@ -634,6 +635,7 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
     @VisibleForTesting
+    @VisibleForDebugging
     LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();

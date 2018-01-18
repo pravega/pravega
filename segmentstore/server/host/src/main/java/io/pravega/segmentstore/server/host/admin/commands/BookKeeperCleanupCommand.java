@@ -10,14 +10,15 @@
 package io.pravega.segmentstore.server.host.admin.commands;
 
 /**
- * Lists all BookKeeper Logs.
+ * Identifies and deletes orphaned BookKeeper ledgers.
  */
-class BookKeeperListLogsCommand extends BookKeeperCommand{
+public class BookKeeperCleanupCommand extends BookKeeperCommand {
     /**
-     * Creates a new instance of the BookKeeperListLogsCommand.
+     * Creates a new instance of the BookKeeperCleanupCommand.
+     *
      * @param args The arguments for the command.
      */
-    BookKeeperListLogsCommand(CommandArgs args) {
+    BookKeeperCleanupCommand(CommandArgs args) {
         super(args);
     }
 
@@ -27,6 +28,7 @@ class BookKeeperListLogsCommand extends BookKeeperCommand{
     }
 
     static CommandDescriptor descriptor() {
-        return new CommandDescriptor(BookKeeperCommand.COMPONENT, "list-logs", "Lists all BookKeeper Logs.");
+        return new CommandDescriptor(BookKeeperCommand.COMPONENT, "ledger-cleanup",
+                "Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.");
     }
 }

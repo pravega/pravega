@@ -9,6 +9,16 @@
  */
 package io.pravega.segmentstore.server.host.admin.commands;
 
+import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+
 /**
  * Base for any BookKeeper-related commands.
  */
@@ -17,5 +27,57 @@ abstract class BookKeeperCommand extends Command {
 
     BookKeeperCommand(CommandArgs args) {
         super(args);
+    }
+
+    /**
+     * Outputs a summary for the given Log.
+     *
+     * @param logId The Log Id.
+     * @param m     The Log Metadata for the given Log Id.
+     */
+    protected void outputLogSummary(int logId, ReadOnlyLogMetadata m) {
+        if (m == null) {
+            output("Log %d: No metadata.", logId);
+        } else {
+            output("Log %d: Epoch=%d, Version=%d, Ledgers=%d, Truncation={%s}", logId,
+                    m.getEpoch(), m.getUpdateVersion(), m.getLedgers().size(), m.getTruncationAddress());
+        }
+    }
+
+    /**
+     * Creates a new Context to be used by the BookKeeper command.
+     *
+     * @return A new Context.
+     * @throws DurableDataLogException If the BookKeeperLogFactory could not be initialized.
+     */
+    protected Context getContext() throws DurableDataLogException {
+        val serviceConfig = getServiceConfig();
+        val bkConfig = getCommandArgs().getState().getConfigBuilder()
+                                       .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, serviceConfig.getZkURL()))
+                                       .build().getConfig(BookKeeperConfig::builder);
+        val zkClient = createZKClient();
+        val factory = new BookKeeperLogFactory(bkConfig, zkClient, getCommandArgs().getState().getExecutor());
+        try {
+            factory.initialize();
+        } catch (DurableDataLogException ex) {
+            zkClient.close();
+            throw ex;
+        }
+
+        return new Context(serviceConfig, bkConfig, zkClient, factory);
+    }
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    protected static class Context implements AutoCloseable {
+        final ServiceConfig serviceConfig;
+        final BookKeeperConfig bookKeeperConfig;
+        final CuratorFramework zkClient;
+        final BookKeeperLogFactory logFactory;
+
+        @Override
+        public void close() {
+            this.logFactory.close();
+            this.zkClient.close();
+        }
     }
 }

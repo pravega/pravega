@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host.admin.commands;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,6 +23,10 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * Base class for any command to execute from the Admin tool.
@@ -50,10 +55,71 @@ public abstract class Command {
     //region Command Implementation
 
     /**
-     * Executes the command with the arguments passed in via the Constructor.
+     * Executes the command with the arguments passed in via the Constructor. The command will allocate whatever resources
+     * it needs to execute and will clean up after its execution completes (successful or not). The only expected side
+     * effect may be the modification of the shared State that is passed in via the Constructor.
+     *
      * @throws IllegalArgumentException If the arguments passed in via the Constructor are invalid.
+     * @throws Exception                If the command failed to execute.
      */
-    public abstract void execute();
+    public abstract void execute() throws Exception;
+
+    /**
+     * Creates a new instance of the ServiceConfig class from the shared State passed in via the Constructor.
+     */
+    protected ServiceConfig getServiceConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(ServiceConfig::builder);
+    }
+
+    /**
+     * Creates a new instance of the CuratorFramework class using configuration from the shared State.
+     */
+    protected CuratorFramework createZKClient() {
+        val serviceConfig = getServiceConfig();
+        CuratorFramework zkClient = CuratorFrameworkFactory
+                .builder()
+                .connectString(serviceConfig.getZkURL())
+                .namespace("pravega/" + serviceConfig.getClusterName())
+                .retryPolicy(new ExponentialBackoffRetry(serviceConfig.getZkRetrySleepMs(), serviceConfig.getZkRetryCount()))
+                .sessionTimeoutMs(serviceConfig.getZkSessionTimeoutMs())
+                .build();
+        zkClient.start();
+        return zkClient;
+    }
+
+    protected void output(String messageTemplate, Object... args) {
+        System.out.println(String.format(messageTemplate, args));
+    }
+
+    //endregion
+
+    //region Arguments
+
+    protected void ensureArgCount(int expectedCount) {
+        Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount, "Incorrect argument count.");
+    }
+
+    protected int getIntArg(int index) {
+        return getArg(index, Integer::parseInt);
+    }
+
+    protected long getLongArg(int index) {
+        return getArg(index, Long::parseLong);
+    }
+
+    protected boolean getBooleanArg(int index) {
+        return getArg(index, Boolean::parseBoolean);
+    }
+
+    private <T> T getArg(int index, Function<String, T> converter) {
+        String s = null;
+        try {
+            s = this.commandArgs.getArgs().get(index);
+            return converter.apply(s);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException(String.format("Unexpected argument '%s' at position %d: %s.", s, index, ex.getMessage()));
+        }
+    }
 
     //endregion
 
@@ -78,7 +144,7 @@ public abstract class Command {
         private final String name;
         private final String description;
         private final ArgDescriptor[] args;
-        CommandDescriptor(String component, String name, String description, ArgDescriptor... args){
+        CommandDescriptor(String component, String name, String description, ArgDescriptor... args) {
             this.component = Exceptions.checkNotNullOrEmpty(component, "component");
             this.name = Exceptions.checkNotNullOrEmpty(name, "name");
             this.description = Exceptions.checkNotNullOrEmpty(description, "description");
@@ -99,9 +165,9 @@ public abstract class Command {
         static {
             register(ConfigListCommand::descriptor, ConfigListCommand::new);
             register(ConfigSetCommand::descriptor, ConfigSetCommand::new);
-            register(BookKeeperLedgerCleanupCommand::descriptor, BookKeeperLedgerCleanupCommand::new);
-            register(BookKeeperListLogsCommand::descriptor, BookKeeperListLogsCommand::new);
-            register(BookKeeperLogDetailsCommand::descriptor, BookKeeperLogDetailsCommand::new);
+            register(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new);
+            register(BookKeeperListCommand::descriptor, BookKeeperListCommand::new);
+            register(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new);
         }
 
         /**

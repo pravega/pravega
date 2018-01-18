@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.admin;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import com.google.common.base.Strings;
 import io.pravega.segmentstore.server.host.admin.commands.Command;
 import io.pravega.segmentstore.server.host.admin.commands.CommandArgs;
@@ -17,17 +19,31 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Scanner;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import org.slf4j.LoggerFactory;
 
 /**
  * Main entry point for the Admin tools.
  */
 public final class AdminRunner {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.getLoggerList().get(0).setLevel(Level.ERROR);
         System.out.println("Admin tools. Type \"help\" for list of commands.");
         Scanner input = new Scanner(System.in);
         System.out.print(System.lineSeparator() + "> ");
         String line;
+        @Cleanup
         State state = new State();
+
+        //TODO: remove next lines after testing
+        Command.Factory.get("config", "set",
+                new CommandArgs(Arrays.asList(
+                        "pravegaservice.containerCount=4",
+                        "pravegaservice.zkURL=localhost:9000",
+                        "bookkeeper.bkLedgerPath=/pravega/selftest/bookkeeper/ledgers",
+                        "bookkeeper.zkMetadataPath=/pravega/selftest/segmentstore/containers"), state))
+                       .execute();
         while (!Strings.isNullOrEmpty(line = input.nextLine())) {
             Parser.Command pc = Parser.parse(line);
             CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);
@@ -44,7 +60,7 @@ public final class AdminRunner {
                 System.out.println("Bad command syntax: " + ex.getMessage());
                 printCommandDetails(pc);
             } catch (Exception ex) {
-                ex.printStackTrace();
+                ex.printStackTrace(System.out);
             }
 
             System.out.print(System.lineSeparator() + "> ");

@@ -27,8 +27,7 @@ class ConfigListCommand extends ConfigCommand {
     @Override
     public void execute() {
         Preconditions.checkArgument(getCommandArgs().getArgs().size() == 0, "Not expecting any arguments.");
-        getCommandArgs().getState().getConfigBuilder().build().forEach((name, value) ->
-                System.out.println(String.format("%s=%s", name, value)));
+        getCommandArgs().getState().getConfigBuilder().build().forEach((name, value) -> output("%s=%s", name, value));
     }
 
     static CommandDescriptor descriptor() {

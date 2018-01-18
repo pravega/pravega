@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.VisibleForDebugging;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -98,9 +99,21 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     }
 
     @Override
-    public DurableDataLog createDurableDataLog(int containerId) {
+    public DurableDataLog createDurableDataLog(int logId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
-        return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    /**
+     * Creates a new DebugLogWrapper that can be used for debugging purposes. This should not be used for regular operations.
+     *
+     * @param logId Id of the Log to create a wrapper for.
+     * @return A new instance of the DebugLogWrapper class.
+     */
+    @VisibleForDebugging
+    public DebugLogWrapper createDebugLogWrapper(int logId) {
+        Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
+        return new DebugLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
     }
 
     @VisibleForTesting
