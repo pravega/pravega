@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -89,6 +90,13 @@ public abstract class Command {
 
     protected void output(String messageTemplate, Object... args) {
         System.out.println(String.format(messageTemplate, args));
+    }
+
+    protected boolean confirmContinue() {
+        output("Do you want to continue?[yes|no]");
+        Scanner s = new Scanner(System.in);
+        String input = s.nextLine();
+        return input.equals("yes");
     }
 
     //endregion

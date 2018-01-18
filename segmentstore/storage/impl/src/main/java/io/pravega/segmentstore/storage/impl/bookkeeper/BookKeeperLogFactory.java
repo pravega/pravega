@@ -117,7 +117,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     }
 
     @VisibleForTesting
-    BookKeeper getBookKeeperClient() {
+    @VisibleForDebugging
+    public BookKeeper getBookKeeperClient() {
         return this.bookKeeper.get();
     }
 

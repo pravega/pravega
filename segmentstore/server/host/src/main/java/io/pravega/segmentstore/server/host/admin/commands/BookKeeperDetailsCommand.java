@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.admin.commands;
 
 import io.pravega.segmentstore.storage.impl.bookkeeper.LedgerMetadata;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -34,7 +35,7 @@ public class BookKeeperDetailsCommand extends BookKeeperCommand {
         int logId = getIntArg(0);
 
         @Cleanup
-        val context = getContext();
+        val context = createContext();
         @Cleanup
         val log = context.logFactory.createDebugLogWrapper(logId);
         val m = log.fetchMetadata();
@@ -53,9 +54,11 @@ public class BookKeeperDetailsCommand extends BookKeeperCommand {
             LedgerHandle lh = null;
             try {
                 lh = log.openLedgerNoFencing(lm);
-                output("\tLedger %d: Seq=%d, Status=%s, BK.LAC=%d, BK.Length=%d, BK.Bookies=%d, BK.Frags=%d.",
+                val bkLm = context.bkAdmin.getLedgerMetadata(lh);
+                output("\tLedger %d: Seq=%d, Status=%s, LAC=%d, Length=%d, Bookies=%d, Frags=%d, E/W/A=%d/%d/%d, Ensembles=%s.",
                         lm.getLedgerId(), lm.getSequence(), lm.getStatus(),
-                        lh.getLastAddConfirmed(), lh.getLength(), lh.getNumBookies(), lh.getNumFragments());
+                        lh.getLastAddConfirmed(), lh.getLength(), lh.getNumBookies(), lh.getNumFragments(),
+                        bkLm.getEnsembleSize(), bkLm.getWriteQuorumSize(), bkLm.getAckQuorumSize(), getEnsembleDescription(bkLm));
             } catch (Exception ex) {
                 output("\tLedger %d: Seq = %d, Status = %s. BK: %s",
                         lm.getLedgerId(), lm.getSequence(), lm.getStatus(), ex.getMessage());
@@ -67,10 +70,15 @@ public class BookKeeperDetailsCommand extends BookKeeperCommand {
         }
     }
 
+    private String getEnsembleDescription(org.apache.bookkeeper.client.LedgerMetadata bkLm) {
+        return bkLm.getEnsembles().entrySet().stream()
+                   .map(e -> String.format("%d:[%s]", e.getKey(), e.getValue().stream().map(Object::toString).collect(Collectors.joining(","))))
+                   .collect(Collectors.joining(","));
+    }
+
     static CommandDescriptor descriptor() {
         return new CommandDescriptor(BookKeeperCommand.COMPONENT, "details",
-                "Lists metadata details about a BookKeeperLog, as well as optional Ledger information.",
-                new ArgDescriptor("log-id", "Id of the log to get details for."),
-                new ArgDescriptor("from-bookkeeper", "Whether to include ledger info from BK as well (true|false)."));
+                "Lists metadata details about a BookKeeperLog, including BK Ledger information.",
+                new ArgDescriptor("log-id", "Id of the log to get details for."));
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.admin.commands;
 
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -16,7 +17,10 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -50,7 +54,7 @@ abstract class BookKeeperCommand extends Command {
      * @return A new Context.
      * @throws DurableDataLogException If the BookKeeperLogFactory could not be initialized.
      */
-    protected Context getContext() throws DurableDataLogException {
+    protected Context createContext() throws DurableDataLogException {
         val serviceConfig = getServiceConfig();
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
                                        .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, serviceConfig.getZkURL()))
@@ -64,7 +68,8 @@ abstract class BookKeeperCommand extends Command {
             throw ex;
         }
 
-        return new Context(serviceConfig, bkConfig, zkClient, factory);
+        val bkAdmin = new BookKeeperAdmin(factory.getBookKeeperClient());
+        return new Context(serviceConfig, bkConfig, zkClient, factory, bkAdmin);
     }
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
@@ -73,11 +78,17 @@ abstract class BookKeeperCommand extends Command {
         final BookKeeperConfig bookKeeperConfig;
         final CuratorFramework zkClient;
         final BookKeeperLogFactory logFactory;
+        final BookKeeperAdmin bkAdmin;
 
         @Override
+        @SneakyThrows(BKException.class)
         public void close() {
             this.logFactory.close();
             this.zkClient.close();
+
+            // There is no need to close the BK Admin object since it doesn't own anything; however it does have a close()
+            // method and it's a good idea to invoke it.
+            Exceptions.handleInterrupted(this.bkAdmin::close);
         }
     }
 }

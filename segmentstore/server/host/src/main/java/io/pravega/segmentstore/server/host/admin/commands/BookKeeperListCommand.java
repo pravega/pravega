@@ -31,7 +31,7 @@ class BookKeeperListCommand extends BookKeeperCommand {
 
         // Loop through all known log ids and fetch their metadata.
         @Cleanup
-        val context = getContext();
+        val context = createContext();
         for (int logId = 0; logId < context.serviceConfig.getContainerCount(); logId++) {
             @Cleanup
             DebugLogWrapper log = context.logFactory.createDebugLogWrapper(logId);
