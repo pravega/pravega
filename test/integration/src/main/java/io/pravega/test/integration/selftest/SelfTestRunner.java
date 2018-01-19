@@ -65,7 +65,7 @@ public class SelfTestRunner {
 
         // Wait for the test to finish.
         test.awaitFinished().join();
-        if(testConfig.isPauseBeforeExit()) {
+        if (testConfig.isPauseBeforeExit()) {
             System.out.println("Services are still running. Press any key to exit ...");
             System.in.read();
         }
