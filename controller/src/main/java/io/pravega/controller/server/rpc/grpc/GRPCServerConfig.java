@@ -44,13 +44,13 @@ public interface GRPCServerConfig {
     boolean isAuthorizationEnabled();
 
     /**
-     * Fetches the location of passwd file for the users.
+     * Fetches the location of password file for the users.
      * This uses UNIX password file syntax. It is used for default implementation of authorization
      * and authentication.
      *
      * @return Location of password file.
      */
-    String getUserPasswdFile();
+    String getUserPasswordFile();
 
     /**
      * A configuration to switch TLS on client to controller interactions.

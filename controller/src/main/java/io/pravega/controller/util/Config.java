@@ -53,7 +53,7 @@ public final class Config {
     public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
     private static final boolean AUTHORIZATION_ENABLED = CONFIG.getBoolean("config.controller.server.authorizationEnabled");
-    private static final String USER_PASSWD_FILE = CONFIG.getString("config.controller.server.userPasswdFile");
+    private static final String USER_PASSWORD_FILE = CONFIG.getString("config.controller.server.userPasswordFile");
     private static final boolean TLS_ENABLED = CONFIG.getBoolean("config.controller.server.tlsEnabled");
     private static final String TLS_KEY_FILE = CONFIG.getString("config.controller.server.tlsKeyFile");
     private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
@@ -108,7 +108,7 @@ public final class Config {
                 .publishedRPCHost(publishHost)
                 .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
-                .userPasswdFile(Config.USER_PASSWD_FILE)
+                .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)

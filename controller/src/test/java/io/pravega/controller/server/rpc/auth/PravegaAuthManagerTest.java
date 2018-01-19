@@ -80,7 +80,7 @@ public class PravegaAuthManagerTest {
         //Test the registration method.
         GRPCServerConfig config = GRPCServerConfigImpl.builder()
                                                       .authorizationEnabled(true)
-                                                      .userPasswdFile(file.getAbsolutePath())
+                                                      .userPasswordFile(file.getAbsolutePath())
                                                       .port(1000)
                                                       .build();
 

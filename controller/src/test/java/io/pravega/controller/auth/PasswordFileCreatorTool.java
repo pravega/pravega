@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
-public class PasswdFileCreatorTool {
+public class PasswordFileCreatorTool {
     public static void main(String[] args) throws IOException {
         String fileName = args[0];
 
