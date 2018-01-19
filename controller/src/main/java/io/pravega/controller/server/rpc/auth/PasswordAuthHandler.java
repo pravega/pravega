@@ -26,11 +26,11 @@ import java.util.stream.Collectors;
 import lombok.Data;
 import org.jasypt.util.password.StrongPasswordEncryptor;
 
-public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
+public class PasswordAuthHandler implements PravegaAuthHandler {
     private static final String DEFAULT_NAME = "Pravega-Default";
     private final Map<String, PravegaACls> userMap;
 
-    public PravegaDefaultAuthHandler() {
+    public PasswordAuthHandler() {
         userMap = new ConcurrentHashMap<>();
     }
 
