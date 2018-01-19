@@ -267,7 +267,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
                                          .with(AutoScalerConfig.AUTH_USERNAME, "arvind")
-                                         .with(AutoScalerConfig.AUTH_PASSWD, "1111_aaaa")
+                                         .with(AutoScalerConfig.AUTH_PASSWORD, "1111_aaaa")
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
@@ -327,7 +327,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .tlsTrustStore("../config/cert.pem")
                 .tlsCertFile("../config/cert.pem")
                 .tlsKeyFile("../config/key.pem")
-                .userPasswdFile("../config/passwd")
+                .userPasswordFile("../config/passwd")
                 .tokenSigningKey("secret")
                 .build();
 

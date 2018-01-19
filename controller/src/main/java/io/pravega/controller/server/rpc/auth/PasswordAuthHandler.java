@@ -34,8 +34,8 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
         userMap = new ConcurrentHashMap<>();
     }
 
-    private void loadPasswdFile(String userPasswdFile) {
-        try (FileReader reader = new FileReader(userPasswdFile);
+    private void loadPasswordFile(String userPasswordFile) {
+        try (FileReader reader = new FileReader(userPasswordFile);
              BufferedReader lineReader = new BufferedReader(reader)) {
             String line;
             while ( !Strings.isNullOrEmpty(line = lineReader.readLine())) {
@@ -66,12 +66,12 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
     @Override
     public boolean authenticate(Map<String, String> headers) {
         String userName = headers.get("username");
-        String passwd = headers.get("password");
+        String password = headers.get("password");
         Preconditions.checkArgument(userName != null, "Username not found in header");
-        Preconditions.checkArgument(passwd != null, "Password not found in header");
+        Preconditions.checkArgument(password != null, "Password not found in header");
 
         StrongPasswordEncryptor encryptor = new StrongPasswordEncryptor();
-        return userMap.containsKey(userName) && encryptor.checkPassword(passwd, userMap.get(userName).encryptedPassword);
+        return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
 
     @Override
     public void initialize(Object serverConfig) {
-        loadPasswdFile(((GRPCServerConfig) serverConfig).getUserPasswdFile());
+        loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
     }
 
     private PravegaAccessControlEnum authorizeForUser(PravegaACls pravegaACls, String resource) {

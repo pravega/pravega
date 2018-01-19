@@ -24,7 +24,7 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
                                                                       .authorizationEnabled(true)
                                                                       .tlsCertFile("../config/cert.pem")
                                                                       .tlsKeyFile("../config/key.pem")
-                                                                      .userPasswdFile("../config/passwd")
+                                                                      .userPasswordFile("../config/passwd")
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());

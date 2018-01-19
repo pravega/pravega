@@ -89,7 +89,7 @@ public class AutoScaleProcessorTest {
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                                 .with(AutoScalerConfig.AUTH_USERNAME, "admin")
-                                .with(AutoScalerConfig.AUTH_PASSWD, "passwd")
+                                .with(AutoScalerConfig.AUTH_PASSWORD, "passwd")
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 maintenanceExecutor);

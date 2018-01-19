@@ -31,7 +31,7 @@ public class AutoScalerConfig {
     public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
     public static final Property<String> AUTH_USERNAME = Property.named("authUsername", "");
-    public static final Property<String> AUTH_PASSWD = Property.named("authPasswd", "");
+    public static final Property<String> AUTH_PASSWORD = Property.named("authPassword", "");
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
 
     public static final String COMPONENT_CODE = "autoScale";
@@ -97,7 +97,7 @@ public class AutoScalerConfig {
      * Password for connection to Controller.
      */
     @Getter
-    private final String authPasswd;
+    private final String authPassword;
     /**
      * Username for connection to Controller.
      */
@@ -119,7 +119,7 @@ public class AutoScalerConfig {
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
         this.authUsername = properties.get(AUTH_USERNAME);
-        this.authPasswd = properties.get(AUTH_PASSWD);
+        this.authPassword = properties.get(AUTH_PASSWORD);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
         this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
     }
