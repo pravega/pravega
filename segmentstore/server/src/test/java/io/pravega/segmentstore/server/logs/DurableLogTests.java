@@ -41,6 +41,7 @@ import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -779,9 +780,8 @@ public class DurableLogTests extends OperationLogTestBase {
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
@@ -800,9 +800,8 @@ public class DurableLogTests extends OperationLogTestBase {
         //Recovery failure due to DataLog Failures.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
             ErrorInjector<Exception> readNextInjector = new ErrorInjector<>(
@@ -825,7 +824,7 @@ public class DurableLogTests extends OperationLogTestBase {
                     });
         }
 
-        // Recovery failure due to DataCorruption
+        // Recovery failure due to DataCorruptionException.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
@@ -860,6 +859,37 @@ public class DurableLogTests extends OperationLogTestBase {
                         }
 
                         return Exceptions.unwrap(ex) instanceof DataCorruptionException;
+                    });
+
+            // Verify that the underlying DurableDataLog has been disabled.
+            val disabledDataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
+            AssertExtensions.assertThrows(
+                    "DurableDataLog has not been disabled following a recovery failure with DataCorruptionException.",
+                    () -> disabledDataLog.initialize(TIMEOUT),
+                    ex -> ex instanceof DataLogDisabledException);
+        }
+
+        // Verify that the DurableLog recovery will fail with the appropriate exception if the DurableDataLog is disabled.
+        metadata = new MetadataBuilder(CONTAINER_ID).build();
+        dataLog.set(null);
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+
+            // Reset error injectors to nothing.
+            dataLog.get().setReadErrorInjectors(null, null);
+            dataLog.get().setReadInterceptor(null);
+
+            // Verify the exception thrown from startAsync() is of the right kind. This exception will be wrapped in
+            // multiple layers, so we need to dig deep into it.
+            AssertExtensions.assertThrows(
+                    "Recovery did not fail properly with a disabled DurableDataLog.",
+                    () -> durableLog.startAsync().awaitRunning(),
+                    ex -> {
+                        if (ex instanceof IllegalStateException) {
+                            ex = ex.getCause();
+                        }
+
+                        return Exceptions.unwrap(ex) instanceof DataLogDisabledException;
                     });
         }
     }

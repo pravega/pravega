@@ -337,6 +337,20 @@ public class DurableLog extends AbstractService implements OperationLog {
         } catch (Exception ex) {
             // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
             log.error("{} Recovery FAILED.", this.traceObjectId, ex);
+            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
+                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
+                // regardless how many times we try. We need to disable the log so that future instances of this class
+                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
+                // someone can manually fix the problem).
+                try {
+                    this.durableDataLog.disable();
+                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
+                } catch (Exception disableEx) {
+                    log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
+                    ex.addSuppressed(disableEx);
+                }
+            }
+
             throw new CompletionException(ex);
         }
 
