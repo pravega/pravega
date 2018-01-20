@@ -246,6 +246,13 @@ class LogMetadata {
         return this.enabled ? this : new LogMetadata(this.epoch, true, this.ledgers, this.truncationAddress, this.updateVersion.get());
     }
 
+    /**
+     * Returns a LogMetadata class with the exact contents of this instance, but the enabled flag set to false. No changes
+     * are performed on this instance.
+     *
+     * @return This instance, if isEnabled() == false, of a new instance of the LogMetadata class which will have
+     * isEnabled() == false, otherwise.
+     */
     LogMetadata asDisabled() {
         return this.enabled ? new LogMetadata(this.epoch, false, this.ledgers, this.truncationAddress, this.updateVersion.get()) : this;
     }
