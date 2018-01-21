@@ -92,10 +92,16 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
     private PravegaAccessControlEnum authorizeForUser(PravegaACls pravegaACls, String resource) {
         PravegaAccessControlEnum retVal = PravegaAccessControlEnum.NONE;
 
+        /**
+         *  `*` Means a wildcard.
+         *  If It is a direct match, return the ACLs.
+         *  If it is a partial match, the target has to end with a `/`
+         */
         for (PravegaAcl acl : pravegaACls.acls) {
             if (acl.resource.equals(resource)) {
                 return acl.acl;
-            } else if (resource.startsWith(acl.resource)) {
+            } else if ( (acl.resource.endsWith("/") && resource.startsWith(acl.resource))
+                    || ( resource.startsWith(acl.resource + "/"))) {
                 retVal = acl.acl;
             } else if (acl.resource.equals("*")) {
                 if (acl.acl.ordinal() > retVal.ordinal()) {
