@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -141,23 +143,55 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStart() {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
         Services.startAsync(this.durableLog, this.executor)
-                .thenRunAsync(() -> this.storage.initialize(this.metadata.getContainerEpoch()), this.executor)
-                .thenCompose(v -> CompletableFuture.allOf(
-                        Services.startAsync(this.metadataCleaner, this.executor),
-                        Services.startAsync(this.writer, this.executor)))
+                .thenComposeAsync(v -> {
+                    if (this.durableLog.isOffline()) {
+                        // DurableLog is offline. Execute an "offline" startup.
+                        return startOffline();
+                    } else {
+                        // Resume a normal startup.
+                        return startSecondaryServices();
+                    }
+                }, this.executor)
                 .thenRun(() -> {
-                    log.info("{}: Started.", this.traceObjectId);
-                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+                    log.info("{}: Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
                     notifyStarted();
                 })
                 .exceptionally(ex -> {
                     doStop(ex);
                     return null;
                 });
+    }
+
+    private CompletableFuture<Void> startOffline() {
+        // Attache a listener to the DurableLog's awaitOnline() Future and resume our normal startup when that completes
+        // successfully. If at any time either that fails or we are unable to start our other services that depend on it,
+        // immediately shut down the Segment Container with the appropriate exception.
+        this.durableLog.awaitOnline()
+                .thenComposeAsync(v -> startSecondaryServices(), this.executor)
+                .whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        // Successful start.
+                        log.info("{}: Online.", this.traceObjectId);
+                    } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                        // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
+                        // a shutdown phase since that's most likely due to us shutting down.
+                        doStop(ex);
+                    }
+                });
+
+        // Return right away; now we should be Running but in OFFLINE mode. All operations on the Container should be
+        // rejected with the appropriate exception.
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private CompletableFuture<Void> startSecondaryServices() {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+        return CompletableFuture.allOf(
+                Services.startAsync(this.metadataCleaner, this.executor),
+                Services.startAsync(this.writer, this.executor));
     }
 
     @Override
@@ -230,6 +264,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public int getId() {
         return this.metadata.getContainerId();
+    }
+
+    @Override
+    public boolean isOffline() {
+        return this.durableLog.isOffline();
     }
 
     //endregion
@@ -455,6 +494,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (state() != State.RUNNING) {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
+        } else if (isOffline()) {
+            throw new ContainerOfflineException(getId());
         }
     }
 

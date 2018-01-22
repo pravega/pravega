@@ -23,12 +23,12 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamingException;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
-import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -259,6 +259,11 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public int getId() {
         return this.metadata.getContainerId();
+    }
+
+    @Override
+    public boolean isOffline() {
+        return this.delayedStart.get() != null;
     }
 
     //endregion
@@ -534,10 +539,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         } else if (isOffline()) {
             throw new ContainerOfflineException(getId());
         }
-    }
-
-    private boolean isOffline() {
-        return this.delayedStart.get() != null;
     }
 
     private void exitOfflineMode(Throwable failureCause) {

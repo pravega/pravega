@@ -20,11 +20,11 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
-import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
@@ -924,6 +924,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             CompletableFuture<Void> online = durableLog.awaitOnline();
             Assert.assertTrue("awaitOnline() returned an incomplete future.", Futures.isSuccessful(online));
+            Assert.assertFalse("Not expecting an offline DurableLog.", durableLog.isOffline());
 
             dataLog.get().disable();
         }
@@ -934,6 +935,10 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // DurableLog should start properly.
             durableLog.startAsync().awaitRunning();
+
+            CompletableFuture<Void> online = durableLog.awaitOnline();
+            Assert.assertFalse("awaitOnline() returned a completed future.", online.isDone());
+            Assert.assertTrue("Expecting an offline DurableLog.", durableLog.isOffline());
 
             // Verify all operations fail with the right exception.
             AssertExtensions.assertThrows(
@@ -952,9 +957,6 @@ public class DurableLogTests extends OperationLogTestBase {
                     "operationProcessingBarrier() did not fail with the right exception when offline.",
                     () -> durableLog.operationProcessingBarrier(TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-
-            CompletableFuture<Void> online = durableLog.awaitOnline();
-            Assert.assertFalse("awaitOnline() returned a completed future.", online.isDone());
 
             // Verify we can also shut it down properly from this state.
             durableLog.stopAsync().awaitTerminated();
@@ -975,6 +977,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Enable the underlying data log and await for recovery to finish.
             dataLog.get().enable();
             online.get(START_RETRY_DELAY_MILLIS * 100, TimeUnit.MILLISECONDS);
+            Assert.assertFalse("Not expecting an offline DurableLog after re-enabling.", durableLog.isOffline());
 
             // Verify we can still read the data that we wrote before the DataLog was disabled.
             List<Operation> recoveredOperations = readAllDurableLog(durableLog);

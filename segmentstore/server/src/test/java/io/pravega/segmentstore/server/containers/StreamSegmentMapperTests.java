@@ -900,6 +900,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
 
         }
