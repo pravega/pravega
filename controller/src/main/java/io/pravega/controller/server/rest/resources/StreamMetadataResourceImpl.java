@@ -133,8 +133,15 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private void authenticate(String resourceName, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
         if (pravegaAuthManager != null ) {
-            String authHeader = headers.getRequestHeader(HttpHeaders.AUTHORIZATION).get(0);
-            Map<String, String> map = Arrays.stream(authHeader.split(",")).map(str -> str.split(":"))
+            Map<String, String> map = null;
+            List<String> authParams = headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
+
+            if (authParams == null || authParams.isEmpty()) {
+                throw new PravegaAuthenticationException("Auth failed for " + resourceName);
+            }
+
+            String authHeader = authParams.get(0);
+            map = Arrays.stream(authHeader.split(",")).map(str -> str.split(":"))
                                             .collect(Collectors.toMap(e -> e[0], e -> e[1]));
 
             if (!pravegaAuthManager.authenticate(resourceName, map, level)) {
