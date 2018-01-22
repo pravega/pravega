@@ -920,6 +920,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public CompletableFuture<Void> awaitOnline() {
+            return null;
+        }
+
+        @Override
         public Service startAsync() {
             return null;
         }
