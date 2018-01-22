@@ -14,6 +14,9 @@ import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import javax.ws.rs.client.Invocation;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MultivaluedHashMap;
+import javax.ws.rs.core.MultivaluedMap;
 import org.junit.Before;
 
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
@@ -34,6 +37,8 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
 
     @Override
     protected Invocation.Builder addAuthHeaders(Invocation.Builder request) {
-        return request.header("method", "testHandler");
+        MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
+        map.addAll(HttpHeaders.AUTHORIZATION, "method:testHandler", "username:arvind", "password:1111_aaaa");
+        return request.headers(map);
     }
 }
