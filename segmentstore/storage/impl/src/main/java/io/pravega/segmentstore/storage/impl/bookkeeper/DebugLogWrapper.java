@@ -12,7 +12,9 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.VisibleForDebugging;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
@@ -23,10 +25,11 @@ import org.apache.curator.framework.CuratorFramework;
 @VisibleForDebugging
 public class DebugLogWrapper implements AutoCloseable {
     //region Members
-
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final BookKeeperLog log;
     private final BookKeeper bkClient;
     private final BookKeeperConfig config;
+    private final AtomicBoolean initialized;
 
     //endregion
 
@@ -45,6 +48,7 @@ public class DebugLogWrapper implements AutoCloseable {
         this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
         this.bkClient = bookKeeper;
         this.config = config;
+        this.initialized = new AtomicBoolean();
     }
 
     //endregion
@@ -81,6 +85,34 @@ public class DebugLogWrapper implements AutoCloseable {
      */
     public LedgerHandle openLedgerNoFencing(LedgerMetadata ledgerMetadata) throws DurableDataLogException {
         return Ledgers.openRead(ledgerMetadata.getLedgerId(), this.bkClient, this.config);
+    }
+
+    /**
+     * Updates the Metadata for this BookKeeperLog in ZooKeeper by setting its Enabled flag to true.
+     */
+    public void enable() throws DurableDataLogException {
+        this.log.enable();
+    }
+
+    /**
+     * Open-Fences the BookKeeperLog (initializes it), then updates the Metadata for it in ZooKeeper by setting its
+     * Enabled flag to false.
+     */
+    public void disable() throws DurableDataLogException {
+        initialize();
+        this.log.disable();
+    }
+
+    private void initialize() throws DurableDataLogException {
+        if (this.initialized.compareAndSet(false, true)) {
+            try {
+                this.log.initialize(DEFAULT_TIMEOUT);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                this.initialized.set(false);
+                throw ex;
+            }
+        }
     }
 
     //endregion

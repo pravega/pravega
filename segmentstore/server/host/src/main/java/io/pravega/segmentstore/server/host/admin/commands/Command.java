@@ -176,6 +176,8 @@ public abstract class Command {
             register(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new);
             register(BookKeeperListCommand::descriptor, BookKeeperListCommand::new);
             register(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new);
+            register(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new);
+            register(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new);
         }
 
         /**
