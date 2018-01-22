@@ -146,52 +146,41 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting.", this.traceObjectId);
 
         Services.startAsync(this.durableLog, this.executor)
-                .thenComposeAsync(v -> {
-                    if (this.durableLog.isOffline()) {
-                        // DurableLog is offline. Execute an "offline" startup.
-                        return startOffline();
+                .thenRunAsync(this::startSecondaryServicesAsync, this.executor)
+                .whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
+                        // are not required for accepting new operations and can still start in the background.
+                        log.info("{}: DurableLog Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
+                        notifyStarted();
                     } else {
-                        // Resume a normal startup.
-                        return startSecondaryServices();
+                        doStop(ex);
                     }
-                }, this.executor)
-                .thenRun(() -> {
-                    log.info("{}: Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
-                    notifyStarted();
-                })
-                .exceptionally(ex -> {
-                    doStop(ex);
-                    return null;
                 });
     }
 
-    private CompletableFuture<Void> startOffline() {
-        // Attache a listener to the DurableLog's awaitOnline() Future and resume our normal startup when that completes
-        // successfully. If at any time either that fails or we are unable to start our other services that depend on it,
-        // immediately shut down the Segment Container with the appropriate exception.
-        this.durableLog.awaitOnline()
-                .thenComposeAsync(v -> startSecondaryServices(), this.executor)
+    private void startSecondaryServicesAsync() {
+        // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that completes
+        // successfully (it may already be completed). If at any time either that fails or we are unable to start our other
+        // services that depend on it, immediately shut down the Segment Container with the appropriate exception.
+        this.durableLog
+                .awaitOnline()
+                .thenComposeAsync(v -> {
+                    this.storage.initialize(this.metadata.getContainerEpoch());
+                    return CompletableFuture.allOf(
+                            Services.startAsync(this.metadataCleaner, this.executor),
+                            Services.startAsync(this.writer, this.executor));
+                }, this.executor)
                 .whenComplete((v, ex) -> {
                     if (ex == null) {
                         // Successful start.
-                        log.info("{}: Online.", this.traceObjectId);
+                        log.info("{}: Started.", this.traceObjectId);
                     } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
                         // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
                         // a shutdown phase since that's most likely due to us shutting down.
                         doStop(ex);
                     }
                 });
-
-        // Return right away; now we should be Running but in OFFLINE mode. All operations on the Container should be
-        // rejected with the appropriate exception.
-        return CompletableFuture.completedFuture(null);
-    }
-
-    private CompletableFuture<Void> startSecondaryServices() {
-        this.storage.initialize(this.metadata.getContainerEpoch());
-        return CompletableFuture.allOf(
-                Services.startAsync(this.metadataCleaner, this.executor),
-                Services.startAsync(this.writer, this.executor));
     }
 
     @Override

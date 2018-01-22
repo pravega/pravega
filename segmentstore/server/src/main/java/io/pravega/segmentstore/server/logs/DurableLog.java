@@ -19,6 +19,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.Retry;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -50,7 +51,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -77,9 +77,9 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final Set<TailRead> tailReads;
     private final ScheduledExecutorService executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
-    private final AtomicReference<CompletableFuture<Void>> delayedStart = new AtomicReference<>();
     private final AtomicBoolean closed;
-    private final DurableLogConfig config;
+    private final CompletableFuture<Void> delayedStart;
+    private final Retry.RetryAndThrowConditionally<Exception> delayedStartRetry;
 
     //endregion
 
@@ -96,7 +96,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @throws NullPointerException If any of the arguments are null.
      */
     public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, ReadIndex readIndex, ScheduledExecutorService executor) {
-        this.config = Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(config, "config");
         this.metadata = Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
         Preconditions.checkNotNull(readIndex, "readIndex");
@@ -114,6 +114,11 @@ public class DurableLog extends AbstractService implements OperationLog {
         Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
+        this.delayedStart = new CompletableFuture<>();
+        this.delayedStartRetry = Retry.withExpBackoff(config.getStartRetryDelay().toMillis(), 1, Integer.MAX_VALUE)
+                                      .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogDisabledException)
+                                      .throwingOn(Exception.class);
+
     }
 
     @VisibleForTesting
@@ -144,75 +149,60 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStart() {
         log.info("{}: Starting.", this.traceObjectId);
+        this.delayedStartRetry
+                .runAsync(() -> tryStartOnce()
+                        .whenComplete((v, ex) -> {
+                            if (ex == null) {
+                                // We are done.
+                                log.info("{}: Online.", this.traceObjectId);
+                                notifyDelayedStartComplete(null);
+                            } else {
+                                if (Exceptions.unwrap(ex) instanceof DataLogDisabledException) {
+                                    // Place the DurableLog in a Started State, but keep trying to restart.
+                                    notifyStartComplete(null);
+                                }
+                                throw new CompletionException(ex);
+                            }
+                        }), this.executor)
+                .exceptionally(this::notifyDelayedStartComplete);
+    }
 
-        // Initiate recovery.
-        tryStartOnce()
-                .thenRunAsync(() -> {
-                    // If we got here, all is good. We were able to start successfully.
-                    log.info("{}: Started (Online).", this.traceObjectId);
-                    notifyStarted();
-                }, this.executor)
-                .exceptionally(ex -> {
-                    ex = Exceptions.unwrap(ex);
-                    if (this.operationProcessor.isRunning()) {
-                        // Make sure we stop the operation processor if we started it.
-                        this.operationProcessor.stopAsync();
-                    } else if (ex instanceof DataLogDisabledException) {
-                        // DurableDataLog is disabled. Finish starting the service, but enter it in an "Offline" state.
-                        retryStartIndefinitely();
-                        log.info("{}: Started (OFFLINE).", this.traceObjectId);
-                        notifyStarted();
-                        return null;
-                    }
+    private Void notifyDelayedStartComplete(Throwable failureCause) {
+        if (failureCause == null) {
+            this.delayedStart.complete(null);
+        } else {
+            this.delayedStart.completeExceptionally(failureCause);
+        }
 
-                    notifyFailed(ex);
-                    return null;
-                });
+        notifyStartComplete(failureCause);
+        return null;
+    }
+
+    private void notifyStartComplete(Throwable failureCause) {
+        if (failureCause == null && state() == State.STARTING) {
+            log.info("{}: Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
+            notifyStarted();
+        }
+
+        if (failureCause != null) {
+            failureCause = Exceptions.unwrap(failureCause);
+            if (state() == State.STARTING) {
+                // Make sure we stop the operation processor if we started it.
+                this.operationProcessor.stopAsync();
+                notifyFailed(failureCause);
+            } else {
+                this.stopException.set(failureCause);
+                doStop();
+            }
+        }
     }
 
     private CompletableFuture<Void> tryStartOnce() {
         return CompletableFuture
                 .supplyAsync(this::performRecovery, this.executor)
-                .thenCompose(anyItemsRecovered -> Services.startAsync(this.operationProcessor, this.executor)
-                        .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor));
-    }
-
-    private void retryStartIndefinitely() {
-        if (!this.delayedStart.compareAndSet(null, new CompletableFuture<>())) {
-            throw new IllegalStateException("retryStartIndefinitely invoked multiple times.");
-        }
-
-        AtomicInteger count = new AtomicInteger();
-        Futures.loop(
-                this::isOffline,
-                () -> Futures.delayedFuture(this.config.getStartRetryDelay(), this.executor)
-                        .thenCompose(v -> {
-                            if (!isOffline()) {
-                                return CompletableFuture.completedFuture(null);
-                            }
-
-                            log.info("{}: Attempting start retry {}.", this.traceObjectId, count.incrementAndGet());
-                            return tryStartOnce();
-                        })
-                        .whenComplete((v, ex) -> {
-                            if (ex == null) {
-                                // We are done.
-                                log.info("{}: Online.", this.traceObjectId);
-                                exitOfflineMode(null);
-                            } else if (!(Exceptions.unwrap(ex) instanceof DataLogDisabledException)) {
-                                // Some other exception. Do not try again.
-                                exitOfflineMode(ex);
-                                throw new CompletionException(ex);
-                            }
-                        }),
-                this.executor)
-                .exceptionally(ex -> {
-                    // Some other exception. Shut down.
-                    log.warn("{}: Delayed start failed. Shutting down.", this.traceObjectId, ex);
-                    this.stopException.set(ex);
-                    stopAsync();
-                    return null;
-                });
+                .thenCompose(anyItemsRecovered ->
+                        Services.startAsync(this.operationProcessor, this.executor)
+                                .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor));
     }
 
     @Override
@@ -229,11 +219,8 @@ public class DurableLog extends AbstractService implements OperationLog {
                         cause = this.operationProcessor.failureCause();
                     }
 
-                    // Terminate the delayed start future now, if any.
-                    CompletableFuture<Void> delayedStart = this.delayedStart.getAndSet(null);
-                    if (delayedStart != null) {
-                        delayedStart.completeExceptionally(cause == null ? new ObjectClosedException(this) : cause);
-                    }
+                    // Terminate the delayed start future now, if still active.
+                    this.delayedStart.completeExceptionally(cause == null ? new ObjectClosedException(this) : cause);
 
                     if (cause == null) {
                         // Normal shutdown.
@@ -263,7 +250,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     public boolean isOffline() {
-        return this.delayedStart.get() != null;
+        return !this.delayedStart.isDone();
     }
 
     //endregion
@@ -367,8 +354,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         }
 
-        CompletableFuture<Void> delayedStart = this.delayedStart.get();
-        return delayedStart == null ? CompletableFuture.completedFuture(null) : delayedStart;
+        return this.delayedStart;
     }
 
     //endregion
@@ -538,16 +524,6 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new IllegalContainerStateException(getId(), state(), State.RUNNING);
         } else if (isOffline()) {
             throw new ContainerOfflineException(getId());
-        }
-    }
-
-    private void exitOfflineMode(Throwable failureCause) {
-        CompletableFuture<Void> ds = this.delayedStart.getAndSet(null);
-        Preconditions.checkState(ds != null, "Not in offline mode.");
-        if (failureCause == null) {
-            ds.complete(null);
-        } else {
-            ds.completeExceptionally(failureCause);
         }
     }
 
