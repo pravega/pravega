@@ -207,16 +207,13 @@ public class TableHelper {
         Preconditions.checkArgument(!streamCut.isEmpty());
         Map<Integer, Integer> epochCutMap = computeEpochCutMap(historyTable, indexTable, segmentTable, streamCut);
         Map<Segment, Integer> cutMapSegments = transform(segmentTable, epochCutMap);
-
         AtomicLong size = new AtomicLong();
-
         Map<Integer, Long> sealedSegmentSizeMap = sealedSegmentsRecord.getSealedSegmentsSizeMap();
 
         // add sizes for segments in stream cut
         streamCut.forEach((key, value) -> size.addAndGet(value));
 
         int highestEpoch = epochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
-
         Optional<HistoryRecord> historyRecordOpt = HistoryRecord.readRecord(historyTable, 0, true);
 
         // start with epoch 0 and go all the way upto epochCutMap.highEpoch

@@ -242,7 +242,8 @@ public class StreamMetadataTasks extends TaskBase {
                 return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionParam())
                         .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
             case SIZE:
-                // get latest record from retentionSet and find most recent record such that latest.size - mostRecent.size > policy
+                // find a stream cut record Si from retentionSet R = {S1.. Sn} such that Sn.size - Si.size > policy and
+                // Sn.size - Si+1.size < policy
                 Comparator<StreamCutRecord> streamCutRecordComparator = (x, y) -> Long.compare(x.getRecordingTime(), y.getRecordingSize());
                 Optional<StreamCutRecord> latestOpt = Optional.ofNullable(newRecord);
 
