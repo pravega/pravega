@@ -58,11 +58,22 @@ public class PravegaAuthManager {
      * @throws PravegaAuthenticationException Exception faced during authentication/authorization.
      */
     public boolean authenticate(String resource, MultivaluedMap<String, String> headers, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
+        Map<String, String> paramMap = headers.entrySet().stream().collect(Collectors.toMap(k -> k.getKey(), k -> k.getValue().get(0)));
+        return authenticate(resource, paramMap, level);
+    }
+
+    /**
+     * API to authenticate and authroize access to a given resource.
+     * @param resource The resource identifier for which the access needs to be controlled.
+     * @param paramMap  Custom headers used for authentication.
+     * @param level    Expected level of access.
+     * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
+     * @throws PravegaAuthenticationException Exception faced during authentication/authorization.
+     */
+    public boolean authenticate(String resource, Map<String, String> paramMap, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
         boolean retVal = false;
         try {
-            Map<String, String> paramMap = headers.entrySet().stream().collect(Collectors.toMap(k -> k.getKey(), k -> k.getValue().get(0)));
             String method = paramMap.get("method");
-
             PravegaAuthHandler handler = getHandler(method);
             retVal = handler.authenticate(paramMap) &&
                     handler.authorize(resource, paramMap).ordinal() >= level.ordinal();

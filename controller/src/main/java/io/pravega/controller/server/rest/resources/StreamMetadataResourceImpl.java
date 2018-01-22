@@ -43,9 +43,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
@@ -130,7 +133,11 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private void authenticate(String resourceName, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
         if (pravegaAuthManager != null ) {
-            if (!pravegaAuthManager.authenticate(resourceName, headers.getRequestHeaders(), level)) {
+            String authHeader = headers.getRequestHeader(HttpHeaders.AUTHORIZATION).get(0);
+            Map<String, String> map = Arrays.stream(authHeader.split(",")).map(str -> str.split(":"))
+                                            .collect(Collectors.toMap(e -> e[0], e -> e[1]));
+
+            if (!pravegaAuthManager.authenticate(resourceName, map, level)) {
                 throw new PravegaAuthenticationException("Auth failed for " + resourceName);
             }
         }
