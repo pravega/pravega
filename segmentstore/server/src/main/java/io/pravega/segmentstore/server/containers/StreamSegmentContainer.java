@@ -146,7 +146,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting.", this.traceObjectId);
 
         Services.startAsync(this.durableLog, this.executor)
-                .thenRunAsync(this::startSecondaryServicesAsync, this.executor)
+                .thenRunAsync(this::startWhenDurableLogOnline, this.executor)
                 .whenComplete((v, ex) -> {
                     if (ex == null) {
                         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
@@ -159,28 +159,37 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 });
     }
 
-    private void startSecondaryServicesAsync() {
-        // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that completes
-        // successfully (it may already be completed). If at any time either that fails or we are unable to start our other
-        // services that depend on it, immediately shut down the Segment Container with the appropriate exception.
-        this.durableLog
-                .awaitOnline()
-                .thenComposeAsync(v -> {
-                    this.storage.initialize(this.metadata.getContainerEpoch());
-                    return CompletableFuture.allOf(
-                            Services.startAsync(this.metadataCleaner, this.executor),
-                            Services.startAsync(this.writer, this.executor));
-                }, this.executor)
-                .whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        // Successful start.
-                        log.info("{}: Started.", this.traceObjectId);
-                    } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
-                        // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
-                        // a shutdown phase since that's most likely due to us shutting down.
-                        doStop(ex);
-                    }
-                });
+    private void startWhenDurableLogOnline() {
+        CompletableFuture<Void> delayedStart;
+        if (this.durableLog.isOffline()) {
+            // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
+            // completes successfully.
+            delayedStart = this.durableLog.awaitOnline()
+                                          .thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor);
+        } else {
+            // DurableLog is already online. Immediately start secondary services. In this particular case, it needs to
+            // be done synchronously since we need to initialize Storage before notifying that we are fully started.
+            delayedStart = startSecondaryServicesAsync();
+        }
+
+        // If the delayed start fails, immediately shut down the Segment Container with the appropriate exception.
+        delayedStart.whenComplete((v, ex) -> {
+            if (ex == null) {
+                // Successful start.
+                log.info("{}: Started.", this.traceObjectId);
+            } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
+                // a shutdown phase since that's most likely due to us shutting down.
+                doStop(ex);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> startSecondaryServicesAsync() {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+        return CompletableFuture.allOf(
+                Services.startAsync(this.metadataCleaner, this.executor),
+                Services.startAsync(this.writer, this.executor));
     }
 
     @Override
