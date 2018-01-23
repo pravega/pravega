@@ -92,6 +92,10 @@ def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
 project('authplugin') {
     dependencies {
     }
+    javadoc {
+        title = "Pravega Auth API"
+        failOnError = false
+    }
 }
 
 project ('shared') {
@@ -622,6 +626,7 @@ subprojects {
 }
 
 task publishAllJars() {
+    dependsOn ':authplugin:publish'
     dependsOn ':client:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
@@ -693,6 +698,8 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
+            from { project(":authplugin").configurations.runtime }
+            from { project(":authplugin").configurations.runtime.allArtifacts.files }
             from { project(":client").configurations.runtime }
             from { project(":client").configurations.runtime.allArtifacts.files }
         }
