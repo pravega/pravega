@@ -29,6 +29,9 @@ import org.slf4j.LoggerFactory;
  * Main entry point for the Admin tools.
  */
 public final class AdminRunner {
+    private static final String CMD_HELP = "help";
+    private static final String CMD_EXIT = "exit";
+
     /**
      * Main entry point for the Admin Tools Runner.
      * <p>
@@ -59,30 +62,46 @@ public final class AdminRunner {
         initialConfigCmd.execute();
 
         // Continuously accept new commands as long as the user entered one.
-        System.out.println("\nType \"help\" for list of commands.");
+        System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
         Scanner input = new Scanner(System.in);
-        System.out.print(System.lineSeparator() + "> ");
-        String line;
-        while (!Strings.isNullOrEmpty(line = input.nextLine())) {
-            Parser.Command pc = Parser.parse(line);
-            CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);
-            try {
-                Command cmd = Command.Factory.get(pc.getComponent(), pc.getName(), cmdArgs);
-                if (cmd == null) {
-                    // No command was found.
-                    printHelp(pc);
-                } else {
-                    cmd.execute();
-                }
-            } catch (IllegalArgumentException ex) {
-                // We found a command, but had the wrong arguments to it.
-                System.out.println("Bad command syntax: " + ex.getMessage());
-                printCommandDetails(pc);
-            } catch (Exception ex) {
-                ex.printStackTrace(System.out);
+        while (true) {
+            System.out.print(System.lineSeparator() + "> ");
+            String line = input.nextLine();
+            if (Strings.isNullOrEmpty(line.trim())) {
+                continue;
             }
 
-            System.out.print(System.lineSeparator() + "> ");
+            Parser.Command pc = Parser.parse(line);
+            switch (pc.getComponent()) {
+                case CMD_HELP:
+                    printHelp(null);
+                    break;
+                case CMD_EXIT:
+                    System.exit(0);
+                    break;
+                default:
+                    execCommand(pc, state);
+                    break;
+            }
+        }
+    }
+
+    private static void execCommand(Parser.Command pc, State state) {
+        CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);
+        try {
+            Command cmd = Command.Factory.get(pc.getComponent(), pc.getName(), cmdArgs);
+            if (cmd == null) {
+                // No command was found.
+                printHelp(pc);
+            } else {
+                cmd.execute();
+            }
+        } catch (IllegalArgumentException ex) {
+            // We found a command, but had the wrong arguments to it.
+            System.out.println("Bad command syntax: " + ex.getMessage());
+            printCommandDetails(pc);
+        } catch (Exception ex) {
+            ex.printStackTrace(System.out);
         }
     }
 
@@ -109,7 +128,7 @@ public final class AdminRunner {
 
     private static void printHelp(Parser.Command command) {
         Collection<Command.CommandDescriptor> commands;
-        if (command == null || command.getComponent().equals("help")) {
+        if (command == null) {
             // All commands.
             commands = Command.Factory.getDescriptors();
             System.out.println("All available commands:");
