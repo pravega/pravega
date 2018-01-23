@@ -9,6 +9,7 @@
  */
 package io.pravega.client;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.stream.impl.PravegaCredentials;
 import java.net.URI;
 import lombok.Builder;
@@ -16,9 +17,12 @@ import lombok.Data;
 
 /**
  * This class contains configuration that is passed on to Pravega client.
+ * Please note that this is an experimental object and the contents and their interpretation may change
+ * in future.
  */
 @Data
 @Builder
+@Beta
 public class PravegaClientConfig {
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
