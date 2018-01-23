@@ -438,6 +438,15 @@ project('controller') {
         rename "application.conf", "controller.conf"
     }
 
+    applicationDistribution.into('') {
+        def pluginDirBase = new File('/tmp/dummy-dir')
+        pluginDirBase.mkdirs()
+        def logDir = new File(pluginDirBase.absolutePath + '/pluginlib')
+        logDir.mkdirs()
+
+        from {pluginDirBase}
+    }
+
     dependencies {
         compile project(':common')
         compile project(":shared:controller-api")
