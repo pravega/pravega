@@ -115,6 +115,7 @@ class LogStorageManager {
         boolean tryAgain = true;
         boolean needFencing = false;
 
+        log.info("Sealing ledger for segment {}", streamSegmentName);
         /** Get the LogStorage metadata. */
         LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName, false);
 
