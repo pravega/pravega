@@ -147,29 +147,29 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         try (val builder = createBuilder();
              val readOnlyBuilder = createReadOnlyBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
-            val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
+            //val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
 
             // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
+            waitForSegmentsInStorage(segmentNames, segmentStore, segmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+            checkStorage(segmentContents, segmentStore, segmentStore);
             checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
-            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+            checkStorage(segmentContents, segmentStore, segmentStore);
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them.
         try (val builder = createBuilder();
              val readOnlyBuilder = createReadOnlyBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
-            val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
+            //val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             // Seals.
             sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             checkSegmentStatus(lengths, startOffsets, true, false, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
+            waitForSegmentsInStorage(segmentNames, segmentStore, segmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Deletes.

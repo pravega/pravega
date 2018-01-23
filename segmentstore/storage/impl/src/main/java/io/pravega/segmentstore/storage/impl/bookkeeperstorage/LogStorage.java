@@ -36,9 +36,6 @@ class LogStorage {
     @Getter
     private final String name;
 
-    @Getter
-    private final boolean readOnlyHandle;
-
     private final ConcurrentHashMap<Integer, LedgerData> dataMap;
 
     @GuardedBy("this")
@@ -58,11 +55,10 @@ class LogStorage {
     @Getter
     private ImmutableDate lastModified;
 
-    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, int sealed, boolean readOnly) {
+    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, int sealed) {
         this.manager = logStorageManager;
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
-        this.readOnlyHandle = readOnly;
         if ( sealed == 1) {
             this.sealed = true;
         } else {
@@ -168,12 +164,12 @@ class LogStorage {
         }
     }
 
-    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version, boolean readOnly) {
+    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         long epoc = bb.getLong();
         int sealed = bb.getInt();
 
-        return new LogStorage(manager, segmentName, version, epoc, sealed, readOnly);
+        return new LogStorage(manager, segmentName, version, epoc, sealed);
     }
 
     void setContainerEpoch(long containerEpoch) {

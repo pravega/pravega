@@ -80,7 +80,7 @@ class LogStorageManager {
      */
     public LedgerData create(String streamSegmentName) throws StreamSegmentException {
         log.info("Creating segment {}", streamSegmentName);
-        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0, false);
+        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0);
 
         /* Create the node for the segment in the ZK. */
         try {
@@ -117,7 +117,7 @@ class LogStorageManager {
 
         log.info("Sealing ledger for segment {}", streamSegmentName);
         /** Get the LogStorage metadata. */
-        LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName, false);
+        LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName);
 
         /** check whether fencing is required. */
         if (ledger.getContainerEpoch() == containerEpoch) {
@@ -211,7 +211,7 @@ class LogStorageManager {
         int currentBufferOffset = bufferOffset;
 
         try {
-        LogStorage ledger = getOrRetrieveStorageLedger(segmentName, true);
+        LogStorage ledger = getOrRetrieveStorageLedger(segmentName);
         Preconditions.checkArgument(offset + length <= ledger.getLength(), segmentName);
         /** Loop till the data is read completely. */
         while (currentLength != 0) {
@@ -245,7 +245,7 @@ class LogStorageManager {
     public int write(String segmentName, long offset, InputStream data, int length) throws StreamSegmentException {
         log.info("Writing {} at offset {} for segment {}", length, offset, segmentName);
 
-        LogStorage ledger = getOrRetrieveStorageLedger(segmentName, false);
+        LogStorage ledger = getOrRetrieveStorageLedger(segmentName);
         if (ledger.getLength() != offset) {
             throw new CompletionException(new BadOffsetException(segmentName, ledger.getLength(), offset));
         }
@@ -275,7 +275,7 @@ class LogStorageManager {
      * @return A CompletableFuture which completes once the seal operation is complete.
      */
     public void seal(String segmentName) throws StreamSegmentException {
-        LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName, false);
+        LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName);
         /** Check whether this segmentstore is the current owner. */
         if (ledger.getContainerEpoch() > this.containerEpoch) {
             throw new CompletionException(new StorageNotPrimaryException(segmentName));
@@ -315,7 +315,7 @@ class LogStorageManager {
         curatorOps = this.getZKOperationsForConcat(segmentName, sourceSegment, offset);
             List<CuratorTransactionResult> results = zkClient.transaction()
                                                              .forOperations(curatorOps);
-            LogStorage logStorage = getOrRetrieveStorageLedger(segmentName, false);
+            LogStorage logStorage = getOrRetrieveStorageLedger(segmentName);
             logStorage.incrementUpdateVersion();
             /* Fence all the ledgers and add one at the end. */
             fenceLedgersAndCreateOneAtEnd(segmentName, logStorage);
@@ -335,7 +335,7 @@ class LogStorageManager {
      * @return A CompletableFuture which completes once the delete is complete.
      */
     public void delete(String segmentName) throws StreamSegmentException {
-        LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName, false);
+        LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName);
         if (ledger.getContainerEpoch() > this.containerEpoch) {
             throw new CompletionException(new StorageNotPrimaryException(segmentName));
         }
@@ -395,11 +395,10 @@ class LogStorageManager {
      * If the ledger does not exist in the cache, we try to
      *
      * @param streamSegmentName name of the stream segment
-     * @param readOnly          whether a readonly copy of BK is expected or a copy for write.
      * @return Properties of the given segment.
      */
-    public SegmentProperties getOrRetrieveStorageLedgerDetails(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
-        LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName, readOnly);
+    public SegmentProperties getOrRetrieveStorageLedgerDetails(String streamSegmentName) throws StreamSegmentException {
+        LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName);
         return StreamSegmentInformation.builder()
                                        .name(streamSegmentName)
                                        .length(ledger.getLength())
@@ -432,18 +431,14 @@ class LogStorageManager {
         }
     }
 
-    private LedgerData deserializeLedgerData(Integer startOffset, byte[] bytes, boolean readOnly, Stat stat) {
+    private LedgerData deserializeLedgerData(Integer startOffset, byte[] bytes, Stat stat) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         LedgerHandle lh = null;
         long ledgerId = bb.getLong();
         log.info("Opening a ledger with ledger id {}", ledgerId);
 
         try {
-            if (readOnly) {
-                lh = bookkeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
-            } else {
                 lh = bookkeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
-            }
         } catch (Exception e) {
             log.warn("Exception {} while opening ledger id {}", e, ledgerId);
             throw new CompletionException(e);
@@ -455,30 +450,23 @@ class LogStorageManager {
         return ld;
     }
 
-    private LogStorage getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
+    private LogStorage getOrRetrieveStorageLedger(String streamSegmentName) throws StreamSegmentException {
 
         synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
-                LogStorage ledger = ledgers.get(streamSegmentName);
-                if (!readOnly && ledger.isReadOnlyHandle()) {
-                    //Check whether the value is read-write, if it is not, flush it so that we create a read-write token
-                    ledgers.remove(streamSegmentName);
-                } else {
-                    // If the caller expects a readonly handle, either a readonly or read-write cached value will work.
-                    return ledger;
+                return ledgers.get(streamSegmentName);
                 }
             }
-        }
-        return retrieveStorageLedgerMetadata(streamSegmentName, readOnly);
+        return retrieveStorageLedgerMetadata(streamSegmentName);
     }
 
-    private LogStorage retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) throws StreamSegmentException {
+    private LogStorage retrieveStorageLedgerMetadata(String streamSegmentName) throws StreamSegmentException {
 
         Stat stat = new Stat();
         byte[] bytes = null;
         try {
             bytes = zkClient.getData().storingStatIn(stat).forPath(getZkPath(streamSegmentName));
-            LogStorage storageLog = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion(), readOnly);
+            LogStorage storageLog = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion());
             synchronized (this) {
                 ledgers.putIfAbsent(streamSegmentName, storageLog);
             }
@@ -501,8 +489,7 @@ class LogStorageManager {
                         bytes = zkClient.getData()
                                                .storingStatIn(stat)
                                                .forPath(getZkPath(streamSegmentName) + "/" + child);
-                    LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child),
-                            bytes, true, stat);
+                    LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child), bytes, stat);
                     ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
                     ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
                     logStorage.addToList(offset, ledgerData);
@@ -625,7 +612,7 @@ class LogStorageManager {
                               .storingStatIn(stat)
                               .forPath(getZkPath(streamSegmentName) + "/" + firstOffset);
 
-        LedgerData ledgerData = deserializeLedgerData(firstOffset, data, false, stat);
+        LedgerData ledgerData = deserializeLedgerData(firstOffset, data, stat);
         ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
         ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
         log.info("Fencing ledger {}", streamSegmentName);
@@ -652,14 +639,14 @@ class LogStorageManager {
     }
 
     private List<CuratorOp> getZKOperationsForConcat(String segmentName, String sourceSegment, long offset) throws Exception {
-        LogStorage target = this.getOrRetrieveStorageLedger(segmentName, false);
+        LogStorage target = this.getOrRetrieveStorageLedger(segmentName);
         /*
                    .exceptionally(exc -> {
                                translateZKException(segmentName, exc);
                                return null;
                            }
                    )*/
-        LogStorage source = this.getOrRetrieveStorageLedger(sourceSegment, false);
+        LogStorage source = this.getOrRetrieveStorageLedger(sourceSegment);
         Preconditions.checkState(source.isSealed(), "source must be sealed");
         if (source.getContainerEpoch() != this.containerEpoch) {
             throw new CompletionException(new StorageNotPrimaryException(target.getName()));

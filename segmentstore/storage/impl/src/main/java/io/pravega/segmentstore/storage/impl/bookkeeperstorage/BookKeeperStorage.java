@@ -16,7 +16,6 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
@@ -97,18 +96,13 @@ class BookKeeperStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentNotExistsException {
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
-        ensureInitializedAndNotClosed();
 
-        boolean exist = manager.exists(streamSegmentName);
-        if (exist) {
-            SegmentHandle handle = BookKeeperSegmentHandle.readHandle(streamSegmentName);
-            LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
-            return handle;
-        } else {
-            throw new StreamSegmentNotExistsException(streamSegmentName);
-        }
+        // BookKeeper does not support read only open well. Need to own the segment.
+        openWrite(streamSegmentName);
+
+        return BookKeeperSegmentHandle.readHandle(streamSegmentName);
     }
 
     @Override
@@ -135,7 +129,7 @@ class BookKeeperStorage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         ensureInitializedAndNotClosed();
 
-        SegmentProperties segmentProperties = manager.getOrRetrieveStorageLedgerDetails(streamSegmentName, true);
+        SegmentProperties segmentProperties = manager.getOrRetrieveStorageLedgerDetails(streamSegmentName);
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return segmentProperties;
     }
