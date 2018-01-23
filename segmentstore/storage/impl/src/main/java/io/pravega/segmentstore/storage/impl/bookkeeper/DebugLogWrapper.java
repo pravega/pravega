@@ -108,7 +108,6 @@ public class DebugLogWrapper implements AutoCloseable {
             try {
                 this.log.initialize(DEFAULT_TIMEOUT);
             } catch (Exception ex) {
-                ex.printStackTrace();
                 this.initialized.set(false);
                 throw ex;
             }

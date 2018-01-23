@@ -17,6 +17,10 @@ import lombok.val;
  */
 public class BookKeeperEnableCommand extends BookKeeperCommand {
 
+    /**
+     * Creates a new instance of the BookKeeperEnableCommand class.
+     * @param args The arguments for the command.
+     */
     BookKeeperEnableCommand(CommandArgs args) {
         super(args);
     }
