@@ -9,6 +9,7 @@
  */
 package io.pravega.common.concurrent;
 
+import com.google.common.util.concurrent.MoreExecutors;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -402,6 +404,18 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+
+        //4. Cancellation
+        loopCounter.set(0);
+        CompletableFuture<Void> barrier = new CompletableFuture<>();
+        loopFuture = Futures.loop(() -> loopCounter.getAndIncrement() == 0, () -> barrier, MoreExecutors.directExecutor());
+        loopFuture.cancel(false);
+        AssertExtensions.assertThrows(
+                "loop() did not return a Future that supports cancellation.",
+                loopFuture::join,
+                ex -> ex instanceof CancellationException);
+        barrier.complete(null);
+        Assert.assertEquals("Loop condition was unexpectedly evaluated after cancellation", 1, loopCounter.get());
     }
 
     @Test
@@ -456,6 +470,23 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+
+        // 4. Cancellation
+        loopCounter.set(0);
+        CompletableFuture<Void> barrier = new CompletableFuture<>();
+        loopFuture = Futures.doWhileLoop(
+                () -> barrier,
+                x -> {
+                    loopCounter.incrementAndGet();
+                    return false;
+                }, MoreExecutors.directExecutor());
+        loopFuture.cancel(false);
+        AssertExtensions.assertThrows(
+                "loop() did not return a Future that supports cancellation.",
+                loopFuture::join,
+                ex -> ex instanceof CancellationException);
+        barrier.complete(null);
+        Assert.assertEquals("Loop condition was unexpectedly evaluated after cancellation", 0, loopCounter.get());
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
