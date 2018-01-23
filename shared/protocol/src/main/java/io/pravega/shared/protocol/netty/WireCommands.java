@@ -123,6 +123,11 @@ public final class WireCommands {
             String correctHost = in.readUTF();
             return new WrongHost(requestId, segment, correctHost);
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -146,6 +151,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentIsSealed(requestId, segment);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -173,6 +183,11 @@ public final class WireCommands {
             String segment = in.readUTF();
             long startOffset = in.readLong();
             return new SegmentIsTruncated(requestId, segment, startOffset);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -203,6 +218,11 @@ public final class WireCommands {
         public String toString() {
             return "Segment already exists: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -232,6 +252,11 @@ public final class WireCommands {
         public String toString() {
             return "No such segment: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -260,6 +285,11 @@ public final class WireCommands {
         @Override
         public String toString() {
             return "No such transaction: " + txn;
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -291,6 +321,11 @@ public final class WireCommands {
         public String toString() {
             return "Invalid event number: " + eventNumber +" for writer: "+ writerId;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -314,6 +349,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String operationName = in.readUTF();
             return new OperationUnsupported(requestId, operationName);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 

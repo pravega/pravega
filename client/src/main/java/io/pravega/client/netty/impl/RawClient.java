@@ -5,10 +5,10 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
-import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,34 +27,20 @@ public class RawClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     
-    private final class ResponseProcessor extends FailingReplyProcessor {; 
+    private final class ResponseProcessor extends FailingReplyProcessor {
         
         @Override
-        public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
-            log.debug("Received stream segment info {}", streamInfo);
-            reply(streamInfo);
-        }        
-
-        @Override
-        public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            log.debug("Received stream segment attribute {}", segmentAttribute);
-            reply(segmentAttribute);
-        }
-        
-        @Override
-        public void segmentAttributeUpdated(SegmentAttributeUpdated segmentAttributeUpdated) {
-            log.debug("Received stream segment attribute update result {}", segmentAttributeUpdated);
-            reply(segmentAttributeUpdated);
-        }
-        
-        @Override
-        public void wrongHost(WireCommands.WrongHost wrongHost) {
-            failRequest(wrongHost.getRequestId(), new ConnectionFailedException(wrongHost.toString()));
-        }
-
-        @Override
-        public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            failRequest(noSuchSegment.getRequestId(), new ConnectionFailedException(noSuchSegment.toString()));
+        public void process(Reply reply) {
+            if (reply instanceof Hello) {
+                Hello hello = (Hello) reply;
+                log.info("Received hello: {}", hello);
+                if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
+                    closeConnection(new IllegalStateException("Incompatible wire protocol versions " + hello));
+                }
+            } else {
+                log.debug("Received reply {}", reply);
+                reply(reply);
+            }
         }
         
         @Override
@@ -69,18 +55,8 @@ public class RawClient implements AutoCloseable {
         }
     }
     
-    RawClient(ConnectionFactory connectionFactory, PravegaNodeUri endpoint) {
+    public RawClient(ConnectionFactory connectionFactory, PravegaNodeUri endpoint) {
         connection = connectionFactory.establishConnection(endpoint, responseProcessor);
-    }
-    
-    private void failRequest(long requestId, Exception e) {
-        CompletableFuture<Reply> future;
-        synchronized (lock) {
-            future = requests.remove(requestId);
-        }
-        if (future != null) {
-            future.completeExceptionally(e);
-        } 
     }
 
     private void reply(Reply reply) {
@@ -117,7 +93,7 @@ public class RawClient implements AutoCloseable {
         }
     }
     
-    public CompletableFuture<Reply> sendRequest(long requestId, WireCommand request) {
+    public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
         log.debug("Sending request: {}", request);
         ClientConnection c = connection.join();
         CompletableFuture<Reply> reply = new CompletableFuture<>();

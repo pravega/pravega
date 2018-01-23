@@ -14,5 +14,10 @@ package io.pravega.shared.protocol.netty;
  */
 public interface Reply {
     long getRequestId();
+
     void process(ReplyProcessor cp);
+
+    default boolean isFailure() {
+        return false;
+    }
 }
