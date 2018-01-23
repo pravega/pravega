@@ -79,6 +79,7 @@ class LogStorageManager {
      * @Param zkClient
      */
     public LedgerData create(String streamSegmentName) throws StreamSegmentException {
+        log.info("Creating segment {}", streamSegmentName);
         LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0, false);
 
         /* Create the node for the segment in the ZK. */
@@ -286,6 +287,7 @@ class LogStorageManager {
                                 .forPath(getZkPath(segmentName), ledger.serialize());
             ledger.incrementUpdateVersion();
             /** Seal the last ledger. This is the only ledger which can be written to. */
+            log.debug("Sealing segment {}", segmentName);
             this.sealLedger(ledger.getLastLedgerData());
         } catch (Exception exc) {
             translateZKException(segmentName, exc);
@@ -353,6 +355,7 @@ class LogStorageManager {
 
     public LedgerData createLedgerAt(String streamSegmentName, int offset) {
 
+        log.info("Creating ledger for {} at {}", streamSegmentName, offset);
         try {
             LedgerHandle ledgerHandle = bookkeeper.createLedger(config.getBkEnsembleSize(),
                     config.getBkWriteQuorumSize(), LEDGER_DIGEST_TYPE, config.getBKPassword());
@@ -624,6 +627,7 @@ class LogStorageManager {
         LedgerData ledgerData = deserializeLedgerData(firstOffset, data, false, stat);
         ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
         ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
+        log.info("Fencing ledger {}", streamSegmentName);
         ledgerData.getLedgerHandle().close();
         return ledgerData;
     }

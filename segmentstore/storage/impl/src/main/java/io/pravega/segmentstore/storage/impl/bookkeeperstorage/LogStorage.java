@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
@@ -143,7 +144,12 @@ class LogStorage {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
             int newKey = (int) (entry.getKey() + this.length);
             this.dataMap.put(newKey, entry.getValue());
-            return manager.createAddOp(this.name, newKey, entry.getValue());
+            try {
+                return manager.createAddOp(this.name, newKey, entry.getValue());
+            } catch (StreamSegmentException e) {
+                //TODO: throw proper exceptions.
+                return null;
+            }
         }).collect(Collectors.toList());
 
         this.length += source.length;
