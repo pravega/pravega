@@ -81,6 +81,11 @@ class EventProcessorCell<T extends ControllerEvent> {
         }
 
         @Override
+        protected String serviceName() {
+            return objectId;
+        }
+
+        @Override
         protected final void startUp() {
             log.info("Event processor STARTUP {}, state={}", objectId, state());
             try {
@@ -97,7 +102,9 @@ class EventProcessorCell<T extends ControllerEvent> {
 
             while (isRunning()) {
                 try {
+                    log.debug("==> Attempt to read event {}", objectId);
                     event = reader.readNextEvent(defaultTimeout);
+                    log.debug("==> Event read {} is {}", objectId, event);
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
                         actor.process(event.getEvent(), event.getPosition());
