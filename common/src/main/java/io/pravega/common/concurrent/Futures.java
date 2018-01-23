@@ -586,7 +586,7 @@ public final class Futures {
         AtomicBoolean canContinue = new AtomicBoolean();
         Consumer<T> iterationResultHandler = ir -> canContinue.set(condition.test(ir));
         loopBody.get()
-                .thenAccept(iterationResultHandler)
+                .thenAccept(ir -> { if (!result.isCancelled()) iterationResultHandler.accept(ir); })
                 .thenRunAsync(() -> {
                     Loop<T> loop = new Loop<>(canContinue::get, loopBody, iterationResultHandler, result, executor);
                     executor.execute(loop);
@@ -635,7 +635,7 @@ public final class Futures {
 
         @Override
         public Void call() throws Exception {
-            if (this.condition.get()) {
+            if (!this.result.isCancelled() && this.condition.get()) {
                 // Execute another iteration of the loop.
                 this.loopBody.get()
                              .thenAccept(this::acceptIterationResult)
