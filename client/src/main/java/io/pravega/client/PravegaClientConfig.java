@@ -33,7 +33,9 @@ public class PravegaClientConfig {
     private final URI controllerURI;
 
     /**
-     * Flag to enable TLS. TODO: This can be read from the URL.
+     * Flag to enable TLS.
+     * TODO: This can be read from the URL.
+     * See: https://github.com/pravega/pravega/issues/2266
      */
     private final boolean enableTls;
 
