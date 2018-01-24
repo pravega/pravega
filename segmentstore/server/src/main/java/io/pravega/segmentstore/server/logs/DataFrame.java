@@ -558,7 +558,7 @@ public class DataFrame {
     /**
      * Represents an Entry in the DataFrame.
      */
-    static class DataFrameEntry {
+    public static class DataFrameEntry {
         /**
          * whether this is the first entry for a record.
          */
