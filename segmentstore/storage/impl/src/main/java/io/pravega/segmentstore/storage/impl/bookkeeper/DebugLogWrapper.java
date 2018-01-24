@@ -110,6 +110,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
     /**
      * Updates the Metadata for this BookKeeperLog in ZooKeeper by setting its Enabled flag to true.
+     * @throws DurableDataLogException If an exception occurred.
      */
     public void enable() throws DurableDataLogException {
         this.log.enable();
@@ -118,6 +119,7 @@ public class DebugLogWrapper implements AutoCloseable {
     /**
      * Open-Fences the BookKeeperLog (initializes it), then updates the Metadata for it in ZooKeeper by setting its
      * Enabled flag to false.
+     * @throws DurableDataLogException If an exception occurred.
      */
     public void disable() throws DurableDataLogException {
         initialize();
