@@ -468,7 +468,7 @@ class LogStorageManager {
             bytes = zkClient.getData().storingStatIn(stat).forPath(getZkPath(streamSegmentName));
             LogStorage storageLog = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion());
             synchronized (this) {
-                ledgers.putIfAbsent(streamSegmentName, storageLog);
+                storageLog = ledgers.putIfAbsent(streamSegmentName, storageLog);
             }
             return getBKLedgerDetails(streamSegmentName, storageLog);
         } catch (Exception exc) {
