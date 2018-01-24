@@ -458,9 +458,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
         //region Members
 
         private static final long INITIAL_LAST_READ_FRAME_SEQUENCE = -1;
-        private final DurableDataLog log;
         private long lastReadFrameSequence;
-        private CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader;
+        private final CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader;
 
         //endregion
 
@@ -475,13 +474,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          */
         DataFrameEnumerator(DurableDataLog log) throws DurableDataLogException {
             Preconditions.checkNotNull(log, "log");
-
-            this.log = log;
             this.lastReadFrameSequence = INITIAL_LAST_READ_FRAME_SEQUENCE;
-            if (this.reader == null) {
-                // We start from the beginning.
-                this.reader = this.log.getReader();
-            }
+            this.reader = log.getReader();
         }
 
         //endregion

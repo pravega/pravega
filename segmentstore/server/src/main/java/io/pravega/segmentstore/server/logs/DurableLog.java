@@ -23,6 +23,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.OperationLog;
@@ -63,6 +64,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
+    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final LogItemFactory<Operation> operationFactory;
     private final SequencedItemList<Operation> inMemoryOperationLog;
@@ -209,13 +211,36 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         this.operationProcessor.getMetrics().operationLogInit();
         Timer timer = new Timer();
-        RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.operationFactory, this.memoryStateUpdater);
-        int recoveredItemCount = p.performRecovery();
-        this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
+        try {
+            // Initialize the DurableDataLog, which will acquire its lock and ensure we are the only active users of it.
+            this.durableDataLog.initialize(RECOVERY_TIMEOUT);
 
-        // Verify that the Recovery Processor has left the metadata in a non-recovery mode.
-        Preconditions.checkState(!this.metadata.isRecoveryMode(), "Recovery completed but Metadata is still in Recovery Mode.");
-        return recoveredItemCount > 0;
+            // Initiate the recovery.
+            RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.operationFactory, this.memoryStateUpdater);
+            int recoveredItemCount = p.performRecovery();
+            this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
+
+            // Verify that the Recovery Processor has left the metadata in a non-recovery mode.
+            Preconditions.checkState(!this.metadata.isRecoveryMode(), "Recovery completed but Metadata is still in Recovery Mode.");
+            return recoveredItemCount > 0;
+        } catch (Exception ex) {
+            log.error("{} Recovery FAILED.", this.traceObjectId, ex);
+            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
+                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
+                // regardless how many times we try. We need to disable the log so that future instances of this class
+                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
+                // someone can manually fix the problem).
+                try {
+                    this.durableDataLog.disable();
+                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
+                } catch (Exception disableEx) {
+                    log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
+                    ex.addSuppressed(disableEx);
+                }
+            }
+
+            throw ex;
+        }
     }
 
     @Override

@@ -10,11 +10,19 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.VisibleForDebugging;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.QueueStats;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
@@ -25,6 +33,7 @@ import org.apache.curator.framework.CuratorFramework;
 @VisibleForDebugging
 public class DebugLogWrapper implements AutoCloseable {
     //region Members
+
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final BookKeeperLog log;
     private final BookKeeper bkClient;
@@ -63,6 +72,18 @@ public class DebugLogWrapper implements AutoCloseable {
     //endregion
 
     //region Operations
+
+    /**
+     * Creates a special DurableDataLog wrapping the BookKeeperLog that does only supports reading from the log. It does
+     * not support initialization or otherwise modifications to the log. Accessing this log will not interfere with other
+     * active writes to this log (i.e., it will not fence anyone out or close Ledgers that shouldn't be closed).
+     *
+     * @return A new DurableDataLog instance.
+     * @throws DataLogInitializationException If an exception occurred fetching metadata from ZooKeeper.
+     */
+    public DurableDataLog asReadOnly() throws DataLogInitializationException {
+        return new ReadOnlyBooKeeperLog(this.log.loadMetadata());
+    }
 
     /**
      * Loads a fresh copy BookKeeperLog Metadata from ZooKeeper, without doing any sort of fencing or otherwise modifying
@@ -111,6 +132,65 @@ public class DebugLogWrapper implements AutoCloseable {
                 this.initialized.set(false);
                 throw ex;
             }
+        }
+    }
+
+    //endregion
+
+    //region ReadOnlyBookKeeperLog
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    private class ReadOnlyBooKeeperLog implements DurableDataLog {
+        private final LogMetadata logMetadata;
+
+        @Override
+        public void close() {
+            // Nothing to do.
+        }
+
+        @Override
+        public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
+            return new LogReader(this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
+        }
+
+        @Override
+        public int getMaxAppendLength() {
+            return BookKeeperConfig.MAX_APPEND_LENGTH;
+        }
+
+        @Override
+        public long getEpoch() {
+            return this.logMetadata.getEpoch();
+        }
+
+        @Override
+        public QueueStats getQueueStatistics() {
+            return null;
+        }
+
+        @Override
+        public void initialize(Duration timeout) throws DurableDataLogException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void enable() throws DurableDataLogException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void disable() throws DurableDataLogException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
+            throw new UnsupportedOperationException();
         }
     }
 

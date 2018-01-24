@@ -69,8 +69,9 @@ public class BookKeeperDisableCommand extends BookKeeperCommand {
             // We may be competing with a rather active Log which updates its metadata quite frequently, so try a few
             // times to acquire the ownership.
             DISABLE_RETRY.run(() -> {
-                output("Acquiring ownership (attempt %d/%d) ..." + count.incrementAndGet(), MAX_RETRIES);
+                output("Acquiring ownership (attempt %d/%d) ...", count.incrementAndGet(), MAX_RETRIES);
                 log.disable();
+                output("BookKeeperLog '%s' has been disabled.", logId);
                 return null;
             });
         } catch (Exception ex) {
@@ -78,7 +79,7 @@ public class BookKeeperDisableCommand extends BookKeeperCommand {
             if (cause instanceof RetriesExhaustedException && cause.getCause() != null) {
                 cause = cause.getCause();
             }
-            output("Disable failed: " + cause.getMessage());
+            output("Disable failed: %s.", cause.getMessage());
         }
 
         output("Current metadata:");

@@ -45,10 +45,12 @@ public class ContainerRecoverCommand extends ContainerCommand {
         val context = createContext();
         val readIndexConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ReadIndexConfig::builder);
 
-        // TODO: add option for fencing/non-fencing recovery. For now, it will be with fencing.
-
+        // We create a special "read-only" BK log that will not be doing fencing or otherwise interfere with an active
+        // container. As a result, due to the nature of BK, it is possible that it may not contain all the latest writes
+        // since the Bookies may not have yet synchronized the LAC on the last (active ledger).
         @Cleanup
-        val bkLog = context.logFactory.createDurableDataLog(containerId);
+        val log = context.logFactory.createDebugLogWrapper(containerId);
+        val bkLog = log.asReadOnly();
 
         val recoveryState = new RecoveryState();
         val callbacks = new DebugRecoveryProcessor.OperationCallbacks(
@@ -63,7 +65,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
             output("Recovery complete: %d DataFrame(s) containing %d Operation(s).",
                     recoveryState.dataFrameCount, recoveryState.operationCount);
         } catch (Exception ex) {
-            output("Recovery FAILED: %d DataFrame(s) containing %d Operation(s).",
+            output("Recovery FAILED: %d DataFrame(s) containing %d Operation(s) were able to be recovered.",
                     recoveryState.dataFrameCount, recoveryState.operationCount);
             ex.printStackTrace(getOut());
             Throwable cause = Exceptions.unwrap(ex);
@@ -115,6 +117,8 @@ public class ContainerRecoverCommand extends ContainerCommand {
                 new ArgDescriptor("container-id", "Id of the SegmentContainer to recover."));
     }
 
+    //region RecoveryState
+
     private class RecoveryState {
         private Operation currentOperation;
         private LogAddress currentAddress;
@@ -160,4 +164,6 @@ public class ContainerRecoverCommand extends ContainerCommand {
             }
         }
     }
+
+    //endregion
 }

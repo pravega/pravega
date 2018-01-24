@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.VisibleForDebugging;
@@ -22,9 +21,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
-import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -34,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 class RecoveryProcessor {
     //region Members
 
-    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final UpdateableContainerMetadata metadata;
     private final DurableDataLog durableDataLog;
     private final LogItemFactory<Operation> operationFactory;
@@ -99,50 +95,19 @@ class RecoveryProcessor {
         boolean successfulRecovery = false;
         int recoveredItemCount;
         try {
-            try {
-                this.durableDataLog.initialize(RECOVERY_TIMEOUT);
-                recoveredItemCount = recoverAllOperations(metadataUpdater);
-                this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
-                        this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
-                successfulRecovery = true;
-            } finally {
-                // We must exit recovery mode when done, regardless of outcome.
-                this.metadata.exitRecoveryMode();
-                this.stateUpdater.exitRecoveryMode(successfulRecovery);
-            }
-        } catch (Exception ex) {
-            // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
-            log.error("{} Recovery FAILED.", this.traceObjectId, ex);
-            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
-                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
-                // regardless how many times we try. We need to disable the log so that future instances of this class
-                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
-                // someone can manually fix the problem).
-                try {
-                    disableDurableDataLog();
-                } catch (Exception disableEx) {
-                    log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
-                    ex.addSuppressed(disableEx);
-                }
-            }
-
-            throw ex;
+            recoveredItemCount = recoverAllOperations(metadataUpdater);
+            this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+            log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
+                    this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
+            successfulRecovery = true;
+        } finally {
+            // We must exit recovery mode when done, regardless of outcome.
+            this.metadata.exitRecoveryMode();
+            this.stateUpdater.exitRecoveryMode(successfulRecovery);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         return recoveredItemCount;
-    }
-
-    /**
-     * Disables the underlying DurableDataLog.
-     *
-     * @throws DurableDataLogException If an exception occurred.
-     */
-    @VisibleForDebugging
-    protected void disableDurableDataLog() throws DurableDataLogException {
-        this.durableDataLog.disable();
-        log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
     }
 
     /**

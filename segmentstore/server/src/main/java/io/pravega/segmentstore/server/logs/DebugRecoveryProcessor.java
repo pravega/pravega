@@ -83,8 +83,6 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(callbacks, callbacks);
 
-        // TODO: non-fencing recovery.
-
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
         ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
@@ -94,11 +92,6 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     //endregion
 
     //region RecoveryProcessor Overrides
-    @Override
-    protected void disableDurableDataLog() {
-        // DebugRecoveryProcessor does a non-invasive recovery, which means it will not modify the state or the contents
-        // of the data. As such, we will not be disabling the DurableDataLog if we are asked to.
-    }
 
     @Override
     protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
