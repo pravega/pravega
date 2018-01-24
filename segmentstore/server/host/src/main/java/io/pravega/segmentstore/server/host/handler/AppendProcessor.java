@@ -26,7 +26,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.WrongHostException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -55,7 +54,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -312,32 +310,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             throw exception;
         }
 
-        if (u instanceof CompletionException) {
-            u = u.getCause();
-        }
-
+        u = Exceptions.unwrap(u);
         if (u instanceof StreamSegmentExistsException) {
-            log.warn("Segment '{}' already exists and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            log.warn("Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info("Segment '{}' is sealed and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentIsSealed(requestId, segment));
-        } else if (u instanceof WrongHostException) {
-            log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
-            WrongHostException wrongHost = (WrongHostException) u;
-            connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else if (u instanceof ContainerNotFoundException) {
-            log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            int containerId = ((ContainerNotFoundException) u).getContainerId();
+            log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
+                    segment, containerId, writerId, doingWhat);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
-            log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
+            log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn("Unsupported Operation '{}'.", doingWhat);
+            log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat));
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
