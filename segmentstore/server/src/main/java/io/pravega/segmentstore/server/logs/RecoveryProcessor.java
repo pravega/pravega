@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
@@ -119,8 +120,7 @@ class RecoveryProcessor {
                 // will not attempt to do so indefinitely (which could wipe away useful debugging information before
                 // someone can manually fix the problem).
                 try {
-                    this.durableDataLog.disable();
-                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
+                    disableDurableDataLog();
                 } catch (Exception disableEx) {
                     log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
                     ex.addSuppressed(disableEx);
@@ -132,6 +132,17 @@ class RecoveryProcessor {
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         return recoveredItemCount;
+    }
+
+    /**
+     * Disables the underlying DurableDataLog.
+     *
+     * @throws DurableDataLogException If an exception occurred.
+     */
+    @VisibleForDebugging
+    protected void disableDurableDataLog() throws DurableDataLogException {
+        this.durableDataLog.disable();
+        log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
     }
 
     /**

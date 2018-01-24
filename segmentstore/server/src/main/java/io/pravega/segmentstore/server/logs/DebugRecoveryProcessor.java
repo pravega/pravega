@@ -15,6 +15,7 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
@@ -37,18 +38,30 @@ import lombok.RequiredArgsConstructor;
  * Recovery Processor used for Debugging purposes.
  */
 @VisibleForDebugging
-public class DebugRecoveryProcessor extends RecoveryProcessor {
+public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoCloseable {
     //region Members
 
     private final OperationCallbacks callbacks;
+    private final ReadIndexFactory readIndexFactory;
+    private final Storage storage;
 
     //endregion
 
     //region Constructor
 
-    private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, MemoryStateUpdater stateUpdater, OperationCallbacks callbacks) {
-        super(metadata, durableDataLog, new OperationFactory(), stateUpdater);
+    private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
+                                   Storage storage, OperationCallbacks callbacks) {
+        super(metadata, durableDataLog, new OperationFactory(),
+                new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage)));
+        this.readIndexFactory = readIndexFactory;
+        this.storage = storage;
         this.callbacks = callbacks;
+    }
+
+    @Override
+    public void close() {
+        this.readIndexFactory.close();
+        this.storage.close();
     }
 
     /**
@@ -70,16 +83,22 @@ public class DebugRecoveryProcessor extends RecoveryProcessor {
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(callbacks, callbacks);
 
+        // TODO: non-fencing recovery.
+
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
         ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
-        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(new SequencedItemList<>(), rf.createReadIndex(metadata, s));
-        return new DebugRecoveryProcessor(metadata, durableDataLog, stateUpdater, callbacks);
+        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, callbacks);
     }
 
     //endregion
 
     //region RecoveryProcessor Overrides
+    @Override
+    protected void disableDurableDataLog() {
+        // DebugRecoveryProcessor does a non-invasive recovery, which means it will not modify the state or the contents
+        // of the data. As such, we will not be disabling the DurableDataLog if we are asked to.
+    }
 
     @Override
     protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
