@@ -59,10 +59,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
     private static final int THREADPOOL_SIZE_TEST = 3;
-    private static final int SEGMENT_COUNT = 1;
+    private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds() * 10);
 
@@ -147,29 +147,29 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         try (val builder = createBuilder();
              val readOnlyBuilder = createReadOnlyBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
-            //val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
+            val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
 
             // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, segmentStore)
+            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, segmentStore, segmentStore);
+            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
             checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
-            checkStorage(segmentContents, segmentStore, segmentStore);
+            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them.
         try (val builder = createBuilder();
              val readOnlyBuilder = createReadOnlyBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
-            //val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
+            val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             // Seals.
             sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             checkSegmentStatus(lengths, startOffsets, true, false, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, segmentStore)
+            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Deletes.
@@ -180,7 +180,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder() throws Exception {
+    protected ServiceBuilder createBuilder() throws Exception {
         val builderConfig = this.configBuilder.build();
         val builder = createBuilder(builderConfig);
         builder.initialize();
@@ -195,25 +195,25 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig);
 
-    private ServiceBuilder createReadOnlyBuilder() throws Exception {
+    public ServiceBuilder createReadOnlyBuilder() throws Exception {
         // Copy base config properties to a new object.
         val props = new Properties();
         this.configBuilder.build().forEach(props::put);
 
         // Create a new config (so we don't alter the base one) and set the ReadOnlySegmentStore to true).
         val builderConfig = ServiceBuilderConfig.builder()
-                .include(props)
-                .include(ServiceConfig.builder()
-                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true))
-                .build();
+                                                .include(props)
+                                                .include(ServiceConfig.builder()
+                                                                      .with(ServiceConfig.READONLY_SEGMENT_STORE, true))
+                                                .build();
 
         val builder = createBuilder(builderConfig);
         builder.initialize();
         return builder;
     }
 
-    private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
-                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
+    protected CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
+                                                 HashMap<String, Long> lengths, StreamSegmentStore store) {
         val segmentFutures = new ArrayList<CompletableFuture<Void>>();
         for (String segmentName : segmentNames) {
             for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
@@ -228,14 +228,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(segmentFutures);
     }
 
-    private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
-                                                      HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+    protected CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                                        HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
         ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
                 mergeFutures.add(store.sealStreamSegment(transactionName, TIMEOUT)
-                        .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
+                                      .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
@@ -250,7 +250,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(mergeFutures);
     }
 
-    private CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
         val result = new ArrayList<CompletableFuture<Long>>();
         for (String segmentName : segmentNames) {
             result.add(store.sealStreamSegment(segmentName, TIMEOUT));
@@ -259,7 +259,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(result);
     }
 
-    private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
         val result = new ArrayList<CompletableFuture<Void>>();
         for (String segmentName : segmentNames) {
             result.add(store.deleteStreamSegment(segmentName, TIMEOUT));
@@ -268,7 +268,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(result);
     }
 
-    private ArrayList<String> createSegments(StreamSegmentStore store) {
+    protected ArrayList<String> createSegments(StreamSegmentStore store) {
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
@@ -281,7 +281,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return segmentNames;
     }
 
-    private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
         // Create the Transaction.
         ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
         for (String segmentName : segmentNames) {
@@ -329,8 +329,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return "Segment_" + i;
     }
 
-    private void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
-                                    boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
+    protected void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
+                                      boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
@@ -350,7 +350,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+    protected void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
@@ -388,8 +388,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkReadsWhileTruncating(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> startOffsets,
-                                           StreamSegmentStore store) throws Exception {
+    protected void checkReadsWhileTruncating(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> startOffsets,
+                                             StreamSegmentStore store) throws Exception {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
@@ -474,8 +474,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore baseStore,
-                                     StreamSegmentStore readOnlySegmentStore) throws Exception {
+    protected static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore baseStore,
+                                       StreamSegmentStore readOnlySegmentStore) throws Exception {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
@@ -541,8 +541,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
-                                                             StreamSegmentStore readOnlyStore) {
+    protected CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
+                                                               StreamSegmentStore readOnlyStore) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
             SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
@@ -558,20 +558,20 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.loop(
                 tryAgain::get,
                 () -> readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT)
-                             .thenCompose(storageProps -> {
-                                 if (sp.isSealed()) {
-                                     tryAgain.set(!storageProps.isSealed());
-                                 } else {
-                                     tryAgain.set(sp.getLength() != storageProps.getLength());
-                                 }
+                                   .thenCompose(storageProps -> {
+                                       if (sp.isSealed()) {
+                                           tryAgain.set(!storageProps.isSealed());
+                                       } else {
+                                           tryAgain.set(sp.getLength() != storageProps.getLength());
+                                       }
 
-                                 if (tryAgain.get() && !timer.hasRemaining()) {
-                                     return Futures.<Void>failedFuture(new TimeoutException(
-                                             String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                                 } else {
-                                     return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                                 }
-                             }), executorService());
+                                       if (tryAgain.get() && !timer.hasRemaining()) {
+                                           return Futures.<Void>failedFuture(new TimeoutException(
+                                                   String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                                       } else {
+                                           return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                                       }
+                                   }), executorService());
     }
 
     //endregion
