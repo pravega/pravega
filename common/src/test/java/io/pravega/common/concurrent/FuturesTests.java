@@ -23,6 +23,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -487,6 +488,42 @@ public class FuturesTests {
                 ex -> ex instanceof CancellationException);
         barrier.complete(null);
         Assert.assertEquals("Loop condition was unexpectedly evaluated after cancellation", 0, loopCounter.get());
+    }
+
+    @Test
+    public void testCancellable() {
+        // 1. Cancellation w/ correct ordering
+        AtomicBoolean upstreamCompletedBeforeCancellable = new AtomicBoolean();
+        CompletableFuture<Void> upstream = new CompletableFuture<>();
+        final CompletableFuture<Void> cancellable1 = Futures.cancellable(upstream, upstream);
+        upstream.whenComplete((v, th) -> upstreamCompletedBeforeCancellable.set(!cancellable1.isDone()));
+        cancellable1.cancel(false);
+        Assert.assertTrue(upstreamCompletedBeforeCancellable.get());
+        Assert.assertTrue(upstream.isCancelled());
+        Assert.assertTrue(cancellable1.isCancelled());
+
+        // 2. Exceptional completion
+        upstream = new CompletableFuture<>();
+        CompletableFuture<Void> cancellable2 = Futures.cancellable(upstream, upstream);
+        upstream.completeExceptionally(new RuntimeException());
+        Assert.assertTrue(cancellable2.isCompletedExceptionally());
+
+        // 3. Successful completion
+        upstream = new CompletableFuture<>();
+        CompletableFuture<Void> cancellable3 = Futures.cancellable(upstream, upstream);
+        upstream.complete(null);
+        Assert.assertTrue(cancellable3.isDone() && !cancellable3.isCompletedExceptionally());
+
+        // 3. Successful completion (synchronous)
+        upstream = CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> cancellable4 = Futures.cancellable(upstream, upstream);
+        Assert.assertTrue(cancellable4.isDone() && !cancellable4.isCompletedExceptionally());
+
+        // 2. Exceptional completion (synchronous)
+        upstream = new CompletableFuture<>();
+        upstream.completeExceptionally(new RuntimeException());
+        CompletableFuture<Void> cancellable5 = Futures.cancellable(upstream, upstream);
+        Assert.assertTrue(cancellable5.isCompletedExceptionally());
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {

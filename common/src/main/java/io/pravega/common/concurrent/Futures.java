@@ -670,4 +670,58 @@ public final class Futures {
     }
 
     //endregion
+
+    // region Cancellation
+
+    /**
+     * Returns a CompletableFuture that listens to the given future and, when cancelled, automatically cancels
+     * the given upstream futures.  The upstream futures are cancelled before the returned future is cancelled.
+     *
+     * @param <T>    The type of the future result.
+     * @param future the future to listen to.
+     * @param toCancel the upstream futures to cancel.
+     * @return A CompletableFuture that will complete when the given future completes.
+     */
+    public static <T> CompletableFuture<T> cancellable(CompletableFuture<T> future, CompletableFuture... toCancel) {
+        final AtomicBoolean cancelling = new AtomicBoolean();
+
+        CompletableFuture<T> promise = new CompletableFuture<T>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                if (cancelling.compareAndSet(false, true)) {
+                    // cancel the upstream future(s), which will likely propagate an exception to 'future'
+                    for (CompletableFuture u : toCancel) {
+                        try {
+                            u.cancel(mayInterruptIfRunning);
+                        } catch (Exception e) {
+                        }
+                    }
+                    return super.cancel(mayInterruptIfRunning);
+                }
+                return false;
+            }
+        };
+
+        try {
+            // Async termination.
+            future.whenComplete((v, ex) -> {
+                // suppress results that arrive post-cancellation, to ensure that the promise ends with isCancelled
+                if (!cancelling.get()) {
+                    if (ex != null) {
+                        promise.completeExceptionally(ex);
+                    } else {
+                        promise.complete(v);
+                    }
+                }
+            });
+        } catch (Throwable ex) {
+            // Synchronous termination.
+            promise.completeExceptionally(ex);
+            throw ex;
+        }
+
+        return promise;
+    }
+
+    // endregion
 }
