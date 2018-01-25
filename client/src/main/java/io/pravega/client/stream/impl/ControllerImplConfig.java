@@ -30,6 +30,6 @@ public class ControllerImplConfig implements Serializable {
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private PravegaClientConfig config = PravegaClientConfig.builder().controllerURI(null)
-        .credentials(null).enableTls(false).pravegaTrustStore("").build();
+        .credentials(null).pravegaTrustStore("").build();
     }
 }

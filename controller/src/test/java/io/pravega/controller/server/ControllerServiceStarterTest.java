@@ -70,7 +70,7 @@ public abstract class ControllerServiceStarterTest {
         // Now, that starter has started, perform some rpc operations.
         URI uri;
         try {
-            uri = new URI("tcp://localhost:" + grpcPort);
+            uri = new URI( (enableAuth ? "tls" : "tcp") + "://localhost:" + grpcPort);
         } catch (URISyntaxException e) {
             log.error("Error creating controller URI", e);
             Assert.fail("Error creating controller URI");
@@ -80,7 +80,6 @@ public abstract class ControllerServiceStarterTest {
         final String testScope = "testScope";
         StreamManager streamManager = new StreamManagerImpl(PravegaClientConfig.builder().controllerURI(uri)
                 .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
-                .enableTls(enableAuth)
                 .pravegaTrustStore("../config/cert.pem").build());
 
         streamManager.createScope(testScope);

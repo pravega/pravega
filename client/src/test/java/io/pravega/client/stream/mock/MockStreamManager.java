@@ -28,6 +28,7 @@ import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import java.net.URI;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -43,7 +44,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        this.connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
         this.controller = new MockController(endpoint, port, connectionFactory);
         this.clientFactory = new MockClientFactory(scope, controller);
     }

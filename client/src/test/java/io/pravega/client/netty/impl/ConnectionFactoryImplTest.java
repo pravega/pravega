@@ -32,6 +32,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
+import java.net.URI;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
@@ -104,7 +105,7 @@ public class ConnectionFactoryImplTest {
     @Test
     public void establishConnection() throws ConnectionFailedException {
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
-                                    .enableTls(ssl)
+                                    .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
                                     .pravegaTrustStore("../config/cert.pem")
                                    .build());
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new ReplyProcessor() {

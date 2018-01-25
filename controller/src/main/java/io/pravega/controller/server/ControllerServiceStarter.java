@@ -44,6 +44,7 @@ import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
@@ -146,9 +147,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             PravegaClientConfig clientConfig = PravegaClientConfig.builder()
-                                                                  .enableTls(serviceConfig.getGRPCServerConfig().get().isTlsEnabled())
+                                                                  .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
+                                                                          "tls://" : "tcp://") + "localhost"))
                                                                   .pravegaTrustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
                                                                   .build();
+
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();
 

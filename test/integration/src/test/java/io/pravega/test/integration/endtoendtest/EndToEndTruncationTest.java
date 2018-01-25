@@ -36,6 +36,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -107,7 +108,9 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
+                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                        .build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup

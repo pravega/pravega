@@ -72,7 +72,6 @@ public class InProcPravegaClusterTest {
         PravegaClientConfig clientConfig = PravegaClientConfig.builder()
                                                               .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                                                               .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
-                                                              .enableTls(this.tlsEnabled)
                                                               .pravegaTrustStore("../config/cert.pem")
                                                               .build();
         @Cleanup
