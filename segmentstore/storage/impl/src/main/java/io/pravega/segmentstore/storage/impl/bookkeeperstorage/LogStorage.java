@@ -13,13 +13,10 @@ import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -36,16 +33,15 @@ class LogStorage {
     @Getter
     private final String name;
 
-    private final ConcurrentHashMap<Integer, LedgerData> dataMap;
+    private final ConcurrentSkipListMap<Integer, LedgerData> dataMap;
 
     @GuardedBy("this")
     private int updateVersion;
 
-    @Getter
+    @GuardedBy("this")
     private long containerEpoch;
 
     @GuardedBy("this")
-    @Getter
     private boolean sealed;
 
     @GuardedBy("this")
@@ -53,11 +49,11 @@ class LogStorage {
     private long length;
 
     @Getter
-    private ImmutableDate lastModified;
+    private final ImmutableDate lastModified;
 
     LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, int sealed) {
         this.manager = logStorageManager;
-        this.dataMap = new ConcurrentHashMap<>();
+        this.dataMap = new ConcurrentSkipListMap<>();
         this.name = streamSegmentName;
         if ( sealed == 1) {
             this.sealed = true;
@@ -66,6 +62,7 @@ class LogStorage {
         }
         this.containerEpoch = containerEpoch;
         this.updateVersion = updateVersion;
+        lastModified = new ImmutableDate();
     }
 
     /**
@@ -114,16 +111,15 @@ class LogStorage {
         this.length += size;
     }
 
-    synchronized CompletableFuture<Void> deleteAllLedgers() {
-        return CompletableFuture.allOf(
-                this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLedgerHandle())).toArray(CompletableFuture[]::new));
+    synchronized void deleteAllLedgers() {
+                this.dataMap.entrySet().stream().forEach(entry -> manager.deleteLedger(entry.getValue().getLedgerHandle()));
     }
 
     LedgerData getLastLedgerData() {
         if (this.dataMap.isEmpty()) {
             return null;
         } else {
-            return this.dataMap.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getKey)).get().getValue();
+            return this.dataMap.lastEntry().getValue();
         }
     }
 
@@ -139,15 +135,17 @@ class LogStorage {
     synchronized List<CuratorOp> addLedgerDataFrom(LogStorage source) {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
             int newKey = (int) (entry.getKey() + this.length);
-            this.dataMap.put(newKey, entry.getValue());
+            LedgerData value = entry.getValue();
+            value.setStartOffset(newKey);
+            this.dataMap.put(newKey, value);
             try {
                 return manager.createAddOp(this.name, newKey, entry.getValue());
             } catch (StreamSegmentException e) {
-                //TODO: throw proper exceptions.
-                return null;
+                throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
 
+        // Increase the target segment length
         this.length += source.length;
         return retVal;
     }
@@ -156,9 +154,9 @@ class LogStorage {
         if (offset >= length) {
             throw new CompletionException( new BadOffsetException(this.getName(), length, offset));
         }
-        Optional<Map.Entry<Integer, LedgerData>> found = dataMap.entrySet().stream().filter(entry -> (entry.getKey() <= offset) && (offset < (entry.getKey() + entry.getValue().getLength()))).findFirst();
-        if (found.isPresent()) {
-            return found.get().getValue();
+        Map.Entry<Integer, LedgerData> found = dataMap.floorEntry(Integer.valueOf((int) offset));
+        if (found != null) {
+            return found.getValue();
         } else {
             throw new CompletionException(new BadOffsetException(this.getName(), length, offset));
         }
@@ -172,7 +170,7 @@ class LogStorage {
         return new LogStorage(manager, segmentName, version, epoc, sealed);
     }
 
-    void setContainerEpoch(long containerEpoch) {
+    synchronized void setContainerEpoch(long containerEpoch) {
         this.containerEpoch = containerEpoch;
     }
 
@@ -199,5 +197,13 @@ class LogStorage {
 
     synchronized void incrementUpdateVersion() {
         updateVersion++;
+    }
+
+    synchronized long getContainerEpoch() {
+        return containerEpoch;
+    }
+
+    synchronized boolean isSealed() {
+        return sealed;
     }
 }

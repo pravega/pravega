@@ -368,17 +368,12 @@ class LogStorageManager {
         }
     }
 
-    public CompletableFuture<Void> deleteLedger(LedgerHandle lh) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        bookkeeper.asyncDeleteLedger(lh.getId(), (errorCode, o) -> {
-            if (errorCode == 0) {
-                future.complete(null);
-            } else {
-                log.warn("Delete ledger failed. Continuing as we gave it our best shot");
-                future.complete(null);
-            }
-        }, future);
-        return future;
+    void deleteLedger(LedgerHandle lh) {
+        try {
+            bookkeeper.deleteLedger(lh.getId());
+        } catch (InterruptedException | BKException e) {
+            log.warn("Delete ledger failed. Continuing as we gave it our best shot");
+        }
     }
 
     public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) throws StreamSegmentException {
@@ -494,7 +489,7 @@ class LogStorageManager {
                     ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
                     logStorage.addToList(offset, ledgerData);
                     } catch (Exception e) {
-                        //TODO: Log/Bail?
+                        throw new RuntimeException(e);
                     }
                 });
         return logStorage;
@@ -640,12 +635,6 @@ class LogStorageManager {
 
     private List<CuratorOp> getZKOperationsForConcat(String segmentName, String sourceSegment, long offset) throws Exception {
         LogStorage target = this.getOrRetrieveStorageLedger(segmentName);
-        /*
-                   .exceptionally(exc -> {
-                               translateZKException(segmentName, exc);
-                               return null;
-                           }
-                   )*/
         LogStorage source = this.getOrRetrieveStorageLedger(sourceSegment);
         Preconditions.checkState(source.isSealed(), "source must be sealed");
         if (source.getContainerEpoch() != this.containerEpoch) {

@@ -10,19 +10,22 @@
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Data;
+import lombok.Getter;
 import org.apache.bookkeeper.client.LedgerHandle;
 
 /**
  * Stores metadata about a single BookKeeper Ledger.
  */
-@Data
 class LedgerData {
     // Retrieved from ZK
+    @Getter
     private final LedgerHandle ledgerHandle;
+
+    @GuardedBy("this")
     //Retrieved from ZK
-    private final int startOffset;
+    private int startOffset;
     //Version to ensure CAS in ZK
     private final  int updateVersion;
     //Epoch under which the ledger is created
@@ -32,7 +35,6 @@ class LedgerData {
     //These are interpreted from BookKeeper and may be updated inproc.
     @GuardedBy("this")
     private long length;
-    private boolean isReadonly;
 
     @GuardedBy("this")
     private long lastAddConfirmed = -1;
@@ -41,6 +43,16 @@ class LedgerData {
     private long lastReadOffset = 0;
     @GuardedBy("this")
     private long lastReadEntry = 0;
+    @GuardedBy("this")
+    private AtomicBoolean readonly;
+
+    public LedgerData(LedgerHandle ledgerHandle, int offset, int updateVersion, long containerEpoch) {
+        this.ledgerHandle = ledgerHandle;
+        this.startOffset = offset;
+        this.updateVersion = updateVersion;
+        this.containerEpoch = containerEpoch;
+        this.readonly = new AtomicBoolean(false);
+    }
 
     public byte[] serialize() {
         int size = Long.SIZE + Long.SIZE;
@@ -73,5 +85,21 @@ class LedgerData {
 
     synchronized long getLastAddConfirmed() {
         return this.lastAddConfirmed;
+    }
+
+    synchronized void setReadonly(boolean readonly) {
+        this.readonly.set(readonly);
+    }
+
+    synchronized void setStartOffset(int startOffset) {
+        this.startOffset = startOffset;
+    }
+
+    synchronized int getStartOffset() {
+        return startOffset;
+    }
+
+    synchronized void setLength(int length) {
+        this.length = length;
     }
 }
