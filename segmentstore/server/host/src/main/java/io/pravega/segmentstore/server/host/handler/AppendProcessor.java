@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.contracts.WrongHostException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
@@ -334,6 +335,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
+            connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.close();
+        } else if (u instanceof TooManyAttributesException) {
+            log.warn("Attribute limit would be exceeded by {} on segment {}", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
