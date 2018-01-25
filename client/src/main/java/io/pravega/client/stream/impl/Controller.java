@@ -32,7 +32,7 @@ public interface Controller extends AutoCloseable {
     // Controller Apis for administrative action for streams
 
     /**
-     * Api to create scope.
+     * API to create a scope. The future completes with true in the case the scope does not exist.
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
@@ -41,7 +41,8 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createScope(final String scopeName);
 
     /**
-     * API to delete scope.
+     * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If
+     * the scope contains at least one stream, then the delete request will fail.
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
@@ -50,7 +51,9 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> deleteScope(final String scopeName);
 
     /**
-     * Api to create stream.
+     * API to create a stream. The completes with true in the case the stream does not exist. In
+     * the case of a re-attempt to create the same stream, the future completes with false to
+     * indicate the the stream already exists.
      *
      * @param streamConfig Stream configuration
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
@@ -59,7 +62,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
 
     /**
-     * Api to update stream.
+     * API to update the configuration of a stream.
      *
      * @param streamConfig Stream configuration to updated
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
@@ -68,8 +71,8 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
 
     /**
-     * Api to Truncate stream. This api takes a stream cut point which corresponds to a cut in the stream segments which is
-     * consistent and covers the entire key range space.
+     * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
+     * the stream segments which is consistent and covers the entire key range space.
      *
      * @param scope      Scope
      * @param streamName Stream
@@ -80,7 +83,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> truncateStream(final String scope, final String streamName, final StreamCut streamCut);
 
     /**
-     * Api to seal stream.
+     * API to seal a stream.
      * 
      * @param scope Scope
      * @param streamName Stream name
@@ -90,7 +93,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> sealStream(final String scope, final String streamName);
 
     /**
-     * API to delete stream. Only a sealed stream can be deleted.
+     * API to delete a stream. Only a sealed stream can be deleted.
      *
      * @param scope      Scope name.
      * @param streamName Stream name.
@@ -139,7 +142,7 @@ public interface Controller extends AutoCloseable {
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
-     * Api to get list of current segments for the stream to write to.
+     * API to get list of current segments for the stream to write to.
      * 
      * @param scope Scope
      * @param streamName Stream name
@@ -148,7 +151,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
-     * Api to create a new transaction. The transaction timeout is relative to the creation time.
+     * API to create a new transaction. The transaction timeout is relative to the creation time.
      * 
      * @param stream           Stream name
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
