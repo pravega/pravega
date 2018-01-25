@@ -636,8 +636,7 @@ public class ControllerImplTest {
         executor = Executors.newSingleThreadScheduledExecutor();
         controllerClient = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(
-                        PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
-                                           .enableTls(testSecure)
+                        PravegaClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                            .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
                                            .pravegaTrustStore("../config/cert.pem")
                                                  .build())
@@ -664,7 +663,7 @@ public class ControllerImplTest {
         final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
                                              .pravegaTrustStore("../config/cert.pem")
-                                             .enableTls(testSecure)
+                                             .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                              .build())
                                     .retryAttempts(1).build(),
                 this.executor);
@@ -699,7 +698,7 @@ public class ControllerImplTest {
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
                                                                                .pravegaTrustStore("../config/cert.pem")
-                                                                               .enableTls(testSecure)
+                                                                               .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                                .build())
                                     .retryAttempts(1).build(), this.executor);
         createStreamStatus = controller1.createStream(StreamConfiguration.builder()
@@ -716,8 +715,8 @@ public class ControllerImplTest {
 
         // Verify retries exhausted error after multiple attempts.
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
-                .clientConfig(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
-                                                 .enableTls(testSecure)
+                .clientConfig(PravegaClientConfig.builder()
+                                                 .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                  .pravegaTrustStore("../config/cert.pem").build())
                 .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
@@ -741,8 +740,8 @@ public class ControllerImplTest {
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
-                .clientConfig(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort))
-                                                 .enableTls(testSecure)
+                .clientConfig(PravegaClientConfig.builder()
+                                                 .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                  .pravegaTrustStore("../config/cert.pem").build())
                 .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()

@@ -30,14 +30,15 @@ public class PravegaClientConfig {
      2. pravega://ip1:port1,ip2:port2,...
         This is used to autodiscovery the controller endpoints from an initial controller list.
     */
-    private final URI controllerURI;
+    @Builder.Default
+    private final URI controllerURI = URI.create("tcp://localhost");
 
     /**
      * Flag to enable TLS.
      * TODO: This can be read from the URL.
      * See: https://github.com/pravega/pravega/issues/2266
-     */
     private final boolean enableTls;
+     */
 
     /**
      * Credentials to be passed on to the Pravega controller for authentication and authorization.
@@ -50,7 +51,12 @@ public class PravegaClientConfig {
     private final String pravegaTrustStore;
 
     /**
-     * If the flag {@link #enableTls is set, this flag decides whether to enable host name validation or not.
+     * If the flag {@link #isEnableTls is set, this flag decides whether to enable host name validation or not.
      */
     private boolean validateHostName;
+
+    public boolean isEnableTls() {
+        return this.controllerURI.getScheme().equals("tls") || this.controllerURI.getScheme().equals("ssl")
+                || this.controllerURI.getScheme().equals("pravegas");
+    }
 }

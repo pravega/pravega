@@ -285,7 +285,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         for (int i = 0; i < this.controllerCount; i++) {
             controllerServers[i] = startLocalController(i);
         }
-        controllerURI = "tcp://localhost:" + controllerPorts[0];
+        controllerURI = (this.enableTls ? "tls" : "tcp") + "://localhost:" + controllerPorts[0];
         for (int i = 1; i < this.controllerCount; i++) {
             controllerURI += ",localhost:" + controllerPorts[i];
         }
