@@ -34,13 +34,6 @@ public class PravegaClientConfig {
     private final URI controllerURI = URI.create("tcp://localhost");
 
     /**
-     * Flag to enable TLS.
-     * TODO: This can be read from the URL.
-     * See: https://github.com/pravega/pravega/issues/2266
-    private final boolean enableTls;
-     */
-
-    /**
      * Credentials to be passed on to the Pravega controller for authentication and authorization.
      */
     private final PravegaCredentials credentials;
