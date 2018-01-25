@@ -327,11 +327,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     segment, containerId, writerId, doingWhat);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
-            log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
+            log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof TooManyAttributesException) {
-            log.warn("Attribute limit would be exceeded by {} on segment {}", writerId, segment, u);
+            log.warn("Attribute limit would be exceeded by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
