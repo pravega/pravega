@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
@@ -215,9 +216,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
+     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
+     *                                     maximum allowed number of Attributes.
      */
     void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadOffsetException, BadAttributeUpdateException {
+            BadOffsetException, BadAttributeUpdateException, TooManyAttributesException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -257,9 +260,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
+     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
+     *                                     maximum allowed number of Attributes.
      */
     void preProcessOperation(UpdateAttributesOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadAttributeUpdateException {
+            BadAttributeUpdateException, TooManyAttributesException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -399,12 +404,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param attributeUpdates The Updates to process (if any).
      * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
      *                                     the segment.
+     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
+     *                                     maximum allowed number of Attributes.
      */
-    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
+    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException, TooManyAttributesException {
         if (attributeUpdates == null) {
             return;
         }
 
+        int newAttributeCount = this.attributeValues.size();
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
             long previousValue = this.attributeValues.getOrDefault(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
@@ -448,6 +456,21 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 default:
                     throw new BadAttributeUpdateException(this.name, u, "Unexpected update type: " + updateType);
             }
+
+            if (previousValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                // This attribute did not exist and is about to be added.
+                newAttributeCount++;
+            } else if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                // This attribute existed and is about to be removed.
+                newAttributeCount--;
+            }
+        }
+
+        if (newAttributeCount > SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT && newAttributeCount > this.attributeValues.size()) {
+            // We only want to prevent exceeding the max attribute count if the number of attributes increased. Should
+            // we ever want to decrease this limit in the future, we need to make sure that we can still remove/replace
+            // attributes of existing segments, but not increase their count.
+            throw new TooManyAttributesException(this.name, SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT);
         }
     }
 
