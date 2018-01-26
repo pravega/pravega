@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -42,7 +43,7 @@ public class LogMetadataTests {
                 metadata = new LogMetadata(ledgerId).withUpdateVersion(i);
             } else {
                 metadata.withUpdateVersion(i);
-                metadata = metadata.addLedger(ledgerId, true);
+                metadata = metadata.addLedger(ledgerId);
             }
 
             Assert.assertEquals("Unexpected epoch.", expectedEpoch, metadata.getEpoch());
@@ -84,6 +85,43 @@ public class LogMetadataTests {
             // Only add this after we did all checks, since the currently truncated ledger is still active.
             truncatedLedgerIds.add(ledgerId);
         }
+
+        // Test markEmptyLedgers.
+        val lacs = expectedLedgerIds.stream()
+                .filter(i -> i % 3 > 0)
+                .collect(Collectors.toMap(i -> i, i -> i % 3 == 1 ? Ledgers.NO_ENTRY_ID : 1000));
+        val m = metadata.updateLedgerStatus(lacs);
+        for (long ledgerId : expectedLedgerIds) {
+            Assert.assertEquals("markEmptyLedgers modified base metadata",
+                    LedgerMetadata.Status.Unknown, metadata.getLedger(ledgerId).getStatus());
+            long lac = lacs.getOrDefault(ledgerId, Long.MIN_VALUE);
+            LedgerMetadata.Status expectedStatus = lac == Long.MIN_VALUE
+                    ? LedgerMetadata.Status.Unknown
+                    : (lac == -1 ? LedgerMetadata.Status.Empty : LedgerMetadata.Status.NotEmpty);
+            Assert.assertEquals("markEmptyLedgers did not return an updated metadata.",
+                    expectedStatus, m.getLedger(ledgerId).getStatus());
+        }
+
+        // Test removeEmptyLedgers.
+        final int skipCount = 3;
+        val m2 = m.removeEmptyLedgers(skipCount);
+        checkLedgerIds(expectedLedgerIds, m);
+        expectedLedgerIds.clear();
+        // We rebuild expectedLedgerIds based on the previous metadata. We filter out the Empty Ledgers and add the ones
+        // we were asked for from the end.
+        m.getLedgers().stream()
+                .filter(lm -> lm.getStatus() != LedgerMetadata.Status.Empty)
+                .map(LedgerMetadata::getLedgerId)
+                .forEach(expectedLedgerIds::add);
+        for (int i = m.getLedgers().size() - skipCount; i < m.getLedgers().size(); i++) {
+            long ledgerId = m.getLedgers().get(i).getLedgerId();
+            if (!expectedLedgerIds.contains(ledgerId)) {
+                expectedLedgerIds.add(ledgerId);
+            }
+        }
+
+        expectedLedgerIds.sort(Long::compare); // The expected list may not be sorted; do it now.
+        checkLedgerIds(expectedLedgerIds, m2);
     }
 
     /**
@@ -104,7 +142,7 @@ public class LogMetadataTests {
                 m = new LogMetadata(ledgerId).withUpdateVersion(i);
             } else {
                 m.withUpdateVersion(i);
-                m = m.addLedger(ledgerId, true);
+                m = m.addLedger(ledgerId);
             }
         }
 
@@ -154,16 +192,22 @@ public class LogMetadataTests {
     public void testSerialization() {
         Supplier<Long> nextLedgerId = new AtomicLong()::incrementAndGet;
         LogMetadata m1 = null;
+        val lacs = new HashMap<Long, Long>();
         for (int i = 0; i < LEDGER_COUNT; i++) {
             long ledgerId = nextLedgerId.get() * 2;
             if (m1 == null) {
                 m1 = new LogMetadata(ledgerId).withUpdateVersion(i);
             } else {
-                m1.withUpdateVersion(i);
-                m1 = m1.addLedger(ledgerId, true);
+                m1 = m1.addLedger(ledgerId).withUpdateVersion(i);
+            }
+
+            if (i % 2 == 0) {
+                // Every other Ledger, update the LastAddConfirmed.
+                lacs.put((long) i, (long) i + 1);
             }
         }
 
+        m1 = m1.updateLedgerStatus(lacs);
         val serialization = m1.serialize();
         val m2 = LogMetadata.deserialize(serialization);
 
@@ -171,7 +215,7 @@ public class LogMetadataTests {
         Assert.assertEquals("Unexpected TruncationAddress.", m1.getTruncationAddress().getSequence(), m2.getTruncationAddress().getSequence());
         Assert.assertEquals("Unexpected TruncationAddress.", m1.getTruncationAddress().getLedgerId(), m2.getTruncationAddress().getLedgerId());
         AssertExtensions.assertListEquals("Unexpected ledgers.", m1.getLedgers(), m2.getLedgers(),
-                (l1, l2) -> l1.getSequence() == l2.getSequence() && l1.getLedgerId() == l2.getLedgerId());
+                (l1, l2) -> l1.getSequence() == l2.getSequence() && l1.getLedgerId() == l2.getLedgerId() && l1.getStatus() == l2.getStatus());
     }
 
     private void checkLedgerIds(List<Long> expectedLedgerIds, LogMetadata metadata) {
