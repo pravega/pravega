@@ -152,6 +152,8 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                     notifyStopped();
                 }
             });
+        } else {
+            notifyStopped();
         }
     }
 
