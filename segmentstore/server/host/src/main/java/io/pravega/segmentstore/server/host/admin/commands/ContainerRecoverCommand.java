@@ -18,7 +18,6 @@ import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.LogAddress;
 import java.util.Collection;
 import java.util.List;
 import lombok.Cleanup;
@@ -121,31 +120,28 @@ public class ContainerRecoverCommand extends ContainerCommand {
 
     private class RecoveryState {
         private Operation currentOperation;
-        private LogAddress currentAddress;
         private int dataFrameCount = 0;
         private int operationCount = 0;
-        private int dataFrameUsedLength = 0;
-        private int dataFrameTotalLength = 0;
+        private int currentFrameUsedLength = 0;
 
         private void newOperation(Operation op, List<DataFrame.DataFrameEntry> frameEntries) {
             for (int i = 0; i < frameEntries.size(); i++) {
                 DataFrame.DataFrameEntry e = frameEntries.get(i);
-                if (this.currentAddress == null || this.currentAddress.getSequence() != e.getFrameAddress().getSequence()) {
-                    if (this.currentAddress != null) {
-                        output("End DataFrame: Length=%d/%d.\n", this.dataFrameUsedLength, this.dataFrameTotalLength);
-                    }
-
+                if (this.currentFrameUsedLength == 0) {
                     output("Begin DataFrame: %s.", e.getFrameAddress());
-                    this.dataFrameUsedLength = 0;
                     this.dataFrameCount++;
                 }
 
-                this.currentAddress = e.getFrameAddress();
                 ByteArraySegment data = e.getData();
-                this.dataFrameTotalLength = data.arrayOffset() + data.getLength();
-                this.dataFrameUsedLength += data.getLength();
+                this.currentFrameUsedLength += data.getLength();
                 String split = frameEntries.size() <= 1 ? "" : String.format(",#%d/%d", i + 1, frameEntries.size());
                 output("\t@[%s,%s%s]: %s.", data.arrayOffset(), data.getLength(), split, op);
+
+                if (e.isLastEntryInDataFrame()) {
+                    int totalLength = data.arrayOffset() + data.getLength();
+                    output("End DataFrame: Length=%d/%d.\n", this.currentFrameUsedLength, totalLength);
+                    this.currentFrameUsedLength = 0;
+                }
             }
 
             this.currentOperation = op;
