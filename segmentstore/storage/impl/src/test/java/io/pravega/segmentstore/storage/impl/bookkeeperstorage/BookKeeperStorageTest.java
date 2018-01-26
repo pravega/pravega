@@ -20,7 +20,6 @@ import io.pravega.test.common.TestUtils;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -35,10 +34,10 @@ public class BookKeeperStorageTest extends StorageTestBase {
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
 
-    private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
+    private static BookKeeperServiceRunner BK_SERVICE = null;
     private static final AtomicInteger BK_PORT = new AtomicInteger();
-    private static final AtomicReference<CuratorFramework> ZK_CLIENT = new AtomicReference<>();
-    private static final AtomicReference<BookKeeperStorageConfig> CONFIG = new AtomicReference<>();
+    private static CuratorFramework ZK_CLIENT = null;
+    private static BookKeeperStorageConfig CONFIG = null;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -59,19 +58,19 @@ public class BookKeeperStorageTest extends StorageTestBase {
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
-        BK_SERVICE.set(runner);
+        BK_SERVICE = runner;
 
         String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
-        ZK_CLIENT.set(CuratorFrameworkFactory
+        ZK_CLIENT = CuratorFrameworkFactory
                 .builder()
                 .connectString("localhost:" + BK_PORT.get())
                 .namespace(namespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
-                .build());
-        ZK_CLIENT.get().start();
+                .build();
+        ZK_CLIENT.start();
 
         // Setup config to use the port and namespace.
-        CONFIG.set(BookKeeperStorageConfig
+        CONFIG = BookKeeperStorageConfig
                 .builder()
                 .with(BookKeeperStorageConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookKeeperStorageConfig.ZK_METADATA_PATH, namespace)
@@ -80,12 +79,12 @@ public class BookKeeperStorageTest extends StorageTestBase {
                 .with(BookKeeperStorageConfig.BK_WRITE_QUORUM_SIZE, 1)
                 .with(BookKeeperStorageConfig.BK_ACK_QUORUM_SIZE, 1)
                 .with(BookKeeperStorageConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
-                .build());
+                .build();
     }
 
     @AfterClass
     public static void tearDownBookKeeper() throws Exception {
-        val process = BK_SERVICE.getAndSet(null);
+        val process = BK_SERVICE;
         if (process != null) {
             process.close();
         }
@@ -161,6 +160,6 @@ public class BookKeeperStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new AsyncStorageWrapper(new BookKeeperStorage(CONFIG.get(), ZK_CLIENT.get()), executorService());
+        return new AsyncStorageWrapper(new BookKeeperStorage(CONFIG, ZK_CLIENT), executorService());
     }
 }

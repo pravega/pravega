@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -533,7 +534,7 @@ class LogStorageManager {
                             dataRemainingInEntry > lengthRemaining ?
                                     lengthRemaining : dataRemainingInEntry);
                     if (dataRead == -1) {
-                        throw new IOException();
+                        throw new EOFException();
                     }
                     lengthRemaining -= dataRead;
                     if (lengthRemaining == 0) {
@@ -586,7 +587,7 @@ class LogStorageManager {
                 }
                 ledger.addToList(offset, ledgerData);
                 } catch (Exception e) {
-                    //TODO:Abort/continue?
+                    throw new RuntimeException(e);
                 }
             });
         }
