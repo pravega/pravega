@@ -54,7 +54,8 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         // first creates a new Ledger and then updates the Metadata in ZK with its existence).
         AtomicLong highestReferencedLedgerId = new AtomicLong();
         val referencedLedgerIds = new HashSet<Long>();
-        findAllReferencedLedgers(referencedLedgerIds, highestReferencedLedgerId, context);
+        collectAllReferencedLedgerIds(referencedLedgerIds, context);
+        highestReferencedLedgerId.set(referencedLedgerIds.stream().max(Long::compareTo).orElse(-1L));
 
         // We want to do our due diligence and verify there are no more other BookKeeperLogs that the user hasn't told us about.
         output("Searching for possible other BookKeeperLogs ...");
@@ -80,7 +81,8 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         }
 
         // Search again for referenced ledger ids, in case any new ones were just referenced.
-        findAllReferencedLedgers(referencedLedgerIds, highestReferencedLedgerId, context);
+        collectAllReferencedLedgerIds(referencedLedgerIds, context);
+        highestReferencedLedgerId.set(referencedLedgerIds.stream().max(Long::compareTo).orElse(-1L));
         deleteCandidates(deletionCandidates, referencedLedgerIds, context);
     }
 
@@ -112,8 +114,7 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         }
     }
 
-    private void findAllReferencedLedgers(Collection<Long> referencedLedgerIds, AtomicLong highestReferencedLedgerId, Context context) throws Exception {
-        highestReferencedLedgerId.set(-1);
+    private void collectAllReferencedLedgerIds(Collection<Long> referencedLedgerIds, Context context) throws Exception {
         referencedLedgerIds.clear();
         for (int logId = 0; logId < context.serviceConfig.getContainerCount(); logId++) {
             @Cleanup
@@ -125,7 +126,6 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
 
             for (val lm : m.getLedgers()) {
                 referencedLedgerIds.add(lm.getLedgerId());
-                highestReferencedLedgerId.set(Math.max(highestReferencedLedgerId.get(), lm.getLedgerId()));
             }
         }
     }

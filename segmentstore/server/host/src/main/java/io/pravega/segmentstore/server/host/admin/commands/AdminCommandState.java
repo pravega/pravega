@@ -19,18 +19,18 @@ import lombok.Getter;
 /**
  * Keeps state between commands.
  */
-public class State implements AutoCloseable {
+public class AdminCommandState implements AutoCloseable {
     @Getter
     private final ServiceBuilderConfig.Builder configBuilder;
     @Getter
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "admin-tools");
 
     /**
-     * Creates a new instance of the State class.
+     * Creates a new instance of the AdminCommandState class.
      *
      * @throws IOException If unable to read specified config properties file (assuming it exists).
      */
-    public State() throws IOException {
+    public AdminCommandState() throws IOException {
         this.configBuilder = ServiceBuilderConfig.builder();
         try {
             this.configBuilder.include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"));
