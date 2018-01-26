@@ -44,6 +44,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private final ScheduledExecutorService executor;
     private final ConcurrentMap<Stream, CompletableFuture> retentionFutureMap;
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
+    private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
 
     StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
@@ -55,6 +56,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
         this.notifications = new LinkedBlockingQueue<>();
         this.retentionFutureMap = new ConcurrentHashMap<>();
+        this.latch = new CompletableFuture<>();
     }
 
     @Override
@@ -79,6 +81,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                         notifyStarted();
                         notificationLoop = Futures.loop(this::isRunning, this::processNotification, executor);
                     }
+                    latch.complete(null);
                 });
     }
 
@@ -136,17 +139,20 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
     @Override
     protected void doStop() {
-        notificationLoop.thenAccept(x -> {
-            // cancel all retention futures
-            retentionFutureMap.forEach((key, value) -> value.cancel(true));
-            streamMetadataStore.unregisterBucketListener(bucketId);
-        }).whenComplete((r, e) -> {
-            if (e != null) {
-                notifyFailed(e);
-            } else {
-                notifyStopped();
-            }
-        });
+        Futures.await(latch);
+        if (notificationLoop != null) {
+            notificationLoop.thenAccept(x -> {
+                // cancel all retention futures
+                retentionFutureMap.forEach((key, value) -> value.cancel(true));
+                streamMetadataStore.unregisterBucketListener(bucketId);
+            }).whenComplete((r, e) -> {
+                if (e != null) {
+                    notifyFailed(e);
+                } else {
+                    notifyStopped();
+                }
+            });
+        }
     }
 
     @Override
