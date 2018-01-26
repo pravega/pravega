@@ -24,55 +24,56 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
 public class BookKeeperStorageTest extends StorageTestBase {
-    private static final int BOOKIE_COUNT = 1;
-    private static final int THREAD_POOL_SIZE = 20;
-
-    private static BookKeeperServiceRunner BK_SERVICE = null;
-    private static final AtomicInteger BK_PORT = new AtomicInteger();
-    private static CuratorFramework ZK_CLIENT = null;
-    private static BookKeeperStorageConfig CONFIG = null;
-
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
-    @BeforeClass
-    public static void setUp() throws Exception {
+    private final int bookieCount = 1;
+    private final int threadPoolSize = 20;
+    private final AtomicInteger bkPort = new AtomicInteger();
+
+    private BookKeeperServiceRunner bookKeeperServiceRunner = null;
+    private CuratorFramework zkClient = null;
+    private BookKeeperStorageConfig bookKeeperStorageConfig = null;
+
+
+    @Before
+    public void setUp() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
-        BK_PORT.set(TestUtils.getAvailableListenPort());
+        bkPort.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
-        for (int i = 0; i < BOOKIE_COUNT; i++) {
+        for (int i = 0; i < bookieCount; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
         }
 
         val runner = BookKeeperServiceRunner.builder()
                                             .startZk(true)
-                                            .zkPort(BK_PORT.get())
+                                            .zkPort(bkPort.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
-        BK_SERVICE = runner;
+        bookKeeperServiceRunner = runner;
 
         String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
-        ZK_CLIENT = CuratorFrameworkFactory
+        zkClient = CuratorFrameworkFactory
                 .builder()
-                .connectString("localhost:" + BK_PORT.get())
+                .connectString("localhost:" + bkPort.get())
                 .namespace(namespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
                 .build();
-        ZK_CLIENT.start();
+        zkClient.start();
 
         // Setup config to use the port and namespace.
-        CONFIG = BookKeeperStorageConfig
+        bookKeeperStorageConfig = BookKeeperStorageConfig
                 .builder()
-                .with(BookKeeperStorageConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperStorageConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
                 .with(BookKeeperStorageConfig.ZK_METADATA_PATH, namespace)
                 .with(BookKeeperStorageConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                 .with(BookKeeperStorageConfig.BK_ENSEMBLE_SIZE, 1)
@@ -82,9 +83,9 @@ public class BookKeeperStorageTest extends StorageTestBase {
                 .build();
     }
 
-    @AfterClass
-    public static void tearDownBookKeeper() throws Exception {
-        val process = BK_SERVICE;
+    @After
+    public void tearDownBookKeeper() throws Exception {
+        val process = bookKeeperServiceRunner;
         if (process != null) {
             process.close();
         }
@@ -160,6 +161,6 @@ public class BookKeeperStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new AsyncStorageWrapper(new BookKeeperStorage(CONFIG, ZK_CLIENT), executorService());
+        return new AsyncStorageWrapper(new BookKeeperStorage(bookKeeperStorageConfig, zkClient), executorService());
     }
 }
