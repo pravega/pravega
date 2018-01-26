@@ -97,8 +97,7 @@ class LogStorageManager {
             }
             return data;
         } catch (Exception exc) {
-            translateZKException(streamSegmentName, exc);
-            return null;
+            throw translateZKException(streamSegmentName, exc);
         }
     }
 
@@ -143,7 +142,7 @@ class LogStorageManager {
                         tryAgain = true;
                         continue;
                     } else {
-                        translateZKException(streamSegmentName, exc);
+                        throw translateZKException(streamSegmentName, exc);
                     }
                 }
             }
@@ -230,7 +229,7 @@ class LogStorageManager {
             currentBufferOffset += dataRead;
         }
         } catch (Exception e) {
-            translateZKException(segmentName, e);
+            throw translateZKException(segmentName, e);
         }
         return length;
     }
@@ -292,7 +291,7 @@ class LogStorageManager {
             log.debug("Sealing segment {}", segmentName);
             this.sealLedger(ledger.getLastLedgerData());
         } catch (Exception exc) {
-            translateZKException(segmentName, exc);
+            throw translateZKException(segmentName, exc);
         }
     }
 
@@ -326,7 +325,7 @@ class LogStorageManager {
         } catch (Exception exc) {
             /** In case of exception, drop the corrupt cache. */
             ledgers.remove(segmentName);
-            translateZKException(segmentName, exc);
+            throw translateZKException(segmentName, exc);
         }
     }
 
@@ -381,9 +380,8 @@ class LogStorageManager {
         try {
             return zkClient.transactionOp().create().forPath(getZkPath(segmentName) + "/" + newKey, value.serialize());
         } catch (Exception e) {
-            translateZKException(segmentName, e);
+            throw translateZKException(segmentName, e);
         }
-        return null;
     }
 
     /**
@@ -468,8 +466,7 @@ class LogStorageManager {
             }
             return getBKLedgerDetails(streamSegmentName, storageLog);
         } catch (Exception exc) {
-            translateZKException(streamSegmentName, exc);
-            return null;
+            throw translateZKException(streamSegmentName, exc);
         }
     }
 
@@ -569,7 +566,7 @@ class LogStorageManager {
         try {
             children = zkClient.getChildren().forPath(getZkPath(streamSegmentName));
         } catch (Exception e) {
-            translateZKException(streamSegmentName, e);
+            throw translateZKException(streamSegmentName, e);
         }
         if (children.size() == 0) {
             LedgerData ledgerData = createLedgerAt(streamSegmentName, 0);
@@ -667,13 +664,13 @@ class LogStorageManager {
 
     //region ZK private helper methods
 
-    private void translateZKException(String streamSegmentName, Throwable exc) throws StreamSegmentException {
+    private StreamSegmentException translateZKException(String streamSegmentName, Throwable exc) {
         if (exc instanceof KeeperException.NodeExistsException) {
-            throw new StreamSegmentExistsException(streamSegmentName);
+            return new StreamSegmentExistsException(streamSegmentName);
         } else if (exc instanceof KeeperException.NoNodeException) {
-            throw new StreamSegmentNotExistsException(streamSegmentName);
+            return new StreamSegmentNotExistsException(streamSegmentName);
         } else if (exc instanceof KeeperException.BadVersionException) {
-            throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
+            return new StorageNotPrimaryException(streamSegmentName);
         } else {
             throw new CompletionException(exc);
         }
