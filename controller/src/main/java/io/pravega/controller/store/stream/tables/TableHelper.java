@@ -197,8 +197,8 @@ public class TableHelper {
      * @param sealedSegmentsRecord record for all the sealed segments for the given stream.
      * @return size (in bytes) of stream till the given stream cut.
      */
-    public static long computeSizeTill(final byte[] indexTable, final byte[] historyTable, final byte[] segmentTable,
-                                       final Map<Integer, Long> streamCut, final SealedSegmentsRecord sealedSegmentsRecord) {
+    public static long getSizeTillStreamCut(final byte[] indexTable, final byte[] historyTable, final byte[] segmentTable,
+                                            final Map<Integer, Long> streamCut, final SealedSegmentsRecord sealedSegmentsRecord) {
         Preconditions.checkNotNull(streamCut);
         Preconditions.checkNotNull(indexTable);
         Preconditions.checkNotNull(historyTable);

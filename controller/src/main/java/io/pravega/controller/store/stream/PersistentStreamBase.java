@@ -907,7 +907,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(segmentTable -> getHistoryTable()
                         .thenCompose(historyTable -> getIndexTable()
                                 .thenCompose(indexTable -> getSealedSegmentsRecord()
-                                        .thenApply(sealedData -> TableHelper.computeSizeTill(indexTable.getData(),
+                                        .thenApply(sealedData -> TableHelper.getSizeTillStreamCut(indexTable.getData(),
                                                 historyTable.getData(), segmentTable.getData(), streamCut,
                                                 SerializationUtils.deserialize(sealedData.getData()))))));
     }
