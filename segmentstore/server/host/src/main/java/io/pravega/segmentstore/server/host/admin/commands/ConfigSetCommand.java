@@ -14,7 +14,7 @@ import com.google.common.base.Strings;
 import java.util.Properties;
 
 /**
- * Updates the shared State with new config values.
+ * Updates the shared AdminCommandState with new config values.
  */
 class ConfigSetCommand extends Command {
     /**

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.admin.commands;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.io.PrintStream;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -62,7 +64,7 @@ public abstract class Command {
     /**
      * Executes the command with the arguments passed in via the Constructor. The command will allocate whatever resources
      * it needs to execute and will clean up after its execution completes (successful or not). The only expected side
-     * effect may be the modification of the shared State that is passed in via the Constructor.
+     * effect may be the modification of the shared AdminCommandState that is passed in via the Constructor.
      *
      * @throws IllegalArgumentException If the arguments passed in via the Constructor are invalid.
      * @throws Exception                If the command failed to execute.
@@ -70,14 +72,14 @@ public abstract class Command {
     public abstract void execute() throws Exception;
 
     /**
-     * Creates a new instance of the ServiceConfig class from the shared State passed in via the Constructor.
+     * Creates a new instance of the ServiceConfig class from the shared AdminCommandState passed in via the Constructor.
      */
     protected ServiceConfig getServiceConfig() {
         return getCommandArgs().getState().getConfigBuilder().build().getConfig(ServiceConfig::builder);
     }
 
     /**
-     * Creates a new instance of the CuratorFramework class using configuration from the shared State.
+     * Creates a new instance of the CuratorFramework class using configuration from the shared AdminCommandState.
      */
     protected CuratorFramework createZKClient() {
         val serviceConfig = getServiceConfig();
@@ -172,18 +174,17 @@ public abstract class Command {
      * Helps create new Command instances.
      */
     public static class Factory {
-        private static final HashMap<String, HashMap<String, CommandInfo>> COMMANDS = new HashMap<>();
-
-        static {
-            register(ConfigListCommand::descriptor, ConfigListCommand::new);
-            register(ConfigSetCommand::descriptor, ConfigSetCommand::new);
-            register(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new);
-            register(BookKeeperListCommand::descriptor, BookKeeperListCommand::new);
-            register(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new);
-            register(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new);
-            register(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new);
-            register(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new);
-        }
+        private static final Map<String, Map<String, CommandInfo>> COMMANDS = registerAll(
+                ImmutableMap.<Supplier<CommandDescriptor>, CommandCreator>builder()
+                        .put(ConfigListCommand::descriptor, ConfigListCommand::new)
+                        .put(ConfigSetCommand::descriptor, ConfigSetCommand::new)
+                        .put(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new)
+                        .put(BookKeeperListCommand::descriptor, BookKeeperListCommand::new)
+                        .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
+                        .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
+                        .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
+                        .build());
 
         /**
          * Gets a Collection of CommandDescriptors for all registered commands.
@@ -203,7 +204,7 @@ public abstract class Command {
          * @return A new Collection.
          */
         public static Collection<CommandDescriptor> getDescriptors(String component) {
-            HashMap<String, CommandInfo> componentCommands = COMMANDS.getOrDefault(component, null);
+            Map<String, CommandInfo> componentCommands = COMMANDS.getOrDefault(component, null);
             return componentCommands == null
                     ? Collections.emptyList()
                     : componentCommands.values().stream().map(CommandInfo::getDescriptor).collect(Collectors.toList());
@@ -235,21 +236,25 @@ public abstract class Command {
         }
 
         private static CommandInfo getCommand(String component, String command) {
-            HashMap<String, CommandInfo> componentCommands = COMMANDS.getOrDefault(component, null);
+            Map<String, CommandInfo> componentCommands = COMMANDS.getOrDefault(component, null);
             return componentCommands == null ? null : componentCommands.getOrDefault(command, null);
         }
 
-        private static void register(Supplier<CommandDescriptor> descriptor, CommandCreator creator) {
-            Command.CommandDescriptor d = descriptor.get();
-            HashMap<String, CommandInfo> componentCommands = COMMANDS.getOrDefault(d.getComponent(), null);
-            if (componentCommands == null) {
-                componentCommands = new HashMap<>();
-                COMMANDS.put(d.getComponent(), componentCommands);
-            }
+        private static Map<String, Map<String, CommandInfo>> registerAll(Map<Supplier<CommandDescriptor>, CommandCreator> items) {
+            val result = new HashMap<String, Map<String, CommandInfo>>();
+            for (val e : items.entrySet()) {
+                Command.CommandDescriptor d = e.getKey().get();
+                Map<String, CommandInfo> componentCommands = result.getOrDefault(d.getComponent(), null);
+                if (componentCommands == null) {
+                    componentCommands = new HashMap<>();
+                    result.put(d.getComponent(), componentCommands);
+                }
 
-            if (componentCommands.putIfAbsent(d.getName(), new CommandInfo(d, creator)) != null) {
-                throw new IllegalArgumentException(String.format("A command is already registered for '%s'-'%s'.", d.getComponent(), d.getName()));
+                if (componentCommands.putIfAbsent(d.getName(), new CommandInfo(d, e.getValue())) != null) {
+                    throw new IllegalArgumentException(String.format("A command is already registered for '%s'-'%s'.", d.getComponent(), d.getName()));
+                }
             }
+            return Collections.unmodifiableMap(result);
         }
 
         @Data

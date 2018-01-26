@@ -9,9 +9,12 @@
  */
 package io.pravega.common;
 
+import java.lang.annotation.Inherited;
+
 /**
  * Annotates a program element that exists, or is more widely visible than otherwise necessary, only
  * for use in debugging tools. This should not be used for regular operations.
- * */
+ */
+@Inherited
 public @interface VisibleForDebugging {
 }

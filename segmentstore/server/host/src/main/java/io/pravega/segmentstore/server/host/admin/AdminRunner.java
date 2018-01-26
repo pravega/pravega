@@ -12,10 +12,10 @@ package io.pravega.segmentstore.server.host.admin;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.google.common.base.Strings;
+import io.pravega.segmentstore.server.host.admin.commands.AdminCommandState;
 import io.pravega.segmentstore.server.host.admin.commands.Command;
 import io.pravega.segmentstore.server.host.admin.commands.CommandArgs;
 import io.pravega.segmentstore.server.host.admin.commands.ConfigListCommand;
-import io.pravega.segmentstore.server.host.admin.commands.State;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,7 +54,7 @@ public final class AdminRunner {
 
         System.out.println("Pravega Admin Tools.\n");
         @Cleanup
-        State state = new State();
+        AdminCommandState state = new AdminCommandState();
 
         // Output loaded config.
         System.out.println("Initial configuration:");
@@ -86,7 +86,7 @@ public final class AdminRunner {
         }
     }
 
-    private static void execCommand(Parser.Command pc, State state) {
+    private static void execCommand(Parser.Command pc, AdminCommandState state) {
         CommandArgs cmdArgs = new CommandArgs(pc.getArgs(), state);
         try {
             Command cmd = Command.Factory.get(pc.getComponent(), pc.getName(), cmdArgs);
