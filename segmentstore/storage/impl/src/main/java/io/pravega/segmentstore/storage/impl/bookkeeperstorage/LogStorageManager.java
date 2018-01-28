@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
@@ -369,11 +370,13 @@ class LogStorageManager {
     }
 
     void deleteLedger(LedgerHandle lh) {
-        try {
-            bookkeeper.deleteLedger(lh.getId());
-        } catch (InterruptedException | BKException e) {
-            log.warn("Delete ledger failed. Continuing as we gave it our best shot");
-        }
+        Exceptions.handleInterrupted(() -> {
+            try {
+                bookkeeper.deleteLedger(lh.getId());
+            } catch (BKException e) {
+                log.warn("Delete ledger failed. Continuing as we gave it our best shot");
+            }
+        });
     }
 
     public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) throws StreamSegmentException {
@@ -493,7 +496,7 @@ class LogStorageManager {
         return logStorage;
     }
 
-    private int readDataFromLedger(LedgerData ledgerData, long offset, byte[] buffer, int bufferOffset, int length) throws BKException, InterruptedException, IOException {
+    private int readDataFromLedger(LedgerData ledgerData, long offset, byte[] buffer, int bufferOffset, int length) throws BKException, IOException {
 
         long currentOffset = offset - ledgerData.getStartOffset();
         int lengthRemaining = length;
@@ -512,9 +515,13 @@ class LogStorageManager {
                 //Read max configured entries.
                 lastEntryId = firstEntryId + entriesInOneRound;
             }
-            Enumeration<LedgerEntry> enumeration = ledgerData.getLedgerHandle().readEntries(firstEntryId, lastEntryId);
-            while (enumeration.hasMoreElements()) {
-                LedgerEntry entry = enumeration.nextElement();
+            long finalFirstEntryId = firstEntryId;
+            AtomicReference<Enumeration<LedgerEntry>> enumeration = new AtomicReference<>();
+            Exceptions.handleInterrupted(() -> {
+                enumeration.set(ledgerData.getLedgerHandle().readEntries(finalFirstEntryId, lastEntryId));
+            });
+            while (enumeration.get().hasMoreElements()) {
+                LedgerEntry entry = enumeration.get().nextElement();
 
                 InputStream stream = entry.getEntryInputStream();
                 if (stream.available() <= currentOffset) {
@@ -622,13 +629,13 @@ class LogStorageManager {
             throw new CompletionException(e);
         }
 
-        try {
-            lh.addEntry(bytes, 0, length);
-        } catch (BKException e) {
-            throw new CompletionException(translateBKException(e, segmentName));
-        } catch (InterruptedException e) {
-            throw new CompletionException(e);
-        }
+        Exceptions.handleInterrupted(() -> {
+            try {
+                lh.addEntry(bytes, 0, length);
+            } catch (BKException e) {
+                throw new CompletionException(translateBKException(e, segmentName));
+            }
+        });
     }
 
     private List<CuratorOp> getZKOperationsForConcat(String segmentName, String sourceSegment, long offset) throws Exception {
