@@ -166,10 +166,12 @@ class LogStorageManager {
     public void initialize(long containerEpoch) {
         this.containerEpoch = containerEpoch;
         int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        int readTimeout = (int) Math.ceil(this.config.getBkReadTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
                 .setClientTcpNoDelay(true)
                 .setAddEntryTimeout(entryTimeout)
+                .setReadEntryTimeout(readTimeout)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
         if (this.config.getBkLedgerPath().isEmpty()) {

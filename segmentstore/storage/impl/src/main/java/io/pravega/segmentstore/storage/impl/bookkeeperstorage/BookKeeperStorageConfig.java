@@ -34,6 +34,7 @@ public class BookKeeperStorageConfig {
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 5000);
     public static final Property<Integer> BK_READ_AHEAD_COUNT = Property.named("bkReadAheadCount", 10);
 
     public static final String COMPONENT_CODE = "bookkeeperstorage";
@@ -99,9 +100,14 @@ public class BookKeeperStorageConfig {
     private final int bkReadAheadCount;
 
     private final byte[] bkPassword;
+    /**
+     * The Read Timeout (BookKeeper client), in milliseconds.
+     */
+    @Getter
+    private final int bkReadTimeoutMillis;
 
     /**
-     * Creates a new instance of the BookKeeperConfig class.
+     * Creates a new instance of the BookKeeperStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */
@@ -121,6 +127,7 @@ public class BookKeeperStorageConfig {
         }
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+        this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
         this.bkReadAheadCount = properties.getInt(BK_READ_AHEAD_COUNT);
     }
 
