@@ -155,7 +155,7 @@ public class BatchClientTest {
         List<String> batchEventList = new ArrayList<>();
         segments.forEach(segInfo -> {
             @Cleanup
-            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo.getSegment(), new JavaSerializer<String>());
+            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo.getSegment(), serializer);
             batchEventList.addAll(Lists.newArrayList(segmentIterator));
         });
         assertEquals("Event count", 9, batchEventList.size());
@@ -163,7 +163,7 @@ public class BatchClientTest {
         //read from a given offset.
         Segment seg0 = new Segment(SCOPE, STREAM, 0);
         @Cleanup
-        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0, new JavaSerializer<String>(), 60);
+        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0, serializer, 60);
         ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);
         assertEquals(1, dataAtOffset.size());
         assertEquals(DATA_OF_SIZE_30, dataAtOffset.get(0));
