@@ -21,6 +21,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
+import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -199,12 +200,14 @@ class BookKeeperLog implements DurableDataLog {
      * @param timeout Timeout for the operation.
      * @throws DataLogWriterNotPrimaryException If we were fenced-out during this process.
      * @throws DataLogNotAvailableException     If BookKeeper or ZooKeeper are not available.
+     * @throws DataLogDisabledException         If the BookKeeperLog is disabled. No fencing is attempted in this case.
      * @throws DataLogInitializationException   If a general initialization error occurred.
      * @throws DurableDataLogException          If another type of exception occurred.
      */
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
         List<Long> ledgersToDelete;
+        LogMetadata newMetadata;
         synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized.");
             assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
@@ -213,6 +216,10 @@ class BookKeeperLog implements DurableDataLog {
             LogMetadata oldMetadata = loadMetadata();
 
             if (oldMetadata != null) {
+                if (!oldMetadata.isEnabled()) {
+                    throw new DataLogDisabledException("BookKeeperLog is disabled. Cannot initialize.");
+                }
+
                 // Fence out ledgers.
                 val emptyLedgerIds = Ledgers.fenceOut(oldMetadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
 
@@ -225,7 +232,7 @@ class BookKeeperLog implements DurableDataLog {
             log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update Metadata with new Ledger and persist to ZooKeeper.
-            LogMetadata newMetadata = updateMetadata(oldMetadata, newLedger, true);
+            newMetadata = updateMetadata(oldMetadata, newLedger, true);
             LedgerMetadata ledgerMetadata = newMetadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
@@ -244,7 +251,41 @@ class BookKeeperLog implements DurableDataLog {
                 log.warn("{}: Unable to delete orphan empty ledger {}.", this.traceObjectId, id, ex);
             }
         });
-        log.info("{}: Initialized.", this.traceObjectId);
+        log.info("{}: Initialized (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, newMetadata.getEpoch(), newMetadata.getUpdateVersion());
+    }
+
+    @Override
+    public void enable() throws DurableDataLogException {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        synchronized (this.lock) {
+            Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized; cannot re-enable.");
+            assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
+
+            // Load existing metadata. Inexistent metadata means the BookKeeperLog has never been accessed, and therefore
+            // enabled by default.
+            LogMetadata metadata = loadMetadata();
+            Preconditions.checkState(metadata != null && !metadata.isEnabled(), "BookKeeperLog is already enabled.");
+            metadata = metadata.asEnabled();
+            persistMetadata(metadata, false);
+            log.info("{}: Enabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+    }
+
+    @Override
+    public void disable() throws DurableDataLogException {
+        // Get the current metadata, disable it, and then persist it back.
+        synchronized (this.lock) {
+            ensurePreconditions();
+            LogMetadata metadata = getLogMetadata();
+            Preconditions.checkState(metadata.isEnabled(), "BookKeeperLog is already disabled.");
+            metadata = this.logMetadata.asDisabled();
+            persistMetadata(metadata, false);
+            this.logMetadata = metadata;
+            log.info("{}: Disabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+
+        // Close this instance of the BookKeeperLog. This ensures the proper cancellation of any ongoing writes.
+        close();
     }
 
     @Override
