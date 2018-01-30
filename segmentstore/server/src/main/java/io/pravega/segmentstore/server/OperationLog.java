@@ -57,5 +57,14 @@ public interface OperationLog extends Container {
      * point will have completed (normally or exceptionally).
      */
     CompletableFuture<Void> operationProcessingBarrier(Duration timeout);
+
+    /**
+     * Waits until the OperationLog enters an Online State.
+     *
+     * @return A CompletableFuture that, when completed, will indicate that the OperationLog is Online. If the OperationLog
+     * is already Online, this Future will be already completed when returned. If the OperationLog encounters an exception
+     * while attempting to start (including it shutting down), this Future will be completed with the appropriate exception.
+     */
+    CompletableFuture<Void> awaitOnline();
 }
 
