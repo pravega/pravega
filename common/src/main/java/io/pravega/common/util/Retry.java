@@ -377,7 +377,7 @@ public final class Retry {
             long delay = params.initialMillis;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 r.run();
-                if (this.condition.get()) {
+                if (!this.condition.get()) {
                     // We're done.
                     return;
                 }

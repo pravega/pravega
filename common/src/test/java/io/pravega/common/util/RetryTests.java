@@ -260,7 +260,7 @@ public class RetryTests {
         AtomicInteger i = new AtomicInteger(0);
         try {
             Retry.withExpBackoff(10, 2, 10, 10)
-                    .retryWhile(() -> false)
+                    .retryWhile(() -> true)
                     .run(i::incrementAndGet);
             Assert.fail("Expected to have failed when exceeding max number of runs.");
         } catch (RetriesExhaustedException ex) {
@@ -270,7 +270,7 @@ public class RetryTests {
         // Condition becomes true.
         i.set(0);
         Retry.withExpBackoff(10, 2, 10, 10)
-                .retryWhile(() -> i.get() >= 5)
+                .retryWhile(() -> i.get() < 5)
                 .run(i::incrementAndGet);
         Assert.assertEquals("Unexpected number of runs.", 5, i.get());
     }

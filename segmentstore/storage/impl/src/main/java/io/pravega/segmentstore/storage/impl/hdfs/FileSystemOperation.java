@@ -399,7 +399,7 @@ abstract class FileSystemOperation<T> {
         // However, there may have been an ongoing write to this file, which, by design, is not interrupted. Wait for
         // such a write to complete (up to a max amount of time) before moving on.
         try {
-            MAKE_READONLY_RETRY.retryWhile(() -> !isWriteInProgress(file))
+            MAKE_READONLY_RETRY.retryWhile(() -> isWriteInProgress(file))
                     .run(() -> log.debug("MakeReadOnly '{}': Waiting for write in progress.", file.getPath()));
         } catch (RetriesExhaustedException ex) {
             // Even if we exhausted all of our retries, do not consider this as a failure. In the end, the file is marked
