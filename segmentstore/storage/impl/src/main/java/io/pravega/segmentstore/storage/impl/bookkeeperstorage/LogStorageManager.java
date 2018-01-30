@@ -91,11 +91,7 @@ class LogStorageManager {
             synchronized (this) {
                 ledgers.put(streamSegmentName, logStorage);
             }
-            LedgerData data = createLedgerAt(streamSegmentName, 0);
-            /** Add the ledger to the local cache.*/
-            synchronized (this) {
-                this.ledgers.get(streamSegmentName).addToList(0, data);
-            }
+            LedgerData data = logStorage.getLedgerDataForWriteAt(0);
             return data;
         } catch (Exception exc) {
             throw translateZKException(streamSegmentName, exc);
@@ -257,11 +253,7 @@ class LogStorageManager {
         }
         /* Get the last ledger where data can be appended. */
         LedgerData ledgerData = null;
-        try {
-            ledgerData = getORCreateLHForOffset(ledger, offset);
-        } catch (BadOffsetException e) {
-            throw new CompletionException(e);
-        }
+        ledgerData = getORCreateLHForOffset(ledger, offset);
         writeDataAt(ledgerData.getLedgerHandle(), offset, data, length, segmentName);
         /* Update lengths in the cache. The lengths are not persisted. */
         ledgerData.increaseLengthBy(length);

@@ -55,11 +55,7 @@ class LogStorage {
         this.manager = logStorageManager;
         this.dataMap = new ConcurrentSkipListMap<>();
         this.name = streamSegmentName;
-        if ( sealed == 1) {
-            this.sealed = true;
-        } else {
-            this.sealed = false;
-        }
+        this.sealed = sealed == 1;
         this.containerEpoch = containerEpoch;
         this.updateVersion = updateVersion;
         lastModified = new ImmutableDate();

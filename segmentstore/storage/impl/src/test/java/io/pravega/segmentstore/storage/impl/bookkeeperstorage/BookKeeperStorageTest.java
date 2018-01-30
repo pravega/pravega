@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
+import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -159,8 +161,33 @@ public class BookKeeperStorageTest extends StorageTestBase {
         storage.delete(concatHandle, TIMEOUT).join();
     }
 
+    @Test
+    public void getLedgerDataForWriteAt() throws StreamSegmentException {
+        LogStorageManager manager = new LogStorageManager(bookKeeperStorageConfig, zkClient);
+        manager.initialize(0);
+        manager.create("name");
+
+        LogStorage storage = new LogStorage(manager, "name", 0, 1, 1);
+
+        AssertExtensions.assertThrows("LogStorage should throw exception at wrong offset",
+                () -> storage.getLedgerDataForWriteAt(10),
+                exc -> exc instanceof BadOffsetException);
+    }
     @Override
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new BookKeeperStorage(bookKeeperStorageConfig, zkClient), executorService());
+    }
+
+    @Test
+    public void unSupportedOps() {
+        final String segmentName = "segment";
+        try (val storage1 = new BookKeeperStorage(bookKeeperStorageConfig, zkClient)) {
+            AssertExtensions.assertThrows("",
+                    () -> storage1.unseal(BookKeeperSegmentHandle.readHandle("temp")),
+                    exc -> exc instanceof UnsupportedOperationException);
+            AssertExtensions.assertThrows("",
+                    () -> storage1.truncate(BookKeeperSegmentHandle.readHandle("temp"), 0),
+                    exc -> exc instanceof UnsupportedOperationException);
+        }
     }
 }
