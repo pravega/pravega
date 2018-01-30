@@ -173,6 +173,7 @@ public class BookKeeperStorageTest extends StorageTestBase {
                 () -> storage.getLedgerDataForWriteAt(10),
                 exc -> exc instanceof BadOffsetException);
     }
+
     @Override
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new BookKeeperStorage(bookKeeperStorageConfig, zkClient), executorService());
