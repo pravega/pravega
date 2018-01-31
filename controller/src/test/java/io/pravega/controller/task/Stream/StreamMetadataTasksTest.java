@@ -684,8 +684,7 @@ public class StreamMetadataTasksTest {
                 anyString(), anyString(), any());
 
         // verify no new truncation.. streamcut5 should be chosen but discarded because it is not strictly-ahead-of-truncationRecord
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null).join());
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null).join();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
 

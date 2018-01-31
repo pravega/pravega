@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -230,6 +231,15 @@ public class StreamMetadataTasks extends TaskBase {
                                 return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
                             } else {
                                 throw new RuntimeException("Could not start truncation");
+                            }
+                        })
+                        .exceptionally(e -> {
+                            if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                log.debug("Cannot truncate at given streamCut because it intersects with existing truncation point");
+                                return null;
+                            } else {
+                                throw new CompletionException(e);
                             }
                         })
                 ).orElse(CompletableFuture.completedFuture(null));
