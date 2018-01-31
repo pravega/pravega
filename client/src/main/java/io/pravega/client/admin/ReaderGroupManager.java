@@ -17,13 +17,25 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
+import java.net.URI;
 import java.util.Set;
 
 /**
  * Used to create and manage reader groups.
  */
 public interface ReaderGroupManager extends AutoCloseable {
-    
+
+    /**
+     * Creates a new instance of ReaderGroupManager.
+     *
+     * @param scope The Scope string.
+     * @param controllerUri The Controller URI.
+     * @return Instance of Stream Manager implementation.
+     */
+    public static ReaderGroupManager withScope(String scope, URI controllerUri) {
+        return withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
+    }
+
     /**
      * Creates a new instance of ReaderGroupManager.
      *
