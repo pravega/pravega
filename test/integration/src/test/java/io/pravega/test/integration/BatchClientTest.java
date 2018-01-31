@@ -39,8 +39,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -62,6 +64,7 @@ public class BatchClientTest {
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
+    private final Random random = new Random();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -105,7 +108,7 @@ public class BatchClientTest {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope(SCOPE)
                                                         .streamName(STREAM)
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
 
         Controller controller = controllerWrapper.getController();
@@ -134,7 +137,7 @@ public class BatchClientTest {
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
-        assertTrue("scale up operation", result);
+        assertTrue("Scale up operation", result);
         writeEvents(writer);
 
         //scale down and write events.
@@ -142,14 +145,14 @@ public class BatchClientTest {
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
         result = controller.scaleStream(stream, Arrays.asList(1, 2, 3), map, executor).getFuture().get();
-        assertTrue("scale down operation result", result);
+        assertTrue("Scale down operation result", result);
         writeEvents(writer);
 
         BatchClient batchClient = clientFactory.createBatchClient();
 
         //List out all the segments in the stream.
         ArrayList<SegmentInfo> segments = Lists.newArrayList(batchClient.listSegments(stream));
-        assertEquals("Excepted number of segments", 6, segments.size());
+        assertEquals("Expected number of segments", 6, segments.size());
 
         //Batch read all events from stream.
         List<String> batchEventList = new ArrayList<>();
@@ -170,8 +173,9 @@ public class BatchClientTest {
     }
 
     private void writeEvents(EventStreamWriter<String> writer) throws InterruptedException, java.util.concurrent.ExecutionException {
-        writer.writeEvent("0", DATA_OF_SIZE_30).get();
-        writer.writeEvent("1", DATA_OF_SIZE_30).get();
-        writer.writeEvent("100", DATA_OF_SIZE_30).get();
+        Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
+        writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).get();
+        writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).get();
+        writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).get();
     }
 }
