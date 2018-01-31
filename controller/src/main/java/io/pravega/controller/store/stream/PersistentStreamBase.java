@@ -902,7 +902,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Long> getSizeTill(Map<Integer, Long> streamCut) {
+    public CompletableFuture<Long> getSizeTillStreamCut(Map<Integer, Long> streamCut) {
         return getSegmentTable()
                 .thenCompose(segmentTable -> getHistoryTable()
                         .thenCompose(historyTable -> getIndexTable()

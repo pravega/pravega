@@ -843,6 +843,6 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A CompletableFuture which, when completed, will contain size of stream till given streamCut.
      */
-    CompletableFuture<Long> getSizeTill(final String scope, final String stream, final Map<Integer, Long> streamCut,
-                                        final OperationContext context, final ScheduledExecutorService executor);
+    CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Integer, Long> streamCut,
+                                                 final OperationContext context, final ScheduledExecutorService executor);
 }

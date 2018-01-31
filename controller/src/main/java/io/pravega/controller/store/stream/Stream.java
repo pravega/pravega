@@ -368,7 +368,7 @@ interface Stream {
      * @param streamCut stream cut
      * @return A CompletableFuture, that when completed, will contain size of stream till given cut.
      */
-    CompletableFuture<Long> getSizeTill(Map<Integer, Long> streamCut);
+    CompletableFuture<Long> getSizeTillStreamCut(Map<Integer, Long> streamCut);
 
     /**
      *Add a new Stream cut to retention set.

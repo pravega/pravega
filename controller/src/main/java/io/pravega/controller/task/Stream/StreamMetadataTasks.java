@@ -244,12 +244,11 @@ public class StreamMetadataTasks extends TaskBase {
             case SIZE:
                 // find a stream cut record Si from retentionSet R = {S1.. Sn} such that Sn.size - Si.size > policy and
                 // Sn.size - Si+1.size < policy
-                Comparator<StreamCutRecord> streamCutRecordComparator = (x, y) -> Long.compare(x.getRecordingTime(), y.getRecordingSize());
                 Optional<StreamCutRecord> latestOpt = Optional.ofNullable(newRecord);
 
                 return latestOpt.flatMap(latest ->
                         retentionSet.stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionParam())
-                                .max(streamCutRecordComparator));
+                                .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)));
             default:
                 throw new NotImplementedException("Size based retention");
         }
@@ -274,7 +273,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber())))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
-                    return streamMetadataStore.getSizeTill(scope, stream, map, context, executor)
+                    return streamMetadataStore.getSizeTillStreamCut(scope, stream, map, context, executor)
                             .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, ImmutableMap.copyOf(map)));
                 });
     }

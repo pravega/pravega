@@ -734,39 +734,47 @@ public abstract class StreamMetadataStoreTest {
         List<String> streams = store.getStreamsForBucket(0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 
+        // region Size Computation on stream cuts on epoch 0
         Map<Integer, Long> map1 = new HashMap<>();
         map1.put(0, 10L);
         map1.put(1, 10L);
+
+        Long size = store.getSizeTillStreamCut(scope, stream, map1, null, executor).join();
+        assertTrue(size == 20L);
+
         long recordingTime = System.currentTimeMillis();
-        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, 20L, map1);
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, size, map1);
         store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
 
         Map<Integer, Long> map2 = new HashMap<>();
         map2.put(0, 20L);
         map2.put(1, 20L);
-        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, 40L, map2);
+        size = store.getSizeTillStreamCut(scope, stream, map2, null, executor).join();
+        assertTrue(size == 40L);
+
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, size, map2);
         store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
 
         Map<Integer, Long> map3 = new HashMap<>();
         map3.put(0, 30L);
         map3.put(1, 30L);
+
+        size = store.getSizeTillStreamCut(scope, stream, map3, null, executor).join();
+        assertTrue(size == 60L);
         StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, 60L, map3);
         store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
 
-        Long size = store.getSizeTill(scope, stream, streamCut1.streamCut, null, executor).join();
-        assertTrue(size == 20L);
-        size = store.getSizeTill(scope, stream, streamCut2.streamCut, null, executor).join();
-        assertTrue(size == 40L);
-        size = store.getSizeTill(scope, stream, streamCut3.streamCut, null, executor).join();
-        assertTrue(size == 60L);
+        // endregion
+
+        // region Size Computation on multiple epochs
 
         long scaleTs = System.currentTimeMillis();
-        SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.0, 0.5);
-        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 1.0);
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.0, 0.5);
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.5, 1.0);
         List<Integer> scale1SealedSegments = Lists.newArrayList(0, 1);
 
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
-                Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+                Arrays.asList(segment2, segment3), scaleTs, false, null, executor).join();
         final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
         store.setState(scope, stream, State.SCALING, null, executor).get();
         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
@@ -774,15 +782,25 @@ public abstract class StreamMetadataStoreTest {
         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 40L)),
                 scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
 
+        // complex stream cut - across two epochs
         Map<Integer, Long> map4 = new HashMap<>();
-        map4.put(2, 10L);
+        map4.put(0, 40L);
         map4.put(3, 10L);
-        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, 20L, map4);
+        size = store.getSizeTillStreamCut(scope, stream, map4, null, executor).join();
+        assertTrue(size == 90L);
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, map4);
         store.addStreamCutToRetentionSet(scope, stream, streamCut4, null, executor).get();
 
-        size = store.getSizeTill(scope, stream, streamCut4.streamCut, null, executor).join();
-        assertTrue(size == 100L);
-    }
+        // simple stream cut on epoch 2
+        Map<Integer, Long> map5 = new HashMap<>();
+        map5.put(2, 10L);
+        map5.put(3, 10L);
 
+        size = store.getSizeTillStreamCut(scope, stream, map5, null, executor).join();
+        assertTrue(size == 100L);
+        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, map5);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
+        // endregion
+    }
 }
 

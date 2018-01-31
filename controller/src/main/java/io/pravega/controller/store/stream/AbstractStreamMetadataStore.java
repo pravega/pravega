@@ -488,10 +488,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Long> getSizeTill(final String scope, final String name, final Map<Integer, Long> streamCut,
-                                        final OperationContext context, final ScheduledExecutorService executor) {
+    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Integer, Long> streamCut,
+                                                        final OperationContext context, final ScheduledExecutorService executor) {
         Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getSizeTill(streamCut), executor);
+        return withCompletion(stream.getSizeTillStreamCut(streamCut), executor);
     }
 
     @Override
