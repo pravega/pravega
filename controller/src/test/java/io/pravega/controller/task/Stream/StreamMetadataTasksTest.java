@@ -620,7 +620,7 @@ public class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
         assertFalse(truncProp.isUpdating());
-        //endregion
+        // endregion
 
         // region test retention with external manual truncation
         // scale2 -->  split segment 2 to 4 and 5. Sealed size for segment 2 = 50
@@ -731,7 +731,7 @@ public class StreamMetadataTasksTest {
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
         assertFalse(truncProp.isUpdating());
         // endregion
-        //endregion
+        // endregion
     }
 
     private void scale(String scope, String stream, Map<Integer, Long> sealedSegmentsWithSize,
