@@ -29,6 +29,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import java.net.URI;
 import lombok.val;
 
 /**
@@ -52,6 +53,17 @@ import lombok.val;
  * messages between them is by giving different segments to different readers.
  */
 public interface ClientFactory extends AutoCloseable {
+
+    /**
+     * Creates a new instance of Client Factory.
+     *
+     * @param scope The scope string.
+     * @param controllerUri The URI for controller.
+     * @return Instance of ClientFactory implementation.
+     */
+    static ClientFactory withScope(String scope, URI controllerUri) {
+        return withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
+    }
 
     /**
      * Creates a new instance of Client Factory.
