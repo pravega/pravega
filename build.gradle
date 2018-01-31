@@ -743,7 +743,7 @@ class DockerPushTask extends Exec {
 
     String getRemoteTag() {
         if (project.hasProperty('dockerRegistry')) {
-            return "${project.property('dockerRegistry')}/${tag}:${version}"
+            return "${project.property('dockerRegistry')}/${tag}:${project.version}"
         }
         else {
             return tag
