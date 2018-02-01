@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.util.EnumHelpers;
 import io.pravega.segmentstore.server.LogItemFactory;
-import io.pravega.segmentstore.server.logs.SerializationException;
+import io.pravega.common.io.SerializationException;
 import java.io.DataInputStream;
 import java.io.InputStream;
 
@@ -27,7 +27,7 @@ public class OperationFactory implements LogItemFactory<Operation> {
         Operation.OperationHeader header = new Operation.OperationHeader(source);
         OperationType operationType = MAPPING[header.operationType];
         if (operationType == null) {
-            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.", header.operationType));
+            throw new SerializationException(String.format("Invalid Operation Type %d.", header.operationType));
         }
 
         return operationType.getDeserializationConstructor().apply(header, source);

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.server.LogItem;
 import java.io.DataInputStream;
@@ -48,7 +49,7 @@ class TestLogItem implements LogItem {
             assert readBytes == this.data.length
                     : "SeqNo " + this.sequenceNumber + ": expected to read " + this.data.length + " bytes, but read " + readBytes;
         } catch (IOException ex) {
-            throw new SerializationException("TestLogItem.deserialize", ex.getMessage(), ex);
+            throw new SerializationException(ex.getMessage(), ex);
         }
 
         this.failAfterCompleteRatio = -1;

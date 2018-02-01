@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.server.DataCorruptionException;

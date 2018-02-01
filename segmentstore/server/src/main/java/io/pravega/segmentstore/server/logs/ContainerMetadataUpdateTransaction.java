@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -430,7 +431,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 // the Metadata, both the base Container Metadata and the current Transaction.
                 serializeTo(operation);
             }
-        } catch (IOException | SerializationException ex) {
+        } catch (IOException ex) {
             throw new MetadataUpdateException(this.containerId, "Unable to process MetadataCheckpointOperation " + operation, ex);
         }
     }
@@ -442,7 +443,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             } else {
                 serializeTo(operation);
             }
-        } catch (IOException | SerializationException ex) {
+        } catch (IOException ex) {
             throw new MetadataUpdateException(this.containerId, "Unable to process StorageMetadataCheckpointOperation " + operation, ex);
         }
     }
@@ -659,14 +660,13 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // 1. Version.
         byte version = stream.readByte();
         if (version != CURRENT_SERIALIZATION_VERSION) {
-            throw new SerializationException("Metadata.deserialize", String.format("Unsupported version: %d.", version));
+            throw new SerializationException(String.format("Unsupported version: %d.", version));
         }
 
         // 2. Container id.
         int containerId = stream.readInt();
         if (this.containerId != containerId) {
-            throw new SerializationException("Metadata.deserialize",
-                    String.format("Invalid ContainerId. Expected '%d', actual '%d'.", this.containerId, containerId));
+            throw new SerializationException(String.format("Invalid ContainerId. Expected '%d', actual '%d'.", this.containerId, containerId));
         }
 
         // This is not retrieved from serialization, but rather from the operation itself.
@@ -707,7 +707,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // 1. Version.
         byte version = stream.readByte();
         if (version != CURRENT_SERIALIZATION_VERSION) {
-            throw new SerializationException("Metadata.updateFrom", String.format("Unsupported version: %d.", version));
+            throw new SerializationException(String.format("Unsupported version: %d.", version));
         }
 
         // 2. Segments

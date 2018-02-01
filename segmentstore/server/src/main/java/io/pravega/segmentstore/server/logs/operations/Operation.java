@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.LogItem;
-import io.pravega.segmentstore.server.logs.SerializationException;
+import io.pravega.common.io.SerializationException;
 import com.google.common.base.Preconditions;
 
 import java.io.DataInputStream;
@@ -141,13 +141,13 @@ public abstract class Operation implements LogItem {
     private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
         byte expectedOperationType = getOperationType().type;
         if (header.operationType != expectedOperationType) {
-            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
+            throw new SerializationException(String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
         }
 
         try {
             deserializeContent(source);
         } catch (IOException ex) {
-            throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
+            throw new SerializationException("Unable to read from the InputStream.", ex);
         }
     }
 
@@ -162,7 +162,7 @@ public abstract class Operation implements LogItem {
     void readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
         byte version = source.readByte();
         if (version != expectedVersion) {
-            throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String.format("Unsupported version: %d.", version));
+            throw new SerializationException(String.format("Unsupported version: %d.", version));
         }
     }
 
@@ -238,10 +238,10 @@ public abstract class Operation implements LogItem {
                     this.operationType = source.readByte();
                     this.sequenceNumber = source.readLong();
                 } else {
-                    throw new SerializationException("OperationHeader.deserialize", String.format("Unsupported version: %d.", headerVersion));
+                    throw new SerializationException(String.format("Unsupported version: %d.", headerVersion));
                 }
             } catch (IOException ex) {
-                throw new SerializationException("OperationHeader.deserialize", "Unable to deserialize Operation Header", ex);
+                throw new SerializationException("Unable to deserialize Operation Header", ex);
             }
         }
 

@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.logs.SerializationException;
+import io.pravega.common.io.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.test.common.ErrorInjector;
 

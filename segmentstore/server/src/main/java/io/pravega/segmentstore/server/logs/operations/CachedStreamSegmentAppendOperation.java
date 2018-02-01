@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.server.logs.SerializationException;
+import io.pravega.common.io.SerializationException;
 import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;

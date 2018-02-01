@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
@@ -326,7 +327,7 @@ public class DataFrame {
 
         // Check to see that we have enough bytes in the array.
         if (this.data.getLength() < this.header.getSerializationLength() + this.header.getContentLength()) {
-            throw new SerializationException("DataFrame.deserialize", String.format("Given buffer has insufficient number of bytes for this DataFrame. Expected %d, actual %d.", this.header.getSerializationLength() + this.header.getContentLength(), this.contents.getLength()));
+            throw new SerializationException(String.format("Given buffer has insufficient number of bytes for this DataFrame. Expected %d, actual %d.", this.header.getSerializationLength() + this.header.getContentLength(), this.contents.getLength()));
         }
 
         if (this.header.getContentLength() == 0) {
@@ -495,7 +496,7 @@ public class DataFrame {
          */
         FrameHeader(ByteArraySegment source) throws SerializationException {
             if (source == null || source.getLength() == 0) {
-                throw new SerializationException("DataFrame.Header.deserialize", "Null or empty source buffer.");
+                throw new SerializationException("Null or empty source buffer.");
             }
 
             int sourceOffset = 0;
@@ -503,7 +504,7 @@ public class DataFrame {
             sourceOffset += Byte.BYTES;
             this.serializationLength = SERIALIZATION_LENGTH; // This will change based on serialization version.
             if (source.getLength() < this.serializationLength) {
-                throw new SerializationException("DataFrame.Header.deserialize", "DataFrame.Header has insufficient number of bytes given its serialization version.");
+                throw new SerializationException("DataFrame.Header has insufficient number of bytes given its serialization version.");
             }
 
             this.contentLength = readInt(source, sourceOffset);
@@ -645,7 +646,7 @@ public class DataFrame {
 
             // Integrity check. This means that we have a corrupt frame.
             if (this.currentPosition + EntryHeader.HEADER_SIZE > this.maxLength) {
-                throw new SerializationException("DataFrame.deserialize", String.format("Data Frame is corrupt. Expected Entry Header at position %d but it does not fit in Frame's length of %d.", this.currentPosition, this.maxLength));
+                throw new SerializationException(String.format("Data Frame is corrupt. Expected Entry Header at position %d but it does not fit in Frame's length of %d.", this.currentPosition, this.maxLength));
             }
 
             // Determine the length of the next record && advance the position by the appropriate amount of bytes.
@@ -654,7 +655,7 @@ public class DataFrame {
 
             // Integrity check. This means that we have a corrupt frame.
             if (this.currentPosition + header.getEntryLength() > this.maxLength) {
-                throw new SerializationException("DataFrame.deserialize", String.format("Data Frame is corrupt. Found Entry Length %d at position %d which is outside of the Frame's length of %d.", header.getEntryLength(), this.currentPosition - EntryHeader.HEADER_SIZE, this.maxLength));
+                throw new SerializationException(String.format("Data Frame is corrupt. Found Entry Length %d at position %d which is outside of the Frame's length of %d.", header.getEntryLength(), this.currentPosition - EntryHeader.HEADER_SIZE, this.maxLength));
             }
 
             // Get the result contents && advance the positions.
