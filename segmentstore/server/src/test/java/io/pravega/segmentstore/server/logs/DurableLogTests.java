@@ -823,6 +823,14 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
+                        if (ex == null) {
+                            try {
+                                durableLog.awaitTerminated(); // We need this to enter a FAILED state to get its failure cause.
+                            } catch (Exception ex2) {
+                                ex = durableLog.failureCause();
+                            }
+                        }
+
                         ex = Exceptions.unwrap(ex);
                         return ex instanceof DataLogNotAvailableException && ex.getMessage().equals("intentional");
                     });

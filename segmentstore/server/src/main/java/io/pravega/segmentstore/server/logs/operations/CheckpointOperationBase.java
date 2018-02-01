@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -36,7 +35,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
         super();
     }
 
-    protected CheckpointOperationBase(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected CheckpointOperationBase(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -75,7 +74,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         int contentsLength = source.readInt();
         this.contents = new ByteArraySegment(new byte[contentsLength]);

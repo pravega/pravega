@@ -9,15 +9,13 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.server.logs.SerializationException;
-import io.pravega.segmentstore.server.AttributeSerializer;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.server.AttributeSerializer;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
-
 import lombok.Getter;
 
 /**
@@ -50,7 +48,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Segm
         this.attributeUpdates = attributeUpdates;
     }
 
-    protected UpdateAttributesOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected UpdateAttributesOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -71,7 +69,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Segm
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.attributeUpdates = AttributeSerializer.deserializeUpdates(source);
