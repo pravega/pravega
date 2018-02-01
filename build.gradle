@@ -212,6 +212,7 @@ project('segmentstore:storage:impl') {
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
     }
 }
 
