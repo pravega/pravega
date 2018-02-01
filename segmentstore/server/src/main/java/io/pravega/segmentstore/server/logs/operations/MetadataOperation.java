@@ -9,9 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-
 import java.io.DataInputStream;
+import java.io.IOException;
 
 /**
  * Log Operation that deals with Metadata Operations. This is generally an internal-only operation and is not necessarily
@@ -27,7 +26,7 @@ public abstract class MetadataOperation extends Operation {
         super();
     }
 
-    MetadataOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    MetadataOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
