@@ -652,7 +652,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      * @throws SerializationException If the given Stream is an invalid metadata serialization.
      * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
      */
-    private void deserializeFrom(MetadataCheckpointOperation operation) throws IOException, SerializationException {
+    private void deserializeFrom(MetadataCheckpointOperation operation) throws IOException {
         Preconditions.checkState(this.recoveryMode, "Cannot deserialize Metadata in non-recovery mode.");
 
         DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
@@ -699,7 +699,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      * @throws SerializationException If the given Stream is an invalid metadata serialization.
      * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
      */
-    private void updateFrom(StorageMetadataCheckpointOperation operation) throws IOException, SerializationException, MetadataUpdateException {
+    private void updateFrom(StorageMetadataCheckpointOperation operation) throws IOException, MetadataUpdateException {
         Preconditions.checkState(this.recoveryMode, "Cannot bulk-update Metadata in non-recovery mode.");
 
         DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));

@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.LinkedList;
@@ -111,7 +112,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
                     this.lastReadSequenceNumber = seqNo;
                     return new ReadResult<>(logItem, segments);
-                } catch (SerializationException ex) {
+                } catch (IOException ex) {
                     throw new DataCorruptionException("Deserialization failed.", ex);
                 }
                 // Any other exceptions are considered to be non-DataCorruption.

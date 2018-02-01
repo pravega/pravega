@@ -10,8 +10,6 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.SerializationException;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -39,7 +37,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
         this.streamSegmentOffset = -1;
     }
 
-    protected StreamSegmentSealOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected StreamSegmentSealOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -85,7 +83,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
@@ -93,10 +91,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Length = %s",
-                super.toString(),
-                toString(this.streamSegmentOffset, -1));
+        return String.format("%s, Length = %s", super.toString(), toString(this.streamSegmentOffset, -1));
     }
 
     //endregion

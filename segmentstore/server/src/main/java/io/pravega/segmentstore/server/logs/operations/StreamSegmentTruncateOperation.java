@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -48,7 +47,7 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
         this.streamSegmentOffset = offset;
     }
 
-    protected StreamSegmentTruncateOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected StreamSegmentTruncateOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -74,7 +73,7 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.streamSegmentOffset = source.readLong();

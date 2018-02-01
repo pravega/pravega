@@ -9,10 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.EnumHelpers;
 import io.pravega.segmentstore.server.LogItemFactory;
-import io.pravega.common.io.SerializationException;
 import java.io.DataInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -22,7 +23,7 @@ public class OperationFactory implements LogItemFactory<Operation> {
     private static final OperationType[] MAPPING = EnumHelpers.indexById(OperationType.class, OperationType::getType);
 
     @Override
-    public Operation deserialize(InputStream input) throws SerializationException {
+    public Operation deserialize(InputStream input) throws IOException {
         DataInputStream source = new DataInputStream(input);
         Operation.OperationHeader header = new Operation.OperationHeader(source);
         OperationType operationType = MAPPING[header.operationType];

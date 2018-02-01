@@ -93,7 +93,7 @@ public class DataFrame {
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    static DataFrame from(InputStream source, int length) throws IOException, SerializationException {
+    static DataFrame from(InputStream source, int length) throws IOException {
         ByteArraySegment s = new ByteArraySegment(StreamHelpers.readAll(source, length), 0, length, true);
         DataFrame f = new DataFrame(s);
         f.parse();
