@@ -9,8 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-
+import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -22,7 +21,7 @@ public interface LogItemFactory<T extends LogItem> {
      *
      * @param input The InputStream to deserialize from.
      * @return The deserialized LogItem.
-     * @throws SerializationException If the LogItem could not be deserialized.
+     * @throws IOException If the LogItem could not be deserialized (SerializationException) or if an IOException occurred.
      */
-    T deserialize(InputStream input) throws SerializationException;
+    T deserialize(InputStream input) throws IOException;
 }

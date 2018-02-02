@@ -31,9 +31,15 @@ class LogMetadata {
 
     /**
      * Version 0: Base.
-     * Version 1: Added LedgerMetadata.Status.
+     * Version 1: Added LedgerMetadata.Status and Flags.
      */
     private static final byte SERIALIZATION_VERSION = 1;
+
+    /**
+     * Bit mask to store the Enabled flag into an Integer value.
+     */
+    private static final int ENABLED_MASK = 1;
+
     /**
      * The initial epoch to use for the Log.
      */
@@ -63,6 +69,12 @@ class LogMetadata {
     private final long epoch;
 
     /**
+     * Whether the Log described by this LogMetadata is enabled or not.
+     */
+    @Getter
+    private final boolean enabled;
+
+    /**
      * An ordered list of LedgerMetadata instances that represent the ledgers in the log.
      */
     @Getter
@@ -85,23 +97,27 @@ class LogMetadata {
      * @param initialLedgerId The Id of the Ledger to start the log with.
      */
     LogMetadata(long initialLedgerId) {
-        this(INITIAL_EPOCH, Collections.singletonList(new LedgerMetadata(initialLedgerId, INITIAL_LEDGER_SEQUENCE)), INITIAL_TRUNCATION_ADDRESS);
+        this(INITIAL_EPOCH, true, Collections.singletonList(new LedgerMetadata(initialLedgerId, INITIAL_LEDGER_SEQUENCE)),
+                INITIAL_TRUNCATION_ADDRESS, INITIAL_VERSION);
     }
 
     /**
      * Creates a new instance of the LogMetadata class.
      *
      * @param epoch             The current Log epoch.
+     * @param enabled           Whether this Log is enabled or not.
      * @param ledgers           The ordered list of Ledger Ids making up this log.
      * @param truncationAddress The truncation address for this log. This is the address of the last entry that has been
      *                          truncated out of the log.
+     * @param updateVersion     The Update version to set on this instance.
      */
-    private LogMetadata(long epoch, List<LedgerMetadata> ledgers, LedgerAddress truncationAddress) {
+    private LogMetadata(long epoch, boolean enabled, List<LedgerMetadata> ledgers, LedgerAddress truncationAddress, int updateVersion) {
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number");
         this.epoch = epoch;
+        this.enabled = enabled;
         this.ledgers = Preconditions.checkNotNull(ledgers, "ledgers");
         this.truncationAddress = Preconditions.checkNotNull(truncationAddress, "truncationAddress");
-        this.updateVersion = new AtomicInteger(INITIAL_VERSION);
+        this.updateVersion = new AtomicInteger(updateVersion);
     }
 
     //endregion
@@ -115,6 +131,8 @@ class LogMetadata {
      * @return A new instance of the LogMetadata class.
      */
     LogMetadata addLedger(long ledgerId) {
+        Preconditions.checkState(this.enabled, "Log is not enabled. Cannot perform any modifications on it.");
+
         // Copy existing ledgers.
         List<LedgerMetadata> newLedgers = new ArrayList<>(this.ledgers.size() + 1);
         newLedgers.addAll(this.ledgers);
@@ -122,8 +140,7 @@ class LogMetadata {
         // Create and add metadata for the new ledger.
         int sequence = this.ledgers.size() == 0 ? INITIAL_LEDGER_SEQUENCE : this.ledgers.get(this.ledgers.size() - 1).getSequence() + 1;
         newLedgers.add(new LedgerMetadata(ledgerId, sequence));
-        return new LogMetadata(this.epoch + 1, Collections.unmodifiableList(newLedgers), this.truncationAddress)
-                .withUpdateVersion(this.updateVersion.get());
+        return new LogMetadata(this.epoch + 1, this.enabled, Collections.unmodifiableList(newLedgers), this.truncationAddress, this.updateVersion.get());
     }
 
     /**
@@ -133,12 +150,13 @@ class LogMetadata {
      * @return A new instance of the LogMetadata class.
      */
     LogMetadata truncate(LedgerAddress upToAddress) {
+        Preconditions.checkState(this.enabled, "Log is not enabled. Cannot perform any modifications on it.");
+
         // Exclude all those Ledgers that have a LedgerId less than the one we are given. An optimization to this would
         // involve trimming out the ledger which has a matching ledger id and the entry is is the last one, but that would
         // involve opening the Ledger in BookKeeper and inspecting it, which would take too long.
         val newLedgers = this.ledgers.stream().filter(lm -> lm.getLedgerId() >= upToAddress.getLedgerId()).collect(Collectors.toList());
-        return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), upToAddress)
-                .withUpdateVersion(this.updateVersion.get());
+        return new LogMetadata(this.epoch, this.enabled, Collections.unmodifiableList(newLedgers), upToAddress, this.updateVersion.get());
     }
 
     /**
@@ -163,8 +181,7 @@ class LogMetadata {
             newLedgers.add(this.ledgers.get(i));
         }
 
-        return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), this.truncationAddress)
-                .withUpdateVersion(this.updateVersion.get());
+        return new LogMetadata(this.epoch, this.enabled, Collections.unmodifiableList(newLedgers), this.truncationAddress, this.updateVersion.get());
     }
 
     /**
@@ -193,9 +210,7 @@ class LogMetadata {
                     return lm;
                 })
                 .collect(Collectors.toList());
-        return new LogMetadata(this.epoch, Collections.unmodifiableList(newLedgers), this.truncationAddress)
-                .withUpdateVersion(this.updateVersion.get());
-
+        return new LogMetadata(this.epoch, this.enabled, Collections.unmodifiableList(newLedgers), this.truncationAddress, this.updateVersion.get());
     }
 
     /**
@@ -218,6 +233,28 @@ class LogMetadata {
         Preconditions.checkArgument(value >= this.updateVersion.get(), "versions must increase");
         this.updateVersion.set(value);
         return this;
+    }
+
+    /**
+     * Returns a LogMetadata class with the exact contents of this instance, but the enabled flag set to true. No changes
+     * are performed on this instance.
+     *
+     * @return This instance, if isEnabled() == true, of a new instance of the LogMetadata class which will have
+     * isEnabled() == true, otherwise.
+     */
+    LogMetadata asEnabled() {
+        return this.enabled ? this : new LogMetadata(this.epoch, true, this.ledgers, this.truncationAddress, this.updateVersion.get());
+    }
+
+    /**
+     * Returns a LogMetadata class with the exact contents of this instance, but the enabled flag set to false. No changes
+     * are performed on this instance.
+     *
+     * @return This instance, if isEnabled() == false, of a new instance of the LogMetadata class which will have
+     * isEnabled() == false, otherwise.
+     */
+    LogMetadata asDisabled() {
+        return this.enabled ? new LogMetadata(this.epoch, false, this.ledgers, this.truncationAddress, this.updateVersion.get()) : this;
     }
 
     /**
@@ -303,10 +340,12 @@ class LogMetadata {
      * @return A new byte array with the serialized contents of this object.
      */
     byte[] serialize() {
-        // Serialization version (Byte), Epoch (Long), TruncationAddress (3*Long), Ledger Length (Int), Ledgers.
-        val length = Byte.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES + (Long.BYTES + Integer.BYTES + Byte.BYTES) * this.ledgers.size();
+        // Serialization version (Byte), Flags(Int), Epoch (Long), TruncationAddress (3*Long), Ledger Length (Int), Ledgers.
+        val length = Byte.BYTES + Integer.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES +
+                (Long.BYTES + Integer.BYTES + Byte.BYTES) * this.ledgers.size();
         ByteBuffer bb = ByteBuffer.allocate(length);
         bb.put(SERIALIZATION_VERSION);
+        bb.putInt(getFlags());
         bb.putLong(this.epoch);
 
         // Truncation Address.
@@ -332,6 +371,12 @@ class LogMetadata {
     static LogMetadata deserialize(byte[] serialization) {
         ByteBuffer bb = ByteBuffer.wrap(serialization);
         byte version = bb.get(); // We skip version for now because we only have one.
+        boolean enabled = true;
+        if (version >= 1) {
+            int flags = bb.getInt();
+            enabled = (flags & ENABLED_MASK) == ENABLED_MASK;
+        }
+
         long epoch = bb.getLong();
 
         // Truncation Address.
@@ -353,7 +398,13 @@ class LogMetadata {
             ledgers.add(new LedgerMetadata(ledgerId, seq, empty));
         }
 
-        return new LogMetadata(epoch, Collections.unmodifiableList(ledgers), new LedgerAddress(truncationSeqNo, truncationLedgerId));
+        return new LogMetadata(epoch, enabled, Collections.unmodifiableList(ledgers), new LedgerAddress(truncationSeqNo, truncationLedgerId), INITIAL_VERSION);
+    }
+
+    private int getFlags() {
+        int result = 0;
+        result |= this.enabled ? ENABLED_MASK : 0;
+        return result;
     }
 
     //endregion

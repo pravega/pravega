@@ -900,6 +900,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
 
         }
@@ -916,6 +921,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> awaitOnline() {
             return null;
         }
 
