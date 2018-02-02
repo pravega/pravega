@@ -13,7 +13,7 @@ The ReaderGroup api supports different types of notifications. Currently, we
 have two types implemented, but we plan to add more over time.
 The types we currently support are the following:
 
-1. Segment Notification
+1. **Segment Notification**
 
 A segment notification is triggered when the total number of segments managed by the
 reader group changes. During a scale operation segments can be split into
@@ -49,7 +49,7 @@ then application might consider increasing the number of online readers. If the
 number of segments instead decreases according to a segment notification, then the
 application might want to change the set of online readers accordingly.
 
-2. EndOfData Notification
+2. **EndOfData Notification**
 
 An end of data notifier is triggered when the readers have read all the data of
 the stream(s) managed by the reader group. This is useful to process the stream
