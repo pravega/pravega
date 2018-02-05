@@ -168,10 +168,15 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     private void handleRequest() throws SegmentTruncatedException {
-        if (outstandingRequest.isCompletedExceptionally()) {
-            issueRequestIfNeeded();
+        SegmentRead segmentRead;
+        try {
+            segmentRead = outstandingRequest.join();
+        } catch (Exception e) {
+            if (Exceptions.unwrap(e) instanceof SegmentTruncatedException) {
+                receivedTruncated = true;
+            }
+            throw e;
         }
-        SegmentRead segmentRead = outstandingRequest.join();
         verifyIsAtCorrectOffset(segmentRead);
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
