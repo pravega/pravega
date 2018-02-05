@@ -349,7 +349,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof PravegaAuthenticationException) {
-            log.warn("Token check failed while being written by {} on segment {} ", writerId, segment, u);
+            log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
