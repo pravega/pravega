@@ -686,13 +686,13 @@ task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
 task pushPravegaImage(type: DockerPushTask) {
     // No explicit dependency on building the pravega image
     mustRunAfter buildPravegaImage
-    tag = "${pravegaBaseTag}:${version}"
+    tag = "${pravegaBaseTag}"
 }
 
 task pushBookkeeperImage(type: DockerPushTask) {
     // No explicit dependency on building the bookkeeper image
     mustRunAfter buildBookkeeperImage
-    tag = "${bookkeeperBaseTag}:${version}"
+    tag = "${bookkeeperBaseTag}"
 }
 
 task dockerPush(dependsOn: [pushPravegaImage, pushBookkeeperImage]) {
@@ -743,7 +743,7 @@ class DockerPushTask extends Exec {
 
     String getRemoteTag() {
         if (project.hasProperty('dockerRegistry')) {
-            return "${project.property('dockerRegistry')}/${tag}"
+            return "${project.property('dockerRegistry')}/${tag}:${project.version}"
         }
         else {
             return tag
