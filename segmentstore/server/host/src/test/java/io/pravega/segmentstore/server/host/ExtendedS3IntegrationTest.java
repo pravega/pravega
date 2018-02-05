@@ -43,7 +43,8 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 1;
     private String endpoint;
     private BookKeeperRunner bookkeeper = null;
-    private String baseDir;
+    private File baseDir = null;
+    private File rocksDBDir = null;
     private S3FileSystemImpl filesystemS3;
 
     /**
@@ -55,13 +56,16 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
         bookkeeper.initialize();
         endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
         URI uri = URI.create(endpoint);
-        baseDir = Files.createTempDirectory("extendeds3_wrapper").toString();
-        filesystemS3 = new S3FileSystemImpl(baseDir);
+        baseDir = Files.createTempDirectory("extendeds3_wrapper").toFile().getAbsoluteFile();
+        rocksDBDir = Files.createTempDirectory("rocksdb").toFile().getAbsoluteFile();
+        filesystemS3 = new S3FileSystemImpl(baseDir.toString());
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                                                           .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
                                                           .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                           .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                                                          .with(ExtendedS3StorageConfig.URI, endpoint));
+                                                          .with(ExtendedS3StorageConfig.URI, endpoint))
+                          .include(RocksDBConfig.builder()
+                                                .with(RocksDBConfig.DATABASE_DIR, rocksDBDir.toString()));
     }
 
     /**
@@ -70,7 +74,15 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     @After
     public void tearDown() throws Exception {
         bookkeeper.close();
-        FileHelpers.deleteFileOrDirectory(new File(baseDir));
+        if (baseDir != null) {
+            FileHelpers.deleteFileOrDirectory(baseDir);
+        }
+        if (rocksDBDir != null) {
+            FileHelpers.deleteFileOrDirectory(rocksDBDir);
+        }
+
+        baseDir = null;
+        rocksDBDir = null;
     }
 
     //endregion
@@ -84,7 +96,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder)))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                        bookkeeper.getZkClient(), setup.getExecutor()));
+                        bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
 

@@ -153,6 +153,11 @@ public class SynchronizerTest {
         @Override
         public void close() { 
         }
+
+        @Override
+        public void truncateToRevision(Revision newStart) {
+            throw new NotImplementedException("truncateToRevision");
+        }
     }
 
     @Test(timeout = 20000)

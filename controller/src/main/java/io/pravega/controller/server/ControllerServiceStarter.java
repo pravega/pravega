@@ -307,6 +307,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 streamCutService.awaitTerminated();
             }
+        } catch (Exception e) {
+            log.error("Controller Service Starter threw exception during shutdown", e);
+            throw e;
+        } finally {
+            // We will stop our executors in `finally` so that even if an exception is thrown, we are not left with
+            // lingering threads that prevent our process from exiting.
 
             // Next stop all executors
             log.info("Stopping controller executor");
@@ -328,7 +334,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
-        } finally {
+
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }

@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -55,7 +54,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.attributes = transSegmentInfo.getAttributes();
     }
 
-    protected TransactionMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected TransactionMapOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -134,7 +133,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         this.parentStreamSegmentId = source.readLong();
         this.streamSegmentId = source.readLong();

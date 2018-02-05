@@ -284,6 +284,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 Futures.await(Services.stopAsync(this, executorService()));

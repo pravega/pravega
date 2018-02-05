@@ -32,6 +32,7 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
 
     private static final int BOOKIE_COUNT = 1;
     private File baseDir = null;
+    private File rocksDBDir = null;
     private BookKeeperRunner bookkeeper = null;
     /**
      * Starts BookKeeper.
@@ -42,10 +43,12 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
         bookkeeper.initialize();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();
+        this.rocksDBDir = Files.createTempDirectory("rocksdb").toFile().getAbsoluteFile();
 
-        this.configBuilder.include(FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath()));
+        this.configBuilder.include(FileSystemStorageConfig.builder()
+                                                          .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath()))
+                          .include(RocksDBConfig.builder()
+                                                .with(RocksDBConfig.DATABASE_DIR, rocksDBDir.toString()));
     }
 
     /**
@@ -54,8 +57,16 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     @After
     public void tearDown() throws Exception {
         bookkeeper.close();
-        FileHelpers.deleteFileOrDirectory(this.baseDir);
+        if (baseDir != null) {
+            FileHelpers.deleteFileOrDirectory(this.baseDir);
+        }
+
+        if (baseDir != null) {
+            FileHelpers.deleteFileOrDirectory(this.rocksDBDir);
+        }
+
         this.baseDir = null;
+        this.rocksDBDir = null;
     }
 
     //endregion
@@ -67,9 +78,9 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor()))
+                .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                                                            bookkeeper.getZkClient(), setup.getExecutor()));
+                                                            bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
     //endregion

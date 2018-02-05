@@ -344,6 +344,11 @@ public class RollingStorage implements SyncStorage {
     }
 
     @Override
+    public void unseal(SegmentHandle handle) {
+        throw new UnsupportedOperationException("RollingStorage does not support unseal().");
+    }
+
+    @Override
     public void concat(SegmentHandle targetHandle, long targetOffset, String sourceSegment) throws StreamSegmentException {
         val target = asWritableHandle(targetHandle);
         ensureOffset(target, targetOffset);
@@ -404,6 +409,11 @@ public class RollingStorage implements SyncStorage {
             this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(), source.getHeaderHandle().getSegmentName());
             target.increaseHeaderLength(source.getHeaderLength());
             target.addChunks(newSegmentChunks);
+
+            // After we do a header merge, it's possible that the (new) last chunk may still have space to write to.
+            // Unseal it now so that future writes/concats will not unnecessarily create chunks. Note that this will not
+            // unseal the segment (even though it's unsealed) - that is determined by the Header file seal status.
+            unsealLastChunkIfNecessary(target);
         }
 
         LoggerHelpers.traceLeave(log, "concat", traceId, target, targetOffset, sourceSegment);
@@ -499,6 +509,36 @@ public class RollingStorage implements SyncStorage {
             last.markSealed();
             log.debug("Sealed active SegmentChunk '{}' for '{}'.", activeChunk.getSegmentName(), handle.getSegmentName());
         }
+    }
+
+    private void unsealLastChunkIfNecessary(RollingSegmentHandle handle) throws StreamSegmentException {
+        SegmentChunk last = handle.lastChunk();
+        if (last == null || !last.isSealed()) {
+            // Nothing to do.
+            return;
+        }
+
+        SegmentHandle activeChunk = handle.getActiveChunkHandle();
+        boolean needsHandleUpdate = activeChunk == null;
+        if (needsHandleUpdate) {
+            // We didn't have a pointer to the active chunk's Handle because the chunk was sealed before open-write.
+            activeChunk = this.baseStorage.openWrite(last.getName());
+        }
+
+        try {
+            this.baseStorage.unseal(activeChunk);
+        } catch (UnsupportedOperationException e) {
+            log.warn("Unable to unseal SegmentChunk '{}' since base storage does not support unsealing.", last);
+            return;
+        }
+
+        last.markUnsealed();
+        if (needsHandleUpdate) {
+            activeChunk = this.baseStorage.openWrite(last.getName());
+            handle.setActiveChunkHandle(activeChunk);
+        }
+
+        log.debug("Unsealed active SegmentChunk '{}' for '{}'.", activeChunk.getSegmentName(), handle.getSegmentName());
     }
 
     private void createChunk(RollingSegmentHandle handle) throws StreamSegmentException {
