@@ -9,12 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.server.AttributeSerializer;
-import io.pravega.segmentstore.server.logs.SerializationException;
-import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -65,7 +63,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.attributeUpdates = attributeUpdates;
     }
 
-    protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -133,7 +131,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();

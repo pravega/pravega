@@ -33,7 +33,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.WrongHostException;
-import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -91,8 +90,8 @@ import java.util.concurrent.CompletionException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -149,7 +148,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class.
-     *  @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
+     *
+     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
      * @param statsRecorder (Optional) A StatsRecorder for Metrics.
      * @param tokenVerifier  Verifier class that verifies delegation token.
@@ -180,7 +180,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
-
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
@@ -407,7 +406,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
-
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())

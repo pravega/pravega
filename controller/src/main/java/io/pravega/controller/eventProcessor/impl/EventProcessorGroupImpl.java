@@ -97,7 +97,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         readerGroup = createIfNotExists(
                 actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
-                ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingPosition(Sequence.MIN_VALUE).build(),
                 Collections.singleton(eventProcessorConfig.getConfig().getStreamName()));
 
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount() - eventProcessorMap.values().size());

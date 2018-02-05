@@ -87,6 +87,19 @@ public final class Services {
         }
     }
 
+    /**
+     * Determines whether the given Service.State indicates the Service is either in the process of Stopping or already
+     * Terminated or Failed.
+     *
+     * @param state The Service.State to test.
+     * @return Whether this is a terminating state.
+     */
+    public static boolean isTerminating(Service.State state) {
+        return state == Service.State.STOPPING
+                || state == Service.State.TERMINATED
+                || state == Service.State.FAILED;
+    }
+
 
     //region ShutdownListener
 

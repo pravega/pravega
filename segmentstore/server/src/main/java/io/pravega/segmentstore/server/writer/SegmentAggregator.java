@@ -22,7 +22,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -35,7 +34,6 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -1419,12 +1417,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         @Override
-        protected void serializeContent(DataOutputStream target) throws IOException {
+        protected void serializeContent(DataOutputStream target) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+        protected void deserializeContent(DataInputStream source) {
             throw new UnsupportedOperationException();
         }
 

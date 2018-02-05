@@ -9,8 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -43,7 +41,7 @@ public class MergeTransactionOperation extends StorageOperation {
         this.streamSegmentOffset = -1;
     }
 
-    protected MergeTransactionOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected MergeTransactionOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 
@@ -122,7 +120,7 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         readVersion(source, VERSION);
         setStreamSegmentId(source.readLong());
         this.transactionSegmentId = source.readLong();
