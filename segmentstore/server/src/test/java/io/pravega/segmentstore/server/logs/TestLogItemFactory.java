@@ -9,9 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.test.common.ErrorInjector;
 
+import java.io.IOException;
 import java.io.InputStream;
 
 /**
@@ -25,7 +27,7 @@ class TestLogItemFactory implements LogItemFactory<TestLogItem> {
     }
 
     @Override
-    public TestLogItem deserialize(InputStream input) throws SerializationException {
+    public TestLogItem deserialize(InputStream input) throws IOException {
         ErrorInjector<SerializationException> errorInjector = this.deserializationErrorInjector;
         if (errorInjector != null) {
             errorInjector.throwIfNecessary();

@@ -27,14 +27,11 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -47,14 +44,10 @@ public class BatchClientImpl implements BatchClient {
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
 
-    @GuardedBy("this")
-    private final AtomicReference<String> latestDelegationToken;
-
     public BatchClientImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        latestDelegationToken = new AtomicReference<String>();
     }
     
     private StreamInfo getStreamInfo(Stream stream) {
@@ -79,42 +72,31 @@ public class BatchClientImpl implements BatchClient {
                                                              RuntimeException::new);
         SortedSet<Segment> result = new TreeSet<>();
         result.addAll(segments.keySet());
-        StreamSegmentSuccessors successors = getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
-                RuntimeException::new);
-
-        result.addAll(successors.getSegments());
-        synchronized (this) {
-            latestDelegationToken.set(successors.getDelegationToken());
-        }
+        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
+                                             RuntimeException::new));
         return Iterators.transform(result.iterator(), s -> segmentToInfo(s));
     }
 
     private SegmentInfo segmentToInfo(Segment s) {
         @Cleanup
         SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
-
-        String delegationToken;
-        synchronized (this) {
-            delegationToken = latestDelegationToken.get();
-        }
-        return client.getSegmentInfo(delegationToken);
+        return client.getSegmentInfo();
     }
 
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer) {
         @Cleanup
         SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        long segmentLength;
-        synchronized (this) {
-            segmentLength = metadataClient.fetchCurrentSegmentLength(latestDelegationToken.get());
-        }
-        return readSegment(segment, deserializer, 0, segmentLength);
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, segmentInfo.getStartingOffset(), segmentInfo.getWriteOffset());
     }
 
     @Override
-    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset,
-                                              long endingOffset) {
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset);
+    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset) {
+        @Cleanup
+        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, segmentInfo.getWriteOffset());
     }
 
 }

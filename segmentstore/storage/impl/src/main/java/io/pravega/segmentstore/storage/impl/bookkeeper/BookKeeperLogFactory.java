@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -100,6 +101,11 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     public DurableDataLog createDurableDataLog(int containerId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
         return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    @VisibleForTesting
+    BookKeeper getBookKeeperClient() {
+        return this.bookKeeper.get();
     }
 
     //endregion

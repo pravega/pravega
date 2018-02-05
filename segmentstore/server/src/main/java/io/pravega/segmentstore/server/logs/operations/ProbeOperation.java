@@ -9,11 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.IOException;
 
 /**
  * No-op operation that can be used as an "operation barrier". This can be added to the Log and when it completes, the
@@ -38,12 +35,12 @@ public class ProbeOperation extends Operation {
     }
 
     @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
+    protected void serializeContent(DataOutputStream target) {
         throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized.");
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) {
         throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be deserialized.");
     }
 }
