@@ -33,6 +33,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
@@ -74,7 +75,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "localhost", port, streamSegmentStore, null, null, null, null);
+        this(ssl, "localhost", port, streamSegmentStore, null, new PassingTokenVerifier(), null, null);
     }
 
     /**
@@ -98,7 +99,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
         this.certFile = certFile;
         this.keyFile = keyFile;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
-        this.tokenVerifier = tokenVerifier;
+        if (tokenVerifier != null) {
+            this.tokenVerifier = tokenVerifier;
+        } else {
+            this.tokenVerifier = new PassingTokenVerifier();
+        }
     }
 
     //endregion
