@@ -495,7 +495,6 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime1, null).get();
         // verify that one streamCut is generated and added.
-
         List<StreamCutRecord> list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
         assertTrue(list.contains(streamCut1));
         // endregion
@@ -516,7 +515,7 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, null).get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
         StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
-        // verify that only one stream cut is in retention set. streamCut2 is not added
+        // verify that two stream cut is in retention set. streamCut2 is added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
@@ -538,7 +537,7 @@ public class StreamMetadataTasksTest {
                 anyString(), anyString(), any());
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime3, null).get();
-        // verify two stream cuts are in retention set. Cut 1 and 3.
+        // verify two stream cuts are in retention set. Cut 2 and 3.
         // verify that Truncation has happened.
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
@@ -660,7 +659,7 @@ public class StreamMetadataTasksTest {
 
         // endregion
         
-        // truncate on manual streamcutM: (1/65, 4/10, 5/10)
+        // truncate on manual streamcutManual: (1/65, 4/10, 5/10)
         Map<Integer, Long> streamCutManual = new HashMap<>();
         streamCutManual.put(1, 65L);
         streamCutManual.put(4, 10L);
