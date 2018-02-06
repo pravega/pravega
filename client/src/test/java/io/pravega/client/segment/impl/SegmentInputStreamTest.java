@@ -149,6 +149,7 @@ public class SegmentInputStreamTest {
         ByteBuffer read = stream.read(10);
         assertNull(read);
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> stream.read());
         stream.read(10);
         assertNull(read);
         read = stream.read(10);
