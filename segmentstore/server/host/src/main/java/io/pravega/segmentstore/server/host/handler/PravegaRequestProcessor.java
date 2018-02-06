@@ -33,6 +33,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -144,7 +145,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
-        this(segmentStore, connection, null, null);
+        this(segmentStore, connection, null, new PassingTokenVerifier());
     }
 
     /**
@@ -158,8 +159,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
+        this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
         this.statsRecorder = statsRecorder;
-        this.tokenVerifier = tokenVerifier;
     }
 
     //endregion
@@ -188,7 +189,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, PravegaAuthHandler.PravegaAccessControlEnum read, String operation) {
-        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(segment,
+        if (!tokenVerifier.verifyToken(segment,
                 delegationToken, READ)) {
             log.warn("Delegation token verification failed");
             handleException(requestId, segment,
