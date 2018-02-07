@@ -9,14 +9,16 @@
  */
 package io.pravega.controller.auth;
 
-import org.jasypt.util.password.StrongPasswordEncryptor;
+import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 
 public class PasswordEncryptorTool {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InvalidKeySpecException, NoSuchAlgorithmException {
         String userName = args[0];
         String userPassword = args[1];
-        StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
+        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
         String encryptedPassword = passwordEncryptor.encryptPassword(userPassword);
         System.out.println(encryptedPassword);
     }

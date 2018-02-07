@@ -17,6 +17,8 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +26,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import lombok.Data;
-import org.jasypt.util.password.StrongPasswordEncryptor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class PasswordAuthHandler implements PravegaAuthHandler {
     private static final String DEFAULT_NAME = "Pravega-Default";
     private final Map<String, PravegaACls> userMap;
@@ -70,8 +73,13 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
         Preconditions.checkArgument(userName != null, "Username not found in header");
         Preconditions.checkArgument(password != null, "Password not found in header");
 
-        StrongPasswordEncryptor encryptor = new StrongPasswordEncryptor();
-        return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
+        StrongPasswordProcessor encryptor = new StrongPasswordProcessor();
+        try {
+            return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            log.warn("Excpetion during password authentication", e);
+            return false;
+        }
     }
 
     @Override

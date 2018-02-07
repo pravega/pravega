@@ -29,7 +29,6 @@ import java.io.FileWriter;
 import java.net.URI;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
-import org.jasypt.util.password.StrongPasswordEncryptor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -54,7 +53,7 @@ public class PravegaAuthManagerTest {
     @Before
     public void setUp() throws Exception {
         file = File.createTempFile("passwd", ".txt");
-        StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
+        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             writer.write("#:\n");

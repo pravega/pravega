@@ -468,8 +468,6 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        // https://mvnrepository.com/artifact/org.jasypt/jasypt
-        compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
         compile 'io.jsonwebtoken:jjwt:0.9.0'
         // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
