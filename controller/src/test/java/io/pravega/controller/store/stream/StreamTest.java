@@ -208,7 +208,7 @@ public class StreamTest {
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments, newSegmentInt, response.getActiveEpoch(), scale).get();
+        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), newSegmentInt, response.getActiveEpoch(), scale).get();
         // scale is completed, history table also has completed record now.
         final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
         final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();

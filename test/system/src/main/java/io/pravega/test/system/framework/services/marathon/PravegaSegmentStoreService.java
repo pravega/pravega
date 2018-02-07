@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import com.google.common.base.Strings;
 import io.pravega.test.system.framework.TestFrameworkException;

@@ -13,11 +13,9 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
 import io.pravega.common.concurrent.Futures;
 import java.io.Serializable;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IntSummaryStatistics;
@@ -29,13 +27,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
+import io.pravega.test.system.framework.Utils;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -54,11 +51,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,10 +80,10 @@ public class ReaderCheckpointTest {
     private URI controllerURI;
 
     @Environment
-    public static void initialize() throws Exception {
+    public static void initialize() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -100,14 +93,14 @@ public class ReaderCheckpointTest {
 
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUris.get(0));
+        Service bkService = Utils.createBookkeeperService(zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUris.get(0));
+        Service conService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -115,7 +108,7 @@ public class ReaderCheckpointTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -123,7 +116,7 @@ public class ReaderCheckpointTest {
     }
 
     @Before
-    public void setup() throws URISyntaxException {
+    public void setup() {
         controllerURI = fetchControllerURI();
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
@@ -131,7 +124,7 @@ public class ReaderCheckpointTest {
     }
 
     @Test
-    public void readerCheckpointTest() throws Exception {
+    public void readerCheckpointTest() {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
@@ -286,7 +279,7 @@ public class ReaderCheckpointTest {
     }
 
     private URI fetchControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }
