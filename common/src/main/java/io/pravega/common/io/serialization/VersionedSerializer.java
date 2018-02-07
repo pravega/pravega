@@ -51,11 +51,11 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     //region Serialization
 
     // Takes a POJO and serializes to RevisionDataOutput. Simple!
-    public void serialize(TargetType target, RevisionDataOutput dataOutput) throws IOException {
-        serialize(target, dataOutput.getBaseStream());
+    public void serialize(RevisionDataOutput dataOutput, TargetType target) throws IOException {
+        serialize(dataOutput.getBaseStream(), target);
     }
 
-    public void serialize(TargetType target, OutputStream stream) throws IOException {
+    public void serialize(OutputStream stream, TargetType target) throws IOException {
         // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
         val dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
         val writeVersion = this.formatDescriptor.getFormat(this.formatDescriptor.writeVersion());
