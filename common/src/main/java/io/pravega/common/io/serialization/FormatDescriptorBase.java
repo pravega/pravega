@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.val;
 
 public abstract class FormatDescriptorBase<T> {
     //region Members
@@ -62,16 +61,14 @@ public abstract class FormatDescriptorBase<T> {
             this.version = (byte) version;
         }
 
-        <ReaderType> void createRevision(int revision, StreamWriter<T> writer, ReaderType reader, RevisionCreator<StreamWriter<T>, ReaderType, RevisionType> createRevision) {
+        <ReaderType> void createRevision(int revision, StreamWriter<T> writer, StreamReader<ReaderType> reader, RevisionCreator<StreamWriter<T>, StreamReader<ReaderType>, RevisionType> createRevision) {
             Preconditions.checkNotNull(writer, "writer");
             Preconditions.checkNotNull(reader, "reader");
             Preconditions.checkArgument(revision >= 0 && revision <= Byte.MAX_VALUE,
                     "Revision must be a non-negative value and less than or equal to %s.", Byte.MAX_VALUE);
-            val revisions = getRevisions();
-            Preconditions.checkArgument(revisions.isEmpty() || revision == revisions.get(revisions.size() - 1).getRevision() + 1,
+            Preconditions.checkArgument(this.revisions.isEmpty() || revision == this.revisions.get(this.revisions.size() - 1).getRevision() + 1,
                     "Expected revision to be incremental.");
-            //revisions.add(new RevisionDirect((byte) revision, writer, reader));
-            revisions.add(createRevision.apply((byte) revision, writer, reader));
+            this.revisions.add(createRevision.apply((byte) revision, writer, reader));
         }
 
         RevisionType getAtIndex(int index) {
@@ -88,14 +85,21 @@ public abstract class FormatDescriptorBase<T> {
 
     @RequiredArgsConstructor
     @Getter
-    abstract class FormatRevision {
+    class FormatRevision<ReaderType> {
         private final byte revision;
         private final StreamWriter<T> writer;
+        private final StreamReader<ReaderType> reader;
     }
+
 
     @FunctionalInterface
     protected interface StreamWriter<TargetType> {
         void accept(TargetType source, RevisionDataOutput output) throws IOException;
+    }
+
+    @FunctionalInterface
+    protected interface StreamReader<TargetType> {
+        void accept(RevisionDataInput input, TargetType target) throws IOException;
     }
 
     //endregion
