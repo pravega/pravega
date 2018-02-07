@@ -112,7 +112,7 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
 
     @Override
     public int size() {
-        return this.length;
+        return this.position;
     }
 
     //endregion

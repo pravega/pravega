@@ -12,13 +12,15 @@ package io.pravega.segmentstore.server.host;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.Timer;
+import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.serialization.FormatDescriptor;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,13 +44,55 @@ public class Playground {
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
         testSerializer();
+        //testSerializerPerf();
+    }
+
+    private static void testSerializerPerf() throws IOException {
+        val mc = MyClass.builder()
+                        .name("name")
+                        .id((long) Integer.MAX_VALUE + 123)
+                        .nestedClass(new MyNestedClass("myNestedClass", "name2"))
+                        .tick(12345)
+                        .isTrue(true)
+                        .build();
+        int count = 10000000;
+        byte[] buffer = new byte[32 * 1024];
+        val s = VersionedSerializer.use(new MyClassFormat1());
+        Timer t2 = new Timer();
+        serializeUsingSerializer(mc, s, buffer, count);
+        long sElapsed = t2.getElapsedNanos();
+
+        System.gc();
+        Timer t1 = new Timer();
+        serializeUsingDataOutput(mc, buffer, count);
+        long dosElapsed = t1.getElapsedNanos();
+
+        System.out.println(String.format("DOS = %s ms, S = %s ms", dosElapsed / 1000000, sElapsed / 1000000));
+    }
+
+    private static void serializeUsingSerializer(MyClass c, VersionedSerializer<MyClass, MyClass.MyClassBuilder> versionedSerializer, byte[] buffer, int count) throws IOException {
+        for (int i = 0; i < count; i++) {
+            versionedSerializer.serialize(c, new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        }
+    }
+
+    private static void serializeUsingDataOutput(MyClass c, byte[] buffer, int count) throws IOException {
+        for (int i = 0; i < count; i++) {
+            val dos = new DataOutputStream(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+            dos.writeUTF(c.getName());
+            dos.writeLong(c.getId());
+            dos.writeInt(c.getTick());
+            dos.writeBoolean(c.isTrue());
+            dos.writeUTF(c.getNestedClass().name);
+            dos.writeUTF(c.getNestedClass().name2);
+        }
     }
 
     private static void testSerializer() {
         val mc1 = MyClass.builder()
                          .name("name")
                          .id((long) Integer.MAX_VALUE + 123)
-                         .nestedClass(new MyNestedClass("myNestedClass"))
+                         .nestedClass(new MyNestedClass("myNestedClass", "myNestedClassName2"))
                          .tick(12345)
                          .isTrue(true)
                          .build();
@@ -62,12 +106,12 @@ public class Playground {
             for (val d : descriptors.entrySet()) {
                 System.out.print(String.format("S (%s) -> D(%s): ", s.getKey(), d.getKey()));
                 try {
+                    val data = new byte[1024];
                     @Cleanup
-                    val stream = new EnhancedByteArrayOutputStream();
+                    val stream = new FixedByteArrayOutputStream(data, 0, data.length);
                     val serializer = VersionedSerializer.use(s.getValue());
                     serializer.serialize(mc1, stream);
                     stream.flush();
-                    val data = stream.toByteArray();
                     val deserializer = VersionedSerializer.use(d.getValue());
                     val mc2 = deserializer.deserialize(new ByteArrayInputStream(data));
                     System.out.println(mc2);
@@ -102,17 +146,19 @@ public class Playground {
 
     private static class MyNestedClass {
         private String name;
+        private String name2;
 
         MyNestedClass() {
         }
 
-        MyNestedClass(String name) {
+        MyNestedClass(String name, String name2) {
             this.name = name;
+            this.name2 = name2;
         }
 
         @Override
         public String toString() {
-            return "Name=" + this.name;
+            return "N1=" + this.name + ", N2=" + this.name2;
         }
     }
 
@@ -175,7 +221,7 @@ public class Playground {
 
         private void read02(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
             MyNestedClass nc = new MyNestedClass();
-            this.ncs00.deserialize(input, nc);
+            this.ncs01.deserialize(input, nc);
             targetBuilder.nestedClass(nc);
             targetBuilder.tick(input.readInt());
             targetBuilder.isTrue(input.readBoolean());
@@ -196,7 +242,7 @@ public class Playground {
         private void read10(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
             targetBuilder.id(input.readLong());
             MyNestedClass nc = new MyNestedClass();
-            this.ncs00.deserialize(input, nc);
+            this.ncs01.deserialize(input, nc);
             targetBuilder.nestedClass(nc);
             targetBuilder.name(input.readUTF());
             targetBuilder.tick(input.readInt());
@@ -241,11 +287,11 @@ public class Playground {
         }
 
         private void write01(MyNestedClass object, RevisionDataOutput stream) throws IOException {
-            stream.writeUTF("This will be ignored.");
+            stream.writeUTF(object.name2);
         }
 
         private void read01(DataInput s, MyNestedClass b) throws IOException {
-            s.readUTF(); // read dummy written above.
+            b.name2 = s.readUTF();
         }
     }
 

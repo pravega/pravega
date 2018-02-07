@@ -24,8 +24,8 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     //region Members
 
     // TODO: add serialization format version.
-    // Format (All): V(1)|RCount(1)|Rev1|...|Rev[RCount]
-    // Format (Rev): RevId(1)|Length(4)|Data(Variable)
+    // Format (All)     : V(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
+    // Format (Revision): RevisionId(1)|Length(4)|Data(Length)
 
     protected final FormatDescriptor<TargetType, ReaderType> formatDescriptor;
 
@@ -41,7 +41,8 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
         return new VersionedSerializer.Direct<>(formatDescriptor);
     }
 
-    public static <TargetType, ReaderType extends ObjectBuilder<TargetType>> VersionedSerializer.WithBuilder<TargetType, ReaderType> use(FormatDescriptor.WithBuilder<TargetType, ReaderType> formatDescriptor) {
+    public static <TargetType, ReaderType extends ObjectBuilder<TargetType>> VersionedSerializer.WithBuilder<TargetType, ReaderType> use(
+            FormatDescriptor.WithBuilder<TargetType, ReaderType> formatDescriptor) {
         return new VersionedSerializer.WithBuilder<>(formatDescriptor);
     }
 
