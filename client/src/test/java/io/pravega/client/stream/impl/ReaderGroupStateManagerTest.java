@@ -284,7 +284,6 @@ public class ReaderGroupStateManagerTest {
         ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", state, controller, clock::get);
         reader2.initializeReader(0);
         
-        
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
         Map<Segment, Long> newSegments = reader1.acquireNewSegmentsIfNeeded(123);
         assertEquals(2, newSegments.size());
