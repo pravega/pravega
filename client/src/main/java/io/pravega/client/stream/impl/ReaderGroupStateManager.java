@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import io.pravega.client.segment.impl.Segment;
@@ -238,14 +239,15 @@ public class ReaderGroupStateManager {
             return result;
         });
         ReaderGroupState state = sync.getState();
-        releaseTimer.reset(calculateReleaseTime(state));
+        releaseTimer.reset(calculateReleaseTime(readerId, state));
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
         return !state.getSegments(readerId).contains(segment);
     }
 
-    private Duration calculateReleaseTime(ReaderGroupState state) {
+    @VisibleForTesting
+    static Duration calculateReleaseTime(String readerId, ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(1 + state.getRanking(readerId));
     }
 
@@ -322,7 +324,7 @@ public class ReaderGroupStateManager {
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
         }
-        acquireTimer.reset(calculateAcquireTime(sync.getState()));
+        acquireTimer.reset(calculateAcquireTime(readerId, sync.getState()));
         return result.get();
     }
     
@@ -339,7 +341,8 @@ public class ReaderGroupStateManager {
         return Math.max(Math.max(equallyDistributed, fairlyDistributed), 1);
     }
 
-    private Duration calculateAcquireTime(ReaderGroupState state) {
+    @VisibleForTesting
+    static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
     

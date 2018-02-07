@@ -114,9 +114,9 @@ public class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     int getRanking(String reader) {
-        List<String> sorted = distanceToTail.entrySet()
+        List<String> sorted = getRelativeSizes().entrySet()
                                    .stream()
-                                   .sorted((o1, o2) -> -Long.compare(o1.getValue(), o2.getValue()))
+                                   .sorted((o1, o2) -> -Double.compare(o1.getValue(), o2.getValue()))
                                    .map(Entry::getKey)
                                    .collect(Collectors.toList());
         return sorted.indexOf(reader);
@@ -310,7 +310,7 @@ public class ReaderGroupState implements Revisioned {
             if (oldPos != null) {
                 throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
-            state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
+            state.distanceToTail.putIfAbsent(readerId, 10 * ASSUMED_LAG_MILLIS);
         }
     }
     
