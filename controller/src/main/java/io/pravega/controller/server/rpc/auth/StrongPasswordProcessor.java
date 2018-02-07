@@ -32,12 +32,12 @@ public class StrongPasswordProcessor {
 
     private final int iterations = 1000;
 
-    /**
+    /*
      * @param password              The incoming password.
      * @param encryptedPassword     The stored password digest.
-     * @return                      true if the password matches, false otehrwise.
-     * @throws NoSuchAlgorithmException
-     * @throws InvalidKeySpecException
+     * @return                      true if the password matches, false otherwise.
+     * @throws NoSuchAlgorithmException encryption exceptions.
+     * @throws InvalidKeySpecException encryption exceptions.
      */
     public boolean checkPassword(String password, String encryptedPassword) throws NoSuchAlgorithmException, InvalidKeySpecException {
         String storedPassword = new String(fromHex(encryptedPassword));
@@ -57,11 +57,11 @@ public class StrongPasswordProcessor {
         return diff == 0;
     }
 
-    /**
+    /*
      * @param userPassword The password to be encrypted.
-     * @return              The encrypted string digest.
-     * @throws NoSuchAlgorithmException
-     * @throws InvalidKeySpecException
+     * @return The encrypted string digest.
+     * @throws NoSuchAlgorithmException encryption exceptions.
+     * @throws InvalidKeySpecException encryption exceptions.
      */
     public String encryptPassword(String userPassword) throws NoSuchAlgorithmException, InvalidKeySpecException {
         char[] chars = userPassword.toCharArray();
