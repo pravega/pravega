@@ -66,10 +66,10 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 public class ReaderGroupStateManager {
     
-    private static final double COMPACTION_PROBABILITY = 0.05;
-    private static final int MIN_UPDATES_BEFORE_COMPACTION = 500;
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
+    private static final double COMPACTION_PROBABILITY = 0.05;
+    private static final int MIN_UPDATES_BEFORE_COMPACTION = 500;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
