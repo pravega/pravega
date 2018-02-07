@@ -19,24 +19,13 @@ public abstract class FormatDescriptorDirect<TargetType> extends FormatDescripto
     }
 
     @SuppressWarnings("unchecked")
-    FormatVersionDirect getFormat(byte version) {
-        return (FormatVersionDirect) this.versions.get(version);
+    FormatVersion<TargetType, TargetType> getFormat(byte version) {
+        return (FormatVersion<TargetType, TargetType>) this.versions.get(version);
     }
 
-    protected abstract Collection<FormatVersionDirect> getVersions();
+    protected abstract Collection<FormatVersion<TargetType, TargetType>> getVersions();
 
-    protected FormatVersionDirect newVersion(int version) {
-        return new FormatVersionDirect(version);
-    }
-
-    public class FormatVersionDirect extends FormatVersion<TargetType, TargetType> {
-        private FormatVersionDirect(int version) {
-            super(version);
-        }
-
-        public FormatVersionDirect revision(int revision, StreamWriter<TargetType> writer, StreamReader<TargetType> reader) {
-            createRevision(revision, writer, reader, FormatRevision<TargetType, TargetType>::new);
-            return this;
-        }
+    protected FormatVersion<TargetType, TargetType> newVersion(int version) {
+        return new FormatVersion<>(version);
     }
 }

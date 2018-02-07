@@ -13,34 +13,21 @@ import io.pravega.common.ObjectBuilder;
 import java.util.Collection;
 
 public abstract class FormatDescriptorWithBuilder<TargetType, BuilderType extends ObjectBuilder<TargetType>> extends FormatDescriptorBase<TargetType> {
-    protected abstract BuilderType newBuilder();
-
     @Override
     void registerVersions() {
         getVersions().forEach(super::registerVersion);
     }
 
     @SuppressWarnings("unchecked")
-    FormatVersionWithBuilder getFormat(byte version) {
-        return (FormatVersionWithBuilder) this.versions.get(version);
+    FormatVersion<TargetType, BuilderType> getFormat(byte version) {
+        return (FormatVersion<TargetType, BuilderType>) this.versions.get(version);
     }
 
-    protected abstract Collection<FormatVersionWithBuilder> getVersions();
+    protected abstract BuilderType newBuilder();
 
-    protected FormatVersionWithBuilder newVersion(int version) {
-        return new FormatVersionWithBuilder(version);
+    protected abstract Collection<FormatVersion<TargetType, BuilderType>> getVersions();
+
+    protected FormatVersion<TargetType, BuilderType> newVersion(int version) {
+        return new FormatVersion<>(version);
     }
-
-    public class FormatVersionWithBuilder extends FormatVersion<TargetType, BuilderType> {
-
-        private FormatVersionWithBuilder(int version) {
-            super(version);
-        }
-
-        public FormatVersionWithBuilder revision(int revision, StreamWriter<TargetType> writer, StreamReader<BuilderType> readerWithBuilder) {
-            createRevision(revision, writer, readerWithBuilder, FormatRevision<TargetType, BuilderType>::new);
-            return this;
-        }
-    }
-
 }

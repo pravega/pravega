@@ -52,13 +52,18 @@ public abstract class FormatDescriptorBase<TargetType> {
     //region Nested Classes
 
     @Getter
-    static abstract class FormatVersion<TargetType, ReaderType> {
+    public static class FormatVersion<TargetType, ReaderType> {
         private final byte version;
         private final ArrayList<FormatRevision<TargetType, ReaderType>> revisions = new ArrayList<>();
 
         FormatVersion(int version) {
             Preconditions.checkArgument(version >= 0 && version <= Byte.MAX_VALUE, "Version must be a value between 0 and ", Byte.MAX_VALUE);
             this.version = (byte) version;
+        }
+
+        public FormatVersion<TargetType, ReaderType> revision(int revision, StreamWriter<TargetType> writer, StreamReader<ReaderType> reader) {
+            createRevision(revision, writer, reader, FormatRevision<TargetType, ReaderType>::new);
+            return this;
         }
 
         void createRevision(int revision, StreamWriter<TargetType> writer, StreamReader<ReaderType> reader,

@@ -125,7 +125,7 @@ public class Playground {
         }
 
         @Override
-        protected Collection<FormatVersionWithBuilder> getVersions() {
+        protected Collection<FormatVersion<MyClass, MyClass.MyClassBuilder>> getVersions() {
             return Arrays.asList(
                     newVersion(0).revision(0, this::write00, this::read00)
                                  .revision(1, this::write01, this::read01)
@@ -210,8 +210,8 @@ public class Playground {
         }
 
         @Override
-        protected Collection<FormatVersionDirect> getVersions() {
-            FormatVersionDirect v = newVersion(0).revision(0, this::write00, this::read00);
+        protected Collection<FormatVersion<MyNestedClass, MyNestedClass>> getVersions() {
+            FormatVersion<MyNestedClass, MyNestedClass> v = newVersion(0).revision(0, this::write00, this::read00);
             if (writeRevision() >= 1) {
                 v.revision(1, this::write01, this::read01);
             }
