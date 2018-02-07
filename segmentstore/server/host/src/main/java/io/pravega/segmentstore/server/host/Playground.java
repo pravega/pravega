@@ -54,7 +54,7 @@ public class Playground {
                          .build();
         System.out.println("Initial: " + mc1.toString());
 
-        val descriptors = new HashMap<String, FormatDescriptor<MyClass, MyClass.MyClassBuilder>>();
+        val descriptors = new HashMap<String, FormatDescriptor.WithBuilder<MyClass, MyClass.MyClassBuilder>>();
         descriptors.put("0.2", new MyClassFormat0());
         descriptors.put("1.0", new MyClassFormat1());
 
@@ -64,11 +64,11 @@ public class Playground {
                 try {
                     @Cleanup
                     val stream = new EnhancedByteArrayOutputStream();
-                    val serializer = new VersionedSerializer<MyClass, MyClass.MyClassBuilder>(s.getValue());
+                    val serializer = VersionedSerializer.use(s.getValue());
                     serializer.serialize(mc1, stream);
                     stream.flush();
                     val data = stream.toByteArray();
-                    val deserializer = new VersionedSerializer<MyClass, MyClass.MyClassBuilder>(d.getValue());
+                    val deserializer = VersionedSerializer.use(d.getValue());
                     val mc2 = deserializer.deserialize(new ByteArrayInputStream(data));
                     System.out.println(mc2);
                 } catch (Exception ex) {
@@ -117,8 +117,8 @@ public class Playground {
     }
 
     private static class MyClassFormat0 extends FormatDescriptor.WithBuilder<MyClass, MyClass.MyClassBuilder> {
-        private final VersionedSerializer<MyNestedClass, MyNestedClass> ncs00 = new VersionedSerializer<>(new MyNestedClassFormat00());
-        private final VersionedSerializer<MyNestedClass, MyNestedClass> ncs01 = new VersionedSerializer<>(new MyNestedClassFormat01());
+        private final VersionedSerializer.Direct<MyNestedClass> ncs00 = VersionedSerializer.use(new MyNestedClassFormat00());
+        private final VersionedSerializer.Direct<MyNestedClass> ncs01 = VersionedSerializer.use(new MyNestedClassFormat01());
 
         @Override
         protected byte writeVersion() {
