@@ -10,17 +10,19 @@
 package io.pravega.controller.auth;
 
 import com.google.common.base.Strings;
+import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import org.jasypt.util.password.StrongPasswordEncryptor;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 
 public class PasswordFileCreatorTool {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
         String fileName = args[0];
 
-        StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
+        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
         try (FileWriter writer = new FileWriter(fileName);
              BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in))) {
             while (true) {
