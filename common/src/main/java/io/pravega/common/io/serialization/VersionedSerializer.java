@@ -20,27 +20,28 @@ import java.io.OutputStream;
 import lombok.Cleanup;
 import lombok.val;
 
-public class VersionedSerializer<T> {
+public class VersionedSerializer<TargetType, ReaderType> {
+    // TODO: add serialization format version.
     // Format (All): V(1)|RCount(1)|Rev1|...|Rev[RCount]
     // Format (Rev): RevId(1)|Length(4)|Data(Variable)
 
-    private final FormatDescriptorBase<T> formatDescriptor;
+    private final FormatDescriptor<TargetType, ReaderType> formatDescriptor;
 
-    public VersionedSerializer(FormatDescriptorBase<T> formatDescriptor) {
+    public VersionedSerializer(FormatDescriptor<TargetType, ReaderType> formatDescriptor) {
         this.formatDescriptor = Preconditions.checkNotNull(formatDescriptor, "formatDescriptor");
     }
 
     //region Serialize
 
-    // Takes a POJO and serializes to OutputStream. Simple!
-    public void serialize(T target, RevisionDataOutput dataOutput) throws IOException {
+    // Takes a POJO and serializes to RevisionDataOutput. Simple!
+    public void serialize(TargetType target, RevisionDataOutput dataOutput) throws IOException {
         serialize(target, dataOutput.getBaseStream());
     }
 
-    public void serialize(T target, OutputStream stream) throws IOException {
+    public void serialize(TargetType target, OutputStream stream) throws IOException {
         // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
         val dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-        val writeVersion = this.formatDescriptor.getWriteFormatVersion();
+        val writeVersion = this.formatDescriptor.getFormat(this.formatDescriptor.writeVersion());
 
         // Write Serialization Header.
         dataOutput.writeByte(writeVersion.getVersion());
@@ -60,17 +61,17 @@ public class VersionedSerializer<T> {
     //region Deserialize
 
     // Takes an InputStream and applies its contents to the given target.
-    public void deserialize(RevisionDataInput dataInput, T target) throws IOException {
+    public void deserialize(RevisionDataInput dataInput, TargetType target) throws IOException {
         deserialize(dataInput.asStream(), target);
     }
 
-    public void deserialize(InputStream stream, T target) throws IOException {
-        Preconditions.checkArgument(FormatDescriptorDirect.class.isAssignableFrom(this.formatDescriptor.getClass()),
+    public void deserialize(InputStream stream, TargetType target) throws IOException {
+        Preconditions.checkArgument(FormatDescriptor.Direct.class.isAssignableFrom(this.formatDescriptor.getClass()),
                 "This method cannot be used if an ObjectBuilder is specified on the FormatDescriptor.");
 
         val dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
         byte version = dataInput.readByte();
-        val readVersion = ((FormatDescriptorDirect<T>) this.formatDescriptor).getFormat(version);
+        val readVersion = ((FormatDescriptor.Direct<TargetType>) this.formatDescriptor).getFormat(version);
         checkDataIntegrity(readVersion != null, "Unsupported version %d.", version);
 
         byte revisionCount = dataInput.readByte();
@@ -92,17 +93,17 @@ public class VersionedSerializer<T> {
         }
     }
 
-    public T deserialize(RevisionDataInput dataInput) throws IOException {
+    public TargetType deserialize(RevisionDataInput dataInput) throws IOException {
         return deserialize(dataInput.asStream());
     }
 
-    public <V extends ObjectBuilder<T>> T deserialize(InputStream stream) throws IOException {
-        Preconditions.checkArgument(FormatDescriptorWithBuilder.class.isAssignableFrom(this.formatDescriptor.getClass()),
+    public <V extends ObjectBuilder<TargetType>> TargetType deserialize(InputStream stream) throws IOException {
+        Preconditions.checkArgument(FormatDescriptor.WithBuilder.class.isAssignableFrom(this.formatDescriptor.getClass()),
                 "This method requires an ObjectBuilder to be specified on the FormatDescriptor.");
 
         val dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
         byte version = dataInput.readByte();
-        val formatWithBuilder = (FormatDescriptorWithBuilder<T, V>) this.formatDescriptor;
+        val formatWithBuilder = (FormatDescriptor.WithBuilder<TargetType, V>) this.formatDescriptor;
         val readVersion = formatWithBuilder.getFormat(version);
         checkDataIntegrity(readVersion != null, "Unsupported version %d.", version);
 

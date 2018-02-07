@@ -16,7 +16,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
 @NotThreadSafe
-public class NonSeekableRevisionDataOutput implements RevisionDataOutput {
+public class NonSeekableRevisionDataOutput implements RevisionDataOutput.CloseableRevisionDataOutput {
     //region Private
 
     @Getter

@@ -13,9 +13,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.io.serialization.FormatDescriptorBase;
-import io.pravega.common.io.serialization.FormatDescriptorDirect;
-import io.pravega.common.io.serialization.FormatDescriptorWithBuilder;
+import io.pravega.common.io.serialization.FormatDescriptor;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -47,10 +45,16 @@ public class Playground {
     }
 
     private static void testSerializer() {
-        val mc1 = new MyClass("myName", (long) Integer.MAX_VALUE + 123, new MyNestedClass("myNestedClass"));
+        val mc1 = MyClass.builder()
+                         .name("name")
+                         .id((long) Integer.MAX_VALUE + 123)
+                         .nestedClass(new MyNestedClass("myNestedClass"))
+                         .tick(12345)
+                         .isTrue(true)
+                         .build();
         System.out.println("Initial: " + mc1.toString());
 
-        val descriptors = new HashMap<String, FormatDescriptorBase<MyClass>>();
+        val descriptors = new HashMap<String, FormatDescriptor<MyClass, MyClass.MyClassBuilder>>();
         descriptors.put("0.2", new MyClassFormat0());
         descriptors.put("1.0", new MyClassFormat1());
 
@@ -60,11 +64,11 @@ public class Playground {
                 try {
                     @Cleanup
                     val stream = new EnhancedByteArrayOutputStream();
-                    val serializer = new VersionedSerializer<MyClass>(s.getValue());
+                    val serializer = new VersionedSerializer<MyClass, MyClass.MyClassBuilder>(s.getValue());
                     serializer.serialize(mc1, stream);
                     stream.flush();
                     val data = stream.toByteArray();
-                    val deserializer = new VersionedSerializer<MyClass>(d.getValue());
+                    val deserializer = new VersionedSerializer<MyClass, MyClass.MyClassBuilder>(d.getValue());
                     val mc2 = deserializer.deserialize(new ByteArrayInputStream(data));
                     System.out.println(mc2);
                 } catch (Exception ex) {
@@ -84,10 +88,12 @@ public class Playground {
         private final String name;
         private final long id;
         private final MyNestedClass nestedClass;
+        private final int tick;
+        private final boolean isTrue;
 
         @Override
         public String toString() {
-            return String.format("Name=%s, Id=%d, NC=%s", this.name, this.id, this.nestedClass);
+            return String.format("N=%s, I=%d, T=%d, B=%s NC=%s", this.name, this.id, this.tick, this.isTrue, this.nestedClass);
         }
 
         static class MyClassBuilder implements ObjectBuilder<MyClass> {
@@ -110,9 +116,9 @@ public class Playground {
         }
     }
 
-    private static class MyClassFormat0 extends FormatDescriptorWithBuilder<MyClass, MyClass.MyClassBuilder> {
-        private final VersionedSerializer<MyNestedClass> ncs00 = new VersionedSerializer<>(new MyNestedClassFormat00());
-        private final VersionedSerializer<MyNestedClass> ncs01 = new VersionedSerializer<>(new MyNestedClassFormat01());
+    private static class MyClassFormat0 extends FormatDescriptor.WithBuilder<MyClass, MyClass.MyClassBuilder> {
+        private final VersionedSerializer<MyNestedClass, MyNestedClass> ncs00 = new VersionedSerializer<>(new MyNestedClassFormat00());
+        private final VersionedSerializer<MyNestedClass, MyNestedClass> ncs01 = new VersionedSerializer<>(new MyNestedClassFormat01());
 
         @Override
         protected byte writeVersion() {
@@ -159,16 +165,20 @@ public class Playground {
 
         //endregion
 
-        //region Version 0 Revision 2 (+ nestedClass)
+        //region Version 0 Revision 2 (+nestedClass, +tick, +isTrue)
 
         private void write02(MyClass target, RevisionDataOutput output) throws IOException {
             this.ncs01.serialize(target.nestedClass, output);
+            output.writeInt(target.getTick());
+            output.writeBoolean(target.isTrue());
         }
 
         private void read02(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
             MyNestedClass nc = new MyNestedClass();
             this.ncs00.deserialize(input, nc);
             targetBuilder.nestedClass(nc);
+            targetBuilder.tick(input.readInt());
+            targetBuilder.isTrue(input.readBoolean());
         }
 
         //endregion
@@ -179,6 +189,8 @@ public class Playground {
             output.writeLong(target.getId());
             this.ncs01.serialize(target.nestedClass, output);
             output.writeUTF(target.getName());
+            output.writeInt(target.getTick());
+            output.writeBoolean(target.isTrue());
         }
 
         private void read10(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
@@ -187,6 +199,8 @@ public class Playground {
             this.ncs00.deserialize(input, nc);
             targetBuilder.nestedClass(nc);
             targetBuilder.name(input.readUTF());
+            targetBuilder.tick(input.readInt());
+            targetBuilder.isTrue(input.readBoolean());
         }
 
         //endregion
@@ -199,7 +213,7 @@ public class Playground {
         }
     }
 
-    private static class MyNestedClassFormat00 extends FormatDescriptorDirect<MyNestedClass> {
+    private static class MyNestedClassFormat00 extends FormatDescriptor.Direct<MyNestedClass> {
         @Override
         protected byte writeVersion() {
             return 0;

@@ -13,20 +13,21 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public interface RevisionDataOutput extends DataOutput, AutoCloseable {
-
-    @Override
-    void close() throws IOException;
-
+public interface RevisionDataOutput extends DataOutput {
     void length(int length) throws IOException;
 
     OutputStream getBaseStream();
 
-    static RevisionDataOutput wrap(OutputStream outputStream) throws IOException {
+    static CloseableRevisionDataOutput wrap(OutputStream outputStream) throws IOException {
         if (outputStream instanceof RandomOutputStream) {
             return new RandomRevisionDataOutput(outputStream);
         } else {
             return new NonSeekableRevisionDataOutput(outputStream);
         }
+    }
+
+    interface CloseableRevisionDataOutput extends RevisionDataOutput, AutoCloseable {
+        @Override
+        void close() throws IOException;
     }
 }

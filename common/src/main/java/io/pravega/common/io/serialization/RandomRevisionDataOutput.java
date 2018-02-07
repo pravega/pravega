@@ -17,7 +17,7 @@ import lombok.Getter;
 import lombok.val;
 
 @NotThreadSafe
-class RandomRevisionDataOutput extends DataOutputStream implements RevisionDataOutput {
+class RandomRevisionDataOutput extends DataOutputStream implements RevisionDataOutput.CloseableRevisionDataOutput {
     @Getter
     private final OutputStream baseStream;
     private final int initialPosition;
