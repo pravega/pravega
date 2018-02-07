@@ -17,7 +17,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.test.system.framework.services.PravegaControllerService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;
@@ -48,7 +48,7 @@ abstract class AbstractScaleTests {
             ).build(), getConnectionFactory().getInternalExecutor());
 
     private URI createControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

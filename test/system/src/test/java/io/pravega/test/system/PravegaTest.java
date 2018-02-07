@@ -27,11 +27,8 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -46,7 +43,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -68,10 +64,10 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws MarathonException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -81,7 +77,7 @@ public class PravegaTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -90,7 +86,7 @@ public class PravegaTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -99,14 +95,13 @@ public class PravegaTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
-        URI segUri = segUris.get(0);
     }
 
     @BeforeClass
@@ -122,11 +117,13 @@ public class PravegaTest {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
-        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+        Service conService = Utils.createPravegaControllerService(null);
+
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
@@ -146,11 +143,12 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Test(timeout = 10 * 60 * 1000)
-    public void simpleTest() throws InterruptedException, URISyntaxException {
+    public void simpleTest() throws InterruptedException {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, PravegaClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
