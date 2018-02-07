@@ -11,7 +11,7 @@ package io.pravega.common.io.serialization;
 
 import java.util.Collection;
 
-public abstract class FormatDescriptorDirect<T> extends FormatDescriptorBase<T> {
+public abstract class FormatDescriptorDirect<TargetType> extends FormatDescriptorBase<TargetType> {
 
     @Override
     void registerVersions() {
@@ -29,13 +29,13 @@ public abstract class FormatDescriptorDirect<T> extends FormatDescriptorBase<T> 
         return new FormatVersionDirect(version);
     }
 
-    public class FormatVersionDirect extends FormatVersion<FormatRevision<T>> {
+    public class FormatVersionDirect extends FormatVersion<TargetType, TargetType> {
         private FormatVersionDirect(int version) {
             super(version);
         }
 
-        public FormatVersionDirect revision(int revision, StreamWriter<T> writer, StreamReader<T> reader) {
-            createRevision(revision, writer, reader, FormatRevision<T>::new);
+        public FormatVersionDirect revision(int revision, StreamWriter<TargetType> writer, StreamReader<TargetType> reader) {
+            createRevision(revision, writer, reader, FormatRevision<TargetType, TargetType>::new);
             return this;
         }
     }

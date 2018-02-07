@@ -12,7 +12,7 @@ package io.pravega.common.io.serialization;
 import io.pravega.common.ObjectBuilder;
 import java.util.Collection;
 
-public abstract class FormatDescriptorWithBuilder<T, BuilderType extends ObjectBuilder<T>> extends FormatDescriptorBase<T> {
+public abstract class FormatDescriptorWithBuilder<TargetType, BuilderType extends ObjectBuilder<TargetType>> extends FormatDescriptorBase<TargetType> {
     protected abstract BuilderType newBuilder();
 
     @Override
@@ -31,14 +31,14 @@ public abstract class FormatDescriptorWithBuilder<T, BuilderType extends ObjectB
         return new FormatVersionWithBuilder(version);
     }
 
-    public class FormatVersionWithBuilder extends FormatVersion<FormatRevision<BuilderType>> {
+    public class FormatVersionWithBuilder extends FormatVersion<TargetType, BuilderType> {
 
         private FormatVersionWithBuilder(int version) {
             super(version);
         }
 
-        public FormatVersionWithBuilder revision(int revision, StreamWriter<T> writer, StreamReader<BuilderType> readerWithBuilder) {
-            createRevision(revision, writer, readerWithBuilder, FormatRevision<BuilderType>::new);
+        public FormatVersionWithBuilder revision(int revision, StreamWriter<TargetType> writer, StreamReader<BuilderType> readerWithBuilder) {
+            createRevision(revision, writer, readerWithBuilder, FormatRevision<TargetType, BuilderType>::new);
             return this;
         }
     }

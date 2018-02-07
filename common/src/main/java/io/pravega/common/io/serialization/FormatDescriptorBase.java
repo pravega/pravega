@@ -16,10 +16,10 @@ import java.util.HashMap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-public abstract class FormatDescriptorBase<T> {
+public abstract class FormatDescriptorBase<TargetType> {
     //region Members
 
-    protected final HashMap<Byte, FormatVersion<? extends FormatRevision>> versions;
+    protected final HashMap<Byte, FormatVersion<TargetType, ?>> versions;
 
     //endregion
 
@@ -39,11 +39,11 @@ public abstract class FormatDescriptorBase<T> {
 
     abstract void registerVersions();
 
-    void registerVersion(FormatVersion<? extends FormatRevision> v) {
+    void registerVersion(FormatVersion<TargetType, ?> v) {
         Preconditions.checkArgument(this.versions.put(v.getVersion(), v) == null, "Version %s is already defined.", v.getVersion());
     }
 
-    FormatVersion<? extends FormatRevision> getWriteFormatVersion() {
+    FormatVersion<TargetType, ?> getWriteFormatVersion() {
         return this.versions.get(writeVersion());
     }
 
@@ -52,16 +52,17 @@ public abstract class FormatDescriptorBase<T> {
     //region Nested Classes
 
     @Getter
-    abstract class FormatVersion<RevisionType extends FormatRevision> {
+    static abstract class FormatVersion<TargetType, ReaderType> {
         private final byte version;
-        private final ArrayList<RevisionType> revisions = new ArrayList<>();
+        private final ArrayList<FormatRevision<TargetType, ReaderType>> revisions = new ArrayList<>();
 
         FormatVersion(int version) {
             Preconditions.checkArgument(version >= 0 && version <= Byte.MAX_VALUE, "Version must be a value between 0 and ", Byte.MAX_VALUE);
             this.version = (byte) version;
         }
 
-        <ReaderType> void createRevision(int revision, StreamWriter<T> writer, StreamReader<ReaderType> reader, RevisionCreator<StreamWriter<T>, StreamReader<ReaderType>, RevisionType> createRevision) {
+        void createRevision(int revision, StreamWriter<TargetType> writer, StreamReader<ReaderType> reader,
+                                         RevisionCreator<StreamWriter<TargetType>, StreamReader<ReaderType>, FormatRevision<TargetType, ReaderType>> createRevision) {
             Preconditions.checkNotNull(writer, "writer");
             Preconditions.checkNotNull(reader, "reader");
             Preconditions.checkArgument(revision >= 0 && revision <= Byte.MAX_VALUE,
@@ -71,7 +72,7 @@ public abstract class FormatDescriptorBase<T> {
             this.revisions.add(createRevision.apply((byte) revision, writer, reader));
         }
 
-        RevisionType getAtIndex(int index) {
+        FormatRevision<TargetType, ReaderType> getAtIndex(int index) {
             return index < this.revisions.size() ? this.revisions.get(index) : null;
         }
     }
@@ -85,9 +86,9 @@ public abstract class FormatDescriptorBase<T> {
 
     @RequiredArgsConstructor
     @Getter
-    class FormatRevision<ReaderType> {
+    static class FormatRevision<TargetType, ReaderType> {
         private final byte revision;
-        private final StreamWriter<T> writer;
+        private final StreamWriter<TargetType> writer;
         private final StreamReader<ReaderType> reader;
     }
 
