@@ -23,6 +23,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -74,7 +75,7 @@ public class Playground {
         System.out.println(String.format("DOS = %s ms, S = %s ms", dosElapsed / 1000000, sElapsed / 1000000));
     }
 
-    private static void serializeUsingSerializer(MyClass c, VersionedSerializer<MyClass, MyClass.MyClassBuilder> versionedSerializer, byte[] buffer, int count) throws IOException {
+    private static void serializeUsingSerializer(MyClass c, VersionedSerializer<MyClass, MyClass> versionedSerializer, byte[] buffer, int count) throws IOException {
         for (int i = 0; i < count; i++) {
             versionedSerializer.serialize(new FixedByteArrayOutputStream(buffer, 0, buffer.length), c);
         }
@@ -106,7 +107,7 @@ public class Playground {
                          .build();
         System.out.println("Initial: " + mc1.toString());
 
-        val descriptors = new HashMap<String, FormatDescriptor.WithBuilder<MyClass, MyClass.MyClassBuilder>>();
+        val descriptors = new HashMap<String, FormatDescriptor.Direct<MyClass>>();
         descriptors.put("0.2", new MyClassFormat0());
         descriptors.put("1.0", new MyClassFormat1());
 
@@ -121,7 +122,8 @@ public class Playground {
                     serializer.serialize(stream, mc1);
                     stream.flush();
                     val deserializer = VersionedSerializer.use(d.getValue());
-                    val mc2 = deserializer.deserialize(new ByteArrayInputStream(data));
+                    val mc2 = MyClass.builder().build();
+                    deserializer.deserialize(new ByteArrayInputStream(data), mc2);
                     System.out.println(mc2);
                 } catch (Exception ex) {
                     System.out.println("ERROR");
@@ -173,7 +175,7 @@ public class Playground {
         }
     }
 
-    private static class MyClassFormat0 extends FormatDescriptor.WithBuilder<MyClass, MyClass.MyClassBuilder> {
+    private static class MyClassFormat0 extends FormatDescriptor.Direct<MyClass> {
         private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs00 = VersionedSerializer.use(new MyNestedClassFormat00());
         private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs01 = VersionedSerializer.use(new MyNestedClassFormat01());
 
@@ -182,18 +184,14 @@ public class Playground {
             return 0;
         }
 
-        @Override
-        protected MyClass.MyClassBuilder newBuilder() {
-            return MyClass.builder();
-        }
 
         @Override
-        protected Collection<FormatVersion<MyClass, MyClass.MyClassBuilder>> getVersions() {
+        protected Collection<FormatVersion<MyClass, MyClass>> getVersions() {
             return Arrays.asList(
-                    newVersion(0).revision(0, this::write00, this::read00)
-                                 .revision(1, this::write01, this::read01)
-                                 .revision(2, this::write02, this::read02),
-                    newVersion(1).revision(0, this::write10, this::read10));
+                    version(0).revision(0, this::write00, this::read00)
+                              .revision(1, this::write01, this::read01)
+                              .revision(2, this::write02, this::read02),
+                    version(1).revision(0, this::write10, this::read10));
         }
 
         //region Version 0 Revision 0 (Int Id, UTF name)
@@ -203,9 +201,9 @@ public class Playground {
             output.writeUTF(source.getName());
         }
 
-        private void read00(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
-            targetBuilder.id(input.readInt()); // NOTE: this has been changed to Long in Revision 1
-            targetBuilder.name(input.readUTF());
+        private void read00(RevisionDataInput input, MyClass target) throws IOException {
+            target.setId(input.readInt()); // NOTE: this has been changed to Long in Revision 1
+            target.setName(input.readUTF());
         }
 
         //endregion
@@ -216,8 +214,8 @@ public class Playground {
             output.writeLong(source.getId());
         }
 
-        private void read01(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
-            targetBuilder.id(input.readLong());
+        private void read01(RevisionDataInput input, MyClass target) throws IOException {
+            target.setId(input.readLong());
         }
 
         //endregion
@@ -232,12 +230,12 @@ public class Playground {
             output.writeCollection(target.getNestedClasses(), this.ncs00::serialize);
         }
 
-        private void read02(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
-            targetBuilder.nestedClass(this.ncs01.deserialize(input));
-            targetBuilder.tick(input.readInt());
-            targetBuilder.isTrue(input.readBoolean());
-            targetBuilder.stringList(input.readCollection(RevisionDataInput::readUTF));
-            targetBuilder.nestedClasses(input.readCollection(this.ncs00::deserialize));
+        private void read02(RevisionDataInput input, MyClass target) throws IOException {
+            target.setNestedClass(this.ncs01.deserialize(input));
+            target.setTick(input.readInt());
+            target.setTrue(input.readBoolean());
+            target.setStringList(input.readCollection(RevisionDataInput::readUTF, ArrayList::new));
+            target.setNestedClasses(input.readCollection(this.ncs00::deserialize, ArrayList::new));
         }
 
         //endregion
@@ -250,14 +248,18 @@ public class Playground {
             output.writeUTF(target.getName());
             output.writeInt(target.getTick());
             output.writeBoolean(target.isTrue());
+            output.writeCollection(target.getStringList(), DataOutput::writeUTF);
+            output.writeCollection(target.getNestedClasses(), this.ncs00::serialize);
         }
 
-        private void read10(RevisionDataInput input, MyClass.MyClassBuilder targetBuilder) throws IOException {
-            targetBuilder.id(input.readLong());
-            targetBuilder.nestedClass(this.ncs01.deserialize(input));
-            targetBuilder.name(input.readUTF());
-            targetBuilder.tick(input.readInt());
-            targetBuilder.isTrue(input.readBoolean());
+        private void read10(RevisionDataInput input, MyClass target) throws IOException {
+            target.setId(input.readLong());
+            target.setNestedClass(this.ncs01.deserialize(input));
+            target.setName(input.readUTF());
+            target.setTick(input.readInt());
+            target.setTrue(input.readBoolean());
+            target.setStringList(input.readCollection(RevisionDataInput::readUTF, ArrayList::new));
+            target.setNestedClasses(input.readCollection(this.ncs00::deserialize, ArrayList::new));
         }
 
         //endregion
@@ -283,7 +285,7 @@ public class Playground {
         @Override
         protected Collection<FormatVersion<MyNestedClass, MyNestedClass.MyNestedClassBuilder>> getVersions() {
             FormatVersion<MyNestedClass, MyNestedClass.MyNestedClassBuilder> v =
-                    newVersion(0).revision(0, this::write00, this::read00);
+                    version(0).revision(0, this::write00, this::read00);
             if (writeRevision() >= 1) {
                 v.revision(1, this::write01, this::read01);
             }

@@ -49,7 +49,7 @@ public abstract class FormatDescriptor<TargetType, ReaderType> {
         Preconditions.checkArgument(this.versions.put(v.getVersion(), v) == null, "Version %s is already defined.", v.getVersion());
     }
 
-    protected FormatVersion<TargetType, ReaderType> newVersion(int version) {
+    protected FormatVersion<TargetType, ReaderType> version(int version) {
         return new FormatVersion<>(version);
     }
 
