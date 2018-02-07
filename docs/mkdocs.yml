@@ -29,6 +29,7 @@ pages:
       - 'REST API - Controller': 'rest/restapis.md'
       - 'Pravega Connectors': 'connectors.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
+      - 'Working with Reader Group notifications': 'reader-group-notifications.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
       - 'Working with Transactions': 'transactions.md'
   - Running Pravega:
