@@ -146,7 +146,7 @@ public class CheckpointState implements Serializable {
         uncheckpointedHosts.forEach((cp, hosts) -> ucph.put(cp, new ArrayList<>(hosts)));
         Map<String, Map<Segment, Long>> cpps = new HashMap<>();
         checkpointPositions.forEach((cp, pos) -> cpps.put(cp, new HashMap<>(pos)));
-        Map<Segment, Long> lcp = new HashMap<>(lastCheckpointPosition);
+        Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
         return new CheckpointState(cps, ucph, cpps, lcp);
     }
     
