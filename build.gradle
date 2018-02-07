@@ -573,6 +573,8 @@ project('test:system') {
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
+        compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
     }
     //disable the default test task.
     test {
@@ -587,10 +589,24 @@ project('test:system') {
             }
         }
         from sourceSets.test.output
+        exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+    }
+
+    task testJarForDocker(type: Jar) {
+        archiveName = "test-docker-collection.jar"
+        from {
+            (configurations.runtime).collect {
+                it.isDirectory() ? it : zipTree(it)
+            }
+        }
+        from sourceSets.test.output
+        from sourceSets.main.output
+        exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
     }
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
@@ -625,6 +641,47 @@ project('test:system') {
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
         onlyIf { dockerRegistryUrl && repoUrl }
+    }
+
+    task execShellScript(type: Exec) {
+        commandLine "./preTestScript.sh"
+        args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+    }
+
+    //This is  used to invoke docker based systemTests
+    task startSystemTestsWithDocker(type: Test) {
+
+        dependsOn 'testJarForDocker', 'execShellScript'
+
+        ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
+
+        description 'Used to invoke docker based system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
+        testClassesDir = sourceSets.test.output.classesDir
+        classpath = sourceSets.test.runtimeClasspath
+
+        systemProperty "execType", System.getProperty("execType")
+        systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        if (System.getProperty("execType") == null) {
+            systemProperty "execType", "DOCKER"
+        }
+        if (System.getProperty("masterIP") == null) {
+            systemProperty "masterIP", "INVALID_MASTER_IP"
+        }
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+        if (System.getProperty("skipServiceInstallation") == null) {
+            //skipServiceInstallation by default.
+            systemProperty "skipServiceInstallation", "false"
+        }
+        maxParallelForks = 1
+        systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
+
+        onlyIf { dockerRegistryUrl }
     }
 }
 

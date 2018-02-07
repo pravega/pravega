@@ -42,7 +42,7 @@
     <allow pkg="org.gaul.s3proxy" />
     <allow pkg="org.jclouds" />
     <allow pkg="org.glassfish.grizzly" />
-    <allow pkg="org.jasypt" />
+    <allow pkg="com.spotify" />
     <allow pkg="io.jsonwebtoken" />
 
 </import-control>

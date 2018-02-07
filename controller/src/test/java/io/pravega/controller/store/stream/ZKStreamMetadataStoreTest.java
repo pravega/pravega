@@ -226,7 +226,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.setState(scope, stream, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
                 scaleTimestamp, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
+        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), segmentsCreated, response.getActiveEpoch(),
                 scaleTimestamp, null, executor).join();
     }
 }

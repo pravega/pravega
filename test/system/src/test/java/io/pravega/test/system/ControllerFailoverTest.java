@@ -19,6 +19,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -47,14 +48,15 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+    private Service controllerService1 = null;
+    private URI controllerURIDirect = null;
 
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws MarathonException, ExecutionException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -64,7 +66,7 @@ public class ControllerFailoverTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -73,25 +75,24 @@ public class ControllerFailoverTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service controllerService = new PravegaControllerService("controller", zkUri);
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-
-        //4. start test controller instances
-        Service testControllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
-        if (!testControllerService.isRunning()) {
-            testControllerService.start(true);
-        }
-
+        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service instance details: {}", conUris);
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                .collect(Collectors.toList());
 
-        List<URI> testConUris = testControllerService.getServiceDetails();
-        log.debug("Pravega test Controller service instance details: {}", testConUris);
+        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -100,27 +101,33 @@ public class ControllerFailoverTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-    private static URI getTestControllerServiceURI() {
-        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
 
-    private static URI getControllerURI() {
-        Service controllerService = new PravegaControllerService("controller", null);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
+    @Before
+    public void getControllerInfo() {
+        Service zkService = Utils.createZookeeperService();
+        Assert.assertTrue(zkService.isRunning());
+        List<URI> zkUris = zkService.getServiceDetails();
+        log.info("zookeeper service details: {}", zkUris);
 
+        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService1.isRunning()) {
+            controllerService1.start(true);
+        }
 
-    private static void stopTestControllerService() {
-        log.info("Stopping test controller service");
-        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        controllerService.stop();
+        List<URI> conUris = controllerService1.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
 
     @Test(timeout = 180000)
-    public void failoverTest() throws URISyntaxException, InterruptedException {
+    public void failoverTest() throws InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
@@ -133,10 +140,9 @@ public class ControllerFailoverTest {
         long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
-        URI controllerUri = getTestControllerServiceURI();
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig( PravegaClientConfig.builder().controllerURI(controllerUri).build())
+                                    .clientConfig( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
                                     .build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -161,14 +167,22 @@ public class ControllerFailoverTest {
         Assert.assertTrue(!scaleStatus);
 
         // Now stop the controller instance executing scale operation.
-        stopTestControllerService();
-        log.info("Successfully stopped test controller service");
+        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
+        log.info("Successfully stopped one instance of controller service");
+
+        List<URI> conUris = controllerService1.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Connect to another controller instance.
-        controllerUri = getControllerURI();
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerUri).build())
+                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
                                     .build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
@@ -181,7 +195,7 @@ public class ControllerFailoverTest {
         if (status == Transaction.Status.OPEN) {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
-                    controllerUri);
+                    controllerURIDirect);
             controller2.abortTransaction(stream1, txnSegments.getTxnId()).join();
         }
 
