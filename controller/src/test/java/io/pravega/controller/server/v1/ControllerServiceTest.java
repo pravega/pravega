@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -127,7 +128,8 @@ public class ControllerServiceTest {
         List<Segment> segmentCreated = startScaleResponse.getSegmentsCreated();
         streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
@@ -137,7 +139,8 @@ public class ControllerServiceTest {
         segmentCreated = startScaleResponse.getSegmentsCreated();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         // endregion
     }
 
