@@ -267,6 +267,15 @@ public class ReaderGroupStateManager {
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
             fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
+            compactIfNeeded();
+        }
+    }
+    
+    private void compactIfNeeded() {
+        ReaderGroupState state = sync.getState();
+        //Make sure it has been a while, and compaction are staggered.
+        if (state.getUpdatesSinceCompaction() > 500 && Math.random() < 0.05) {
+            sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }
     

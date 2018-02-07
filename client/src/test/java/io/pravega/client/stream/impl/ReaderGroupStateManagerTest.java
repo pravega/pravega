@@ -63,6 +63,56 @@ public class ReaderGroupStateManagerTest {
         }
     }
     
+    @Test(timeout = 10000)
+    public void testCompaction() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+                                                            streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state = clientFactory.createStateSynchronizer(stream,
+                                                                                          new JavaSerializer<>(),
+                                                                                          new JavaSerializer<>(),
+                                                                                          config);
+        Segment s1 = new Segment(scope, stream, 1);
+        Segment s2 = new Segment(scope, stream, 2);
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(s1, 1L);
+        segments.put(s2, 2L);
+        AtomicLong clock = new AtomicLong();
+        ReaderGroupStateManager.initializeReaderGroup(state, ReaderGroupConfig.builder().build(), segments);
+        ReaderGroupStateManager r1 = new ReaderGroupStateManager("r1", state, controller, clock::get);
+        r1.initializeReader(0);
+        r1.acquireNewSegmentsIfNeeded(0);
+        assertTrue(state.getState().getUnassignedSegments().isEmpty());
+        state.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        r1.acquireNewSegmentsIfNeeded(0);
+        state.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        ReaderGroupStateManager r2 = new ReaderGroupStateManager("r2", state, controller, clock::get);
+        r2.initializeReader(0);
+        assertTrue(r1.releaseSegment(s1, 1, 1));
+        state.fetchUpdates();
+        assertFalse(state.getState().getUnassignedSegments().isEmpty());
+        assertFalse(r2.acquireNewSegmentsIfNeeded(0).isEmpty());
+        state.fetchUpdates();
+        assertTrue(state.getState().getUnassignedSegments().isEmpty());
+        assertEquals(Collections.singleton(s2), state.getState().getSegments("r1"));
+        assertEquals(Collections.singleton(s1), state.getState().getSegments("r2"));
+        state.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        r1.findSegmentToReleaseIfRequired();
+        r1.acquireNewSegmentsIfNeeded(0);
+        r2.getCheckpoint();
+    }
+    
     @Test(timeout = 20000)
     public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
