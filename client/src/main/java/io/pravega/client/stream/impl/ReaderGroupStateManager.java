@@ -66,6 +66,8 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 public class ReaderGroupStateManager {
     
+    private static final double COMPACTION_PROBABILITY = 0.05;
+    private static final int MIN_UPDATES_BEFORE_COMPACTION = 500;
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
     private final Object decisionLock = new Object();
@@ -274,7 +276,7 @@ public class ReaderGroupStateManager {
     private void compactIfNeeded() {
         ReaderGroupState state = sync.getState();
         //Make sure it has been a while, and compaction are staggered.
-        if (state.getUpdatesSinceCompaction() > 500 && Math.random() < 0.05) {
+        if (state.getUpdatesSinceCompaction() > MIN_UPDATES_BEFORE_COMPACTION && Math.random() < COMPACTION_PROBABILITY) {
             sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }
