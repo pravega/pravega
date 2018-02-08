@@ -1,0 +1,903 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+        <meta name="description" content="Documentation to help you get familiar with Pravega">
+      
+      
+        <link rel="canonical" href="http://pravega.io/docs/terminology/">
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.2, mkdocs-material-2.2.1">
+    
+    
+      
+        <title>Terminology - Exploring Pravega</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/application.41c6761c.css">
+      
+    
+    
+      <script src="../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body>
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="http://pravega.io/docs" title="Exploring Pravega" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                Exploring Pravega
+              </span>
+              <span class="md-header-nav__topic">
+                Terminology
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" required placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset">&#xE5CD;</button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/pravega/pravega/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      GitHub
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    Exploring Pravega
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/pravega/pravega/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      GitHub
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../getting-started/" title="Getting Started" class="md-nav__link">
+      Getting Started
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+    
+    <label class="md-nav__link" for="nav-3">
+      Understanding Pravega
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        Understanding Pravega
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pravega-concepts/" title="Pravega Concepts" class="md-nav__link">
+      Pravega Concepts
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+    <a href="./" title="Terminology" class="md-nav__link md-nav__link--active">
+      Terminology
+    </a>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../key-features/" title="Key Features" class="md-nav__link">
+      Key Features
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../faq/" title="Pravega FAQ" class="md-nav__link">
+      Pravega FAQ
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../segment-store-service/" title="Segment Store Service" class="md-nav__link">
+      Segment Store Service
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Developing Pravega Applications
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Developing Pravega Applications
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../javadoc/" title="Java API Reference" class="md-nav__link">
+      Java API Reference
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../rest/restapis/" title="REST API - Controller" class="md-nav__link">
+      REST API - Controller
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../connectors/" title="Pravega Connectors" class="md-nav__link">
+      Pravega Connectors
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../basic-reader-and-writer/" title="Working with Reader and Writer" class="md-nav__link">
+      Working with Reader and Writer
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../reader-group-notifications/" title="Working with Reader Group notifications" class="md-nav__link">
+      Working with Reader Group notifications
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../state-synchronizer/" title="Working with State Synchronizer" class="md-nav__link">
+      Working with State Synchronizer
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../transactions/" title="Working with Transactions" class="md-nav__link">
+      Working with Transactions
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Running Pravega
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Running Pravega
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/deployment/" title="Deployment Overview" class="md-nav__link">
+      Deployment Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/run-local/" title="Running Locally" class="md-nav__link">
+      Running Locally
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/manual-install/" title="Manual Install" class="md-nav__link">
+      Manual Install
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/docker-swarm/" title="Deployment in Docker Swarm" class="md-nav__link">
+      Deployment in Docker Swarm
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/dcos-install/" title="Deployment on DC/OS" class="md-nav__link">
+      Deployment on DC/OS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../deployment/aws-install/" title="Running in the Cloud (AWS)" class="md-nav__link">
+      Running in the Cloud (AWS)
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Contributing to Pravega
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Contributing to Pravega
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../contributing/" title="Coding guildelines" class="md-nav__link">
+      Coding guildelines
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../roadmap/" title="Pravega Roadmap" class="md-nav__link">
+      Pravega Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../join-community/" title="Join the Community" class="md-nav__link">
+      Join the Community
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/pravega/pravega/tree/master/docs/terminology.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <!--
+Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+<h1 id="terminology">Terminology</h1>
+<p>Here is a glossary of terms related to Pravega:</p>
+<table>
+<thead>
+<tr>
+<th><strong>Term</strong></th>
+<th><strong>Definition</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Pravega</strong></td>
+<td>Pravega is an open source storage primitive implementing <strong>Streams</strong> for continuous and unbounded data.</td>
+</tr>
+<tr>
+<td><strong>Stream</strong></td>
+<td>A durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.</td>
+</tr>
+<tr>
+<td></td>
+<td>A <strong>Stream</strong> is identified by a name and a Scope.</td>
+</tr>
+<tr>
+<td></td>
+<td>A <strong>Stream</strong> is comprised of one or more <strong>Stream Segments.</strong></td>
+</tr>
+<tr>
+<td><strong>Stream Segment</strong></td>
+<td>A shard of a <strong>Stream</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>The number of <strong>Stream Segments</strong> in a <strong>Stream</strong> might vary over time according to load and <strong>Scaling Policy</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>In the absence of a <strong>Scale Event</strong>, <strong>Events</strong> written to a <strong>Stream</strong> with the same <strong>Routing Key</strong> are stored in the same <strong>Stream Segment</strong> and are totally ordered.</td>
+</tr>
+<tr>
+<td></td>
+<td>When a <strong>Scale Event</strong> occurs, the set of <strong>Stream Segments</strong> of a <strong>Stream</strong> changes and <strong>Events</strong> written with a given <strong>Routing Key</strong> <em>K</em> before the <strong>Scaling Event</strong> are stored in a different <strong>Stream Segment</strong> compared to <strong>Events</strong> written with the same <strong>Routing Key</strong> <em>K</em> after the event.</td>
+</tr>
+<tr>
+<td></td>
+<td>In conjunction with <strong>Reader Groups</strong>, the number of <strong>Stream Segments</strong> is the maximum amount of read parallelism of a <strong>Stream</strong>.</td>
+</tr>
+<tr>
+<td><strong>Scope</strong></td>
+<td>A namespace for <strong>Stream</strong> names.</td>
+</tr>
+<tr>
+<td></td>
+<td>A <strong>Stream</strong> name must be unique within a <strong>Scope</strong>.</td>
+</tr>
+<tr>
+<td><strong>Event</strong></td>
+<td>A collection of bytes within a <strong>Stream.</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>An <strong>Event</strong> is associated with a <strong>Routing Key.</strong></td>
+</tr>
+<tr>
+<td><strong>Routing Key</strong></td>
+<td>A property of an <strong>Event</strong> used to route messages to <strong>Readers.</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>Two <strong>Events</strong> with the same <strong>Routing Key</strong> will be read by <strong>Readers</strong> in exactly the same order they were written.</td>
+</tr>
+<tr>
+<td><strong>Reader</strong></td>
+<td>A software application that reads data from one or more <strong>Streams</strong>.</td>
+</tr>
+<tr>
+<td><strong>Writer</strong></td>
+<td>A software application that writes data to one or more <strong>Streams.</strong></td>
+</tr>
+<tr>
+<td><strong>Pravega Java Client Library</strong></td>
+<td>A Java library that applications use to interface with <strong>Pravega</strong></td>
+</tr>
+<tr>
+<td><strong>Reader Group</strong></td>
+<td>A named collection of one or more <strong>Readers</strong> that read from a <strong>Stream</strong> in parallel.</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>Pravega</strong> assigns <strong>Stream Segments</strong> to the <strong>Readers</strong> making sure that ll <strong>Stream Segments</strong> are assigned to at least one <strong>Reader</strong> and that hey are balanced across the <strong>Readers</strong>.</td>
+</tr>
+<tr>
+<td><strong>Position</strong></td>
+<td>An offset within a <strong>Stream</strong>, representing a type of recovery point for a <strong>Reader</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>If a <strong>Reader</strong> crashes, a <strong>Position</strong> can be used to initialize the failed <em>Reader<strong>'s replacement so that the replacement resumes processing the </strong>Stream<strong> from where the failed </strong>Reader</em>* left off.</td>
+</tr>
+<tr>
+<td><strong>Tier 1 Storage</strong></td>
+<td>Short term, low-latency, data storage that guarantees the durability of data written to <strong>Streams</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>The current implementation of <strong>Tier 1</strong> uses  <a href="http://bookkeeper.apache.org/">Apache Bookkeeper</a>.</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>Tier 1</strong> storage keeps the most recent appends to streams in <strong>Pravega.</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>As data in <strong>Tier 1</strong> ages, it is moved out of <strong>Tier 1</strong> into <strong>Tier 2.</strong></td>
+</tr>
+<tr>
+<td><strong>Tier 2 Storage</strong></td>
+<td>A portion of <strong>Pravega</strong> storage based on cheap and deep persistent storage technology such as HDFS, DellEMC's Isilon or DellEMC's Elastic Cloud Storage.</td>
+</tr>
+<tr>
+<td><strong>Pravega Server</strong></td>
+<td>A component of <strong>Pravega</strong> that implements the <strong>Pravega</strong> data plane API for operations such as reading from and writing to <strong>Pravega Streams</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>The data plane of <strong>Pravega,</strong> also called the <strong>Segment Store,</strong> is composed of 1 or more <strong>Pravega Server</strong> instances.</td>
+</tr>
+<tr>
+<td><strong>Segment Store</strong></td>
+<td>A collection of Pravega Servers that in aggregate form the data plane of a Pravega cluster.</td>
+</tr>
+<tr>
+<td><strong>Controller</strong></td>
+<td>A component of Pravega that implements the <strong>Pravega</strong> control plane API for operations such as creating and retrieving information about <strong>Streams</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>The control plane of <strong>Pravega</strong> is composed of 1 or more <strong>Controller</strong> instances coordinated by Zookeeper.</td>
+</tr>
+<tr>
+<td><strong>Auto Scaling</strong></td>
+<td>A Pravega concept that allows the number of <strong>Stream Segments</strong> in a <strong>Stream</strong> to change over time, based on <strong>Scaling Policy.</strong></td>
+</tr>
+<tr>
+<td><strong>Scaling Policy</strong></td>
+<td>A configuration item of a <strong>Stream</strong> that determines how the number of <strong>Stream Segments</strong> in the <strong>Stream</strong> should change over time.</td>
+</tr>
+<tr>
+<td></td>
+<td>There are three kinds of <strong>Scaling Policy</strong>, a <strong>Stream</strong> has exactly one of these at any given time.</td>
+</tr>
+<tr>
+<td></td>
+<td>- Fixed number of <strong>Stream Segments</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>- Change the number of <strong>Stream Segments</strong> based on the number of bytes per second written to the <strong>Stream</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>- Change the number of <strong>Stream Segments</strong> based on the number of <strong>Events</strong> er second written to the <strong>Stream</strong></td>
+</tr>
+<tr>
+<td><strong>Scale Event</strong></td>
+<td>There are two types of Scale Event: Scale-Up Event and Scale-Down Event. A <strong>Scale Event</strong> triggers <strong>Auto Scaling</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>A Scale-Up Event is a situation where an increase in load causes one or more <strong>Stream Segments</strong> to be split, increasing the number of <strong>Stream Segments</strong> in the <strong>Stream</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>A Scale-Down Event is a situation where a decrease in load causes one or more <strong>Stream Segments</strong> to be merged, reducing the number of <strong>Stream Segments</strong> in the <strong>Stream</strong>.</td>
+</tr>
+<tr>
+<td><strong>Transaction</strong></td>
+<td>A collection of <strong>Stream</strong> write operations that are applied atomically to the <strong>Stream</strong>.</td>
+</tr>
+<tr>
+<td></td>
+<td>Either all of the bytes in a <strong>Transaction</strong> are written to the <strong>Stream</strong> or none of them are.</td>
+</tr>
+<tr>
+<td><strong>State Synchronizer</strong></td>
+<td>An abstraction built on top of Pravega to enable the implementation of replicated state using a Pravega segment to back up the state transformations.</td>
+</tr>
+<tr>
+<td></td>
+<td>A <strong>State Synchronizer</strong> allows a piece of data to be shared between multiple processes with strong consistency and optimistic concurrency.</td>
+</tr>
+<tr>
+<td><strong>Checkpoint</strong></td>
+<td>A kind of <strong>Event</strong> that signals all <strong>Readers</strong> within a <strong>Reader Group</strong> to persist their state.</td>
+</tr>
+</tbody>
+</table>
+                
+                  
+                
+              
+              
+                
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../pravega-concepts/" title="Pravega Concepts" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Pravega Concepts
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../key-features/" title="Key Features" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Key Features
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/application.6cdc17f0.js"></script>
+      
+      <script>app.initialize({version:"0.17.2",url:{base:".."}})</script>
+      
+    
+    
+      
+        <script>!function(e,a,t,n,o,c,i){e.GoogleAnalyticsObject=o,e.ga=e.ga||function(){(e.ga.q=e.ga.q||[]).push(arguments)},e.ga.l=1*new Date,c=a.createElement(t),i=a.getElementsByTagName(t)[0],c.async=1,c.src="https://www.google-analytics.com/analytics.js",i.parentNode.insertBefore(c,i)}(window,document,"script",0,"ga"),ga("create","UA-1508605-1","pravega.io"),ga("set","anonymizeIp",!0),ga("send","pageview");var links=document.getElementsByTagName("a");Array.prototype.map.call(links,function(e){e.host!=document.location.host&&e.addEventListener("click",function(){var a=e.getAttribute("data-md-action")||"follow";ga("send","event","outbound",a,e.href)})});var query=document.forms.search.query;query.addEventListener("blur",function(){if(this.value){var e=document.location.pathname;ga("send","pageview",e+"?q="+this.value)}})</script>
+      
+    
+  </body>
+</html>

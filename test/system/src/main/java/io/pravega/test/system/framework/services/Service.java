@@ -11,6 +11,7 @@ package io.pravega.test.system.framework.services;
 
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Service abstraction for the test framework. T
@@ -65,8 +66,7 @@ public interface Service {
      *
      * An instance count of zero would suspend the service.
      * @param instanceCount new instance count for the service.
-     * @param wait wait until the the service reaches the desired instance count.
      *
      */
-    public void scaleService(final int instanceCount, final boolean wait);
+    public CompletableFuture<Void> scaleService(final int instanceCount);
 }

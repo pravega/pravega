@@ -33,6 +33,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -42,6 +43,7 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.ServiceListeners;
+import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -56,6 +58,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -135,6 +138,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+            .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
             .build();
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
@@ -1127,7 +1131,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Wait for the container to be shut down and verify it is failed.
         ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
-        Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
+        Assert.assertEquals("Container is not in a failed state after a failed startup.", Service.State.FAILED, container.state());
 
         Throwable actualException = Exceptions.unwrap(container.failureCause());
         boolean exceptionMatch = actualException instanceof IntentionalException;
@@ -1138,6 +1142,108 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
         ServiceListeners.awaitShutdown(log.get(), shutdownTimeout, true);
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentContainer to start in Offline mode (due to an offline DurableLog) and eventually
+     * become online when the DurableLog becomes too.
+     */
+    @Test
+    public void testStartOffline() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+
+        AtomicReference<DurableDataLog> dataLog = new AtomicReference<>();
+        @Cleanup
+        val dataLogFactory = new TestDurableDataLogFactory(context.dataLogFactory, dataLog::set);
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+        val durableLogFactory = new WatchableOperationLogFactory(new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService()), durableLog::set);
+        val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, durableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+
+        // Write some data
+        ArrayList<String> segmentNames = new ArrayList<>();
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+            for (int i = 0; i < SEGMENT_COUNT; i++) {
+                String segmentName = getSegmentName(i);
+                segmentNames.add(segmentName);
+                opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+            }
+
+            for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
+                for (String segmentName : segmentNames) {
+                    byte[] appendData = getAppendData(segmentName, i);
+                    opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                    recordAppend(segmentName, appendData, segmentContents);
+                }
+            }
+
+            Futures.allOf(opFutures).join();
+
+            // Disable the DurableDataLog.
+            dataLog.get().disable();
+        }
+
+        // Start in "Offline" mode, verify operations cannot execute and then shut down - make sure we can shut down an offline container.
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            Assert.assertTrue("Expecting Segment Container to be offline.", container.isOffline());
+
+            AssertExtensions.assertThrows(
+                    "append() worked in offline mode.",
+                    () -> container.append("foo", new byte[1], null, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "getStreamSegmentInfo() worked in offline mode.",
+                    () -> container.getStreamSegmentInfo("foo", false, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "read() worked in offline mode.",
+                    () -> container.read("foo", 0, 1, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+
+            container.stopAsync().awaitTerminated();
+        }
+
+        // Start in "Offline" mode and verify we can resume a normal startup.
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            Assert.assertTrue("Expecting Segment Container to be offline.", container.isOffline());
+            dataLog.get().enable();
+
+            // Wait for the DurableLog to become online.
+            durableLog.get().awaitOnline().get(DEFAULT_DURABLE_LOG_CONFIG.getStartRetryDelay().toMillis() * 100, TimeUnit.MILLISECONDS);
+
+            // Verify we can execute regular operations now.
+            ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+            for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
+                for (String segmentName : segmentNames) {
+                    byte[] appendData = getAppendData(segmentName, i);
+                    opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                    recordAppend(segmentName, appendData, segmentContents);
+                }
+            }
+
+            Futures.allOf(opFutures).join();
+
+            // Verify all operations arrived in Storage.
+            ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+            for (String segmentName : segmentNames) {
+                SegmentProperties sp = container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                segmentsCompletion.add(waitForSegmentInStorage(sp, context));
+            }
+
+            Futures.allOf(segmentsCompletion).join();
+
+            container.stopAsync().awaitTerminated();
+        }
+
     }
 
     /**
