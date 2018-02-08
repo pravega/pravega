@@ -13,7 +13,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
-
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +56,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyInt(), anyLong(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyInt(), any(), any());
+                anyString(), anyString(), anyInt(), any(), any(), anyString());
 
         return helper;
     }

@@ -53,9 +53,6 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -64,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,6 +69,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 
@@ -202,7 +202,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @return future.
      */
     public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
-                                             final long recordingTime, final OperationContext contextOpt) {
+                                    final long recordingTime, final OperationContext contextOpt, final String delegationToken) {
         Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
@@ -210,16 +210,16 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(retentionSet -> {
                     StreamCutRecord latestCut = retentionSet.stream()
                             .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
-                    return checkGenerateStreamCut(scope, stream, context, latestCut, recordingTime)
+                    return checkGenerateStreamCut(scope, stream, context, latestCut, recordingTime, delegationToken)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime));
                 });
 
     }
 
     private CompletableFuture<StreamCutRecord> checkGenerateStreamCut(String scope, String stream, OperationContext context,
-                                                           StreamCutRecord latestCut, long recordingTime) {
+                                                                      StreamCutRecord latestCut, long recordingTime, String delegationToken) {
         if (latestCut == null || recordingTime - latestCut.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
-            return generateStreamCut(scope, stream, context)
+            return generateStreamCut(scope, stream, context, delegationToken)
                     .thenCompose(newRecord -> streamMetadataStore.addStreamCutToRetentionSet(scope, stream, newRecord, context, executor)
                         .thenApply(x -> newRecord));
         } else {
@@ -286,7 +286,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
                         .stream()
                         .parallel()
-                        .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber())))))
+                        .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber(), delegationToken)))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, map, context, executor)
@@ -575,9 +575,10 @@ public class StreamMetadataTasks extends TaskBase {
      * @param runOnlyIfStarted run only if the scale operation was already running. It will ignore requests if the operation isnt started
      *                         by the caller.
      * @param context operation context
+     * @param delegationToken token to be sent to segmentstore.
      * @return returns list of new segments created as part of this scale operation.
      */
-    public CompletableFuture<List<Segment>> startScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context) { // called upon event read from requeststream
+    public CompletableFuture<List<Segment>> startScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
         return withRetries(() -> streamMetadataStore.startScale(scaleInput.getScope(),
                 scaleInput.getStream(),
                 scaleInput.getSegmentsToSeal(),
@@ -588,7 +589,7 @@ public class StreamMetadataTasks extends TaskBase {
                 executor), executor)
                 .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
                         .thenApply(updated -> response))
-                .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
+                .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context, delegationToken)
                         .thenCompose(x -> {
                             assert !response.getSegmentsCreated().isEmpty();
 
@@ -598,7 +599,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
                                     scaleTs, context, executor), executor);
                         })
-                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context))
+                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context, delegationToken))
                         .thenApply(y -> response.getSegmentsCreated()));
     }
 
@@ -609,9 +610,10 @@ public class StreamMetadataTasks extends TaskBase {
      * @param stream stream
      * @param epoch epoch
      * @param context operation context
+     * @param delegationToken token to be sent to segmentstore.
      * @return returns true if it was able to complete scale. false otherwise
      */
-    public CompletableFuture<Boolean> tryCompleteScale(String scope, String stream, int epoch, OperationContext context) {
+    public CompletableFuture<Boolean> tryCompleteScale(String scope, String stream, int epoch, OperationContext context, String delegationToken) {
         // Note: if we cant delete old epoch -- txns against old segments are ongoing..
         // if we can delete old epoch, then only do we proceed to subsequent steps
         return withRetries(() -> streamMetadataStore.tryDeleteEpochIfScaling(scope, stream, epoch, context, executor), executor)
@@ -622,9 +624,10 @@ public class StreamMetadataTasks extends TaskBase {
                     assert !response.getSegmentsCreated().isEmpty() && !response.getSegmentsSealed().isEmpty();
 
                     long scaleTs = response.getSegmentsCreated().get(0).getStart();
-                    return notifySealedSegments(scope, stream, response.getSegmentsSealed())
-                            .thenCompose(y ->
-                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, response.getSegmentsSealed(),
+                    return notifySealedSegments(scope, stream, response.getSegmentsSealed(), delegationToken)
+                            .thenCompose(x -> getSealedSegmentsSize(scope, stream, response.getSegmentsSealed(), delegationToken))
+                            .thenCompose(map ->
+                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map,
                                             response.getSegmentsCreated(), epoch, scaleTs, context, executor), executor)
                                     .thenApply(z -> {
                                         log.info("scale processing for {}/{} epoch {} completed.", scope, stream, epoch);
@@ -737,15 +740,14 @@ public class StreamMetadataTasks extends TaskBase {
                 stream, segmentCut.getKey(), segmentCut.getValue(), hostControllerStore, this.connectionFactory, delegationToken), executor));
     }
 
-    public CompletableFuture<Map<Integer, Long>> getSealedSegmentsSize(String scope, String stream, List<Integer> sealedSegments) {
+    public CompletableFuture<Map<Integer, Long>> getSealedSegmentsSize(String scope, String stream, List<Integer> sealedSegments, String delegationToken) {
         return Futures.allOfWithResults(
                 sealedSegments
                         .stream()
                         .parallel()
-                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x))));
+                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, delegationToken))));
     }
 
-    public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments, String delegationToken) {
         return Futures.allOf(
                 sealedSegments
