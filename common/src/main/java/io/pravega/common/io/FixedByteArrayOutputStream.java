@@ -52,7 +52,7 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
 
     //endregion
 
-    //region OutputStream Implementation
+    //region OutputStream and RandomOutput Implementation
 
     @Override
     public void write(int b) throws IOException {
@@ -67,15 +67,6 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
         this.array[this.offset + this.position] = (byte) b;
         this.position++;
     }
-
-    @Override
-    public void close() {
-        this.isClosed = true;
-    }
-
-    //endregion
-
-    //region RandomOutput Implementation
 
     @Override
     public void write(int byteValue, int streamPosition) throws IOException {
@@ -113,6 +104,11 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
     @Override
     public int size() {
         return this.position;
+    }
+
+    @Override
+    public void close() {
+        this.isClosed = true;
     }
 
     //endregion

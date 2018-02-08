@@ -57,8 +57,9 @@ class RandomRevisionDataOutput extends DataOutputStream implements RevisionDataO
     public void close() throws IOException {
         RandomOutput ros = (RandomOutput) this.baseStream;
         int length = ros.size() - this.initialPosition;
-        val lengthSubStream = new DataOutputStream(ros.subStream(this.initialPosition, Integer.BYTES));
-        lengthSubStream.writeInt(length);
+        try (val lengthSubStream = new DataOutputStream(ros.subStream(this.initialPosition, Integer.BYTES))) {
+            lengthSubStream.writeInt(length);
+        }
     }
 
     //endregion

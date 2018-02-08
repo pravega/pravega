@@ -89,7 +89,7 @@ public interface RevisionDataInput extends DataInput {
     default int readCompactInt() throws IOException {
         //read first byte
         int b1 = readUnsignedByte();
-        int header = (byte) (b1 >>> 6);
+        int header = b1 >>> 6;
         b1 &= 0x3F;
 
         switch (header) {
@@ -195,7 +195,7 @@ public interface RevisionDataInput extends DataInput {
      * @param newMap            A Supplier that will create a new instance of the Map type desired.
      * @param <K>               Type of the Keys in the Map.
      * @param <V>               Type of the Values in the Map.
-     * @param <V>               Type of the Map desired to be instantiated and returned.
+     * @param <M>               Type of the Map desired to be instantiated and returned.
      * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
      * @throws IOException If an IOException occurred.
      */

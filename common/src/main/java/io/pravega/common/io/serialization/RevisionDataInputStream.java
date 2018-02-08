@@ -70,7 +70,8 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     void skipRemaining() throws IOException {
         long rp = ((CountableInputStream) this.in).getRelativePosition();
         if (rp < this.length) {
-            skip(this.length - rp);
+            long skipped = skip(this.length - rp);
+            assert skipped == this.length - rp : "Unable to skip all bytes.";
         } else if (rp > this.length) {
             throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.length, rp));
         }
