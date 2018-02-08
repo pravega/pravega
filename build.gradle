@@ -808,5 +808,3 @@ class DockerPushTask extends Exec {
     }
 }
 apply from: "$rootDir/gradle/mkdocs.gradle"
-
-
