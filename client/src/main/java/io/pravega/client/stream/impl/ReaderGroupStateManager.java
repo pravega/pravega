@@ -240,6 +240,7 @@ public class ReaderGroupStateManager {
         });
         ReaderGroupState state = sync.getState();
         releaseTimer.reset(calculateReleaseTime(readerId, state));
+        acquireTimer.reset(calculateAcquireTime(readerId, state));
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
@@ -343,7 +344,7 @@ public class ReaderGroupStateManager {
 
     @VisibleForTesting
     static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
-        return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
+        return TIME_UNIT.multipliedBy(2 * (state.getNumberOfReaders() - state.getRanking(readerId)));
     }
     
     String getCheckpoint() throws ReinitializationRequiredException {
