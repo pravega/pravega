@@ -14,7 +14,6 @@ import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.io.FixedByteArrayOutputStream;
-import io.pravega.common.io.serialization.FormatDescriptor;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -62,7 +61,7 @@ public class Playground {
                         .build();
         int count = 10000000;
         byte[] buffer = new byte[32 * 1024];
-        val s = VersionedSerializer.use(new MyClassFormat1());
+        val s = new MyClassSerializer1();
         Timer t2 = new Timer();
         serializeUsingSerializer(mc, s, buffer, count);
         long sElapsed = t2.getElapsedNanos();
@@ -107,9 +106,9 @@ public class Playground {
                          .build();
         System.out.println("Initial: " + mc1.toString());
 
-        val descriptors = new HashMap<String, FormatDescriptor.Direct<MyClass>>();
-        descriptors.put("0.2", new MyClassFormat0());
-        descriptors.put("1.0", new MyClassFormat1());
+        val descriptors = new HashMap<String, VersionedSerializer.Direct<MyClass>>();
+        descriptors.put("0.2", new MyClassSerializer0());
+        descriptors.put("1.0", new MyClassSerializer1());
 
         for (val s : descriptors.entrySet()) {
             for (val d : descriptors.entrySet()) {
@@ -118,12 +117,10 @@ public class Playground {
                     val data = new byte[1024];
                     @Cleanup
                     val stream = new FixedByteArrayOutputStream(data, 0, data.length);
-                    val serializer = VersionedSerializer.use(s.getValue());
-                    serializer.serialize(stream, mc1);
+                    s.getValue().serialize(stream, mc1);
                     stream.flush();
-                    val deserializer = VersionedSerializer.use(d.getValue());
                     val mc2 = MyClass.builder().build();
-                    deserializer.deserialize(new ByteArrayInputStream(data), mc2);
+                    d.getValue().deserialize(new ByteArrayInputStream(data), mc2);
                     System.out.println(mc2);
                 } catch (Exception ex) {
                     System.out.println("ERROR");
@@ -156,9 +153,6 @@ public class Playground {
                     String.join(",", this.stringList),
                     this.nestedClasses.stream().map(Object::toString).collect(Collectors.joining(",")));
         }
-
-        static class MyClassBuilder implements ObjectBuilder<MyClass> {
-        }
     }
 
     @Builder
@@ -175,15 +169,14 @@ public class Playground {
         }
     }
 
-    private static class MyClassFormat0 extends FormatDescriptor.Direct<MyClass> {
-        private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs00 = VersionedSerializer.use(new MyNestedClassFormat00());
-        private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs01 = VersionedSerializer.use(new MyNestedClassFormat01());
+    private static class MyClassSerializer0 extends VersionedSerializer.Direct<MyClass> {
+        private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs00 = new MyNestedClassSerializer00();
+        private final VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> ncs01 = new MyNestedClassSerializer01();
 
         @Override
         protected byte writeVersion() {
             return 0;
         }
-
 
         @Override
         protected Collection<FormatVersion<MyClass, MyClass>> getVersions() {
@@ -265,14 +258,14 @@ public class Playground {
         //endregion
     }
 
-    private static class MyClassFormat1 extends MyClassFormat0 {
+    private static class MyClassSerializer1 extends MyClassSerializer0 {
         @Override
         protected final byte writeVersion() {
             return 1;
         }
     }
 
-    private static class MyNestedClassFormat00 extends FormatDescriptor.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> {
+    private static class MyNestedClassSerializer00 extends VersionedSerializer.WithBuilder<MyNestedClass, MyNestedClass.MyNestedClassBuilder> {
         @Override
         protected byte writeVersion() {
             return 0;
@@ -314,7 +307,7 @@ public class Playground {
         }
     }
 
-    private static class MyNestedClassFormat01 extends MyNestedClassFormat00 {
+    private static class MyNestedClassSerializer01 extends MyNestedClassSerializer00 {
         protected byte writeRevision() {
             return 1;
         }

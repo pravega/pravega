@@ -17,7 +17,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 public abstract class VersionedSerializer<TargetType, ReaderType> {
@@ -27,23 +32,36 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     // Format (All)     : V(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
     // Format (Revision): RevisionId(1)|Length(4)|Data(Length)
 
-    protected final FormatDescriptor<TargetType, ReaderType> formatDescriptor;
+    private final HashMap<Byte, FormatVersion<TargetType, ReaderType>> versions;
 
     //endregion
 
     //region Constructor
 
-    VersionedSerializer(FormatDescriptor<TargetType, ReaderType> formatDescriptor) {
-        this.formatDescriptor = Preconditions.checkNotNull(formatDescriptor, "formatDescriptor");
+    private VersionedSerializer() {
+        this.versions = new HashMap<>();
+        getVersions().forEach(this::registerVersion);
+        Preconditions.checkArgument(getFormat(writeVersion()) != null, "Write version %s is not defined.", writeVersion());
     }
 
-    public static <TargetType> VersionedSerializer.Direct<TargetType> use(FormatDescriptor.Direct<TargetType> formatDescriptor) {
-        return new VersionedSerializer.Direct<>(formatDescriptor);
+    //endregion
+
+    //region Version Registration
+
+    protected abstract byte writeVersion();
+
+    protected abstract Collection<FormatVersion<TargetType, ReaderType>> getVersions();
+
+    FormatVersion<TargetType, ReaderType> getFormat(byte version) {
+        return this.versions.get(version);
     }
 
-    public static <TargetType, ReaderType extends ObjectBuilder<TargetType>> VersionedSerializer.WithBuilder<TargetType, ReaderType> use(
-            FormatDescriptor.WithBuilder<TargetType, ReaderType> formatDescriptor) {
-        return new VersionedSerializer.WithBuilder<>(formatDescriptor);
+    private void registerVersion(FormatVersion<TargetType, ReaderType> v) {
+        Preconditions.checkArgument(this.versions.put(v.getVersion(), v) == null, "Version %s is already defined.", v.getVersion());
+    }
+
+    protected FormatVersion<TargetType, ReaderType> version(int version) {
+        return new FormatVersion<>(version);
     }
 
     //endregion
@@ -58,7 +76,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     public void serialize(OutputStream stream, TargetType target) throws IOException {
         // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
         val dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-        val writeVersion = this.formatDescriptor.getFormat(this.formatDescriptor.writeVersion());
+        val writeVersion = getFormat(writeVersion());
 
         // Write Serialization Header.
         dataOutput.writeByte(writeVersion.getVersion());
@@ -87,7 +105,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     public void deserialize(InputStream stream, ReaderType target) throws IOException {
         val dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
         byte version = dataInput.readByte();
-        val readVersion = this.formatDescriptor.getFormat(version);
+        val readVersion = getFormat(version);
         checkDataIntegrity(readVersion != null, "Unsupported version %d.", version);
 
         byte revisionCount = dataInput.readByte();
@@ -111,26 +129,68 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
 
     //endregion
 
-    //region Implementations
+    //region Versions and Revisions
 
-    public static class Direct<TargetType> extends VersionedSerializer<TargetType, TargetType> {
-        private Direct(FormatDescriptor.Direct<TargetType> formatDescriptor) {
-            super(formatDescriptor);
+    @Getter
+    protected static class FormatVersion<TargetType, ReaderType> {
+        private final byte version;
+        private final ArrayList<FormatRevision<TargetType, ReaderType>> revisions = new ArrayList<>();
+
+        private FormatVersion(int version) {
+            Preconditions.checkArgument(version >= 0 && version <= Byte.MAX_VALUE, "Version must be a value between 0 and ", Byte.MAX_VALUE);
+            this.version = (byte) version;
+        }
+
+        public FormatVersion<TargetType, ReaderType> revision(int revision, StreamWriter<TargetType> writer, StreamReader<ReaderType> reader) {
+            Preconditions.checkNotNull(writer, "writer");
+            Preconditions.checkNotNull(reader, "reader");
+            Preconditions.checkArgument(revision >= 0 && revision <= Byte.MAX_VALUE,
+                    "Revision must be a non-negative value and less than or equal to %s.", Byte.MAX_VALUE);
+            Preconditions.checkArgument(this.revisions.isEmpty() || revision == this.revisions.get(this.revisions.size() - 1).getRevision() + 1,
+                    "Expected revision to be incremental.");
+            this.revisions.add(new FormatRevision<>((byte) revision, writer, reader));
+            return this;
+        }
+
+        FormatRevision<TargetType, ReaderType> getAtIndex(int index) {
+            return index < this.revisions.size() ? this.revisions.get(index) : null;
         }
     }
 
-    public static class WithBuilder<TargetType, ReaderType extends ObjectBuilder<TargetType>> extends VersionedSerializer<TargetType, ReaderType> {
-        private WithBuilder(FormatDescriptor.WithBuilder<TargetType, ReaderType> formatDescriptor) {
-            super(formatDescriptor);
-        }
+    @RequiredArgsConstructor
+    @Getter
+    private static class FormatRevision<TargetType, ReaderType> {
+        private final byte revision;
+        private final StreamWriter<TargetType> writer;
+        private final StreamReader<ReaderType> reader;
+    }
+
+    @FunctionalInterface
+    protected interface StreamWriter<TargetType> {
+        void accept(TargetType source, RevisionDataOutput output) throws IOException;
+    }
+
+    @FunctionalInterface
+    protected interface StreamReader<TargetType> {
+        void accept(RevisionDataInput input, TargetType target) throws IOException;
+    }
+
+    //endregion
+
+    //region Types
+
+    public static abstract class Direct<TargetType> extends VersionedSerializer<TargetType, TargetType> {
+    }
+
+    public static abstract class WithBuilder<TargetType, ReaderType extends ObjectBuilder<TargetType>> extends VersionedSerializer<TargetType, ReaderType> {
+        protected abstract ReaderType newBuilder();
 
         public TargetType deserialize(RevisionDataInput dataInput) throws IOException {
             return deserialize(dataInput.asStream());
         }
 
         public TargetType deserialize(InputStream stream) throws IOException {
-            val formatWithBuilder = (FormatDescriptor.WithBuilder<TargetType, ReaderType>) this.formatDescriptor;
-            ReaderType builder = formatWithBuilder.newBuilder();
+            ReaderType builder = newBuilder();
             deserialize(stream, builder);
             return builder.build();
         }
