@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -171,6 +172,31 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             }
             return Collections.singletonList(new ReaderGroupStateInit(config, positions));
         });
+    }
+
+    @Override
+    public void resetReadersToStreamCut(List<StreamCut> streamCuts) {
+        //ensure that streamCut for all the streams managed by the ReaderGroup are present.
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
+        Preconditions.checkArgument(validateStreamCuts(streamCuts, synchronizer.getState().getStreamNames()),
+                "StreamCuts for streams managed by the ReaderGroup need to be provided");
+        //reset the Readers to the StreamCut.
+        synchronizer.updateState(state -> {
+            ReaderGroupConfig config = state.getConfig();
+            Map<Segment, Long> positions = new HashMap<>();
+            for (StreamCut cut : streamCuts) {
+                positions.putAll(cut.getPositions());
+            }
+            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
+        });
+    }
+
+    private boolean validateStreamCuts(List<StreamCut> streamCuts, Set<String> readerGroupStreams) {
+        Set<String> providedStreams = streamCuts.stream().map(sc -> sc.getStream().getStreamName()).collect(Collectors.toSet());
+        providedStreams.removeAll(readerGroupStreams);
+        return providedStreams.isEmpty();
     }
 
     @Override
