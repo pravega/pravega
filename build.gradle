@@ -24,6 +24,8 @@ buildscript {
     }
 }
 
+apply from: "$rootDir/gradle/mkdocs.gradle"
+
 allprojects {
     apply plugin: 'idea'
     apply plugin: 'eclipse'
@@ -807,4 +809,3 @@ class DockerPushTask extends Exec {
         }
     }
 }
-apply from: "$rootDir/gradle/mkdocs.gradle"
