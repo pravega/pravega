@@ -58,6 +58,8 @@ import org.junit.rules.Timeout;
 public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
+    static final AtomicBoolean SECURE_BK = new AtomicBoolean();
+
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
@@ -67,7 +69,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
-    static boolean secure_bk;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -99,7 +100,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     public static boolean isSecure() {
-        return secure_bk;
+        return SECURE_BK.get();
     }
 
     @AfterClass

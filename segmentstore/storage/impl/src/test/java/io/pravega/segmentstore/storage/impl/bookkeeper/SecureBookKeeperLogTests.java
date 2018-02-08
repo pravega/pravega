@@ -14,7 +14,7 @@ import org.junit.BeforeClass;
 public class SecureBookKeeperLogTests extends BookKeeperLogTests {
     @BeforeClass
     public static void startUp() throws Exception {
-        secure_bk = true;
+        SECURE_BK.set(true);
         setUpBookKeeper();
     }
 }
