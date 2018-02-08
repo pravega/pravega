@@ -16,22 +16,35 @@ import java.io.IOException;
 import java.io.InputStream;
 import lombok.Getter;
 
-class RevisionDataInputStream extends DataInputStream  implements RevisionDataInput{
+/**
+ * A DataInputStream that is used for deserializing Serialization Revisions. Instances of this class should be used to
+ * read data that was serialized using an instance of RevisionDataOutput (i.e., NonSeekableRevisionDataOutput or
+ * RandomRevisionDataOutput).
+ */
+class RevisionDataInputStream extends DataInputStream implements RevisionDataInput {
+    //region Members
+
     private final int length;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the RevisionDataInputStream class. Upon a successful call to this constructor, 4 bytes
+     * will have been read from the InputStream representing the expected length of the serialization.
+     *
+     * @param inputStream The InputStream to wrap.
+     * @throws IOException If an IO Exception occurred.
+     */
     RevisionDataInputStream(InputStream inputStream) throws IOException {
         super(new CountableInputStream(inputStream));
         this.length = readInt();
     }
 
-    public void skipRemaining() throws IOException {
-        long rp = ((CountableInputStream) this.in).getRelativePosition();
-        if (rp < this.length) {
-            skip(this.length - rp);
-        } else if (rp > this.length) {
-            throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.length, rp));
-        }
-    }
+    //endregion
+
+    //region AutoCloseable Implementation
 
     @Override
     public void close() throws IOException {
@@ -40,11 +53,36 @@ class RevisionDataInputStream extends DataInputStream  implements RevisionDataIn
         skipRemaining();
     }
 
+    //endregion
+
+    //region RevisionDataInput Implementation
+
     @Override
-    public InputStream asStream() {
+    public InputStream getBaseStream() {
         return this;
     }
 
+    /**
+     * Skips remaining unread bytes in this serialization.
+     *
+     * @throws IOException If an IO Exception occurred.
+     */
+    void skipRemaining() throws IOException {
+        long rp = ((CountableInputStream) this.in).getRelativePosition();
+        if (rp < this.length) {
+            skip(this.length - rp);
+        } else if (rp > this.length) {
+            throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.length, rp));
+        }
+    }
+
+    //endregion
+
+    //region CountableInputStream Implementation
+
+    /**
+     * InputStream wrapper that counts how many bytes were read.
+     */
     private static class CountableInputStream extends FilterInputStream {
         @Getter
         private long relativePosition;
@@ -88,4 +126,6 @@ class RevisionDataInputStream extends DataInputStream  implements RevisionDataIn
             return r;
         }
     }
+
+    //endregion
 }

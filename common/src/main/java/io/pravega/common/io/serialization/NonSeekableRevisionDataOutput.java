@@ -15,8 +15,12 @@ import java.io.OutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
+/**
+ * A RevisionDataOutput implementation that wraps a Non-Seekable OutputStream. A Non-Seekable OutputStream is an OutputStream
+ * that only supports "append semantics", which means it cannot write a value at an arbitrary position.
+ */
 @NotThreadSafe
-public class NonSeekableRevisionDataOutput implements RevisionDataOutput.CloseableRevisionDataOutput {
+class NonSeekableRevisionDataOutput implements RevisionDataOutput.CloseableRevisionDataOutput {
     //region Private
 
     @Getter
@@ -28,7 +32,12 @@ public class NonSeekableRevisionDataOutput implements RevisionDataOutput.Closeab
 
     //region Constructor
 
-    NonSeekableRevisionDataOutput(OutputStream outputStream) throws IOException {
+    /**
+     * Creates a new instance of the NonSeekableRevisionDataOutput class.
+     *
+     * @param outputStream The OutputStream to wrap.
+     */
+    NonSeekableRevisionDataOutput(OutputStream outputStream) {
         this.baseStream = outputStream;
         this.dataOutputStream = new DataOutputStream(this.baseStream);
         this.lengthWritten = false;
@@ -49,6 +58,11 @@ public class NonSeekableRevisionDataOutput implements RevisionDataOutput.Closeab
     //endregion
 
     //region RevisionDataOutput Implementation
+
+    @Override
+    public boolean requiresExplicitLength() {
+        return true;
+    }
 
     @Override
     public void length(int length) throws IOException {

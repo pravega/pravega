@@ -11,14 +11,14 @@ package io.pravega.common.io;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.serialization.RandomOutputStream;
+import io.pravega.common.io.serialization.RandomOutput;
 import java.io.IOException;
 import java.io.OutputStream;
 
 /**
  * OutputStream that writes to a fixed-size buffer (this is needed because ByteArrayOutputStream auto-grows the buffer).
  */
-public class FixedByteArrayOutputStream extends OutputStream implements RandomOutputStream {
+public class FixedByteArrayOutputStream extends OutputStream implements RandomOutput {
     //region Members
 
     private final byte[] array;
@@ -75,7 +75,7 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
 
     //endregion
 
-    //region RandomOutputStream Implementation
+    //region RandomOutput Implementation
 
     @Override
     public void write(int byteValue, int streamPosition) throws IOException {
