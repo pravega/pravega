@@ -48,6 +48,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
+    private final boolean secureBK;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
