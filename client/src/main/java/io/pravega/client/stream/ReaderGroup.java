@@ -13,7 +13,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -86,12 +86,12 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
 
     /**
      * Given a list of StreamCuts, restore the reader group to the provided streamCut. All readers in the group
-     * will encounter a {@link ReinitializationRequiredException} and when they rejoin the group they will resume from
-     * the position provided by the StreamCuts. (The mapping of segments to readers may not be the same, and the readers
-     * need not be the same as existed at the time of the checkpoint.)
-     * @param streamCuts streamCut for streams managed by the readerGroup.
+     * will encounter a {@link ReinitializationRequiredException} and when they rejoin the group and they will resume
+     * from the position provided by the StreamCuts. (The mapping of segments to readers may not be the same, and the
+     * readers need not be the same as existed at the time of the checkpoint.)
+     * @param streamCuts streamCut for every stream managed by the readerGroup.
      */
-    void resetReadersToStreamCut(List<StreamCut> streamCuts);
+    void resetReadersToStreamCut(Collection<StreamCut> streamCuts);
     
     /**
      * Updates a reader group. All existing readers will have to call

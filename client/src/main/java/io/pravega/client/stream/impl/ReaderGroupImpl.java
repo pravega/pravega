@@ -41,6 +41,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -175,7 +176,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void resetReadersToStreamCut(List<StreamCut> streamCuts) {
+    public void resetReadersToStreamCut(Collection<StreamCut> streamCuts) {
         //ensure that streamCut for all the streams managed by the ReaderGroup are present.
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
@@ -193,7 +194,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
     }
 
-    private boolean validateStreamCuts(List<StreamCut> streamCuts, Set<String> readerGroupStreams) {
+    private boolean validateStreamCuts(Collection<StreamCut> streamCuts, Set<String> readerGroupStreams) {
         Set<String> providedStreams = streamCuts.stream().map(sc -> sc.getStream().getStreamName()).collect(Collectors.toSet());
         providedStreams.removeAll(readerGroupStreams);
         return providedStreams.isEmpty();
