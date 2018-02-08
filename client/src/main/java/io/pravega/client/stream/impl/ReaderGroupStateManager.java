@@ -186,6 +186,7 @@ public class ReaderGroupStateManager {
                 segment = findSegmentToRelease();
                 if (segment != null) {
                     releaseTimer.reset(UPDATE_WINDOW);
+                    acquireTimer.reset(UPDATE_WINDOW);
                 }
             }
         }
@@ -288,6 +289,7 @@ public class ReaderGroupStateManager {
                 return false;
             }
             acquireTimer.reset(UPDATE_WINDOW);
+            releaseTimer.reset(UPDATE_WINDOW);
             return true;
         }
     }
@@ -325,6 +327,7 @@ public class ReaderGroupStateManager {
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
         }
+        releaseTimer.reset(calculateReleaseTime(readerId, sync.getState()));
         acquireTimer.reset(calculateAcquireTime(readerId, sync.getState()));
         return result.get();
     }
