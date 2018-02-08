@@ -47,8 +47,33 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        testSerializer();
-        //testSerializerPerf();
+        //testSerializer();
+        testCompactNumberPerf();
+        //testCompactNumber();
+    }
+
+    private static void testCompactNumberPerf() throws Exception {
+        int count = 10000000;
+        byte[] buffer = new byte[256 * 1024 * 1024];
+        RevisionDataOutput rrdo = RevisionDataOutput.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        Timer t1 = new Timer();
+        for (int i = 0; i < count; i++) {
+            rrdo.writeLong((long) i);
+            rrdo.writeInt(i);
+        }
+        long dosElapsed = t1.getElapsedNanos();
+
+        System.gc();
+        rrdo = RevisionDataOutput.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        int sizeS = 0;
+        Timer t2 = new Timer();
+        for (int i = 0; i < count; i++) {
+            rrdo.writeCompactLong((long) i);
+            rrdo.writeCompactInt(i);
+        }
+        long sElapsed = t2.getElapsedNanos();
+
+        System.out.println(String.format("DOS = %s ms, S = %s ms", dosElapsed / 1000000, sElapsed / 1000000));
     }
 
     private static void testSerializerPerf() throws IOException {
