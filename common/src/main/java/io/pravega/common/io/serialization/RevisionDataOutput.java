@@ -102,7 +102,8 @@ public interface RevisionDataOutput extends DataOutput {
 
     /**
      * Encodes the given Long into a compact serialization of 1, 2, 4 or 8 bytes. The actual number of bytes can be
-     * calculated using getCompactLongLength().
+     * calculated using getCompactLongLength(). The first two bits of the given value are ignored and will be reserved
+     * for serialization, hence this can only serialize values in the interval [0, 2^62).
      * <p>
      * This value must be read using RevisionDataInput.readCompactLong(). It cannot be read using DataInput.readLong().
      *
@@ -131,7 +132,8 @@ public interface RevisionDataOutput extends DataOutput {
 
     /**
      * Calculates the length, in bytes, of the given Integer as serialized by using writeCompactInt(). Invoking this method
-     * will not actually write the value.
+     * will not actually write the value. The first two bits of the given value are ignored and will be reserved
+     * for serialization, hence this can only serialize values in the interval [0, 2^30).
      *
      * @param value The value to measure.
      * @return The writeCompactInt() length of the value. This is a value between 1 and Integer.BYTES (inclusive).

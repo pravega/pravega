@@ -46,6 +46,8 @@ public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream impleme
         if (bufferOffset < 0 || length < 0 || (length > 0 && bufferOffset + length > buffer.length)) {
             throw new ArrayIndexOutOfBoundsException("bufferOffset and length must refer to a range within buffer.");
         }
+
+        Preconditions.checkElementIndex(streamPosition, this.buf.length, "streamPosition");
         if (streamPosition + length <= this.buf.length) {
             // This fits entirely within our buffer.
             System.arraycopy(buffer, bufferOffset, this.buf, streamPosition, length);

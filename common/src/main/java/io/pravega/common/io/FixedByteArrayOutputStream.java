@@ -12,6 +12,7 @@ package io.pravega.common.io;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.serialization.RandomOutput;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -104,6 +105,15 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
     @Override
     public int size() {
         return this.position;
+    }
+
+    /**
+     * Returns a readonly ByteArraySegment wrapping this Stream's buffer.
+     *
+     * @return A readonly ByteArraySegment from the current buffer.
+     */
+    public ByteArraySegment getData() {
+        return new ByteArraySegment(this.array, this.offset, this.length, true);
     }
 
     @Override
