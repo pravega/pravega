@@ -26,7 +26,7 @@ import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
- * TODO: usage example.
+ * Refer to VersionedSerializer.Direct and VersionedSerializer.WithBuilder for code samples.
  *
  * @param <TargetType> Type of the object to serialize.
  * @param <ReaderType> Type of the object to deserialize to. This is either TargetType or a shadow object that helps build
@@ -288,9 +288,48 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
 
     /**
      * A VersionedDeserializer that serializes and deserializes into the same object.
-     * <p>
+     *
      * This should be used in those cases when we already have an instance of the target object available during
      * deserialization and we only need to update its state.
+     *
+     * Example:
+     * * <pre>
+     * {@code
+     * class Segment { ... }
+     *
+     * class SegmentSerializer extends VersionedSerializer.Direct<Segment> {
+     *    @Override
+     *    protected byte writeVersion() { return 0; } // This is the version we'll be serializing now.
+     *
+     *    @Override
+     *    protected Collection<FormatVersion<Segment, Segment>> getVersions() {
+     *      // We define all supported versions and their revisions here.
+     *      return Arrays.asList(
+     *                  version(0).revision(0, this::write00, this::read00)
+     *                            .revision(1, this::write01, this::read01),
+     *                  version(1).revision(0, this::write10, this::read10));
+     *    }
+     *
+     *    // Serializes V0.0; this is the first method to be invoked when serializing V0.
+     *    private void write00(Segment source, RevisionDataOutput output) throws IOException { ... }
+     *
+     *    // Deserializes V0.0 into target; this is the first method to be invoked when deserializing V0.
+     *    private void read00(RevisionDataInput input, Segment target) throws IOException { ... }
+     *
+     *    // Serializes V0.1; this will be invoked after write00() and is an incremental update (only what's new in V0.1).
+     *    private void write01(Segment source, RevisionDataOutput output) throws IOException { ... }
+     *
+     *    // Deserializes V0.1 into target; will be invoked after read00().
+     *    private void read01(RevisionDataInput input, Segment target) throws IOException { ... }
+     *
+     *    // Serializes V1.0; this will be invoked if we ever serialize V1. This will not be mixed with V0.
+     *    private void write10(Segment source, RevisionDataOutput output) throws IOException { ... }
+     *
+     *    // Deserializes V1.0 into target; this will only be invoked for V1.
+     *    private void read10(RevisionDataInput input, Segment target) throws IOException { ... }
+     * }
+     * }
+     * </pre>
      *
      * @param <TargetType> Type of the object to serialize from and deserialize into.
      */
@@ -300,9 +339,39 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     /**
      * A VersionedDeserializer that deserializes into a "Builder" object. A Builder object is a shadow object that accumulates
      * the deserialization changes and is able to create an object of TargetType when the build() method is invoked.
-     * <p>
+     *
      * This should be used in those cases when we do not have an instance of the target object available during deserialization,
      * most likely because the object is immutable and needs to be created with its data.
+     *
+     * Example:
+     * <pre>
+     * {@code
+     * class Attribute {
+     *    private final Long value;
+     *    private final Long lastUsed;
+     *
+     *    // Attribute class is immutable; it has a builder that helps create new instances (this can be generated with Lombok).
+     *    static class AttributeBuilder implements ObjectBuilder<Attribute> { ... }
+     * }
+     *
+     * class AttributeSerializer extends VersionedSerializer.WithBuilder<Attribute, Attribute.AttributeBuilder> {
+     *    @Override
+     *    protected byte writeVersion() { return 0; } // Version we're serializing at.
+     *
+     *    @Override
+     *    protected Attribute.AttributeBuilder newBuilder() { return Attribute.builder(); }
+     *
+     *    @Override
+     *    protected Collection<FormatVersion<Attribute, Attribute.AttributeBuilder>> getVersions() {
+     *        return Collections.singleton(version(0).revision(0, this::write00, this::read00));
+     *    }
+     *
+     *    private void write00(Attribute source, RevisionDataOutput output) throws IOException { ... }
+     *
+     *    private void read00(RevisionDataInput input, Attribute.AttributeBuilder target) throws IOException { ... }
+     * }
+     * }
+     * </pre>
      *
      * @param <TargetType> Type of the object to serialize from.
      * @param <ReaderType> Type of the Builder object, which must implement ObjectBuilder(of TargetType). This will be used
