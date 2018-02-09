@@ -584,8 +584,14 @@ project('test:system') {
     }
 
     task execShellScript(type: Exec) {
-        commandLine "./preTestScript.sh"
-        args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+        if(System.getProperty("awsExecution") == true) {
+            commandLine "./aws/preTestScript.sh"
+            args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
+        }
+        else {
+            commandLine "./preTestScript.sh"
+            args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+        }
     }
 
     //This is  used to invoke docker based systemTests
@@ -604,6 +610,7 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+        systemProperty "awsExecution", System.getProperty("awsExecution")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "DOCKER"
@@ -617,6 +624,9 @@ project('test:system') {
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "false"
+        }
+        if (System.getProperty("awsExecution") == null) {
+            systemProperty "awsExecution", "false"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"

@@ -28,6 +28,7 @@ import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.REST_PORT;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -37,6 +38,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private final double cpu = 0.5;
     private final double mem = 700.0;
     private final URI zkUri;
+    private final String image = Utils.isAwsExecution() ? "nautilus/pravega:" + PRAVEGA_VERSION : IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION;
 
     public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
         super(serviceName);
@@ -83,7 +85,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(image)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
@@ -95,7 +97,6 @@ public class PravegaControllerDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                         .ports(Arrays.asList(PortConfig.builder()
                                         .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),

@@ -23,6 +23,7 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -46,6 +47,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private final URI zkUri;
     private final URI conUri;
     private final URI hdfsUri;
+    private final String image = Utils.isAwsExecution() ? "nautilus/pravega:" + PRAVEGA_VERSION : IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION;
 
     public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI hdfsUri, final URI conUri) {
         super(serviceName);
@@ -106,7 +108,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(image)
                         .hostname(serviceName)
                         .labels(labels)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))

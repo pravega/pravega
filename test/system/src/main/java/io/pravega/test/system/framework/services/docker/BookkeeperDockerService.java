@@ -22,6 +22,7 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -40,6 +41,7 @@ public class BookkeeperDockerService extends DockerBasedService {
     private final double cpu = 0.5;
     private final double mem = 1024.0;
     private final URI zkUri;
+    private final String image = Utils.isAwsExecution() ? "nautilus/bookkeeper:" + PRAVEGA_VERSION : IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION;
 
     public BookkeeperDockerService(String serviceName, final URI zkUri) {
         super(serviceName);
@@ -84,7 +86,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
-                        .image(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION)
+                        .image(image)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
                         .mounts(Arrays.asList(mount1, mount2))
                         .env(stringList).build())

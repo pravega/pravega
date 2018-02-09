@@ -32,6 +32,7 @@ public class Utils {
     public static final int REST_PORT = 9091;
     public static final String DOCKER_NETWORK = "docker-network";
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
+    public static final boolean AWS_EXECUTION = Utils.isAwsExecution();
 
     /**
      * Get Configuration from environment or system property.
@@ -92,6 +93,12 @@ public class Utils {
     public static boolean isDockerExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
         return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
+
+    }
+
+    public static boolean isAwsExecution() {
+        String dockerConfig = getConfig("awsExecution", "false");
+        return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
 
     }
 }

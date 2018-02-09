@@ -145,6 +145,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     @Override
     public CompletableFuture<Void> scaleService(final int instanceCount) {
+        String updateState;
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
 
@@ -154,7 +155,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
-            String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
+            updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
             log.info("Update state {}", updateState);
 
             return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
