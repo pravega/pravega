@@ -9,12 +9,12 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.util.BitConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.val;
 
 /**
  * A RevisionDataOutput implementation that wraps a Seekable OutputStream. A Seekable OutputStream is an OutputStream
@@ -43,10 +43,10 @@ class RandomRevisionDataOutput extends DataOutputStream implements RevisionDataO
     RandomRevisionDataOutput(OutputStream outputStream) throws IOException {
         super(outputStream);
         this.baseStream = outputStream;
-        this.initialPosition = ((RandomOutput) outputStream).size();
 
-        // Pre-allocate 4 bytes so we can write the length later.
-        writeInt(0);
+        // Pre-allocate 4 bytes so we can write the length later, but remember this position.
+        this.initialPosition = ((RandomOutput) outputStream).size();
+        BitConverter.writeInt(outputStream, 0);
     }
 
     //endregion
@@ -55,11 +55,12 @@ class RandomRevisionDataOutput extends DataOutputStream implements RevisionDataO
 
     @Override
     public void close() throws IOException {
+        // Calculate the number of bytes written, making sure to exclude the bytes for the length encoding.
         RandomOutput ros = (RandomOutput) this.baseStream;
-        int length = ros.size() - this.initialPosition;
-        try (val lengthSubStream = new DataOutputStream(ros.subStream(this.initialPosition, Integer.BYTES))) {
-            lengthSubStream.writeInt(length);
-        }
+        int length = ros.size() - this.initialPosition - Integer.BYTES;
+
+        // Write the length at the appropriate position.
+        BitConverter.writeInt(ros.subStream(this.initialPosition, Integer.BYTES), length);
     }
 
     //endregion

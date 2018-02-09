@@ -48,8 +48,9 @@ public class Playground {
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
         //testSerializer();
-        testCompactNumberPerf();
+        //testCompactNumberPerf();
         //testCompactNumber();
+        testSerializerPerf();
     }
 
     private static void testCompactNumberPerf() throws Exception {
@@ -65,7 +66,6 @@ public class Playground {
 
         System.gc();
         rrdo = RevisionDataOutput.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
-        int sizeS = 0;
         Timer t2 = new Timer();
         for (int i = 0; i < count; i++) {
             rrdo.writeCompactLong((long) i);

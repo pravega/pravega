@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.util.BitConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -67,7 +68,7 @@ class NonSeekableRevisionDataOutput implements RevisionDataOutput.CloseableRevis
     @Override
     public void length(int length) throws IOException {
         if (!this.lengthWritten) {
-            this.dataOutputStream.writeInt(length);
+            BitConverter.writeInt(this.baseStream, length);
             this.lengthWritten = true;
         }
     }
@@ -120,6 +121,7 @@ class NonSeekableRevisionDataOutput implements RevisionDataOutput.CloseableRevis
 
     @Override
     public void writeInt(int i) throws IOException {
+        ensureLengthWritten();
         this.dataOutputStream.writeInt(i);
     }
 

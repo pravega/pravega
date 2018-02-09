@@ -11,6 +11,7 @@ package io.pravega.common.io.serialization;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.BitConverter;
 import java.io.DataInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -41,10 +42,8 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
      * @throws IOException If an IO Exception occurred.
      */
     static RevisionDataInputStream wrap(InputStream inputStream) throws IOException {
-        BoundedInputStream input = new BoundedInputStream(inputStream);
-        RevisionDataInputStream r = new RevisionDataInputStream(input);
-        input.bound = r.readInt();
-        return r;
+        int bound = BitConverter.readInt(inputStream);
+        return new RevisionDataInputStream(new BoundedInputStream(inputStream, bound));
     }
 
     //endregion
@@ -56,8 +55,12 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         return this;
     }
 
+    /**
+     * Gets a value representing the length of this InputStream, in bytes, excluding the 4 bytes required for encoding
+     * the length.
+     */
     @VisibleForTesting
-    int getBound() {
+    int getLength() {
         return ((BoundedInputStream) this.in).bound;
     }
 
@@ -69,13 +72,13 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
      * InputStream wrapper that counts how many bytes were read and prevents over-reading.
      */
     private static class BoundedInputStream extends FilterInputStream {
+        private final int bound;
         private int relativePosition;
-        private int bound;
 
-        BoundedInputStream(InputStream inputStream) {
+        BoundedInputStream(InputStream inputStream, int bound) {
             super(inputStream);
+            this.bound = bound;
             this.relativePosition = 0;
-            this.bound = Integer.MAX_VALUE;
         }
 
         @Override

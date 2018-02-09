@@ -11,6 +11,7 @@ package io.pravega.common.io.serialization;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
@@ -36,7 +37,7 @@ public class RevisionDataInputStreamTests {
         val input = new ByteArrayInputStream(data);
         @Cleanup
         val ri = RevisionDataInputStream.wrap(input);
-        int expectedAvailable = ri.getBound() - LENGTH_BYTES;
+        int expectedAvailable = ri.getLength();
 
         // Read 1 byte.
         int b1 = ri.read();
@@ -80,7 +81,7 @@ public class RevisionDataInputStreamTests {
 
         ri.close();
         Assert.assertEquals("Unexpected number of bytes remaining to be read after skipRemaining().",
-                data.length - ri.getBound(), input.available());
+                data.length - LENGTH_BYTES - ri.getLength(), input.available());
     }
 
     /**
@@ -94,7 +95,7 @@ public class RevisionDataInputStreamTests {
             val input = new ByteArrayInputStream(data);
             @Cleanup
             val ri = RevisionDataInputStream.wrap(input);
-            Assert.assertEquals("Unexpected length read.", size + LENGTH_BYTES, ri.getBound());
+            Assert.assertEquals("Unexpected length read.", size, ri.getLength());
             if (size % 2 == 1) {
                 // Only read some data for every other iteration.
                 int bytesRead = ri.read(new byte[size / 2]);
@@ -103,16 +104,16 @@ public class RevisionDataInputStreamTests {
 
             ri.close();
             Assert.assertEquals("Unexpected number of bytes remaining to be read after skipRemaining().",
-                    data.length - ri.getBound(), input.available());
+                    data.length - LENGTH_BYTES - ri.getLength(), input.available());
         }
     }
 
     private byte[] construct(int length) throws Exception {
         @Cleanup
         val output = new EnhancedByteArrayOutputStream();
+        BitConverter.writeInt(output, length);
         @Cleanup
         val d = new DataOutputStream(output);
-        d.writeInt(length + LENGTH_BYTES);
 
         // We write more in the buffer - to ensure that the bounds are respected.
         for (int i = 0; i < 2 * length; i++) {

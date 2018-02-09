@@ -64,7 +64,7 @@ public interface RevisionDataOutput extends DataOutput {
         // This code is extracted out of DataOutputStream.writeUTF(). If we change the underlying implementation, this
         // needs to change as well.
         int charCount = s.length();
-        int length = 0;
+        int length = 2; // writeUTF() will also encode a 2-byte length.
         for (int i = 0; i < charCount; ++i) {
             char c = s.charAt(i);
             if (c >= 1 && c <= 127) {
