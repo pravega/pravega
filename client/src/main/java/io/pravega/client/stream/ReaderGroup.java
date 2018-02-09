@@ -89,6 +89,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * will encounter a {@link ReinitializationRequiredException} and when they rejoin the group they will resume
      * from the position provided by the StreamCuts. (The mapping of segments to readers may not be the same, and the
      * readers need not be the same as existed at the time of the StreamCut.)
+     *
      * @param streamCuts streamCut for every stream managed by the readerGroup.
      */
     void resetReadersToStreamCut(Collection<StreamCut> streamCuts);

@@ -177,13 +177,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void resetReadersToStreamCut(Collection<StreamCut> streamCuts) {
-        //ensure that streamCut for all the streams managed by the ReaderGroup are present.
+    public void resetReadersToStreamCut(final Collection<StreamCut> streamCuts) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
+
+        //ensure that streamCut for all the streams managed by the ReaderGroup are present.
         Preconditions.checkArgument(validateStreamCuts(streamCuts, synchronizer.getState().getStreamNames()),
                 "StreamCuts for streams managed by the ReaderGroup need to be provided");
+
         //reset the Readers to the StreamCut.
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
