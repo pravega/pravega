@@ -27,6 +27,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -35,6 +36,10 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -53,6 +58,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class StreamSeekTest {
@@ -68,12 +74,12 @@ public class StreamSeekTest {
     private final Serializer<String> serializer = new JavaSerializer<>();
     private final Random random = new Random();
     private final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
+    private final Function<Integer, String> getEventData = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-    private ScheduledExecutorService executorChkpoint;
 
     @Before
     public void setUp() throws Exception {
@@ -117,9 +123,6 @@ public class StreamSeekTest {
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
-        //        @Cleanup
-        //        EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM2, serializer,
-        //                EventWriterConfig.builder().build());
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
@@ -127,48 +130,76 @@ public class StreamSeekTest {
                 .builder().disableAutomaticCheckpoints().build(), java.util.stream.Stream.of(STREAM1, STREAM2)
                                                                                          .collect(Collectors.toSet()));
 
+        //Prep the stream with data.
+        //1.Write two events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+
+        //2.Scale stream
+        Map<Double, Double> newKeyRanges = new HashMap<>();
+        newKeyRanges.put(0.0, 0.33);
+        newKeyRanges.put(0.33, 0.66);
+        newKeyRanges.put(0.66, 1.0);
+        scaleStream(STREAM1, newKeyRanges);
+
+        //3.Write three events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
+
+        //Create a reader
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
                 ReaderConfig.builder().build());
 
-        Function<Integer, String> getEvent = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
-        // size is 30
-        writer1.writeEvent("0", getEvent.apply(1)).get();
-        writer1.writeEvent("0", getEvent.apply(2)).get();
-
         //Offset of a streamCut is always set to zero.(Bug?)
-        Map<Stream, StreamCut> sc1 = readerGroup.getStreamCuts();
+        Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
+        readAndVerify(reader, 1, 2);
+        readAndVerify(reader, 3, 4, 5);
+        Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
-        EventRead<String> firstEvent = reader.readNextEvent(15000);
-        assertEquals(getEvent.apply(1), firstEvent.getEvent());
+        readerGroup.resetReadersToStreamCut(streamCut1.values()); //reset the readers to offset 0.
+        verifyReinitializationRequiredException(reader);
 
-        EventRead<String> secondEvent = reader.readNextEvent(15000);
-        assertEquals(getEvent.apply(2), secondEvent.getEvent());
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "group", serializer,
+                ReaderConfig.builder().build());
 
-        readerGroup.resetReadersToStreamCut(sc1.values()); //reset the readers to offset 0.
+        //verify that we are at streamCut1
+        readAndVerify(reader1, 1, 2);
+
+        readerGroup.resetReadersToStreamCut(streamCut2.values()); // reset readers to post scale offset 0
+        verifyReinitializationRequiredException(reader1);
+
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("readerId", "group", serializer,
+                ReaderConfig.builder().build());
+
+        //verify that we are at streamCut2
+        readAndVerify(reader2, 3, 4, 5);
+    }
+
+    private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
+        Stream stream = new StreamImpl(SCOPE, streamName);
+        Controller controller = controllerWrapper.getController();
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
+    }
+
+    private void verifyReinitializationRequiredException(EventStreamReader<String> reader) {
         try {
-            EventRead<String> event = reader.readNextEvent(15000);
+            reader.readNextEvent(15000);
             Assert.fail("Reinitialization Exception excepted");
         } catch (ReinitializationRequiredException e) {
             reader.close();
         }
-
-        @Cleanup
-        EventStreamReader<String> readerReinitialized = clientFactory.createReader("readerId", "group", new
-                        JavaSerializer<>(),
-                ReaderConfig.builder().build());
-
-        EventRead<String> event = readerReinitialized.readNextEvent(15000);
-        assertEquals(getEvent.apply(1), event.getEvent());
     }
 
-    private Checkpoint generateCheckPoint(final ReaderGroup readerGroup, final EventStreamReader<String> reader)
-            throws Exception {
-        String chkPointName = keyGenerator.get();
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint(chkPointName, executor);
-        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
-        assertEquals(chkPointName, chkpointEvent.getCheckpointName());
-        return chkPointResult.get();
+    private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {
+        ArrayList<String> results = new ArrayList<>(index.length);
+        for (int i = 0; i < index.length; i++) {
+            results.add(reader.readNextEvent(15000).getEvent());
+        }
+        Arrays.stream(index).forEach(i -> assertTrue(results.contains(getEventData.apply(i))));
     }
 
     private void createScope(final String scopeName) throws InterruptedException, ExecutionException {
@@ -183,5 +214,14 @@ public class StreamSeekTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         controller.createStream(config).get();
+    }
+
+    private Checkpoint generateCheckPoint(final ReaderGroup readerGroup, final EventStreamReader<String> reader)
+            throws Exception {
+        String chkPointName = keyGenerator.get();
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint(chkPointName, executor);
+        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
+        assertEquals(chkPointName, chkpointEvent.getCheckpointName());
+        return chkPointResult.get();
     }
 }

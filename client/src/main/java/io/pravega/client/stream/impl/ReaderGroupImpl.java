@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -194,10 +195,18 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
     }
 
-    private boolean validateStreamCuts(Collection<StreamCut> streamCuts, Set<String> readerGroupStreams) {
-        Set<String> providedStreams = streamCuts.stream().map(sc -> sc.getStream().getStreamName()).collect(Collectors.toSet());
-        providedStreams.removeAll(readerGroupStreams);
-        return providedStreams.isEmpty();
+    private boolean validateStreamCuts(final Collection<StreamCut> streamCuts, final Set<String> readerGroupStreams) {
+        //check if all the StreamCuts are unique and has no duplicates.
+        boolean isUnique = streamCuts.stream().map(sc -> sc.getStream().getStreamName()).allMatch(new HashSet<>()::add);
+        if (isUnique) {
+            //validate that StreamCuts for all the streams managed by the readerGroup are present.
+            final Set<String> providedStreams = streamCuts.stream().map(sc ->
+                    sc.getStream().getStreamName()).collect(Collectors.toSet());
+            providedStreams.removeAll(readerGroupStreams);
+            return providedStreams.isEmpty();
+        } else {
+            return false;
+        }
     }
 
     @Override
