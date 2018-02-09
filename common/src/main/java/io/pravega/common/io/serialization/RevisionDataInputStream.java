@@ -9,12 +9,12 @@
  */
 package io.pravega.common.io.serialization;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.io.SerializationException;
 import java.io.DataInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import lombok.Getter;
 
 /**
  * A DataInputStream that is used for deserializing Serialization Revisions. Instances of this class should be used to
@@ -22,79 +22,81 @@ import lombok.Getter;
  * RandomRevisionDataOutput).
  */
 class RevisionDataInputStream extends DataInputStream implements RevisionDataInput {
-    //region Members
-
-    private final int length;
-
-    //endregion
-
     //region Constructor
 
     /**
-     * Creates a new instance of the RevisionDataInputStream class. Upon a successful call to this constructor, 4 bytes
+     * Creates a new instance of the RevisionDataInputStream class.
+     *
+     * @param inputStream The InputStream to wrap.
+     */
+    private RevisionDataInputStream(BoundedInputStream inputStream) {
+        super(inputStream);
+    }
+
+    /**
+     * Creates a new instance of the RevisionDataInputStream class. Upon a successful call to this method, 4 bytes
      * will have been read from the InputStream representing the expected length of the serialization.
      *
      * @param inputStream The InputStream to wrap.
      * @throws IOException If an IO Exception occurred.
      */
-    RevisionDataInputStream(InputStream inputStream) throws IOException {
-        super(new CountableInputStream(inputStream));
-        this.length = readInt();
+    static RevisionDataInputStream wrap(InputStream inputStream) throws IOException {
+        BoundedInputStream input = new BoundedInputStream(inputStream);
+        RevisionDataInputStream r = new RevisionDataInputStream(input);
+        input.bound = r.readInt();
+        return r;
     }
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() throws IOException {
-        // We purposefully do not call super.close() as that will auto-close the underlying InputStream, which is not
-        // what we want.
-        skipRemaining();
-    }
-
-    //endregion
-
-    //region RevisionDataInput Implementation
+    //region Properties
 
     @Override
     public InputStream getBaseStream() {
         return this;
     }
 
-    /**
-     * Skips remaining unread bytes in this serialization.
-     *
-     * @throws IOException If an IO Exception occurred.
-     */
-    void skipRemaining() throws IOException {
-        long rp = ((CountableInputStream) this.in).getRelativePosition();
-        if (rp < this.length) {
-            long skipped = skip(this.length - rp);
-            assert skipped == this.length - rp : "Unable to skip all bytes.";
-        } else if (rp > this.length) {
-            throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.length, rp));
-        }
+    @VisibleForTesting
+    int getBound() {
+        return ((BoundedInputStream) this.in).bound;
     }
 
     //endregion
 
-    //region CountableInputStream Implementation
+    //region BoundedInputStream Implementation
 
     /**
-     * InputStream wrapper that counts how many bytes were read.
+     * InputStream wrapper that counts how many bytes were read and prevents over-reading.
      */
-    private static class CountableInputStream extends FilterInputStream {
-        @Getter
-        private long relativePosition;
+    private static class BoundedInputStream extends FilterInputStream {
+        private int relativePosition;
+        private int bound;
 
-        CountableInputStream(InputStream inputStream) {
+        BoundedInputStream(InputStream inputStream) {
             super(inputStream);
             this.relativePosition = 0;
+            this.bound = Integer.MAX_VALUE;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Skip over the remaining bytes. Do not close the underlying InputStream.
+            if (this.relativePosition < this.bound) {
+                long toSkip = this.bound - this.relativePosition;
+                long skipped = skip(toSkip);
+                assert skipped == toSkip : "Unable to skip all bytes. Expected " + toSkip + ", actual " + skipped;
+            } else if (this.relativePosition > this.bound) {
+                throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+            }
         }
 
         @Override
         public int read() throws IOException {
+            if (this.relativePosition >= this.bound) {
+                // Do not allow reading more than we should.
+                return -1;
+            }
+
             int r = super.read();
             if (r >= 0) {
                 this.relativePosition++;
@@ -103,16 +105,8 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         }
 
         @Override
-        public int read(byte[] buffer) throws IOException {
-            int r = this.read(buffer, 0, buffer.length);
-            if (r >= 0) {
-                this.relativePosition += r;
-            }
-            return r;
-        }
-
-        @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
+            length = Math.min(length, this.bound - this.relativePosition);
             int r = this.in.read(buffer, offset, length);
             if (r >= 0) {
                 this.relativePosition += r;
@@ -122,9 +116,15 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
 
         @Override
         public long skip(long count) throws IOException {
+            count = (int) Math.min(count, this.bound - this.relativePosition);
             long r = this.in.skip(count);
             this.relativePosition += r;
             return r;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return Math.min(this.in.available(), this.bound - this.relativePosition);
         }
     }
 

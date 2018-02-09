@@ -189,15 +189,13 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
         for (int i = 0; i < revisionCount; i++) {
             byte revision = dataInput.readByte();
             val rd = readVersion.get(revisionIndex++);
-            try (RevisionDataInputStream revisionInput = new RevisionDataInputStream(stream)) {
+            try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
                 if (rd != null) {
                     // We've encountered an unknown revision; we cannot read anymore.
                     ensureCondition(revision == rd.getRevision(),
                             "Unexpected revision. Expected %d, found %d.", rd.getRevision(), revision);
                     rd.getReader().accept(revisionInput, target);
                 }
-
-                revisionInput.skipRemaining();
             }
         }
     }

@@ -46,7 +46,8 @@ public interface RevisionDataInput extends DataInput {
      * @throws IOException If an IO Exception occurred.
      */
     default long readCompactLong() throws IOException {
-        //read first byte
+        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
+        // Read first byte and determine how many other bytes are used.
         long b1 = readUnsignedByte();
         int header = (byte) (b1 >>> 6);
         b1 &= 0x3F;
@@ -87,7 +88,8 @@ public interface RevisionDataInput extends DataInput {
      * @throws IOException If an IO Exception occurred.
      */
     default int readCompactInt() throws IOException {
-        //read first byte
+        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
+        // Read first byte and determine how many other bytes are used.
         int b1 = readUnsignedByte();
         int header = b1 >>> 6;
         b1 &= 0x3F;
