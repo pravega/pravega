@@ -32,7 +32,10 @@ public interface Controller extends AutoCloseable {
     // Controller Apis for administrative action for streams
 
     /**
-     * API to create a scope. The future completes with true in the case the scope does not exist.
+     * API to create a scope. The future completes with true in the case the scope did not exist
+     * when the controller executed the operation. In the case of a re-attempt to create the
+     * same scope, the future completes with false to indicate that the scope existed when the
+     * controller executed the operation.
      *
      * @param scopeName Scope name.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
@@ -51,9 +54,10 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> deleteScope(final String scopeName);
 
     /**
-     * API to create a stream. The completes with true in the case the stream does not exist. In
-     * the case of a re-attempt to create the same stream, the future completes with false to
-     * indicate the the stream already exists.
+     * API to create a stream. The future completes with true in the case the stream did not
+     * exist when the controller executed the operation. In the case of a re-attempt to create
+     * the same stream, the future completes with false to indicate that the stream existed when
+     * the controller executed the operation.
      *
      * @param streamConfig Stream configuration
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
