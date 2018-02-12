@@ -368,6 +368,7 @@ project('test:integration') {
     task selftest(type: JavaExec) {
         main = "io.pravega.test.integration.selftest.SelfTestRunner"
         classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
         systemProperties System.getProperties()
     }
 }

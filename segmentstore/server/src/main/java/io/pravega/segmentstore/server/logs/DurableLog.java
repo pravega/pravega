@@ -21,8 +21,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.SequencedItemList;
-import io.pravega.segmentstore.contracts.ContainerException;
-import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -55,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -203,6 +202,45 @@ public class DurableLog extends AbstractService implements OperationLog {
                 .thenCompose(anyItemsRecovered ->
                         Services.startAsync(this.operationProcessor, this.executor)
                                 .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor));
+    }
+
+    @SneakyThrows(Exception.class)
+    private boolean performRecovery() {
+        // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
+        Preconditions.checkState(state() == State.STARTING || (state() == State.RUNNING && isOffline()), "Invalid State for recovery.");
+
+        this.operationProcessor.getMetrics().operationLogInit();
+        Timer timer = new Timer();
+        try {
+            // Initialize the DurableDataLog, which will acquire its lock and ensure we are the only active users of it.
+            this.durableDataLog.initialize(RECOVERY_TIMEOUT);
+
+            // Initiate the recovery.
+            RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.operationFactory, this.memoryStateUpdater);
+            int recoveredItemCount = p.performRecovery();
+            this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
+
+            // Verify that the Recovery Processor has left the metadata in a non-recovery mode.
+            Preconditions.checkState(!this.metadata.isRecoveryMode(), "Recovery completed but Metadata is still in Recovery Mode.");
+            return recoveredItemCount > 0;
+        } catch (Exception ex) {
+            log.error("{} Recovery FAILED.", this.traceObjectId, ex);
+            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
+                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
+                // regardless how many times we try. We need to disable the log so that future instances of this class
+                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
+                // someone can manually fix the problem).
+                try {
+                    this.durableDataLog.disable();
+                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
+                } catch (Exception disableEx) {
+                    log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
+                    ex.addSuppressed(disableEx);
+                }
+            }
+
+            throw ex;
+        }
     }
 
     @Override
@@ -355,163 +393,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         }
 
         return this.delayedStart;
-    }
-
-    //endregion
-
-    //region Recovery
-
-    private boolean performRecovery() {
-        // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
-        Preconditions.checkState(state() == State.STARTING || (state() == State.RUNNING && isOffline()),
-                "Invalid State for recovery.");
-
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
-        Timer timer = new Timer();
-        log.info("{} Recovery started.", this.traceObjectId);
-
-        // Put metadata (and entire container) into 'Recovery Mode'.
-        this.metadata.enterRecoveryMode();
-
-        // Reset metadata.
-        this.metadata.reset();
-        this.operationProcessor.getMetrics().operationLogInit();
-
-        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
-
-        boolean successfulRecovery = false;
-        int recoveredItemCount;
-        try {
-            try {
-                this.durableDataLog.initialize(RECOVERY_TIMEOUT);
-                recoveredItemCount = recoverFromDataFrameLog(metadataUpdater);
-                this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
-                        this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
-                successfulRecovery = true;
-            } finally {
-                // We must exit recovery mode when done, regardless of outcome.
-                this.metadata.exitRecoveryMode();
-                this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
-            }
-        } catch (Exception ex) {
-            // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
-            log.error("{} Recovery FAILED.", this.traceObjectId, ex);
-            if (Exceptions.unwrap(ex) instanceof DataCorruptionException) {
-                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
-                // regardless how many times we try. We need to disable the log so that future instances of this class
-                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
-                // someone can manually fix the problem).
-                try {
-                    this.durableDataLog.disable();
-                    log.info("{} Log disabled due to DataCorruptionException during recovery.", this.traceObjectId);
-                } catch (Exception disableEx) {
-                    log.warn("{}: Unable to disable log after DataCorruptionException during recovery.", this.traceObjectId, disableEx);
-                    ex.addSuppressed(disableEx);
-                }
-            }
-
-            throw new CompletionException(ex);
-        }
-
-        this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
-        return recoveredItemCount > 0;
-    }
-
-    /**
-     * Recovers the Operations from the DurableLog using the given OperationMetadataUpdater. Searches the DurableDataLog
-     * until the first MetadataCheckpointOperation is encountered. All Operations prior to this one are skipped over.
-     * Recovery starts with the first MetadataCheckpointOperation and runs until the end of the DurableDataLog is reached.
-     * Subsequent MetadataCheckpointOperations are ignored (as they contain redundant information - which has already
-     * been built up using the Operations up to them).
-     *
-     * @param metadataUpdater The OperationMetadataUpdater to use for updates.
-     * @return The number of Operations recovered.
-     */
-    private int recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverFromDataFrameLog");
-        int skippedOperationCount = 0;
-        int skippedDataFramesCount = 0;
-        int recoveredItemCount = 0;
-
-        // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
-        // Also update metadata along the way.
-        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, this.operationFactory, getId())) {
-            DataFrameReader.ReadResult<Operation> readResult;
-
-            // We can only recover starting from a MetadataCheckpointOperation; find the first one.
-            while (true) {
-                // Fetch the next operation.
-                readResult = reader.getNext();
-                if (readResult == null) {
-                    // We have reached the end and have not found any MetadataCheckpointOperations.
-                    log.warn("{}: Reached the end of the DataFrameLog and could not find any MetadataCheckpointOperations after reading {} Operations and {} Data Frames.", this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
-                    break;
-                } else if (readResult.getItem() instanceof MetadataCheckpointOperation) {
-                    // We found a checkpoint. Start recovering from here.
-                    log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data Frames).", this.traceObjectId, readResult.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
-                    break;
-                } else if (readResult.isLastFrameEntry()) {
-                    skippedDataFramesCount++;
-                }
-
-                skippedOperationCount++;
-                log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far ({}).", this.traceObjectId, readResult.getItem());
-            }
-
-            // Now continue with the recovery from here.
-            while (readResult != null) {
-                recordTruncationMarker(readResult);
-                recoverOperation(readResult.getItem(), metadataUpdater);
-                recoveredItemCount++;
-
-                // Fetch the next operation.
-                readResult = reader.getNext();
-            }
-        }
-
-        // Commit whatever changes we have in the metadata updater to the Container Metadata.
-        // This code will only be invoked if we haven't encountered any exceptions during recovery.
-        metadataUpdater.commitAll();
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
-        return recoveredItemCount;
-    }
-
-    private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
-        // Update Metadata Sequence Number.
-        metadataUpdater.setOperationSequenceNumber(operation.getSequenceNumber());
-
-        // Update the metadata with the information from the Operation.
-        try {
-            log.debug("{} Recovering {}.", this.traceObjectId, operation);
-            metadataUpdater.preProcessOperation(operation);
-            metadataUpdater.acceptOperation(operation);
-        } catch (StreamSegmentException | ContainerException ex) {
-            // Metadata updates failures should not happen during recovery.
-            throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
-        }
-
-        // Update in-memory structures.
-        this.memoryStateUpdater.process(operation);
-    }
-
-    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult) {
-        // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
-        // to do this.
-        // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
-        // or it's the last entry in a DataFrame.
-        LogAddress lastFullAddress = readResult.getLastFullDataFrameAddress();
-        LogAddress lastUsedAddress = readResult.getLastUsedDataFrameAddress();
-        if (lastFullAddress != null && lastFullAddress.getSequence() != lastUsedAddress.getSequence()) {
-            // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
-            // that ends with a part of it.
-            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
-        } else if (readResult.isLastFrameEntry()) {
-            // The operation was the last one in the frame. This is a Truncation Marker.
-            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
-        }
     }
 
     //endregion
