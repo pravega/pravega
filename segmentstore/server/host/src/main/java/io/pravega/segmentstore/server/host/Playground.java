@@ -49,31 +49,31 @@ public class Playground {
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
         //testSerializer();
-        //testCompactNumberPerf();
-        //testCompactNumber();
-        testSerializerPerf();
+        testCompactNumberPerf();
+        //testSerializerPerf();
     }
 
     private static void testCompactNumberPerf() throws Exception {
-        int count = 10000000;
-        byte[] buffer = new byte[256 * 1024 * 1024];
-        RevisionDataOutput rrdo = RevisionDataOutputStream.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        int count = 50000000;
+        byte[] buffer = new byte[800 * 1024 * 1024];
+        RevisionDataOutput rrdo;
+        rrdo = RevisionDataOutputStream.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
         Timer t1 = new Timer();
         for (int i = 0; i < count; i++) {
-            rrdo.writeLong((long) i);
+            rrdo.writeLong(i);
             rrdo.writeInt(i);
         }
         long dosElapsed = t1.getElapsedNanos();
+
 
         System.gc();
         rrdo = RevisionDataOutputStream.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
         Timer t2 = new Timer();
         for (int i = 0; i < count; i++) {
-            rrdo.writeCompactLong((long) i);
+            rrdo.writeLong(i);
             rrdo.writeCompactInt(i);
         }
         long sElapsed = t2.getElapsedNanos();
-
         System.out.println(String.format("DOS = %s ms, S = %s ms", dosElapsed / 1000000, sElapsed / 1000000));
     }
 

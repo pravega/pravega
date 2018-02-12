@@ -113,10 +113,11 @@ public abstract class RevisionDataOutputStream extends DataOutputStream implemen
             writeInt((int) (value | 0x8000_0000));
         } else if (value > 0x3F) {
             // Only 2 bytes.
-            writeShort((short) (value | 0x4000));
+            this.out.write((int) (value >>> 8 | 0x40 & 0xFF));
+            this.out.write((int) (value & 0xFF));
         } else {
             // 1 byte.
-            writeByte((byte) value);
+            this.out.write((byte) value);
         }
     }
 
@@ -141,18 +142,20 @@ public abstract class RevisionDataOutputStream extends DataOutputStream implemen
             throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
         } else if (value > 0x3F_FFFF) {
             // All 4 bytes
-            writeInt(value | 0xC000_0000);
+            this.out.write(value >>> 24 | 0xC0 & 0xFF);
+            this.out.write(value >>> 16 & 0xFF);
+            this.out.write(value >>> 8 & 0xFF);
         } else if (value > 0x3FFF) {
             // 3 bytes.
-            writeByte((byte) (value >>> 16 & 0xFF | 0x80));
-            writeShort((short) value);
+            this.out.write(value >>> 16 | 0x80 & 0xFF);
+            this.out.write(value >>> 8 & 0xFF);
         } else if (value > 0x3F) {
             // 2 Bytes.
-            writeShort((short) (value | 0x4000));
-        } else {
-            // 1 byte.
-            writeByte((byte) value);
+            this.out.write(value >>> 8 | 0x40 & 0xFF);
         }
+
+        // Last byte is always the same.
+        this.out.write(value & 0xFF);
     }
 
     @Override
@@ -168,7 +171,7 @@ public abstract class RevisionDataOutputStream extends DataOutputStream implemen
             return;
         }
 
-        writeInt(collection.size());
+        writeCompactInt(collection.size());
         for (T e : collection) {
             elementSerializer.accept(this, e);
         }
@@ -177,7 +180,7 @@ public abstract class RevisionDataOutputStream extends DataOutputStream implemen
     @Override
     public <K, V> void writeMap(Map<K, V> map, ElementSerializer<K> keySerializer, ElementSerializer<V> valueSerializer) throws IOException {
         if (map == null) {
-            writeInt(0);
+            writeCompactInt(0);
             return;
         }
 
