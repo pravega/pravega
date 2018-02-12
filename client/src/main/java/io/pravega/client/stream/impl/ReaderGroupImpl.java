@@ -195,8 +195,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             //validate that StreamCuts for all the streams managed by the readerGroup are present.
             final Set<String> providedStreams = streamCuts.stream().map(sc ->
                     sc.getStream().getStreamName()).collect(Collectors.toSet());
-            providedStreams.removeAll(readerGroupStreams);
-            return providedStreams.isEmpty();
+            return providedStreams.equals(readerGroupStreams);
         } else {
             return false;
         }
