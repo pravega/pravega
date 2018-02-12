@@ -21,7 +21,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the RevisionDataInputStream class (only for functionality added on top of java.io.DataInputStream).
+ * Unit tests for the RevisionDataInputStream class for non-encoding functionality (that is tested in RevisionDataStreamCommonTests).
  */
 public class RevisionDataInputStreamTests {
     private static final int MAX_SIZE = Byte.MAX_VALUE;
@@ -31,7 +31,7 @@ public class RevisionDataInputStreamTests {
      * Tests RevisionDataInputStream operations and respecting bounds.
      */
     @Test
-    public void testOperations() throws Exception {
+    public void testBounds() throws Exception {
         val data = construct(MAX_SIZE);
         @Cleanup
         val input = new ByteArrayInputStream(data);

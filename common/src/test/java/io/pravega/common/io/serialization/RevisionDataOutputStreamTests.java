@@ -23,13 +23,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the RevisionDataOutput interface (default methods) and backing implementations.
+ * Unit tests for the RevisionDataOutputStream class for non-encoding methods (the custom encoding methods are tested in
+ * RevisionDataStreamCommonTests, in combination with RevisionDataInputStream).
  */
 public class RevisionDataOutputStreamTests {
-    // TODO: add unit tests for the default methods on the interface.
-
-    // region Interface implementations tests
-
     /**
      * Tests the RandomRevisionDataOutput class with an expandable RandomOutput.
      */
@@ -122,8 +119,6 @@ public class RevisionDataOutputStreamTests {
                 inputStream::readInt,
                 ex -> ex instanceof EOFException);
     }
-
-    //endregion
 
     private String getUTFString() {
         StringBuilder sb = new StringBuilder();

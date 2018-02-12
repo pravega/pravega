@@ -37,12 +37,17 @@ public interface RevisionDataOutput extends DataOutput {
     /**
      * Maximum value that can be encoded using writeCompactInt().
      */
-    long COMPACT_INT_MAX = 0x3FFF_FFFF;
+    int COMPACT_INT_MAX = 0x3FFF_FFFF;
 
     /**
      * Minimum value that can be encoded using writeCompactInt().
      */
-    long COMPACT_INT_MIN = 0L;
+    int COMPACT_INT_MIN = 0;
+
+    /**
+     * The number of bytes required to encode a UUID.
+     */
+    int UUID_BYTES = 2 * Long.BYTES;
 
     /**
      * Gets a value indicating whether this instance of a RevisionDataOutput requires length() to be called prior to writing
