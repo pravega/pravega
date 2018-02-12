@@ -24,7 +24,25 @@ import java.util.UUID;
  * This interface is designed to serialize data that can be consumed using RevisionDataInput.
  */
 public interface RevisionDataOutput extends DataOutput {
-    //region DataOutput Extensions
+    /**
+     * Maximum value that can be encoded using writeCompactLong().
+     */
+    long COMPACT_LONG_MAX = 0x3FFF_FFFF_FFFF_FFFFL;
+
+    /**
+     * Minimum value that can be encoded using writeCompactLong().
+     */
+    long COMPACT_LONG_MIN = 0L;
+
+    /**
+     * Maximum value that can be encoded using writeCompactInt().
+     */
+    long COMPACT_INT_MAX = 0x3FFF_FFFF;
+
+    /**
+     * Minimum value that can be encoded using writeCompactInt().
+     */
+    long COMPACT_INT_MIN = 0L;
 
     /**
      * Gets a value indicating whether this instance of a RevisionDataOutput requires length() to be called prior to writing
@@ -60,23 +78,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @param s The string to measure.
      * @return The writeUTF() length of the String. Note that this may be different from s.length().
      */
-    default int getUTFLength(String s) {
-        // This code is extracted out of DataOutputStream.writeUTF(). If we change the underlying implementation, this
-        // needs to change as well.
-        int charCount = s.length();
-        int length = 2; // writeUTF() will also encode a 2-byte length.
-        for (int i = 0; i < charCount; ++i) {
-            char c = s.charAt(i);
-            if (c >= 1 && c <= 127) {
-                length++;
-            } else if (c > 2047) {
-                length += 3;
-            } else {
-                length += 2;
-            }
-        }
-        return length;
-    }
+    int getUTFLength(String s);
 
     /**
      * Calculates the length, in bytes, of the given Long as serialized by using writeCompactLong(). Invoking this method
@@ -86,19 +88,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @return The writeCompactLong() length of the value. This is a value between 1 and Long.BYTES (inclusive).
      * @throws IllegalArgumentException If value is negative or greater than 2^62-1.
      */
-    default int getCompactLongLength(long value) {
-        if (value < 0 || value >= 0x3FFF_FFFF_FFFF_FFFFL) {
-            throw new IllegalArgumentException("writeCompactLong can only serialize non-negative longs up to 2^62.");
-        } else if (value > 0x3FFF_FFFF) {
-            return 8;
-        } else if (value > 0x3FFF) {
-            return 4;
-        } else if (value > 0x3F) {
-            return 2;
-        } else {
-            return 1;
-        }
-    }
+    int getCompactLongLength(long value);
 
     /**
      * Encodes the given Long into a compact serialization of 1, 2, 4 or 8 bytes. The actual number of bytes can be
@@ -111,24 +101,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @throws IOException              If an IO Exception occurred.
      * @throws IllegalArgumentException If value is negative or greater than 2^62-1.
      */
-    default void writeCompactLong(long value) throws IOException {
-        if (value < 0 || value > 0x3FFF_FFFF_FFFF_FFFFL) {
-            throw new IllegalArgumentException("writeCompactLong can only serialize non-negative longs up to 2^62.");
-        } else if (value > 0x3FFF_FFFF) {
-            // All 8 bytes
-            writeInt((int) (value >>> 32 | 0xC000_0000));
-            writeInt((int) value);
-        } else if (value > 0x3FFF) {
-            // Only 4 bytes.
-            writeInt((int) (value | 0x8000_0000));
-        } else if (value > 0x3F) {
-            // Only 2 bytes.
-            writeShort((short) (value | 0x4000));
-        } else {
-            // 1 byte.
-            writeByte((byte) value);
-        }
-    }
+    void writeCompactLong(long value) throws IOException;
 
     /**
      * Calculates the length, in bytes, of the given Integer as serialized by using writeCompactInt(). Invoking this method
@@ -139,19 +112,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @return The writeCompactInt() length of the value. This is a value between 1 and Integer.BYTES (inclusive).
      * @throws IllegalArgumentException If value is negative or greater than 2^30-1.
      */
-    default int getCompactIntLength(int value) {
-        if (value < 0 || value >= 0x3FFF_FFFF) {
-            throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
-        } else if (value > 0x3F_FFFF) {
-            return 4;
-        } else if (value > 0x3FFF) {
-            return 3;
-        } else if (value > 0x3F) {
-            return 2;
-        } else {
-            return 1;
-        }
-    }
+    int getCompactIntLength(int value);
 
     /**
      * Encodes the given Integer into a compact serialization of 1, 2, 3 or 4 bytes. The actual number of bytes can be
@@ -163,24 +124,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @throws IOException              If an IO Exception occurred.
      * @throws IllegalArgumentException If value is negative or greater than 2^60-1.
      */
-    default void writeCompactInt(int value) throws IOException {
-        if (value < 0 || value > 0x3FFF_FFFF) {
-            throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
-        } else if (value > 0x3F_FFFF) {
-            // All 4 bytes
-            writeInt(value | 0xC000_0000);
-        } else if (value > 0x3FFF) {
-            // 3 bytes.
-            writeByte((byte) (value >>> 16 & 0xFF | 0x80));
-            writeShort((short) value);
-        } else if (value > 0x3F) {
-            // 2 Bytes.
-            writeShort((short) (value | 0x4000));
-        } else {
-            // 1 byte.
-            writeByte((byte) value);
-        }
-    }
+    void writeCompactInt(int value) throws IOException;
 
     /**
      * Serializes the given UUID as two consecutive Long values.
@@ -190,10 +134,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @param uuid The UUID to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    default void writeUUID(UUID uuid) throws IOException {
-        writeLong(uuid.getMostSignificantBits());
-        writeLong(uuid.getLeastSignificantBits());
-    }
+    void writeUUID(UUID uuid) throws IOException;
 
     /**
      * Serializes the given Collection using the given ElementSerializer. It first writes a Compact Integer representing
@@ -206,17 +147,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @param <T>               Type of the elements in the Collection.
      * @throws IOException If an IO Exception occurred.
      */
-    default <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException {
-        if (collection == null) {
-            writeCompactInt(0);
-            return;
-        }
-
-        writeInt(collection.size());
-        for (T e : collection) {
-            elementSerializer.accept(this, e);
-        }
-    }
+    <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException;
 
     /**
      * Serializes the given Map using the given ElementSerializers (one for Key and one for Value). It first writes a
@@ -231,18 +162,7 @@ public interface RevisionDataOutput extends DataOutput {
      * @param <V>             Type of the Map's Values.
      * @throws IOException If an IO Exception occurred.
      */
-    default <K, V> void writeMap(Map<K, V> map, ElementSerializer<K> keySerializer, ElementSerializer<V> valueSerializer) throws IOException {
-        if (map == null) {
-            writeInt(0);
-            return;
-        }
-
-        writeCompactInt(map.size());
-        for (Map.Entry<K, V> e : map.entrySet()) {
-            keySerializer.accept(this, e.getKey());
-            valueSerializer.accept(this, e.getValue());
-        }
-    }
+    <K, V> void writeMap(Map<K, V> map, ElementSerializer<K> keySerializer, ElementSerializer<V> valueSerializer) throws IOException;
 
     /**
      * Defines a Function signature that can serialize an element to a RevisionDataOutput.
@@ -253,36 +173,4 @@ public interface RevisionDataOutput extends DataOutput {
     interface ElementSerializer<T> {
         void accept(RevisionDataOutput dataOutput, T element) throws IOException;
     }
-
-    //endregion
-
-    //region Factory
-
-    /**
-     * Wraps the given OutputStream into an object implementing CloseableRevisionDataOutput (and implicitly RevisionDataOutput).
-     *
-     * @param outputStream The OutputStream to wrap.
-     * @return A new instance of the RandomRevisionDataOutput class if the given outputStream is a RandomOutput (supports seeking),
-     * or a new instance of the NonSeekableRevisionDataOutput otherwise.
-     * @throws IOException If an IO Exception occurred. This is because the RandomRevisionDataOutput constructor pre-allocates
-     *                     4 bytes for the length.
-     */
-    static CloseableRevisionDataOutput wrap(OutputStream outputStream) throws IOException {
-        if (outputStream instanceof RandomOutput) {
-            return new RandomRevisionDataOutput(outputStream);
-        } else {
-            return new NonSeekableRevisionDataOutput(outputStream);
-        }
-    }
-
-    /**
-     * Defines a RevisionDataOutput that can be closed. This separation is needed since we don't want to expose the close()
-     * method outside of this package (and give the caller a chance to prematurely close our OutputStream).
-     */
-    interface CloseableRevisionDataOutput extends RevisionDataOutput, AutoCloseable {
-        @Override
-        void close() throws IOException;
-    }
-
-    //endregion
 }

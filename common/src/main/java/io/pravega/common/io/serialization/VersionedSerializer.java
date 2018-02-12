@@ -140,7 +140,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
         // Write each Revision for this Version, in turn.
         for (val r : writeVersion.getRevisions()) {
             dataOutput.writeByte(r.getRevision());
-            try (val revisionOutput = RevisionDataOutput.wrap(stream)) {
+            try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
                 r.getWriter().accept(o, revisionOutput);
             }
         }

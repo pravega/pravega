@@ -16,12 +16,20 @@ import java.io.DataInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Supplier;
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * A DataInputStream that is used for deserializing Serialization Revisions. Instances of this class should be used to
  * read data that was serialized using an instance of RevisionDataOutput (i.e., NonSeekableRevisionDataOutput or
  * RandomRevisionDataOutput).
  */
+@NotThreadSafe
 class RevisionDataInputStream extends DataInputStream implements RevisionDataInput {
     //region Constructor
 
@@ -48,7 +56,7 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
 
     //endregion
 
-    //region Properties
+    //region RevisionDataInput Implementation
 
     @Override
     public InputStream getBaseStream() {
@@ -62,6 +70,104 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     @VisibleForTesting
     int getLength() {
         return ((BoundedInputStream) this.in).bound;
+    }
+
+    @Override
+    public long readCompactLong() throws IOException {
+        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
+        // Read first byte and determine how many other bytes are used.
+        long b1 = readUnsignedByte();
+        int header = (byte) (b1 >>> 6);
+        b1 &= 0x3F;
+
+        switch (header) {
+            case 0:
+                // Only this byte.
+                return b1;
+            case 1:
+                // 2 bytes
+                return (b1 << 8) + readUnsignedByte();
+            case 2:
+                // 4 bytes
+                return (b1 << 24)
+                        + ((long) readUnsignedByte() << 16)
+                        + readUnsignedShort();
+            case 3:
+                // All 8 bytes
+                return (b1 << 56)
+                        + ((long) readUnsignedByte() << 48)
+                        + ((long) readUnsignedShort() << 32)
+                        + (readInt() & 0xFFFF_FFFFL);
+            default:
+                throw new SerializationException(String.format(
+                        "Unable to deserialize compact long. Unrecognized header value %d.", header));
+        }
+    }
+
+    @Override
+    public int readCompactInt() throws IOException {
+        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
+        // Read first byte and determine how many other bytes are used.
+        int b1 = readUnsignedByte();
+        int header = b1 >>> 6;
+        b1 &= 0x3F;
+
+        switch (header) {
+            case 0:
+                // Only this byte.
+                return b1;
+            case 1:
+                // 2 bytes
+                return (b1 << 8) + readUnsignedByte();
+            case 2:
+                // 3 bytes
+                return (b1 << 16)
+                        + readUnsignedShort();
+            case 3:
+                // All 4 bytes
+                return (b1 << 24)
+                        + (readUnsignedByte() << 16)
+                        + readUnsignedShort();
+            default:
+                throw new SerializationException(String.format(
+                        "Unable to deserialize compact int. Unrecognized header value %d.", header));
+        }
+    }
+
+    @Override
+    public UUID readUUID() throws IOException {
+        return new UUID(readLong(), readLong());
+    }
+
+    @Override
+    public <T> Collection<T> readCollection(ElementDeserializer<T> elementDeserializer) throws IOException {
+        return readCollection(elementDeserializer, ArrayList::new);
+    }
+
+    @Override
+    public <T, C extends Collection<T>> C readCollection(ElementDeserializer<T> elementDeserializer, Supplier<C> newCollection) throws IOException {
+        C result = newCollection.get();
+        int count = readCompactInt();
+        for (int i = 0; i < count; i++) {
+            result.add(elementDeserializer.apply(this));
+        }
+        return result;
+    }
+
+    @Override
+    public <K, V> Map<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer) throws IOException {
+        return readMap(keyDeserializer, valueDeserializer, HashMap::new);
+    }
+
+    @Override
+    public <K, V, M extends Map<K, V>> M readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, Supplier<M> newMap) throws IOException {
+        M result = newMap.get();
+        int count = readCompactInt();
+        for (int i = 0; i < count; i++) {
+            result.put(keyDeserializer.apply(this), valueDeserializer.apply(this));
+        }
+
+        return result;
     }
 
     //endregion

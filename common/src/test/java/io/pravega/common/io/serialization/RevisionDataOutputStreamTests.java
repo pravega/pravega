@@ -25,7 +25,7 @@ import org.junit.Test;
 /**
  * Unit tests for the RevisionDataOutput interface (default methods) and backing implementations.
  */
-public class RevisionDataOutputTests {
+public class RevisionDataOutputStreamTests {
     // TODO: add unit tests for the default methods on the interface.
 
     // region Interface implementations tests
@@ -38,7 +38,7 @@ public class RevisionDataOutputTests {
         @Cleanup
         val s = new EnhancedByteArrayOutputStream();
         @Cleanup
-        val impl = RevisionDataOutput.wrap(s);
+        val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
     }
 
@@ -51,7 +51,7 @@ public class RevisionDataOutputTests {
         @Cleanup
         val s = new FixedByteArrayOutputStream(new byte[bufferSize], 0, bufferSize);
         @Cleanup
-        val impl = RevisionDataOutput.wrap(s);
+        val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
     }
 
@@ -63,11 +63,11 @@ public class RevisionDataOutputTests {
         @Cleanup
         val s = new ByteArrayOutputStream();
         @Cleanup
-        val impl = RevisionDataOutput.wrap(s);
+        val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, () -> new ByteArraySegment(s.toByteArray()));
     }
 
-    private void testImpl(RevisionDataOutput.CloseableRevisionDataOutput impl, Supplier<ByteArraySegment> getWrittenData) throws Exception {
+    private void testImpl(RevisionDataOutputStream impl, Supplier<ByteArraySegment> getWrittenData) throws Exception {
         final byte b = 123;
         final short sn = 1234;
         final int n = 123456;

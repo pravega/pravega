@@ -9,13 +9,10 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.io.SerializationException;
 import java.io.DataInput;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -45,36 +42,7 @@ public interface RevisionDataInput extends DataInput {
      * @return The decoded compact Long. This number should be between 0 and 2^62-1, inclusive.
      * @throws IOException If an IO Exception occurred.
      */
-    default long readCompactLong() throws IOException {
-        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
-        // Read first byte and determine how many other bytes are used.
-        long b1 = readUnsignedByte();
-        int header = (byte) (b1 >>> 6);
-        b1 &= 0x3F;
-
-        switch (header) {
-            case 0:
-                // Only this byte.
-                return b1;
-            case 1:
-                // 2 bytes
-                return (b1 << 8) + readUnsignedByte();
-            case 2:
-                // 4 bytes
-                return (b1 << 24)
-                        + ((long) readUnsignedByte() << 16)
-                        + readUnsignedShort();
-            case 3:
-                // All 8 bytes
-                return (b1 << 56)
-                        + ((long) readUnsignedByte() << 48)
-                        + ((long) readUnsignedShort() << 32)
-                        + (readInt() & 0xFFFF_FFFFL);
-            default:
-                throw new SerializationException(String.format(
-                        "Unable to deserialize compact long. Unrecognized header value %d.", header));
-        }
-    }
+    long readCompactLong() throws IOException;
 
     /**
      * Decodes an Integer that has been serialized using RevisionDataOutput.writeCompactInt(). After this method is complete,
@@ -87,34 +55,7 @@ public interface RevisionDataInput extends DataInput {
      * @return The decoded compact Long. This number should be between 0 and 2^30-1, inclusive.
      * @throws IOException If an IO Exception occurred.
      */
-    default int readCompactInt() throws IOException {
-        // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
-        // Read first byte and determine how many other bytes are used.
-        int b1 = readUnsignedByte();
-        int header = b1 >>> 6;
-        b1 &= 0x3F;
-
-        switch (header) {
-            case 0:
-                // Only this byte.
-                return b1;
-            case 1:
-                // 2 bytes
-                return (b1 << 8) + readUnsignedByte();
-            case 2:
-                // 3 bytes
-                return (b1 << 16)
-                        + readUnsignedShort();
-            case 3:
-                // All 4 bytes
-                return (b1 << 24)
-                        + (readUnsignedByte() << 16)
-                        + readUnsignedShort();
-            default:
-                throw new SerializationException(String.format(
-                        "Unable to deserialize compact int. Unrecognized header value %d.", header));
-        }
-    }
+    int readCompactInt() throws IOException;
 
     /**
      * Decodes a UUID that has been serialized using RevisionDataOutput.writeUUID().
@@ -125,9 +66,7 @@ public interface RevisionDataInput extends DataInput {
      * @return A new UUID.
      * @throws IOException If an IO Exception occurred.
      */
-    default UUID readUUID() throws IOException {
-        return new UUID(readLong(), readLong());
-    }
+    UUID readUUID() throws IOException;
 
     /**
      * Decodes a generic Collection that has been serialized using RevisionDataOutput.writeCollection(). The underlying type
@@ -143,9 +82,7 @@ public interface RevisionDataInput extends DataInput {
      * will return an empty collection.
      * @throws IOException If an IO Exception occurred.
      */
-    default <T> Collection<T> readCollection(ElementDeserializer<T> elementDeserializer) throws IOException {
-        return readCollection(elementDeserializer, ArrayList::new);
-    }
+    <T> Collection<T> readCollection(ElementDeserializer<T> elementDeserializer) throws IOException;
 
     /**
      * Decodes a specific Collection that has been serialized using RevisionDataOutput.writeCollection().
@@ -161,14 +98,7 @@ public interface RevisionDataInput extends DataInput {
      * will return an empty collection.
      * @throws IOException If an IO Exception occurred.
      */
-    default <T, C extends Collection<T>> C readCollection(ElementDeserializer<T> elementDeserializer, Supplier<C> newCollection) throws IOException {
-        C result = newCollection.get();
-        int count = readCompactInt();
-        for (int i = 0; i < count; i++) {
-            result.add(elementDeserializer.apply(this));
-        }
-        return result;
-    }
+    <T, C extends Collection<T>> C readCollection(ElementDeserializer<T> elementDeserializer, Supplier<C> newCollection) throws IOException;
 
     /**
      * Decodes a generic Map that has been serialized using RevisionDataOutput.writeMap(). The underlying type of the map
@@ -183,9 +113,7 @@ public interface RevisionDataInput extends DataInput {
      * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
      * @throws IOException If an IOException occurred.
      */
-    default <K, V> Map<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer) throws IOException {
-        return readMap(keyDeserializer, valueDeserializer, HashMap::new);
-    }
+    <K, V> Map<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer) throws IOException;
 
     /**
      * Decodes a specific Map that has been serialized using RevisionDataOutput.writeMap().
@@ -201,15 +129,7 @@ public interface RevisionDataInput extends DataInput {
      * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
      * @throws IOException If an IOException occurred.
      */
-    default <K, V, M extends Map<K, V>> M readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, Supplier<M> newMap) throws IOException {
-        M result = newMap.get();
-        int count = readCompactInt();
-        for (int i = 0; i < count; i++) {
-            result.put(keyDeserializer.apply(this), valueDeserializer.apply(this));
-        }
-
-        return result;
-    }
+    <K, V, M extends Map<K, V>> M readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, Supplier<M> newMap) throws IOException;
 
     /**
      * Defines a Function signature that can deserialize an element from a RevisionDataInput.

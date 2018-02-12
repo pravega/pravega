@@ -16,6 +16,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.RevisionDataOutputStream;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
@@ -56,7 +57,7 @@ public class Playground {
     private static void testCompactNumberPerf() throws Exception {
         int count = 10000000;
         byte[] buffer = new byte[256 * 1024 * 1024];
-        RevisionDataOutput rrdo = RevisionDataOutput.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        RevisionDataOutput rrdo = RevisionDataOutputStream.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
         Timer t1 = new Timer();
         for (int i = 0; i < count; i++) {
             rrdo.writeLong((long) i);
@@ -65,7 +66,7 @@ public class Playground {
         long dosElapsed = t1.getElapsedNanos();
 
         System.gc();
-        rrdo = RevisionDataOutput.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
+        rrdo = RevisionDataOutputStream.wrap(new FixedByteArrayOutputStream(buffer, 0, buffer.length));
         Timer t2 = new Timer();
         for (int i = 0; i < count; i++) {
             rrdo.writeCompactLong((long) i);
