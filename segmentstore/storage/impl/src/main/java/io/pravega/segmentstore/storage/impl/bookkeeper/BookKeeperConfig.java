@@ -40,7 +40,7 @@ public class BookKeeperConfig {
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
     public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
-    public static final Property<String> BK_TLS_TRUSTSTORE = Property.named("tlsTrustStore", "../../../config/client.truststore.jks");
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -175,7 +175,7 @@ public class BookKeeperConfig {
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
         this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
-        tlsTrustStore = properties.get(BK_TLS_TRUSTSTORE);
+        tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
     }
 
     /**
