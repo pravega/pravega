@@ -199,7 +199,7 @@ public class StreamCutsTest {
 
     private void validateCuts(ReaderGroup group, Set<StreamCut> cuts, Set<String> segmentNames) {
         Set<String> streamNames = group.getStreamNames();
-        cuts.forEach((c) -> {
+        cuts.forEach(c -> {
                 assertTrue(streamNames.contains(c.getStream().getStreamName()));
                 assertTrue(c.validate(segmentNames));
         });
