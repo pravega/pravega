@@ -47,6 +47,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -407,4 +408,19 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     //endregion
+    public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            SECURE_BK.set(true);
+            setUpBookKeeper();
+        }
+    }
+
+    public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            SECURE_BK.set(false);
+            setUpBookKeeper();
+        }
+    }
 }
