@@ -24,7 +24,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
@@ -38,17 +37,10 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private final double cpu = 0.5;
     private final double mem = 700.0;
     private final URI zkUri;
-    private Map<String, String> systemProperties;
 
     public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
         super(serviceName);
         this.zkUri = zkUri;
-    }
-
-    public PravegaControllerDockerService(final String serviceName, final URI zkUri, final Map<String, String> systemProperties) {
-        super(serviceName);
-        this.zkUri = zkUri;
-        this.systemProperties = systemProperties;
     }
 
     public void stop() {
@@ -78,12 +70,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
         stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
         stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
-
-        Iterator it = systemProperties.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry pair = (Map.Entry) it.next();
-            stringBuilderMap.put((String) pair.getKey(), (String) pair.getValue());
-        }
+        stringBuilderMap.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");

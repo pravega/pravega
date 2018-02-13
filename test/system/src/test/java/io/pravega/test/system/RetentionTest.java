@@ -43,11 +43,10 @@ import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -60,13 +59,15 @@ public class RetentionTest {
     private static final String READER_GROUP = "testRetentionReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+    public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
     private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
     private URI controllerURI;
+    private StreamManager streamManager;
+    private ScheduledExecutorService executorService;
 
 
 
@@ -98,9 +99,7 @@ public class RetentionTest {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Map<String, String> systemProperties = new HashMap<>();
-        systemProperties.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
-        Service conService = Utils.createPravegaControllerService(zkUri, systemProperties);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -123,13 +122,13 @@ public class RetentionTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
 
     @Test
-    public void retentionTest() {
+    public void retentionTest() throws Exception {
 
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         ControllerImpl controller = new ControllerImpl(controllerURI,
@@ -163,13 +162,13 @@ public class RetentionTest {
 
         //read the same event
         try {
-           String readEvent = reader.readNextEvent(6000).getEvent();
-           log.debug("Reading event: {} ", readEvent);
-           assertEquals(null, readEvent);
+            String readEvent = reader.readNextEvent(6000).getEvent();
+            log.debug("Reading event: {} ", readEvent);
+            assertEquals(null, readEvent);
         }  catch (ReinitializationRequiredException e) {
-           log.error("Unexpected request to reinitialize {}", e);
+            log.error("Unexpected request to reinitialize {}", e);
             System.exit(-1);
-       }
+        }
 
        log.debug("The stream is already truncated");
        log.debug("Simple retention test passed");
