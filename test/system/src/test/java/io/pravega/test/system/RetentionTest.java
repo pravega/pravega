@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
@@ -34,7 +43,9 @@ import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import static org.junit.Assert.assertEquals;
@@ -44,17 +55,19 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class RetentionTest {
 
-    private final static String STREAM = "testRetentionStream1";
-    private final static String SCOPE = "testRetentionScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final static String READER_GROUP = "testRetentionReaderGroup1";
+    private static final String STREAM = "testRetentionStream";
+    private static final String SCOPE = "testRetentionScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private static final String READER_GROUP = "testRetentionReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
-    private final RetentionPolicy retentionPolicy= RetentionPolicy.byTime(Duration.ofMinutes(1));
+    private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
     private URI controllerURI;
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
 
     /**
@@ -85,7 +98,9 @@ public class RetentionTest {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
+        Map<String, String> systemProperties = new HashMap<>();
+        systemProperties.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
+        Service conService = Utils.createPravegaControllerService(zkUri, systemProperties);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -123,7 +138,6 @@ public class RetentionTest {
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
-
         //create a writer
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM,
                 new JavaSerializer<>(),
@@ -136,7 +150,7 @@ public class RetentionTest {
         log.debug("Writing event: {} ", writeEvent);
 
         //sleep for 4 mins
-        Exceptions.handleInterrupted(() -> Thread.sleep(4*60*1000));
+        Exceptions.handleInterrupted(() -> Thread.sleep(4 * 60 * 1000));
 
         //create a reader
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
@@ -151,13 +165,13 @@ public class RetentionTest {
         try {
            String readEvent = reader.readNextEvent(6000).getEvent();
            log.debug("Reading event: {} ", readEvent);
-           assertEquals(readEvent, null);
+           assertEquals(null, readEvent);
         }  catch (ReinitializationRequiredException e) {
            log.error("Unexpected request to reinitialize {}", e);
-           System.exit(0);
+            System.exit(-1);
        }
 
-       log.debug("the stream is already truncated");
+       log.debug("The stream is already truncated");
        log.debug("Simple retention test passed");
     }
 }

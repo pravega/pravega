@@ -15,6 +15,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -26,7 +27,6 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.MarathonException;
-
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 /**
@@ -41,11 +41,19 @@ public class PravegaControllerService extends MarathonBasedService {
     private int instances = 1;
     private double cpu = 0.5;
     private double mem = 700;
+    private Map<String, String> systemProperties = new HashMap<>();
 
     public PravegaControllerService(final String id, final URI zkUri) {
         // if SkipserviceInstallation flag is enabled used the default id.
         super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
         this.zkUri = zkUri;
+    }
+
+    public PravegaControllerService(final String id, final URI zkUri, final Map<String, String> systemProperties) {
+        // if SkipserviceInstallation flag is enabled used the default id.
+        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
+        this.zkUri = zkUri;
+        this.systemProperties = systemProperties;
     }
 
     public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
@@ -119,18 +127,33 @@ public class PravegaControllerService extends MarathonBasedService {
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
+
         //set env
-        String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
-                setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
+        Map<String, String> stringBuilderMap = new HashMap<>();
+        stringBuilderMap.put("ZK_URL", zk);
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos");
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT));
+        stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT));
+        stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
+        stringBuilderMap.put("log.level", "DEBUG");
+        stringBuilderMap.put("log.dir", "$MESOS_SANDBOX/pravegaLogs");
+        stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
+        stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
+        stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
+
+        StringBuilder systemPropertyBuilder = new StringBuilder();
+        for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
+            systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
+        }
+
+        Iterator it = systemProperties.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry) it.next();
+            stringBuilderMap.put((String) pair.getKey(), (String) pair.getValue());
+        }
+
+        String controllerSystemProperties = "-Xmx512m" + systemPropertyBuilder.toString();
+
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);

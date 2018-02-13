@@ -21,6 +21,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.net.URI;
+import java.util.Map;
 
 /**
  * Utility methods used inside the TestFramework.
@@ -58,6 +59,12 @@ public class Utils {
         return DOCKER_BASED
                 ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri, final Map<String, String> systemProperties) {
+        return DOCKER_BASED
+                ? new PravegaControllerDockerService("controller", zkUri, systemProperties)
+                : new PravegaControllerService("controller", zkUri, systemProperties);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
