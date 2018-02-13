@@ -9,7 +9,6 @@
  */
 package io.pravega.common.io.serialization;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.BitConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -23,8 +22,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * RevisionDataOutput implementation that makes use of the java.io.DataOutputStream for data encoding.
  */
 @NotThreadSafe
-@VisibleForTesting // TODO: remove
-public abstract class RevisionDataOutputStream extends DataOutputStream implements RevisionDataOutput {
+abstract class RevisionDataOutputStream extends DataOutputStream implements RevisionDataOutput {
     //region Constructor
 
     private RevisionDataOutputStream(OutputStream outputStream) {

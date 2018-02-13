@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +52,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      */
     private VersionedSerializer() {
         this.versions = new HashMap<>();
-        getVersions().forEach(this::registerVersion);
+        declareVersions();
         Preconditions.checkArgument(getFormat(writeVersion()) != null, "Write version %s is not defined.", writeVersion());
     }
 
@@ -67,12 +66,12 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      */
     protected abstract byte writeVersion();
 
+
     /**
-     * When implemented in a derived class, this method will return a collection of FormatVersions that are supported
-     * for reading and writing. This method will be invoked once during the constructor, which will index the versions in
-     * its own data structures.
+     * When implemented in a derived class, this method will declare the FormatVersions that are supported for reading and
+     * writing. This method will be invoked once during the constructor.
      */
-    protected abstract Collection<FormatVersion<TargetType, ReaderType>> getVersions();
+    protected abstract void declareVersions();
 
     /**
      * Gets a FormatVersion for the given version.
@@ -85,23 +84,19 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     }
 
     /**
-     * Registers the given FormatVersion.
+     * Gets or Creates a FormatVersion with given version. If new, the version will also be registered internally.
      *
-     * @param v The FormatVersion to register.
-     */
-    private void registerVersion(FormatVersion<TargetType, ReaderType> v) {
-        Preconditions.checkArgument(this.versions.put(v.getVersion(), v) == null,
-                "FormatVersion %s is already defined.", v.getVersion());
-    }
-
-    /**
-     * Creates (but does not register) a new FormatVersion.
-     *
-     * @param version The version to create the FormatVersion with.
-     * @return A new instance of the FormatVersion class.
+     * @param version The version to seek/create.
+     * @return A new or existing instance of the FormatVersion class.
      */
     protected FormatVersion<TargetType, ReaderType> version(int version) {
-        return new FormatVersion<>(version);
+        FormatVersion<TargetType, ReaderType> v = this.versions.get((byte) version);
+        if (v == null) {
+            v = new FormatVersion<>(version);
+            this.versions.put(v.getVersion(), v);
+        }
+
+        return v;
     }
 
     //endregion
@@ -300,12 +295,11 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      *    protected byte writeVersion() { return 0; } // This is the version we'll be serializing now.
      *
      *    @Override
-     *    protected Collection<FormatVersion<Segment, Segment>> getVersions() {
+     *    protected void declareVersions() {
      *      // We define all supported versions and their revisions here.
-     *      return Arrays.asList(
-     *                  version(0).revision(0, this::write00, this::read00)
-     *                            .revision(1, this::write01, this::read01),
-     *                  version(1).revision(0, this::write10, this::read10));
+     *      version(0).revision(0, this::write00, this::read00)
+     *                .revision(1, this::write01, this::read01);
+     *      version(1).revision(0, this::write10, this::read10);
      *    }
      *
      *    // Serializes V0.0; this is the first method to be invoked when serializing V0.
@@ -360,8 +354,8 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      *    protected Attribute.AttributeBuilder newBuilder() { return Attribute.builder(); }
      *
      *    @Override
-     *    protected Collection<FormatVersion<Attribute, Attribute.AttributeBuilder>> getVersions() {
-     *        return Collections.singleton(version(0).revision(0, this::write00, this::read00));
+     *    protected void declareVersions() {
+     *        version(0).revision(0, this::write00, this::read00);
      *    }
      *
      *    private void write00(Attribute source, RevisionDataOutput output) throws IOException { ... }
