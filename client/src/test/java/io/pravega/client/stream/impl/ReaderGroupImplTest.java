@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import java.util.HashMap;
@@ -84,10 +85,20 @@ public class ReaderGroupImplTest {
     }
 
     @Test
-    public void resetReadersToStream() {
+    public void resetReadersToStreamCut() {
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1", "s2"));
         readerGroup.resetReadersToStreamCut(ImmutableSet.of(createStreamCut("s1", 2),
                 createStreamCut("s2", 3)));
+        verify(synchronizer, times(1)).updateState(any(Function.class));
+    }
+
+    @Test
+    public void resetReadersToCheckpoint() {
+        when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
+        Map<Segment, Long> positions = new HashMap<>();
+        IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
+        Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
+        readerGroup.resetReadersToCheckpoint(checkpoint);
         verify(synchronizer, times(1)).updateState(any(Function.class));
     }
 

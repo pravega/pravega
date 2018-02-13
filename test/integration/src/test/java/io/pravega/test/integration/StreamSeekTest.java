@@ -11,8 +11,6 @@ package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -40,9 +38,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -57,7 +55,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -152,13 +149,13 @@ public class StreamSeekTest {
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
                 ReaderConfig.builder().build());
 
-        //Offset of a streamCut is always set to zero.(Bug?)
+        //Offset of a streamCut is always set to zero.
         Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
         readAndVerify(reader, 1, 2);
         readAndVerify(reader, 3, 4, 5);
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
-        readerGroup.resetReadersToStreamCut(streamCut1.values()); //reset the readers to offset 0.
+        readerGroup.resetReadersToStreamCut(new HashSet<>(streamCut1.values())); //reset the readers to offset 0.
         verifyReinitializationRequiredException(reader);
 
         @Cleanup
@@ -168,7 +165,7 @@ public class StreamSeekTest {
         //verify that we are at streamCut1
         readAndVerify(reader1, 1, 2);
 
-        readerGroup.resetReadersToStreamCut(streamCut2.values()); // reset readers to post scale offset 0
+        readerGroup.resetReadersToStreamCut(new HashSet<>(streamCut2.values())); // reset readers to post scale offset 0
         verifyReinitializationRequiredException(reader1);
 
         @Cleanup
@@ -214,14 +211,5 @@ public class StreamSeekTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         controller.createStream(config).get();
-    }
-
-    private Checkpoint generateCheckPoint(final ReaderGroup readerGroup, final EventStreamReader<String> reader)
-            throws Exception {
-        String chkPointName = keyGenerator.get();
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint(chkPointName, executor);
-        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
-        assertEquals(chkPointName, chkpointEvent.getCheckpointName());
-        return chkPointResult.get();
     }
 }
