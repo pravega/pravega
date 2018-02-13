@@ -137,7 +137,7 @@ public class StreamCutsTest {
         assertNotNull(secondEvent);
         assertEquals("fpj was here again", secondEvent.getEvent());
 
-        Map<Stream, StreamCut> cuts = readerGroup.getStreamCuts();
+        Set<StreamCut> cuts = readerGroup.getStreamCuts();
         validateCuts(readerGroup, cuts, Collections.singleton("test/test/0"));
 
         // Scale the stream to verify that we get more segments in the cut.
@@ -197,10 +197,10 @@ public class StreamCutsTest {
         validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
     }
 
-    private void validateCuts(ReaderGroup group, Map<Stream, StreamCut> cuts, Set<String> segmentNames) {
+    private void validateCuts(ReaderGroup group, Set<StreamCut> cuts, Set<String> segmentNames) {
         Set<String> streamNames = group.getStreamNames();
-        cuts.forEach((s, c) -> {
-                assertTrue(streamNames.contains(s.getStreamName()));
+        cuts.forEach((c) -> {
+                assertTrue(streamNames.contains(c.getStream().getStreamName()));
                 assertTrue(c.validate(segmentNames));
         });
     }

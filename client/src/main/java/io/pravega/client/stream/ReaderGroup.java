@@ -13,7 +13,6 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -131,7 +130,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * A stream cut corresponds to a position in the stream, and it can be used by
      * the application as reference to such a position.
      *
-     * @return Map of streams that this group is reading from to the corresponding cuts.
+     * @return {@link StreamCut StreamCuts} of streams that this reader group is reading from.
      */
-    Map<Stream, StreamCut> getStreamCuts();
+    Set<StreamCut> getStreamCuts();
 }
