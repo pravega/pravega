@@ -34,7 +34,7 @@ import lombok.val;
 class LogMetadata {
     //region Members
 
-    private static final Serializer SERIALIZER = new Serializer();
+    static final VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> SERIALIZER = new Serializer();
 
     /**
      * The initial epoch to use for the Log.
@@ -329,39 +329,15 @@ class LogMetadata {
 
     //endregion
 
-    //region Serialization
-
-    /**
-     * Serializes this LogMetadata object into a byte array.
-     *
-     * @throws IOException If a serialization exception occurred.
-     * @return A new byte array with the serialized contents of this object.
-     */
-    byte[] serialize() throws IOException {
-        return SERIALIZER.serialize(this).getCopy();
-    }
-
-    /**
-     * Attempts to deserialize the given byte array into a LogMetadata object.
-     *
-     * @param serialization The byte array to deserialize.
-     * @throws IOException If a deserialization exception occurred.
-     * @return A new instance of the LogMetadata class with the contents of the given byte array.
-     */
-    static LogMetadata deserialize(byte[] serialization) throws IOException {
-        return SERIALIZER.deserialize(serialization);
-    }
-
-    //endregion
-
     @Override
     public String toString() {
         return String.format("Version = %d, Epoch = %d, LedgerCount = %d, Truncate = (%d-%d)",
                 this.updateVersion.get(), this.epoch, this.ledgers.size(), this.truncationAddress.getLedgerId(), this.truncationAddress.getEntryId());
     }
 
-    static class LogMetadataBuilder implements ObjectBuilder<LogMetadata> {
+    //region Serialization
 
+    static class LogMetadataBuilder implements ObjectBuilder<LogMetadata> {
     }
 
     private static class Serializer extends VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> {
@@ -411,4 +387,5 @@ class LogMetadata {
         }
     }
 
+    //endregion
 }
