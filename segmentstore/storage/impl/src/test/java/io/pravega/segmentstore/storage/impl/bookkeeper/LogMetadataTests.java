@@ -189,7 +189,7 @@ public class LogMetadataTests {
      * Tests serialization/deserialization.
      */
     @Test(timeout = 5000)
-    public void testSerialization() {
+    public void testSerialization() throws Exception {
         Supplier<Long> nextLedgerId = new AtomicLong()::incrementAndGet;
         LogMetadata m1 = null;
         val lacs = new HashMap<Long, Long>();
