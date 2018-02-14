@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -35,12 +34,14 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     //region Members
 
     /**
+     * The Version of the Serializer format itself.
      * ALL     : FV(1)|V(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
      * REVISION: RevisionId(1)|Length(4)|Data(Length)
      */
-    private static final byte FORMAT_VERSION = 0;
+    private static final byte SERIALIZER_VERSION = 0;
 
-    private final HashMap<Byte, FormatVersion<TargetType, ReaderType>> versions;
+    // Since Version is a byte, we can use a small array here instead of HashMap which provides better runtime performance.
+    private final FormatVersion<TargetType, ReaderType>[] versions;
 
     //endregion
 
@@ -50,10 +51,11 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      * Creates a new instance of the VersionedSerializer. Registers all versions and validates the write version is defined
      * correctly.
      */
+    @SuppressWarnings("unchecked")
     private VersionedSerializer() {
-        this.versions = new HashMap<>();
+        this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
         declareVersions();
-        Preconditions.checkArgument(getFormat(writeVersion()) != null, "Write version %s is not defined.", writeVersion());
+        Preconditions.checkArgument(this.versions[writeVersion()] != null, "Write version %s is not defined.", writeVersion());
     }
 
     //endregion
@@ -66,22 +68,11 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      */
     protected abstract byte writeVersion();
 
-
     /**
      * When implemented in a derived class, this method will declare the FormatVersions that are supported for reading and
      * writing. This method will be invoked once during the constructor.
      */
     protected abstract void declareVersions();
-
-    /**
-     * Gets a FormatVersion for the given version.
-     *
-     * @param version The version to look up.
-     * @return An existing instance of FormatVersion, or null if no such version exists.
-     */
-    private FormatVersion<TargetType, ReaderType> getFormat(byte version) {
-        return this.versions.get(version);
-    }
 
     /**
      * Gets or Creates a FormatVersion with given version. If new, the version will also be registered internally.
@@ -90,10 +81,10 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      * @return A new or existing instance of the FormatVersion class.
      */
     protected FormatVersion<TargetType, ReaderType> version(int version) {
-        FormatVersion<TargetType, ReaderType> v = this.versions.get((byte) version);
+        FormatVersion<TargetType, ReaderType> v = this.versions[version];
         if (v == null) {
             v = new FormatVersion<>(version);
-            this.versions.put(v.getVersion(), v);
+            this.versions[v.getVersion()] = v;
         }
 
         return v;
@@ -125,10 +116,10 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     public void serialize(OutputStream stream, TargetType o) throws IOException {
         // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
         DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-        val writeVersion = getFormat(writeVersion());
+        val writeVersion = this.versions[writeVersion()];
 
         // Write Serialization Header.
-        dataOutput.writeByte(FORMAT_VERSION);
+        dataOutput.writeByte(SERIALIZER_VERSION);
         dataOutput.writeByte(writeVersion.getVersion());
         dataOutput.writeByte(writeVersion.getRevisions().size());
 
@@ -172,9 +163,9 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
     public void deserialize(InputStream stream, ReaderType target) throws IOException {
         DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
         byte formatVersion = dataInput.readByte();
-        ensureCondition(formatVersion == FORMAT_VERSION, "Unsupported format version %d.", formatVersion);
+        ensureCondition(formatVersion == SERIALIZER_VERSION, "Unsupported format version %d.", formatVersion);
         byte version = dataInput.readByte();
-        val readVersion = getFormat(version);
+        val readVersion = this.versions[version];
         ensureCondition(readVersion != null, "Unsupported version %d.", version);
 
         byte revisionCount = dataInput.readByte();
