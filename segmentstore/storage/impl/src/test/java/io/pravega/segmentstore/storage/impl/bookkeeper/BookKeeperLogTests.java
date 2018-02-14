@@ -59,7 +59,7 @@ import org.junit.rules.Timeout;
 public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
-    static final AtomicBoolean SECURE_BK = new AtomicBoolean();
+    private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
@@ -81,8 +81,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
      * we only do it once.
      */
-    public static void setUpBookKeeper() throws Exception {
+    public static void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
+        SECURE_BK.set(secure);
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
@@ -411,16 +412,14 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
         @BeforeClass
         public static void startUp() throws Exception {
-            SECURE_BK.set(true);
-            setUpBookKeeper();
+            setUpBookKeeper(true);
         }
     }
 
     public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
         @BeforeClass
         public static void startUp() throws Exception {
-            SECURE_BK.set(false);
-            setUpBookKeeper();
+            setUpBookKeeper(false);
         }
     }
 }
