@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
@@ -294,6 +295,84 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             long thirdEpoch = log.getEpoch();
             AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on non-empty log initialization.", secondEpoch, thirdEpoch);
             verifyReads(log, writeData);
+        }
+    }
+
+    /**
+     * Verifies the ability to Enable or Disable Logs.
+     *
+     * @throws Exception If one occurred.
+     */
+    @Test
+    public void testEnableDisable() throws Exception {
+        Object context = createSharedContext();
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            // Disable should not work without the lock.
+            AssertExtensions.assertThrows(
+                    "disable() worked when the log not initialized.",
+                    log::disable,
+                    ex -> ex instanceof IllegalStateException);
+
+            log.initialize(TIMEOUT);
+
+            // Enable should not work if it's already enabled.
+            AssertExtensions.assertThrows(
+                    "enable() worked when the log was already initialized/enabled.",
+                    log::enable,
+                    ex -> ex instanceof IllegalStateException);
+
+            // Disable the log.
+            log.disable();
+
+            AssertExtensions.assertThrows(
+                    "disable() did not close the Log.",
+                    () -> log.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                    ex -> ex instanceof ObjectClosedException);
+        }
+
+        TreeMap<LogAddress, byte[]> writeData;
+        try (DurableDataLog log1 = createDurableDataLog(context)) {
+            // By contract, initialization (lock acquisition) should not succeed on a disabled log.
+            AssertExtensions.assertThrows(
+                    "initialize worked with a disabled log.",
+                    () -> log1.initialize(TIMEOUT),
+                    ex -> ex instanceof DataLogDisabledException);
+
+            // Verify that Log operations cannot execute while disabled.
+            AssertExtensions.assertThrows(
+                    "append() worked with a disabled/non-initialized log.",
+                    () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows(
+                    "truncate() worked with a disabled/non-initialized log.",
+                    () -> log1.truncate(createLogAddress(1), TIMEOUT),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows(
+                    "getReader() worked with a disabled/non-initialized log.",
+                    log1::getReader,
+                    ex -> ex instanceof IllegalStateException);
+
+            // Open up a second log and verify that the "disabled" flag was properly persisted. Then enable the log using
+            // this second long.
+            try (DurableDataLog log2 = createDurableDataLog(context)) {
+                AssertExtensions.assertThrows(
+                        "initialize worked with a disabled log (second instance).",
+                        () -> log2.initialize(TIMEOUT),
+                        ex -> ex instanceof DataLogDisabledException);
+
+                log2.enable();
+                log2.initialize(TIMEOUT);
+            }
+
+            // Now verify that initial log is able to initialize again and resume normal operations.
+            log1.initialize(TIMEOUT);
+            writeData = populate(log1, getWriteCount());
+        }
+
+        // Simulate Container recovery: we always read only upon recovery; never while writing.
+        try (DurableDataLog log3 = createDurableDataLog(context)) {
+            log3.initialize(TIMEOUT);
+            verifyReads(log3, writeData);
         }
     }
 

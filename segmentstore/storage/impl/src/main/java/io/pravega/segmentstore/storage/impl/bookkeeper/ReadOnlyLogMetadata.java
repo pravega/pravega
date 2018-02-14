@@ -32,6 +32,13 @@ public interface ReadOnlyLogMetadata {
     int getUpdateVersion();
 
     /**
+     * Gets a value indicating whether this log is enabled or not.
+     *
+     * @return True if enabled, false otherwise.
+     */
+    boolean isEnabled();
+
+    /**
      * Gets a read-only ordered list of LedgerMetadata instances representing the Ledgers that currently make up this
      * Log Metadata.
      *

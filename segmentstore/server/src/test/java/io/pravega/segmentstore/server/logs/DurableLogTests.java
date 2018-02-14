@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
@@ -33,6 +34,7 @@ import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
+import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -41,6 +43,7 @@ import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -89,6 +92,8 @@ import org.junit.rules.Timeout;
  */
 public class DurableLogTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
+    private static final int CHECKPOINT_MIN_COMMIT_COUNT = 10;
+    private static final int START_RETRY_DELAY_MILLIS = 20;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
@@ -779,9 +784,8 @@ public class DurableLogTests extends OperationLogTestBase {
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
@@ -800,9 +804,8 @@ public class DurableLogTests extends OperationLogTestBase {
         //Recovery failure due to DataLog Failures.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
             ErrorInjector<Exception> readNextInjector = new ErrorInjector<>(
@@ -820,12 +823,20 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
+                        if (ex == null) {
+                            try {
+                                durableLog.awaitTerminated(); // We need this to enter a FAILED state to get its failure cause.
+                            } catch (Exception ex2) {
+                                ex = durableLog.failureCause();
+                            }
+                        }
+
                         ex = Exceptions.unwrap(ex);
                         return ex instanceof DataLogNotAvailableException && ex.getMessage().equals("intentional");
                     });
         }
 
-        // Recovery failure due to DataCorruption
+        // Recovery failure due to DataCorruptionException.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
@@ -861,6 +872,129 @@ public class DurableLogTests extends OperationLogTestBase {
 
                         return Exceptions.unwrap(ex) instanceof DataCorruptionException;
                     });
+
+            // Verify that the underlying DurableDataLog has been disabled.
+            val disabledDataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
+            AssertExtensions.assertThrows(
+                    "DurableDataLog has not been disabled following a recovery failure with DataCorruptionException.",
+                    () -> disabledDataLog.initialize(TIMEOUT),
+                    ex -> ex instanceof DataLogDisabledException);
+        }
+    }
+
+    /**
+     * Verifies the ability of hte DurableLog to recover (delayed start) using a disabled DurableDataLog. This verifies
+     * the ability to shut down correctly while still waiting for the DataLog to become enabled as well as detecting that
+     * it did become enabled and then resume normal operations.
+     */
+    @Test
+    public void testRecoveryWithDisabledDataLog() throws Exception {
+        int streamSegmentCount = 50;
+        int appendsPerStreamSegment = 20;
+        AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
+        @Cleanup
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        storage.initialize(1);
+
+        @Cleanup
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+
+        // Write some data to the log. We'll read it later.
+        HashSet<Long> streamSegmentIds;
+        List<Operation> originalOperations;
+        List<OperationWithCompletion> completionFutures;
+        UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
+        dataLog.set(null);
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+
+            // DurableLog should start properly.
+            durableLog.startAsync().awaitRunning();
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
+            completionFutures = processOperations(operations, durableLog);
+            OperationWithCompletion.allOf(completionFutures).join();
+            originalOperations = readAllDurableLog(durableLog);
+        }
+
+        // Disable the DurableDataLog. This requires us to initialize the log, then disable it.
+        metadata = new MetadataBuilder(CONTAINER_ID).build();
+        dataLog.set(null);
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+
+            // DurableLog should start properly.
+            durableLog.startAsync().awaitRunning();
+
+            CompletableFuture<Void> online = durableLog.awaitOnline();
+            Assert.assertTrue("awaitOnline() returned an incomplete future.", Futures.isSuccessful(online));
+            Assert.assertFalse("Not expecting an offline DurableLog.", durableLog.isOffline());
+
+            dataLog.get().disable();
+        }
+
+        // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+
+            // DurableLog should start properly.
+            durableLog.startAsync().awaitRunning();
+
+            CompletableFuture<Void> online = durableLog.awaitOnline();
+            Assert.assertFalse("awaitOnline() returned a completed future.", online.isDone());
+            Assert.assertTrue("Expecting an offline DurableLog.", durableLog.isOffline());
+
+            // Verify all operations fail with the right exception.
+            AssertExtensions.assertThrows(
+                    "add() did not fail with the right exception when offline.",
+                    () -> durableLog.add(new ProbeOperation(), TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "read() did not fail with the right exception when offline.",
+                    () -> durableLog.read(0, 1, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "truncate() did not fail with the right exception when offline.",
+                    () -> durableLog.truncate(0, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "operationProcessingBarrier() did not fail with the right exception when offline.",
+                    () -> durableLog.operationProcessingBarrier(TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+
+            // Verify we can also shut it down properly from this state.
+            durableLog.stopAsync().awaitTerminated();
+            Assert.assertTrue("awaitOnline() returned future did not fail when DurableLog shut down.", online.isCompletedExceptionally());
+        }
+
+        // Verify that, when the DurableDataLog becomes enabled, the DurableLog can pick up the change and resume normal operations.
+        // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
+        dataLog.set(null);
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+             DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
+
+            // DurableLog should start properly.
+            durableLog.startAsync().awaitRunning();
+            CompletableFuture<Void> online = durableLog.awaitOnline();
+            Assert.assertFalse("awaitOnline() returned a completed future.", online.isDone());
+
+            // Enable the underlying data log and await for recovery to finish.
+            dataLog.get().enable();
+            online.get(START_RETRY_DELAY_MILLIS * 100, TimeUnit.MILLISECONDS);
+            Assert.assertFalse("Not expecting an offline DurableLog after re-enabling.", durableLog.isOffline());
+
+            // Verify we can still read the data that we wrote before the DataLog was disabled.
+            List<Operation> recoveredOperations = readAllDurableLog(durableLog);
+            assertRecoveredOperationsMatch(originalOperations, recoveredOperations);
+            performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
+            performReadIndexChecks(completionFutures, readIndex);
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
         }
     }
 
@@ -1398,9 +1532,10 @@ public class DurableLogTests extends OperationLogTestBase {
 
             return DurableLogConfig
                     .builder()
-                    .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                    .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, CHECKPOINT_MIN_COMMIT_COUNT)
                     .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, checkpointMinCommitCount)
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, checkpointMinTotalCommitLength)
+                    .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, START_RETRY_DELAY_MILLIS)
                     .build();
         }
     }

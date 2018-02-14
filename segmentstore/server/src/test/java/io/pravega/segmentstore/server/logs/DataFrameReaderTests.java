@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.io.SerializationException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.TestDurableDataLog;
@@ -151,7 +152,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
 
             ErrorInjector<SerializationException> errorInjector = new ErrorInjector<>(
                     count -> count % failDeserializationEvery == 0,
-                    () -> new SerializationException("intentional", "TestLogItem.deserialize"));
+                    () -> new SerializationException("TestLogItem.deserialize intentional"));
 
             TestLogItemFactory logItemFactory = new TestLogItemFactory();
             logItemFactory.setDeserializationErrorInjector(errorInjector);

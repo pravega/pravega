@@ -14,6 +14,7 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.InvalidPropertyValueException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import java.time.Duration;
 import lombok.Getter;
 
 /**
@@ -24,6 +25,7 @@ public class DurableLogConfig {
     public static final Property<Integer> CHECKPOINT_MIN_COMMIT_COUNT = Property.named("checkpointMinCommitCount", 300);
     public static final Property<Integer> CHECKPOINT_COMMIT_COUNT = Property.named("checkpointCommitCountThreshold", 300);
     public static final Property<Long> CHECKPOINT_TOTAL_COMMIT_LENGTH = Property.named("checkpointTotalCommitLengthThreshold", 256 * 1024 * 1024L);
+    public static final Property<Integer> START_RETRY_DELAY_MILLIS = Property.named("startRetryDelayMillis", 60 * 1000);
     private static final String COMPONENT_CODE = "durablelog";
 
     //endregion
@@ -48,6 +50,12 @@ public class DurableLogConfig {
     @Getter
     private final long checkpointTotalCommitLengthThreshold;
 
+    /**
+     * The amount of time to wait between consecutive start attempts in case of retryable startup failure (i.e., offline).
+     */
+    @Getter
+    private Duration startRetryDelay;
+
     //endregion
 
     //region Constructor
@@ -67,6 +75,11 @@ public class DurableLogConfig {
         }
 
         this.checkpointTotalCommitLengthThreshold = properties.getLong(CHECKPOINT_TOTAL_COMMIT_LENGTH);
+        int startRetryDelayMillis = properties.getInt(START_RETRY_DELAY_MILLIS);
+        if (startRetryDelayMillis <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", START_RETRY_DELAY_MILLIS));
+        }
+        this.startRetryDelay = Duration.ofMillis(startRetryDelayMillis);
     }
 
     /**

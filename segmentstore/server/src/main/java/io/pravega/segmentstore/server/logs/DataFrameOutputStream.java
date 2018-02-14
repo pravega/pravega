@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.SimpleMovingAverage;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -80,7 +81,7 @@ class DataFrameOutputStream extends OutputStream {
         }
 
         if (totalBytesWritten == 0) {
-            throw new IOException("Unable to make progress in serializing to DataFrame.");
+            throw new SerializationException("Unable to make progress in serializing to DataFrame.");
         }
     }
 
@@ -219,9 +220,9 @@ class DataFrameOutputStream extends OutputStream {
         this.hasDataInCurrentFrame = false;
     }
 
-    private void startNewRecordInCurrentFrame(boolean firstRecordEntry) throws IOException {
+    private void startNewRecordInCurrentFrame(boolean firstRecordEntry) throws SerializationException {
         if (!this.currentFrame.startNewEntry(firstRecordEntry)) {
-            throw new IOException("Unable to start a new record.");
+            throw new SerializationException("Unable to start a new record.");
         }
 
         this.hasDataInCurrentFrame = true;

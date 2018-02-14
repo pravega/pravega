@@ -9,43 +9,23 @@
  */
 package io.pravega.segmentstore.server.host.admin.commands;
 
-import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.ReadOnlyLogMetadata;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
- * Base for any BookKeeper-related commands.
+ * Base for Container admin commands.
  */
-abstract class BookKeeperCommand extends Command {
-    static final String COMPONENT = "bk";
+abstract class ContainerCommand extends BookKeeperCommand {
+    static final String COMPONENT = "container";
 
-    BookKeeperCommand(CommandArgs args) {
+    ContainerCommand(CommandArgs args) {
         super(args);
-    }
-
-    /**
-     * Outputs a summary for the given Log.
-     *
-     * @param logId The Log Id.
-     * @param m     The Log Metadata for the given Log Id.
-     */
-    protected void outputLogSummary(int logId, ReadOnlyLogMetadata m) {
-        if (m == null) {
-            output("Log %d: No metadata.", logId);
-        } else {
-            output("Log %d: Epoch=%d, Version=%d, Enabled=%s, Ledgers=%d, Truncation={%s}", logId,
-                    m.getEpoch(), m.getUpdateVersion(), m.isEnabled(), m.getLedgers().size(), m.getTruncationAddress());
-        }
     }
 
     /**
@@ -54,8 +34,10 @@ abstract class BookKeeperCommand extends Command {
      * @return A new Context.
      * @throws DurableDataLogException If the BookKeeperLogFactory could not be initialized.
      */
+    @Override
     protected Context createContext() throws DurableDataLogException {
         val serviceConfig = getServiceConfig();
+        val containerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
                                        .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, serviceConfig.getZkURL()))
                                        .build().getConfig(BookKeeperConfig::builder);
@@ -69,26 +51,21 @@ abstract class BookKeeperCommand extends Command {
         }
 
         val bkAdmin = new BookKeeperAdmin(factory.getBookKeeperClient());
-        return new Context(serviceConfig, bkConfig, zkClient, factory, bkAdmin);
+        return new Context(serviceConfig, containerConfig, bkConfig, zkClient, factory, bkAdmin);
     }
 
-    @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-    protected static class Context implements AutoCloseable {
-        final ServiceConfig serviceConfig;
-        final BookKeeperConfig bookKeeperConfig;
-        final CuratorFramework zkClient;
-        final BookKeeperLogFactory logFactory;
-        final BookKeeperAdmin bkAdmin;
+    protected static class Context extends BookKeeperCommand.Context {
+        final ContainerConfig containerConfig;
+
+        protected Context(ServiceConfig serviceConfig, ContainerConfig containerConfig, BookKeeperConfig bookKeeperConfig,
+                          CuratorFramework zkClient, BookKeeperLogFactory logFactory, BookKeeperAdmin bkAdmin) {
+            super(serviceConfig, bookKeeperConfig, zkClient, logFactory, bkAdmin);
+            this.containerConfig = containerConfig;
+        }
 
         @Override
-        @SneakyThrows(BKException.class)
         public void close() {
-            this.logFactory.close();
-            this.zkClient.close();
-
-            // There is no need to close the BK Admin object since it doesn't own anything; however it does have a close()
-            // method and it's a good idea to invoke it.
-            Exceptions.handleInterrupted(this.bkAdmin::close);
+            super.close();
         }
     }
 }

@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +40,9 @@ public abstract class Command {
 
     @Getter(AccessLevel.PROTECTED)
     private final CommandArgs commandArgs;
+
+    @Getter(AccessLevel.PROTECTED)
+    private final PrintStream out = System.out;
 
     //endregion
 
@@ -91,7 +95,7 @@ public abstract class Command {
     }
 
     protected void output(String messageTemplate, Object... args) {
-        System.out.println(String.format(messageTemplate, args));
+        this.out.println(String.format(messageTemplate, args));
     }
 
     protected boolean confirmContinue() {
@@ -177,6 +181,9 @@ public abstract class Command {
                         .put(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new)
                         .put(BookKeeperListCommand::descriptor, BookKeeperListCommand::new)
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
+                        .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
+                        .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
                         .build());
 
         /**
