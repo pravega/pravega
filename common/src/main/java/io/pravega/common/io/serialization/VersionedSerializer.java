@@ -14,6 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -143,7 +144,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      * array and has APIs to extract or copy the data out of there.
      * @throws IOException If an IO Exception occurred.
      */
-    public ArrayView serialize(TargetType o) throws IOException {
+    public ByteArraySegment serialize(TargetType o) throws IOException {
         val result = new EnhancedByteArrayOutputStream();
         serialize(result, o);
         return result.getData();
