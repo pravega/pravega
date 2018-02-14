@@ -34,6 +34,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -153,21 +154,22 @@ public class RetentionTest {
 
         //create a reader
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
                 Collections.singleton(STREAM));
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        //read the same event
+        //try reading the event that was written earlier.
+        //expectation is it should have been truncated and we should find stream to be empty
         try {
             String readEvent = reader.readNextEvent(6000).getEvent();
             log.debug("Reading event: {} ", readEvent);
             assertEquals(null, readEvent);
         }  catch (ReinitializationRequiredException e) {
             log.error("Unexpected request to reinitialize {}", e);
-            System.exit(-1);
+            Assert.fail("Unexpected request to reinitialize.Test failed.");
         }
 
        log.debug("The stream is already truncated");
