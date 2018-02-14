@@ -20,7 +20,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface DurableDataLog extends AutoCloseable {
     /**
-     * Initializes the DurableDataLog and performs any recovery steps that may be required.
+     * Initializes the DurableDataLog and performs any recovery steps that may be required. This method will succeed only
+     * if the DurableDataLog is enabled. Disabled DurableDataLogs cannot be initialized or otherwise recovered from.
      *
      * @param timeout Timeout for the operation.
      * @throws DurableDataLogException When an exception occurred. This can be one of the following:
@@ -28,9 +29,38 @@ public interface DurableDataLog extends AutoCloseable {
      *                                 the current time;
      *                                 DataLogWriterNotPrimaryException: the DurableDataLog could not acquire
      *                                 the exclusive write lock for its log;
+     *                                 DataLogDisabledException: if the log is disabled.
      *                                 DataLogInitializationException: a general initialization failure occurred.
      */
     void initialize(Duration timeout) throws DurableDataLogException;
+
+    /**
+     * Enables the DurableDataLog, if it is currently disabled. The invocation of this method does not require a previous
+     * call to initialize() as it is not expected that the Log be initialized - since initialization can only be successful
+     * on an Enabled Log.
+     *
+     * @throws DurableDataLogException When an exception occurred. This can be one of the following:
+     *                                 DataLogNotAvailableException: it is not possible to reach the DataLog at
+     *                                 the current time;
+     *                                 DataLogWriterNotPrimaryException: the DurableDataLog could not acquire
+     *                                 the exclusive write lock for its log;
+     *                                 DataLogInitializationException: a general initialization failure occurred.
+     * @throws IllegalStateException   If the DurableDataLog is not currently disabled.
+     */
+    void enable() throws DurableDataLogException;
+
+    /**
+     * Disables the DurableDataLog, if it is currently enabled. The invocation of this method requires the DurableDataLog
+     * to be initialized, since it must be the current owner of the Log; as such a previous call to initialized() is expected.
+     * After this method completes successfully, the current instance of the DurableDataLog will be closed (equivalent to
+     * calling close()). This is in order to properly cancel any ongoing operations on it.
+     *
+     * @throws DurableDataLogException When an exception occurred. Notable exceptions:
+     *                                 DataLogWriterNotPrimaryException: if the DurableDataLog has lost the exclusive write
+     *                                 lock for its log.
+     * @throws IllegalStateException   If the DurableDataLog is not currently enabled.
+     */
+    void disable() throws DurableDataLogException;
 
     /**
      * Adds a new entry to the log. Multiple concurrent calls to this method are allowed.
@@ -58,6 +88,7 @@ public interface DurableDataLog extends AutoCloseable {
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
+     * @throws IllegalStateException If the DurableDataLog is not currently initialized (which implies being enabled).
      */
     CompletableFuture<LogAddress> append(ArrayView data, Duration timeout);
 
@@ -75,6 +106,7 @@ public interface DurableDataLog extends AutoCloseable {
      * @param timeout     The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation failed,
      * this Future will complete with the appropriate exception.
+     * @throws IllegalStateException If the DurableDataLog is not currently initialized (which implies being enabled).
      */
     CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout);
 
@@ -86,6 +118,7 @@ public interface DurableDataLog extends AutoCloseable {
      *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the
      *                                 current time;
      *                                 DurableDataLogException: the operation was unable to open a reader.
+     * @throws IllegalStateException   If the DurableDataLog is not currently initialized (which implies being enabled).
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException;
 

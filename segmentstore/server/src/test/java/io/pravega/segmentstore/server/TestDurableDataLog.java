@@ -70,6 +70,16 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public void enable() throws DurableDataLogException {
+        this.wrappedLog.enable();
+    }
+
+    @Override
+    public void disable() throws DurableDataLogException {
+        this.wrappedLog.disable();
+    }
+
+    @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector,

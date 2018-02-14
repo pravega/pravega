@@ -9,11 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.LogItem;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
+import io.pravega.segmentstore.server.LogItem;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -44,9 +43,9 @@ public abstract class Operation implements LogItem {
      *
      * @param header The Operation header to use.
      * @param source A DataInputStream to deserialize from.
-     * @throws SerializationException If the deserialization failed.
+     * @throws IOException If the deserialization failed or another IOException happened
      */
-    protected Operation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected Operation(OperationHeader header, DataInputStream source) throws IOException {
         this.sequenceNumber = header.sequenceNumber;
         deserialize(header, source);
     }
@@ -136,19 +135,15 @@ public abstract class Operation implements LogItem {
      *
      * @param header The OperationHeader to use.
      * @param source The input stream to read from.
-     * @throws SerializationException If the deserialization failed.
+     * @throws IOException If the deserialization failed.
      */
-    private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
+    private void deserialize(OperationHeader header, DataInputStream source) throws IOException {
         byte expectedOperationType = getOperationType().type;
         if (header.operationType != expectedOperationType) {
-            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
+            throw new SerializationException(String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
         }
 
-        try {
-            deserializeContent(source);
-        } catch (IOException ex) {
-            throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
-        }
+        deserializeContent(source);
     }
 
     /**
@@ -159,10 +154,10 @@ public abstract class Operation implements LogItem {
      * @throws IOException            If the input stream threw one.
      * @throws SerializationException If the versions mismatched.
      */
-    void readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
+    void readVersion(DataInputStream source, byte expectedVersion) throws IOException {
         byte version = source.readByte();
         if (version != expectedVersion) {
-            throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String.format("Unsupported version: %d.", version));
+            throw new SerializationException(String.format("Unsupported version: %d.", version));
         }
     }
 
@@ -189,10 +184,9 @@ public abstract class Operation implements LogItem {
      * Deserializes the content of this Operation.
      *
      * @param source The DataInputStream to read from.
-     * @throws IOException            If the DataInputStream threw one.
-     * @throws SerializationException If we detected an error, such as data corruption.
+     * @throws IOException            If the DataInputStream threw one, or there was a problem deserializing the content.
      */
-    protected abstract void deserializeContent(DataInputStream source) throws IOException, SerializationException;
+    protected abstract void deserializeContent(DataInputStream source) throws IOException;
 
     // endregion
 
@@ -231,17 +225,13 @@ public abstract class Operation implements LogItem {
          * @param source The DataInputStream to deserialize from.
          * @throws SerializationException If deserialization failed.
          */
-        OperationHeader(DataInputStream source) throws SerializationException {
-            try {
-                byte headerVersion = source.readByte();
-                if (headerVersion == HEADER_VERSION) {
-                    this.operationType = source.readByte();
-                    this.sequenceNumber = source.readLong();
-                } else {
-                    throw new SerializationException("OperationHeader.deserialize", String.format("Unsupported version: %d.", headerVersion));
-                }
-            } catch (IOException ex) {
-                throw new SerializationException("OperationHeader.deserialize", "Unable to deserialize Operation Header", ex);
+        OperationHeader(DataInputStream source) throws IOException {
+            byte headerVersion = source.readByte();
+            if (headerVersion == HEADER_VERSION) {
+                this.operationType = source.readByte();
+                this.sequenceNumber = source.readLong();
+            } else {
+                throw new SerializationException(String.format("Unsupported version: %d.", headerVersion));
             }
         }
 

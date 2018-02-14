@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -138,13 +139,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
                 .thenApply(result -> {
-                    CREATE_STREAM.reportSuccessValue(1);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                            configuration.getScalingPolicy().getMinNumSegments());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-
+                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                        CREATE_STREAM.reportSuccessValue(1);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                configuration.getScalingPolicy().getMinNumSegments());
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                    }
+                    
                     return result;
                 });
     }
@@ -415,7 +418,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final List<Integer> sealedSegments,
+                                                       final Map<Integer, Long> sealedSegments,
                                                        final List<Segment> newSegments,
                                                        final int activeEpoch,
                                                        final long scaleTimestamp,
@@ -482,6 +485,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                          final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
         return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Integer, Long> streamCut,
+                                                        final OperationContext context, final ScheduledExecutorService executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getSizeTillStreamCut(streamCut), executor);
     }
 
     @Override

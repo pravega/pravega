@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
+import java.io.IOException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +37,6 @@ public enum OperationType {
 
     @FunctionalInterface
     interface DeserializationConstructor {
-        Operation apply(Operation.OperationHeader header, DataInputStream source) throws SerializationException;
+        Operation apply(Operation.OperationHeader header, DataInputStream source) throws IOException;
     }
 }
