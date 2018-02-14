@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -50,6 +51,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
+    private final String delegationToken;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -115,7 +117,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             log.warn("Processing failure: ", error);
             closeConnection(error);
         }
-        
+
+        @Override
+        public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+            log.warn("Auth failed {}", authTokenCheckFailed);
+            closeConnection(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+        }
+
         private void checkSegment(String segment) {
             Preconditions.checkState(segmentId.getScopedName().equals(segment),
                     "Operating on segmentId {} but received sealed for segment {}",
@@ -124,8 +132,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment) {
+    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment, String delegationToken) {
         super(segment);
+        this.delegationToken = delegationToken;
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
@@ -149,7 +158,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
+        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, this.delegationToken, length);
 
         return backoffSchedule.retryingOn(Exception.class)
                 .throwingOn(ConnectionClosedException.class)

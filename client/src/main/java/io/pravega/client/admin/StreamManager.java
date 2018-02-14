@@ -9,17 +9,16 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCut;
-
 import java.net.URI;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
  */
 public interface StreamManager extends AutoCloseable {
-
     /**
      * Creates a new instance of StreamManager.
      *
@@ -27,9 +26,19 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return new StreamManagerImpl(controller);
+        return create(PravegaClientConfig.builder().controllerURI(controller).build());
     }
-    
+
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param clientConfig Configuration for the client connection to Pravega.
+     * @return Instance of Stream Manager implementation.
+     */
+    public static StreamManager create(PravegaClientConfig clientConfig) {
+        return new StreamManagerImpl(clientConfig);
+    }
+
     /**
      * Creates a new stream
      * <p>

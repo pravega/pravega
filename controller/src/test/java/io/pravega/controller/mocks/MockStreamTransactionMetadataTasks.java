@@ -44,8 +44,10 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                               final SegmentHelper segmentHelper,
                                               final ScheduledExecutorService executor,
                                               final String hostId,
-                                              final ConnectionFactory connectionFactory) {
-        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
+                                              final ConnectionFactory connectionFactory,
+                                              boolean authEnabled,
+                                              String tokenSigningKey) {
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, authEnabled, tokenSigningKey);
         this.streamMetadataStore = streamMetadataStore;
     }
 

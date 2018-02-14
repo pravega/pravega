@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -37,7 +38,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 @Slf4j
 public class SegmentHelper {
-    
+
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -53,7 +54,7 @@ public class SegmentHelper {
                                                     final int segmentNumber,
                                                     final ScalingPolicy policy,
                                                     final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF) {
+                                                    final ConnectionFactory clientCF, String controllerToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -91,22 +92,29 @@ public class SegmentHelper {
                 log.error("CreateSegment {}/{}/{} threw exception", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), 
+        WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), controllerToken,
                 Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight());
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Boolean> truncateSegment(final String scope,
-                                                    final String stream,
-                                                    final int segmentNumber,
-                                                    final long offset,
-                                                    final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF) {
+                                                      final String stream,
+                                                      final int segmentNumber,
+                                                      final long offset,
+                                                      final HostControllerStore hostControllerStore,
+                                                      final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -144,10 +152,17 @@ public class SegmentHelper {
                 log.error("truncateSegment {}/{}/{} error", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), offset);
+                delegationToken, Segment.getScopedName(scope, stream, segmentNumber), offset);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -156,7 +171,7 @@ public class SegmentHelper {
                                                     final String stream,
                                                     final int segmentNumber,
                                                     final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF) {
+                                                    final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -194,9 +209,16 @@ public class SegmentHelper {
                 log.error("deleteSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), delegationToken,
                 Segment.getScopedName(scope, stream, segmentNumber));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -211,13 +233,14 @@ public class SegmentHelper {
      * @param segmentNumber       number of segment to be sealed
      * @param hostControllerStore host controller store
      * @param clientCF            connection factory
+     * @param delegationToken     the token to be presented to segmentstore.
      * @return void
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
                                                   final int segmentNumber,
                                                   final HostControllerStore hostControllerStore,
-                                                  final ConnectionFactory clientCF) {
+                                                  final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -254,9 +277,16 @@ public class SegmentHelper {
                 log.error("sealSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
-        WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(), 
+        WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(), delegationToken,
                 Segment.getScopedName(scope, stream, segmentNumber));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -267,7 +297,7 @@ public class SegmentHelper {
                                                      final int segmentNumber,
                                                      final UUID txId,
                                                      final HostControllerStore hostControllerStore,
-                                                     final ConnectionFactory clientCF) {
+                                                     final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
@@ -304,9 +334,16 @@ public class SegmentHelper {
                 log.error("createTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
-        WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(), 
+        WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(), delegationToken,
                 Segment.getScopedName(scope, stream, segmentNumber), txId);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -317,7 +354,7 @@ public class SegmentHelper {
                                                           final int segmentNumber,
                                                           final UUID txId,
                                                           final HostControllerStore hostControllerStore,
-                                                          final ConnectionFactory clientCF) {
+                                                          final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
@@ -362,10 +399,18 @@ public class SegmentHelper {
                 log.error("commitTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed)
+                );
+            }
         };
 
-        WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(), 
-                Segment.getScopedName(scope, stream, segmentNumber), txId);
+        WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
+                Segment.getScopedName(scope, stream, segmentNumber), delegationToken, txId);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -375,7 +420,7 @@ public class SegmentHelper {
                                                          final int segmentNumber,
                                                          final UUID txId,
                                                          final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF) {
+                                                         final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
@@ -416,9 +461,16 @@ public class SegmentHelper {
                 log.info("abortTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
-        WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(), 
+        WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(), delegationToken,
                 Segment.getScopedName(scope, stream, segmentNumber), txId);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -426,7 +478,7 @@ public class SegmentHelper {
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
                                                 int segmentNumber, HostControllerStore hostControllerStore,
-                                                ConnectionFactory clientCF) {
+                                                ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -456,18 +508,25 @@ public class SegmentHelper {
                 log.info("updatePolicy {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(), 
-                Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight());
+        WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
+                Segment.getScopedName(scope, stream, segmentNumber), delegationToken, extracted.getLeft(), extracted.getRight());
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, int segmentNumber,
-                                                                            HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+                                                                            HostControllerStore hostControllerStore, ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
@@ -497,9 +556,16 @@ public class SegmentHelper {
                 log.error("getSegmentInfo {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new PravegaAuthenticationException(authTokenCheckFailed.toString()),
+                                type, WireCommandFailedException.Reason.AuthFailed));
+            }
         };
 
-        WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
+        WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(), delegationToken,
                 Segment.getScopedName(scope, stream, segmentNumber));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;

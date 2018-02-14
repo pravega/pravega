@@ -9,16 +9,8 @@
  */
 package io.pravega.test.integration;
 
-import java.net.URI;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -39,8 +31,17 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -104,13 +105,13 @@ public class UnreadBytesTest {
         controller.createStream(config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", PravegaClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  PravegaClientConfig.builder().controllerURI(controllerUri).build());
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().build(), Collections
                 .singleton("unreadbytes"));

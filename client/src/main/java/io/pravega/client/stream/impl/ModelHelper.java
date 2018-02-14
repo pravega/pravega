@@ -339,7 +339,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final SuccessorResponse createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
+    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(
@@ -348,7 +348,6 @@ public final class ModelHelper {
                                         .setSegment(segmentRangeListEntry.getKey())
                                         .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
-                                .collect(Collectors.toList()))
-                .build();
+                                .collect(Collectors.toList()));
     }
 }

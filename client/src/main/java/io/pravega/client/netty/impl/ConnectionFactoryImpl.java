@@ -29,8 +29,10 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -45,7 +47,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -106,7 +110,15 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort()));
+                     SslHandler sslHandler = sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort());
+
+                     if (clientConfig.isValidateHostName()) {
+                         SSLEngine sslEngine = sslHandler.engine();
+                         SSLParameters sslParameters = sslEngine.getSSLParameters();
+                         sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+                         sslEngine.setSSLParameters(sslParameters);
+                     }
+                     p.addLast(sslHandler);
                  }
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),

@@ -18,10 +18,12 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class WireCommandsTest {
 
@@ -46,7 +48,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSetupAppend() throws IOException {
-        testCommand(new WireCommands.SetupAppend(l, uuid, testString1));
+        testCommand(new WireCommands.SetupAppend(l, uuid, "", testString1));
     }
 
     @Test
@@ -67,6 +69,161 @@ public class WireCommandsTest {
     @Test
     public void testConditionalAppend() throws IOException {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, buf));
+    }
+
+    @Test
+    public void testAuthTokenCheckFalied() throws IOException {
+        testCommand(new WireCommands.AuthTokenCheckFailed(l));
+        AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
+        ReplyProcessor rp = new ReplyProcessor() {
+
+            @Override
+            public void hello(WireCommands.Hello hello) {
+
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+
+            }
+
+            @Override
+            public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+
+            }
+
+            @Override
+            public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+
+            }
+
+            @Override
+            public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
+
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+
+            }
+
+            @Override
+            public void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction) {
+
+            }
+
+            @Override
+            public void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber) {
+
+            }
+
+            @Override
+            public void appendSetup(WireCommands.AppendSetup appendSetup) {
+
+            }
+
+            @Override
+            public void dataAppended(WireCommands.DataAppended dataAppended) {
+
+            }
+
+            @Override
+            public void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended) {
+
+            }
+
+            @Override
+            public void segmentRead(WireCommands.SegmentRead segmentRead) {
+
+            }
+
+            @Override
+            public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
+
+            }
+
+            @Override
+            public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
+
+            }
+
+            @Override
+            public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
+
+            }
+
+            @Override
+            public void transactionInfo(WireCommands.TransactionInfo transactionInfo) {
+
+            }
+
+            @Override
+            public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
+
+            }
+
+            @Override
+            public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
+
+            }
+
+            @Override
+            public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
+
+            }
+
+            @Override
+            public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
+
+            }
+
+            @Override
+            public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
+
+            }
+
+            @Override
+            public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
+
+            }
+
+            @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+
+            }
+
+            @Override
+            public void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported) {
+
+            }
+
+            @Override
+            public void keepAlive(WireCommands.KeepAlive keepAlive) {
+
+            }
+
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segmentPolicyUpdated) {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                authTokenCheckFailedCalled.set(true);
+            }
+        };
+        new WireCommands.AuthTokenCheckFailed(0).process(rp);
+        assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
     }
 
     /*
@@ -109,7 +266,7 @@ public class WireCommandsTest {
 
     @Test
     public void testReadSegment() throws IOException {
-        testCommand(new WireCommands.ReadSegment(testString1, l, i));
+        testCommand(new WireCommands.ReadSegment(testString1, l, "", i));
     }
 
     @Test
@@ -119,7 +276,7 @@ public class WireCommandsTest {
     
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, "", uuid, l, l));
     }
     
     @Test
@@ -130,7 +287,7 @@ public class WireCommandsTest {
 
     @Test
     public void testGetSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid));
+        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, "", uuid));
     }
     
     @Test
@@ -140,7 +297,7 @@ public class WireCommandsTest {
     
     @Test
     public void testGetStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1));
+        testCommand(new WireCommands.GetStreamSegmentInfo(l, "", testString1));
     }
 
     @Test
@@ -150,7 +307,7 @@ public class WireCommandsTest {
 
     @Test
     public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid));
+        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, "", uuid));
     }
 
     @Test
@@ -160,7 +317,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i));
+        testCommand(new WireCommands.CreateSegment(l, "", testString1, b, i));
     }
 
     @Test
@@ -170,7 +327,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.CreateTransaction(l, "", testString1, uuid));
     }
 
     @Test
@@ -180,7 +337,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.CommitTransaction(l, testString1, "", uuid));
     }
 
     @Test
@@ -190,7 +347,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.AbortTransaction(l, "", testString1, uuid));
     }
 
     @Test
@@ -200,7 +357,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSealSegment() throws IOException {
-        testCommand(new WireCommands.SealSegment(l, testString1));
+        testCommand(new WireCommands.SealSegment(l, "", testString1));
     }
 
     @Test
@@ -210,7 +367,7 @@ public class WireCommandsTest {
 
     @Test
     public void testTruncateSegment() throws IOException {
-        testCommand(new WireCommands.TruncateSegment(l, testString1, l + 1));
+        testCommand(new WireCommands.TruncateSegment(l, "", testString1, l + 1));
     }
 
     @Test
@@ -225,7 +382,7 @@ public class WireCommandsTest {
 
     @Test
     public void testDeleteSegment() throws IOException {
-        testCommand(new WireCommands.DeleteSegment(l, testString1));
+        testCommand(new WireCommands.DeleteSegment(l, "", testString1));
     }
 
     @Test
@@ -235,7 +392,7 @@ public class WireCommandsTest {
 
     @Test
     public void testUpdateSegmentPolicy() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, b, i));
+        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, "", b, i));
     }
 
     @Test

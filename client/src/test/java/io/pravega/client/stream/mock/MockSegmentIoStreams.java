@@ -169,7 +169,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public void truncateSegment(Segment segment, long offset) {
+    public void truncateSegment(Segment segment, long offset, String delegationToken) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;

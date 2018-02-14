@@ -11,11 +11,13 @@
 rootProject.name = 'pravega'
 
 include 'common',
+        'authplugin',
         'shared',
         'shared:metrics',
         'shared:protocol',
         'shared:controller-api',
         'client',
+        'plugins',
         'segmentstore:contracts',
         'segmentstore:storage',
         'segmentstore:storage:impl',
