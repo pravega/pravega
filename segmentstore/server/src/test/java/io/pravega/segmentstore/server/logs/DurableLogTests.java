@@ -916,7 +916,7 @@ public class DurableLogTests extends OperationLogTestBase {
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(operations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
-            originalOperations = readAllDurableLog(durableLog);
+            originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
         }
 
         // Disable the DurableDataLog. This requires us to initialize the log, then disable it.
@@ -986,7 +986,7 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertFalse("Not expecting an offline DurableLog after re-enabling.", durableLog.isOffline());
 
             // Verify we can still read the data that we wrote before the DataLog was disabled.
-            List<Operation> recoveredOperations = readAllDurableLog(durableLog);
+            List<Operation> recoveredOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             assertRecoveredOperationsMatch(originalOperations, recoveredOperations);
             performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
             performReadIndexChecks(completionFutures, readIndex);
