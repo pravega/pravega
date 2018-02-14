@@ -10,7 +10,6 @@
 package io.pravega.common.io.serialization;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,7 +31,6 @@ import org.junit.Test;
  * Unit tests for the VersionedSerializer Class.
  */
 public class VersionedSerializerTests {
-    private static final int MAX_SERIALIZATION_SIZE = 128 * 1024;
     private static final int COUNT_MULTIPLIER = 4;
 
     /**
@@ -93,14 +90,11 @@ public class VersionedSerializerTests {
             for (val deserializer : descriptors.entrySet()) {
                 for (TestClass tc : TEST_DATA) {
                     // Serialize into the buffer.
-                    @Cleanup
-                    val stream = new FixedByteArrayOutputStream(new byte[MAX_SERIALIZATION_SIZE], 0, MAX_SERIALIZATION_SIZE);
-                    serializer.getValue().serialize(stream, tc);
-                    stream.flush();
+                    val data = serializer.getValue().serialize(tc);
 
                     // Create a blank TestClass and deserialize into it.
                     val tc2 = TestClass.builder().build();
-                    deserializer.getValue().deserialize(stream.getData().getReader(), tc2);
+                    deserializer.getValue().deserialize(data.getReader(), tc2);
                     check(tc, serializer.getKey(), tc2, deserializer.getKey());
                 }
             }

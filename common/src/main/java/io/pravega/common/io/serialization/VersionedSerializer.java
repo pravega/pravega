@@ -11,7 +11,9 @@ package io.pravega.common.io.serialization;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.ArrayView;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -130,6 +132,20 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
                 r.getWriter().accept(o, revisionOutput);
             }
         }
+    }
+
+    /**
+     * Serializes the given object to an in-memory buffer (RandomOutput) and returns a view of it.
+     *
+     * @param o The object to serialize.
+     * @return An ArrayView which represents the serialized data. This provides a view (offset+length) into a Java byte
+     * array and has APIs to extract or copy the data out of there.
+     * @throws IOException If an IO Exception occurred.
+     */
+    public ArrayView serialize(TargetType o) throws IOException {
+        val result = new EnhancedByteArrayOutputStream();
+        serialize(result, o);
+        return result.getData();
     }
 
     /**
