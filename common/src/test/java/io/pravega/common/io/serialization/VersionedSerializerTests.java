@@ -94,7 +94,7 @@ public class VersionedSerializerTests {
 
                     // Create a blank TestClass and deserialize into it.
                     val tc2 = TestClass.builder().build();
-                    deserializer.getValue().deserialize(data.getReader(), tc2);
+                    deserializer.getValue().deserialize(data, tc2);
                     check(tc, serializer.getKey(), tc2, deserializer.getKey());
                 }
             }

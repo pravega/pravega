@@ -14,6 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -200,6 +201,17 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
                 }
             }
         }
+    }
+
+    /**
+     * Deserializes data from the given ArrayView into the given object.
+     *
+     * @param data   The ArrayView to deserialize from.
+     * @param target The target object to apply the deserialization to.
+     * @throws IOException If an IO Exception occurred.
+     */
+    public void deserialize(ArrayView data, ReaderType target) throws IOException {
+        deserialize(data.getReader(), target);
     }
 
     //endregion
@@ -407,6 +419,28 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
             ReaderType builder = newBuilder();
             deserialize(stream, builder);
             return builder.build();
+        }
+
+        /**
+         * Deserializes data from the given byte array and creates a new object with the result.
+         *
+         * @param data The byte array to deserialize from.
+         * @return A new instance of TargetType with the deserialized data.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public TargetType deserialize(byte[] data) throws IOException {
+            return deserialize(new ByteArrayInputStream(data));
+        }
+
+        /**
+         * Deserializes data from the given ArrayView and creates a new object with the result.
+         *
+         * @param data The ArrayView to deserialize from.
+         * @return A new instance of TargetType with the deserialized data.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public TargetType deserialize(ArrayView data) throws IOException {
+            return deserialize(data.getReader());
         }
     }
 
