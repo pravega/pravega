@@ -163,6 +163,11 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     }
 
     @Override
+    public int getCollectionLength(int elementCount, int elementLength) {
+        return getCompactIntLength(elementCount) + elementCount * elementLength;
+    }
+
+    @Override
     public <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException {
         if (collection == null) {
             writeCompactInt(0);
@@ -173,6 +178,11 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         for (T e : collection) {
             elementSerializer.accept(this, e);
         }
+    }
+
+    @Override
+    public int getMapLength(int elementCount, int keyLength, int valueLength) {
+        return getCompactIntLength(elementCount) + elementCount * (keyLength + valueLength);
     }
 
     @Override

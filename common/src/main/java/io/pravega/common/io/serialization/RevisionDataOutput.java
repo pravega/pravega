@@ -142,6 +142,15 @@ public interface RevisionDataOutput extends DataOutput {
     void writeUUID(UUID uuid) throws IOException;
 
     /**
+     * Calculates the number of bytes required to serialize a Collection.
+     *
+     * @param elementCount  The size of the collection.
+     * @param elementLength The size (in bytes) of each element's serialization.
+     * @return The number of bytes.
+     */
+    int getCollectionLength(int elementCount, int elementLength);
+
+    /**
      * Serializes the given Collection using the given ElementSerializer. It first writes a Compact Integer representing
      * the number of elements in the collection, followed by each element's serialization, in the same order as returned
      * by the Collection's iterator.
@@ -153,6 +162,16 @@ public interface RevisionDataOutput extends DataOutput {
      * @throws IOException If an IO Exception occurred.
      */
     <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException;
+
+    /**
+     * Calculates the number of bytes required to serialize a Map.
+     *
+     * @param elementCount The size of the Map.
+     * @param keyLength    The size (in bytes) of each key's serialization.
+     * @param valueLength  The size (in bytes) of each value's serialization.
+     * @return The number of bytes.
+     */
+    int getMapLength(int elementCount, int keyLength, int valueLength);
 
     /**
      * Serializes the given Map using the given ElementSerializers (one for Key and one for Value). It first writes a

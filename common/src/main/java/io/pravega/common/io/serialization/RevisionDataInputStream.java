@@ -193,7 +193,9 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
             if (this.relativePosition < this.bound) {
                 long toSkip = this.bound - this.relativePosition;
                 long skipped = skip(toSkip);
-                assert skipped == toSkip : "Unable to skip all bytes. Expected " + toSkip + ", actual " + skipped;
+                if (skipped != toSkip) {
+                    throw new SerializationException(String.format("Read fewer bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+                }
             } else if (this.relativePosition > this.bound) {
                 throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
             }
@@ -210,11 +212,17 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
             if (r >= 0) {
                 this.relativePosition++;
             }
+
             return r;
         }
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
+            if (this.relativePosition >= this.bound) {
+                // Do not allow reading more than we should.
+                return -1;
+            }
+
             length = Math.min(length, this.bound - this.relativePosition);
             int r = this.in.read(buffer, offset, length);
             if (r >= 0) {

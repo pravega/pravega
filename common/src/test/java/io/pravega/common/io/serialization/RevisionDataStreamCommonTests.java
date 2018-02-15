@@ -50,6 +50,40 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
+     * Tests the getCollectionLength() method.
+     */
+    @Test
+    public void testGetCollectionLength() throws Exception {
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length for empty collection.",
+                rdos.getCompactIntLength(0), rdos.getCollectionLength(0, 123));
+        Assert.assertEquals("Unexpected length for non-empty collection with zero-length element.",
+                rdos.getCompactIntLength(123), rdos.getCollectionLength(123, 0));
+        Assert.assertEquals("Unexpected length for non-empty collection.",
+                rdos.getCompactIntLength(123) + 123 * 8, rdos.getCollectionLength(123, 8));
+    }
+
+    /**
+     * Tests the getMapLength() method.
+     */
+    @Test
+    public void testGetMapLength() throws Exception {
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length for empty map.",
+                rdos.getCompactIntLength(0), rdos.getMapLength(0, 123, 123));
+        Assert.assertEquals("Unexpected length for non-empty map with zero-length key.",
+                rdos.getCompactIntLength(123) + 123 * 17, rdos.getMapLength(123, 0, 17));
+        Assert.assertEquals("Unexpected length for non-empty map with zero-length value.",
+                rdos.getCompactIntLength(123) + 123 * 8, rdos.getMapLength(123, 8, 0));
+        Assert.assertEquals("Unexpected length for non-empty map with zero-length key and value.",
+                rdos.getCompactIntLength(123), rdos.getMapLength(123, 0, 0));
+        Assert.assertEquals("Unexpected length for non-empty map.",
+                rdos.getCompactIntLength(123) + 123 * (8 + 17), rdos.getMapLength(123, 8, 17));
+    }
+
+    /**
      * Tests the getCompactLongLength() method.
      */
     @Test
