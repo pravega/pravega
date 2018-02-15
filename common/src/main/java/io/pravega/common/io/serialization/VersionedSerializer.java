@@ -548,9 +548,7 @@ public abstract class VersionedSerializer<T> {
      * }
      * </pre>
      *
-     * @param <TargetType> Type of the object to serialize from.
-     * @param <ReaderType> Type of the Builder object, which must implement ObjectBuilder(of TargetType). This will be used
-     *                     for deserialization.
+     * @param <BaseType> The base type that all other types will derive from.
      */
     public static abstract class MultiType<BaseType> extends VersionedSerializer<BaseType> {
         private final HashMap<Byte, SerializerInfo> serializersById;
