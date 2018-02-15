@@ -45,13 +45,6 @@ Read [Getting Started](getting-started.md) page for more information, and also v
 
 You can find a list of frequently asked questions [here](faq.md).
 
-## Documentation
-
-The Pravega documentation is hosted on the website:
-<http://pravega.io/docs> or in the
-[docs/](https://github.com/pravega/pravega/tree/master/docs) directory of the
-source code.
-
 ## Running Pravega
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of Pravega is covered in the [Running Pravega](deployment/deployment.md) guide.

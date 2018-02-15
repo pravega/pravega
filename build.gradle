@@ -19,8 +19,12 @@ buildscript {
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
+        classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
+        classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
     }
 }
+
+apply from: "$rootDir/gradle/mkdocs.gradle"
 
 allprojects {
     apply plugin: 'idea'
@@ -28,7 +32,6 @@ allprojects {
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
     }
-
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
     apply from: "$rootDir/gradle/checkstyle.gradle"
@@ -63,7 +66,6 @@ allprojects {
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
         }
     }
-
 }
 
 project('common') {
