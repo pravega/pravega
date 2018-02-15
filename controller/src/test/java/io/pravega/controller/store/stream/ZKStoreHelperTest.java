@@ -44,7 +44,7 @@ public class ZKStoreHelperTest {
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryNTimes(0, 0));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 100, 100, new RetryNTimes(0, 0));
         cli.start();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
@@ -82,5 +82,21 @@ public class ZKStoreHelperTest {
         zkServer.stop();
         AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
+    }
+
+    @Test
+    public void testEphemeralNode() throws Exception {
+        CuratorFramework cli2 = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryNTimes(0, 0));
+        cli2.start();
+        ZKStoreHelper zkStoreHelper2 = new ZKStoreHelper(cli2, executor);
+
+        Assert.assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
+        Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral").join());
+        zkStoreHelper2.getClient().close();
+        // let session get expired.
+        Thread.sleep(1000);
+        // now read the data again. Verify that node no longer exists
+        AssertExtensions.assertThrows("", zkStoreHelper.getData("/testEphemeral"),
+                e -> e instanceof StoreException.DataNotFoundException);
     }
 }
