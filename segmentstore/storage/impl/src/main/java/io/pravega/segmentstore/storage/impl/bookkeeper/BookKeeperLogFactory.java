@@ -124,6 +124,12 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setGetBookieInfoTimeout(readTimeout)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
+
+        if (this.config.isTLSEnabled()) {
+            config = (ClientConfiguration) config.setTLSProvider("OpenSSL");
+            config = config.setTLSTrustStore(this.config.getTlsTrustStore());
+        }
+
         if (this.config.getBkLedgerPath().isEmpty()) {
             config.setZkLedgersRootPath("/" + this.namespace + "/bookkeeper/ledgers");
         } else {

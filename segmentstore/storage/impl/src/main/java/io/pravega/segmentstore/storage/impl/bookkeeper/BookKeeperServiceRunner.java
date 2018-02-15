@@ -48,6 +48,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
+    private final boolean secureBK;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -214,6 +215,12 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         conf.setAllowLoopback(true);
         conf.setJournalAdaptiveGroupWrites(false);
         conf.setZkLedgersRootPath(ledgersPath);
+        conf.setTLSProvider("OpenSSL");
+        conf.setTLSProviderFactoryClass("org.apache.bookkeeper.tls.TLSContextFactory");
+        conf.setTLSKeyStore("../../../config/bookie.keystore.jks");
+        conf.setTLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd");
+        conf.setTLSTrustStore("../../../config/bookie.truststore.jks");
+        conf.setTLSTrustStore("../../../config/bookie.truststore.jks.passwd");
 
         log.info("Starting Bookie at port " + bkPort);
         val bs = new BookieServer(conf);
