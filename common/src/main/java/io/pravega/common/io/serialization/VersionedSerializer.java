@@ -22,197 +22,106 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
- * Refer to VersionedSerializer.Direct and VersionedSerializer.WithBuilder for code samples.
+ * Subclass one of the following based on your needs:
+ * <ul>
+ *  <li> VersionedSerializer.Direct for mutable objects.
+ *  <li> VersionedSerializer.WithBuilder for immutable objects with Builders.
+ *  <li> VersionedSerializer.MultiType for objects of multiple types inheriting from a common base type.
+ * </ul>
  *
- * @param <TargetType> Type of the object to serialize.
- * @param <ReaderType> Type of the object to deserialize to. This is either TargetType or a shadow object that helps build
- *                     objects of TargetType. The two provided sub-classes have means of choosing this correctly.
+ * @param <T> Type of the object to serialize.
  */
-public abstract class VersionedSerializer<TargetType, ReaderType> {
-    //region Members
+public abstract class VersionedSerializer<T> {
+    //region Serialization primitives
 
     /**
      * The Version of the Serializer format itself.
-     * ALL     : FV(1)|V(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
-     * REVISION: RevisionId(1)|Length(4)|Data(Length)
+     * ALL               : Header|Version(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
+     * HEADER(SingleType): SFV(1)
+     * HEADER(MultiType) : SFV(1)|ObjectType(1)
+     * REVISION          : RevisionId(1)|Length(4)|Data(Length)
      */
-    private static final byte SERIALIZER_VERSION = 0;
-
-    // Since Version is a byte, we can use a small array here instead of HashMap which provides better runtime performance.
-    private final FormatVersion<TargetType, ReaderType>[] versions;
-
-    //endregion
-
-    //region Constructor
-
-    /**
-     * Creates a new instance of the VersionedSerializer. Registers all versions and validates the write version is defined
-     * correctly.
-     */
-    @SuppressWarnings("unchecked")
-    private VersionedSerializer() {
-        this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
-        declareVersions();
-        Preconditions.checkArgument(this.versions[writeVersion()] != null, "Write version %s is not defined.", writeVersion());
-    }
-
-    //endregion
-
-    //region Version Registration
-
-    /**
-     * Gets a value indicating the Version to use for serializing. This will be invoked once during the Constructor (for
-     * validation purposes) and once per invocation of serialize().
-     */
-    protected abstract byte writeVersion();
-
-    /**
-     * When implemented in a derived class, this method will declare the FormatVersions that are supported for reading and
-     * writing. This method will be invoked once during the constructor.
-     */
-    protected abstract void declareVersions();
-
-    /**
-     * Gets or Creates a FormatVersion with given version. If new, the version will also be registered internally.
-     *
-     * @param version The version to seek/create.
-     * @return A new or existing instance of the FormatVersion class.
-     */
-    protected FormatVersion<TargetType, ReaderType> version(int version) {
-        FormatVersion<TargetType, ReaderType> v = this.versions[version];
-        if (v == null) {
-            v = new FormatVersion<>(version);
-            this.versions[v.getVersion()] = v;
-        }
-
-        return v;
-    }
-
-    //endregion
-
-    //region Serialization
+    private static final int SERIALIZER_VERSION = 0;
 
     /**
      * Serializes the given object to the given RevisionDataOutput. This overload is usually invoked for serializing
      * nested classes or collections.
      *
      * @param dataOutput The RevisionDataOutput to serialize to.
-     * @param o          The object to serialize.
+     * @param object     The object to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    public void serialize(RevisionDataOutput dataOutput, TargetType o) throws IOException {
-        serialize(dataOutput.getBaseStream(), o);
+    public void serialize(RevisionDataOutput dataOutput, T object) throws IOException {
+        serialize(dataOutput.getBaseStream(), object);
+    }
+
+    /**
+     * Serializes the given object to an in-memory buffer (RandomOutput) and returns a view of it.
+     *
+     * @param object The object to serialize.
+     * @return An ArrayView which represents the serialized data. This provides a view (offset+length) into a Java byte
+     * array and has APIs to extract or copy the data out of there.
+     * @throws IOException If an IO Exception occurred.
+     */
+    public ByteArraySegment serialize(T object) throws IOException {
+        val result = new EnhancedByteArrayOutputStream();
+        serialize(result, object);
+        return result.getData();
     }
 
     /**
      * Serializes the given object to the given OutputStream.
      *
      * @param stream The OutputStream to serialize to.
-     * @param o      The object to serialize.
+     * @param object The object to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    public void serialize(OutputStream stream, TargetType o) throws IOException {
+    public void serialize(OutputStream stream, T object) throws IOException {
         // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
         DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-        val writeVersion = this.versions[writeVersion()];
 
-        // Write Serialization Header.
         dataOutput.writeByte(SERIALIZER_VERSION);
-        dataOutput.writeByte(writeVersion.getVersion());
-        dataOutput.writeByte(writeVersion.getRevisions().size());
 
-        // Write each Revision for this Version, in turn.
-        for (val r : writeVersion.getRevisions()) {
-            dataOutput.writeByte(r.getRevision());
-            try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
-                r.getWriter().accept(o, revisionOutput);
-            }
-        }
+        // Write contents.
+        writeContents(dataOutput, stream, object);
     }
 
     /**
-     * Serializes the given object to an in-memory buffer (RandomOutput) and returns a view of it.
-     *
-     * @param o The object to serialize.
-     * @return An ArrayView which represents the serialized data. This provides a view (offset+length) into a Java byte
-     * array and has APIs to extract or copy the data out of there.
+     * When implemented in a derived class, this method will write the serialization contents, excluding the Header.
+     * Refer to the format above for contents.
+     * @param dataOutput The DataOutputStream to write to.
+     * @param baseStream The OutputStream that dataOutput wraps.
+     * @param object     The object to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    public ByteArraySegment serialize(TargetType o) throws IOException {
-        val result = new EnhancedByteArrayOutputStream();
-        serialize(result, o);
-        return result.getData();
+    abstract void writeContents(DataOutputStream dataOutput, OutputStream baseStream, T object) throws IOException;
+
+    /**
+     * Reads a single unsigned byte from the given InputStream and interprets it as a Serializer Format Version, after
+     * which it validates that it is supported.
+     *
+     * @param dataInput The DataInputStream to read from.
+     * @throws IOException If an IO Exception occurred.
+     */
+    void processHeader(DataInputStream dataInput) throws IOException {
+        int formatVersion = dataInput.readUnsignedByte();
+        ensureCondition(formatVersion == SERIALIZER_VERSION, "Unsupported format version %d.", formatVersion);
     }
 
     /**
      * Verifies that the given condition is true. If not, throws a SerializationException.
      */
-    private void ensureCondition(boolean condition, String messageFormat, Object... args) throws SerializationException {
+    void ensureCondition(boolean condition, String messageFormat, Object... args) throws SerializationException {
         if (!condition) {
             throw new SerializationException(String.format(messageFormat, args));
         }
-    }
-
-    /**
-     * Deserializes data from the given RevisionDataInput into the given object. This overload is usually invoked for
-     * deserializing nested classes or collections.
-     *
-     * @param dataInput The RevisionDataInput to deserialize from.
-     * @param target    The target object to apply the deserialization to.
-     * @throws IOException If an IO Exception occurred.
-     */
-    public void deserialize(RevisionDataInput dataInput, ReaderType target) throws IOException {
-        deserialize(dataInput.getBaseStream(), target);
-    }
-
-    /**
-     * Deserializes data from the given InputStream into the given object.
-     *
-     * @param stream The InputStream to deserialize from.
-     * @param target The target object to apply the deserialization to.
-     * @throws IOException If an IO Exception occurred.
-     */
-    public void deserialize(InputStream stream, ReaderType target) throws IOException {
-        DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-        byte formatVersion = dataInput.readByte();
-        ensureCondition(formatVersion == SERIALIZER_VERSION, "Unsupported format version %d.", formatVersion);
-        byte version = dataInput.readByte();
-        val readVersion = this.versions[version];
-        ensureCondition(readVersion != null, "Unsupported version %d.", version);
-
-        byte revisionCount = dataInput.readByte();
-        ensureCondition(revisionCount >= 0, "Data corruption: negative revision count.");
-
-        int revisionIndex = 0;
-        for (int i = 0; i < revisionCount; i++) {
-            byte revision = dataInput.readByte();
-            val rd = readVersion.get(revisionIndex++);
-            try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
-                if (rd != null) {
-                    // We've encountered an unknown revision; we cannot read anymore.
-                    ensureCondition(revision == rd.getRevision(),
-                            "Unexpected revision. Expected %d, found %d.", rd.getRevision(), revision);
-                    rd.getReader().accept(revisionInput, target);
-                }
-            }
-        }
-    }
-
-    /**
-     * Deserializes data from the given ArrayView into the given object.
-     *
-     * @param data   The ArrayView to deserialize from.
-     * @param target The target object to apply the deserialization to.
-     * @throws IOException If an IO Exception occurred.
-     */
-    public void deserialize(ArrayView data, ReaderType target) throws IOException {
-        deserialize(data.getReader(), target);
     }
 
     //endregion
@@ -297,10 +206,147 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
 
     //endregion
 
-    //region Types
+    //region SingleType
 
     /**
-     * A VersionedDeserializer that serializes and deserializes into the same object.
+     * VersionedSerializer base that supports serializing objects of a single type.
+     *
+     * @param <TargetType> Type of the object to serialize.
+     * @param <ReaderType> Type of the object to deserialize.
+     */
+    private static abstract class SingleType<TargetType, ReaderType> extends VersionedSerializer<TargetType> {
+        // Since Version is a byte, we can use a small array here instead of HashMap which provides better runtime performance.
+        private final FormatVersion<TargetType, ReaderType>[] versions;
+
+        /**
+         * Creates a new instance of the VersionedSerializer. Registers all versions and validates the write version is defined
+         * correctly.
+         */
+        @SuppressWarnings("unchecked")
+        SingleType() {
+            this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
+            declareVersions();
+            Preconditions.checkArgument(this.versions[writeVersion()] != null, "Write version %s is not defined.", writeVersion());
+        }
+
+        /**
+         * Gets a value indicating the Version to use for serializing. This will be invoked once during the Constructor (for
+         * validation purposes) and once per invocation of serialize().
+         */
+        protected abstract byte writeVersion();
+
+        /**
+         * When implemented in a derived class, this method will declare the FormatVersions that are supported for reading and
+         * writing. This method will be invoked once during the constructor.
+         */
+        protected abstract void declareVersions();
+
+        /**
+         * Gets or Creates a FormatVersion with given version. If new, the version will also be registered internally.
+         *
+         * @param version The version to seek/create.
+         * @return A new or existing instance of the FormatVersion class.
+         */
+        protected FormatVersion<TargetType, ReaderType> version(int version) {
+            FormatVersion<TargetType, ReaderType> v = this.versions[version];
+            if (v == null) {
+                v = new FormatVersion<>(version);
+                this.versions[v.getVersion()] = v;
+            }
+
+            return v;
+        }
+
+        @Override
+        void writeContents(DataOutputStream dataOutput, OutputStream baseStream, TargetType o) throws IOException {
+            val writeVersion = this.versions[writeVersion()];
+            dataOutput.writeByte(writeVersion.getVersion());
+            dataOutput.writeByte(writeVersion.getRevisions().size());
+
+            // Write each Revision for this Version, in turn.
+            for (val r : writeVersion.getRevisions()) {
+                dataOutput.writeByte(r.getRevision());
+                try (val revisionOutput = RevisionDataOutputStream.wrap(baseStream)) {
+                    r.getWriter().accept(o, revisionOutput);
+                }
+            }
+        }
+
+        /**
+         * Deserializes data from the given RevisionDataInput into the given object. This overload is usually invoked for
+         * deserializing nested classes or collections.
+         *
+         * @param dataInput The RevisionDataInput to deserialize from.
+         * @param target    The target object to apply the deserialization to.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public void deserialize(RevisionDataInput dataInput, ReaderType target) throws IOException {
+            deserialize(dataInput.getBaseStream(), target);
+        }
+
+        /**
+         * Deserializes data from the given ArrayView into the given object.
+         *
+         * @param data   The ArrayView to deserialize from.
+         * @param target The target object to apply the deserialization to.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public void deserialize(ArrayView data, ReaderType target) throws IOException {
+            deserialize(data.getReader(), target);
+        }
+
+        /**
+         * Deserializes data from the given InputStream into the given object.
+         *
+         * @param stream The InputStream to deserialize from.
+         * @param target The target object to apply the deserialization to.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public void deserialize(InputStream stream, ReaderType target) throws IOException {
+            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
+            processHeader(dataInput);
+            deserializeContents(dataInput, stream, target);
+        }
+
+        /**
+         * Deserializes data from the given InputStream into the given object. This does not attempt to read the serialization
+         * header.
+         *
+         * @param dataInput  The DataInputStream to deserialize from.
+         * @param baseStream The InputStream that dataInput wraps.
+         * @param target     The target object to apply the deserialization to.
+         * @throws IOException If an IO Exception occurred.
+         */
+        void deserializeContents(DataInputStream dataInput, InputStream baseStream, ReaderType target) throws IOException {
+            byte version = dataInput.readByte();
+            val readVersion = this.versions[version];
+            ensureCondition(readVersion != null, "Unsupported version %d.", version);
+
+            byte revisionCount = dataInput.readByte();
+            ensureCondition(revisionCount >= 0, "Data corruption: negative revision count.");
+
+            int revisionIndex = 0;
+            for (int i = 0; i < revisionCount; i++) {
+                byte revision = dataInput.readByte();
+                val rd = readVersion.get(revisionIndex++);
+                try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(baseStream)) {
+                    if (rd != null) {
+                        // We've encountered an unknown revision; we cannot read anymore.
+                        ensureCondition(revision == rd.getRevision(),
+                                "Unexpected revision. Expected %d, found %d.", rd.getRevision(), revision);
+                        rd.getReader().accept(revisionInput, target);
+                    }
+                }
+            }
+        }
+    }
+
+    //endregion
+
+    //region Direct
+
+    /**
+     * A Single-Type VersionedDeserializer that serializes and deserializes into the same object.
      *
      * This should be used in those cases when we already have an instance of the target object available during
      * deserialization and we only need to update its state.
@@ -345,12 +391,17 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      *
      * @param <TargetType> Type of the object to serialize from and deserialize into.
      */
-    public static abstract class Direct<TargetType> extends VersionedSerializer<TargetType, TargetType> {
+    public static abstract class Direct<TargetType> extends SingleType<TargetType, TargetType> {
     }
 
+    //endregion
+
+    //region WithBuilder
+
     /**
-     * A VersionedDeserializer that deserializes into a "Builder" object. A Builder object is a shadow object that accumulates
-     * the deserialization changes and is able to create an object of TargetType when the build() method is invoked.
+     * A Single-Type VersionedDeserializer that deserializes into a "Builder" object. A Builder object is a shadow object
+     * that accumulates the deserialization changes and is able to create an object of TargetType when the build() method
+     * is invoked.
      *
      * This should be used in those cases when we do not have an instance of the target object available during deserialization,
      * most likely because the object is immutable and needs to be created with its data.
@@ -389,7 +440,7 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
      * @param <ReaderType> Type of the Builder object, which must implement ObjectBuilder(of TargetType). This will be used
      *                     for deserialization.
      */
-    public static abstract class WithBuilder<TargetType, ReaderType extends ObjectBuilder<TargetType>> extends VersionedSerializer<TargetType, ReaderType> {
+    public static abstract class WithBuilder<TargetType, ReaderType extends ObjectBuilder<TargetType>> extends SingleType<TargetType, ReaderType> {
         /**
          * When implemented in a derived class, this method will return a new instance of the Builder each time it is invoked.
          *
@@ -442,6 +493,148 @@ public abstract class VersionedSerializer<TargetType, ReaderType> {
          */
         public TargetType deserialize(ArrayView data) throws IOException {
             return deserialize(data.getReader());
+        }
+
+        TargetType readContents(DataInputStream inputStream, InputStream baseStream) throws IOException {
+            ReaderType builder = newBuilder();
+            super.deserializeContents(inputStream, baseStream, builder);
+            return builder.build();
+        }
+    }
+
+    //endregion
+
+    //region MultiType
+
+    /**
+     * A VersionedDeserializer that serializes deserializes objects instantiating different types that inherit from a single
+     * base type. This is a meta-serializer in itself, as it composes various other Single-Type serializers into it.
+     *
+     * This should be used in those cases when we have a base (maybe abstract) type and multiple types inheriting from it
+     * that need serialization. A Serializer needs to be implemented for each sub-type and registered into this instance.
+     *
+     * Currently only VersionedSerializer.WithBuilder sub-serializers are supported.
+     *
+     * Example:
+     * <pre>
+     * {@code
+     * class BaseType { ... }
+     *
+     * class SubType1 extends BaseType {
+     *     static class SubType1Builder implements ObjectBuilder<SubType1> { ... }
+     *     static class SubType1Serializer extends VersionedSerializer.WithBuilder<SubType1, SubType1Builder> { ... }
+     * }
+     *
+     * class SubType11 extends SubType1 {
+     *     static class SubType11Builder implements ObjectBuilder<SubType11> { ... }
+     *     static class SubType11Serializer extends VersionedSerializer.WithBuilder<SubType11, SubType11Builder> { ... }
+     * }
+     *
+     * class SubType2 extends BaseType {
+     *     static class SubType2Builder implements ObjectBuilder<SubType2> { ... }
+     *     static class SubType2Serializer extends VersionedSerializer.WithBuilder<SubType2, SubType2Builder> { ... }
+     * }
+     *
+     * class BaseTypeSerializer extends VersionedSerializer.MultiType<BaseType> {
+     *    @Override
+     *    protected void declareSerializers() {
+     *        // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring) and not necessarily
+     *        // sequential or contiguous.
+     *        serializer(SubType1.class, 0, new SubType1.SubType1Serializer());
+     *        serializer(SubType11.class, 10, new SubType11.SubType11Serializer());
+     *        serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
+     *    }
+     * }
+     * }
+     * </pre>
+     *
+     * @param <TargetType> Type of the object to serialize from.
+     * @param <ReaderType> Type of the Builder object, which must implement ObjectBuilder(of TargetType). This will be used
+     *                     for deserialization.
+     */
+    public static abstract class MultiType<BaseType> extends VersionedSerializer<BaseType> {
+        private final HashMap<Byte, SerializerInfo> serializersById;
+        private final HashMap<Class, SerializerInfo> serializersByType;
+
+        /**
+         * Creates a new instance of the MultiType class.
+         */
+        public MultiType() {
+            this.serializersByType = new HashMap<>();
+            this.serializersById = new HashMap<>();
+            declareSerializers();
+        }
+
+        /**
+         * When implemented in a derived class, this method will declare all supported serializers of subtypes of BaseType
+         * by using the serializer() method.
+         */
+        protected abstract void declareSerializers();
+
+        /**
+         * Registers a new serializer for the given class.
+         *
+         * @param type                The type of the class to register. Must derive from BaseClass.
+         * @param serializationTypeId A unique identifier associated with this serializer. This will be used to identify
+         *                            object types upon deserialization, so it is very important for this value not to
+         *                            change or be reused upon code refactoring. Valid range: [0, 127]
+         * @param serializer          The serializer for the given type.
+         * @param <TargetType>        Type of the object to serialize. Must derive from BaseType.
+         * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
+         * @return This instance.
+         */
+        protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType> serializer(
+                Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
+            Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
+                    "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
+            Preconditions.checkArgument(!this.serializersById.containsKey((byte) serializationTypeId),
+                    "SerializationTypeId %s already has a serializer registered.", serializationTypeId);
+            Preconditions.checkArgument(!this.serializersByType.containsKey(type),
+                    "Type %s already has a serializer registered.", type);
+            val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
+            this.serializersById.put(si.id, si);
+            this.serializersByType.put(si.type, si);
+            return this;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void writeContents(DataOutputStream dataOutput, OutputStream baseStream, BaseType o) throws IOException {
+            Class c = o.getClass();
+            val si = this.serializersByType.get(c);
+            ensureCondition(si != null, "No serializer found for %s.", c.getName());
+
+            // Encode the Object type; this will be used upon deserialization.
+            dataOutput.writeByte(si.id);
+
+            // Write contents.
+            si.serializer.writeContents(dataOutput, baseStream, o);
+        }
+
+        /**
+         * Deserializes data from the given InputStream into an object of type BaseType. This will use one of the registered
+         * serializers to instantiate an instance of the correct type (derived from BaseType), as specified in declareSerializers().
+         *
+         * @param stream The InputStream to deserialize from.
+         * @return The deserialized instance.
+         * @throws IOException If an IO Exception occurred.
+         */
+        @SuppressWarnings("unchecked")
+        public BaseType deserialize(InputStream stream) throws IOException {
+            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
+            processHeader(dataInput);
+            byte type = dataInput.readByte();
+            val si = this.serializersById.get(type);
+            ensureCondition(si != null, "No serializer found for object type %s.", type);
+
+            return (BaseType) si.serializer.readContents(dataInput, stream);
+        }
+
+        @RequiredArgsConstructor
+        private static class SerializerInfo {
+            final Class type;
+            final byte id;
+            final VersionedSerializer.WithBuilder serializer;
         }
     }
 

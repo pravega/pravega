@@ -10,6 +10,7 @@
 package io.pravega.common.io.serialization;
 
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Builder;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -31,6 +33,8 @@ import org.junit.Test;
  * Unit tests for the VersionedSerializer Class.
  */
 public class VersionedSerializerTests {
+    //region Test Data
+
     private static final int COUNT_MULTIPLIER = 4;
 
     /**
@@ -39,7 +43,7 @@ public class VersionedSerializerTests {
      * childrenCount == COUNT_MULTIPLIER*COUNT_MULTIPLIER, then each of those will have COUNT_MULTIPLIER children,
      * and each of those will have 1 child. This is 3 layers underneath the top-level TestClass objects.
      */
-    private static final Collection<TestClass> TEST_DATA = Arrays.asList(
+    private static final Collection<TestClass> SINGLE_TYPE_DATA = Arrays.asList(
             TestClass.builder()
                     .name("name1")
                     .id(1)
@@ -70,15 +74,24 @@ public class VersionedSerializerTests {
                     .build()
     );
 
+    private static final List<BaseClass> MULTI_TYPE_DATA = Arrays.asList(
+            SubClass1.builder1().id(1).field1(100).build(),
+            SubClass2.builder().id(2).field2(200).build(),
+            SubClass11.builder11().id(11).field1(1100).build());
+
+    //endregion
+
+    //region Single Type Tests
+
     /**
      * Tests serialization and deserialization for various cases, including:
      * * Backward and forward compatibility.
-     * * Nested classes (multi-layer - see TEST_DATA above). These are chosen such that in forward compatibility mode,
+     * * Nested classes (multi-layer - see SINGLE_TYPE_DATA above). These are chosen such that in forward compatibility mode,
      * some nested class revisions may be skipped, which verifies that such scenarios work.
      * * Collections and Maps with simple and complex types.
      */
     @Test
-    public void testSerialization() throws IOException {
+    public void testSingleType() throws IOException {
         // TestClass and ImmutableClass need to have various revisions. Mix and match serializations and deserializations
         // and verify they have been written correctly.
         val descriptors = new HashMap<Integer, VersionedSerializer.Direct<TestClass>>();
@@ -88,7 +101,7 @@ public class VersionedSerializerTests {
 
         for (val serializer : descriptors.entrySet()) {
             for (val deserializer : descriptors.entrySet()) {
-                for (TestClass tc : TEST_DATA) {
+                for (TestClass tc : SINGLE_TYPE_DATA) {
                     // Serialize into the buffer.
                     val data = serializer.getValue().serialize(tc);
 
@@ -161,6 +174,7 @@ public class VersionedSerializerTests {
         if (count == 0) {
             return null;
         }
+
         Random rnd = new Random(seed);
         val result = new ArrayList<ImmutableClass>();
         for (int i = 0; i < count; i++) {
@@ -180,7 +194,59 @@ public class VersionedSerializerTests {
         return result;
     }
 
-    //region Test Classes
+    //endregion
+
+    //region Multi Type Tests
+
+
+    /**
+     * Tests the ability to serialize and deserialize objects sharing a common base class.
+     */
+    @Test
+    public void testMultiType() throws IOException {
+        val s = new BaseClassSerializer();
+
+        // Serialize all test data into a single output stream.
+        val outStream = new EnhancedByteArrayOutputStream();
+        for (val o : MULTI_TYPE_DATA) {
+            s.serialize(outStream, o);
+        }
+
+        // Deserialize them back and verify contents.
+        val inputStream = outStream.getData().getReader();
+        for (int i = 0; i < MULTI_TYPE_DATA.size(); i++) {
+            val expected = MULTI_TYPE_DATA.get(i);
+            val deserialized = s.deserialize(inputStream);
+            checkMultiType(expected, deserialized);
+        }
+    }
+
+    private void checkMultiType(BaseClass expected, BaseClass actual) {
+        Assert.assertEquals("Unexpected types.", expected.getClass(), actual.getClass());
+        if (expected instanceof SubClass11) {
+            val e = (SubClass11) expected;
+            val a = (SubClass11) actual;
+            Assert.assertEquals("Unexpected value for SubClass11.id.", e.id, a.id);
+            Assert.assertEquals("Unexpected value for SubClass11.field1.", e.field1, a.field1);
+            Assert.assertEquals("Unexpected value for SubClass11.field11.", e.field11, a.field11);
+        } else if (expected instanceof SubClass1) {
+            val e = (SubClass1) expected;
+            val a = (SubClass1) actual;
+            Assert.assertEquals("Unexpected value for SubClass1.id.", e.id, a.id);
+            Assert.assertEquals("Unexpected value for SubClass1.field1.", e.field1, a.field1);
+        } else if (expected instanceof SubClass2) {
+            val e = (SubClass2) expected;
+            val a = (SubClass2) actual;
+            Assert.assertEquals("Unexpected value for SubClass2.id.", e.id, a.id);
+            Assert.assertEquals("Unexpected value for SubClass2.field1.", e.field2, a.field2);
+        } else {
+            Assert.fail("Unexpected type: " + expected.getClass());
+        }
+    }
+
+    //endregion
+
+    //region Single Type Test Classes and Serializers
 
     /**
      * This is a mutable class that has some fields and some nested classes. The point of having a Builder is to aid
@@ -220,10 +286,6 @@ public class VersionedSerializerTests {
 
         }
     }
-
-    //endregion
-
-    //region TestClass and ImmutableClass Serializers.
 
     /**
      * In revision 0: we have "name"(String) and "id"(Integer - note this changes to Long in revision 1).
@@ -358,6 +420,154 @@ public class VersionedSerializerTests {
 
         private void read1(RevisionDataInput input, ImmutableClass.ImmutableClassBuilder target) throws IOException {
             target.values(input.readMap(RevisionDataInput::readUUID, this::deserialize));
+        }
+    }
+
+    //endregion
+
+    //region Multi Type Classes and Serializers
+
+    @RequiredArgsConstructor
+    private static class BaseClass {
+        final int id;
+    }
+
+    private static class SubClass1 extends BaseClass {
+        final int field1;
+
+        @Builder(builderMethodName = "builder1")
+        SubClass1(int id, int field1) {
+            super(id);
+            this.field1 = field1;
+        }
+
+        static class SubClass1Builder implements ObjectBuilder<SubClass1> {
+        }
+    }
+
+    private static class SubClass11 extends SubClass1 {
+        final int field11;
+
+        @Builder(builderMethodName = "builder11")
+        SubClass11(int id, int field1, int field11) {
+            super(id, field1);
+            this.field11 = field11;
+        }
+
+        static class SubClass11Builder implements ObjectBuilder<SubClass11> {
+        }
+    }
+
+    private static class SubClass2 extends BaseClass {
+        final int field2;
+
+        @Builder
+        SubClass2(int id, int field2) {
+            super(id);
+            this.field2 = field2;
+        }
+
+        static class SubClass2Builder implements ObjectBuilder<SubClass2> {
+        }
+    }
+
+    private static class BaseClassSerializer extends VersionedSerializer.MultiType<BaseClass> {
+        @Override
+        protected void declareSerializers() {
+            serializer(SubClass1.class, 1, new SubClass1Serializer());
+            serializer(SubClass2.class, 2, new SubClass2Serializer());
+            serializer(SubClass11.class, 11, new SubClass11Serializer());
+        }
+    }
+
+    private static class SubClass1Serializer extends VersionedSerializer.WithBuilder<SubClass1, SubClass1.SubClass1Builder> {
+        static final byte VERSION = 0;
+
+        @Override
+        protected SubClass1.SubClass1Builder newBuilder() {
+            return SubClass1.builder1();
+        }
+
+        @Override
+        protected byte writeVersion() {
+            return VERSION;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(VERSION).revision(0, this::write0, this::read0);
+        }
+
+        private void write0(SubClass1 source, RevisionDataOutput output) throws IOException {
+            output.writeInt(source.id);
+            output.writeInt(source.field1);
+        }
+
+        private void read0(RevisionDataInput input, SubClass1.SubClass1Builder target) throws IOException {
+            target.id(input.readInt());
+            target.field1(input.readInt());
+        }
+    }
+
+
+    private static class SubClass11Serializer extends VersionedSerializer.WithBuilder<SubClass11, SubClass11.SubClass11Builder> {
+        static final byte VERSION = 0;
+
+        @Override
+        protected SubClass11.SubClass11Builder newBuilder() {
+            return SubClass11.builder11();
+        }
+
+        @Override
+        protected byte writeVersion() {
+            return VERSION;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(VERSION).revision(0, this::write0, this::read0);
+        }
+
+        private void write0(SubClass11 source, RevisionDataOutput output) throws IOException {
+            output.writeInt(source.id);
+            output.writeInt(source.field1);
+            output.writeInt(source.field11);
+        }
+
+        private void read0(RevisionDataInput input, SubClass11.SubClass11Builder target) throws IOException {
+            target.id(input.readInt());
+            target.field1(input.readInt());
+            target.field11(input.readInt());
+        }
+    }
+
+
+    private static class SubClass2Serializer extends VersionedSerializer.WithBuilder<SubClass2, SubClass2.SubClass2Builder> {
+        static final byte VERSION = 0;
+
+        @Override
+        protected SubClass2.SubClass2Builder newBuilder() {
+            return SubClass2.builder();
+        }
+
+        @Override
+        protected byte writeVersion() {
+            return VERSION;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(VERSION).revision(0, this::write0, this::read0);
+        }
+
+        private void write0(SubClass2 source, RevisionDataOutput output) throws IOException {
+            output.writeInt(source.id);
+            output.writeInt(source.field2);
+        }
+
+        private void read0(RevisionDataInput input, SubClass2.SubClass2Builder target) throws IOException {
+            target.id(input.readInt());
+            target.field2(input.readInt());
         }
     }
 
