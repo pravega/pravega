@@ -75,8 +75,8 @@ public class RevisionDataInputStreamTests {
 
         // We are at the end. Verify we can't read anymore.
         Assert.assertEquals("Unexpected result from read() when reaching the end.", -1, ri.read());
-        Assert.assertEquals("Unexpected result from read(byte[]) when reaching the end.", 0, ri.read(buffer));
-        Assert.assertEquals("Unexpected result from read(byte[], int, int) when reaching the end.", 0, ri.read(buffer, 0, buffer.length));
+        Assert.assertEquals("Unexpected result from read(byte[]) when reaching the end.", -1, ri.read(buffer));
+        Assert.assertEquals("Unexpected result from read(byte[], int, int) when reaching the end.", -1, ri.read(buffer, 0, buffer.length));
         Assert.assertEquals("Unexpected result from skip() when reaching the end.", 0, ri.skip(10));
 
         ri.close();

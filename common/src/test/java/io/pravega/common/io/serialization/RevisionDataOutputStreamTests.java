@@ -11,8 +11,10 @@ package io.pravega.common.io.serialization;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.util.Arrays;
@@ -62,6 +64,77 @@ public class RevisionDataOutputStreamTests {
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, () -> new ByteArraySegment(s.toByteArray()));
+    }
+
+    /**
+     * Tests the NonSeekableRevisionDataOutput class when we provide a shorter length than expected.
+     */
+    @Test
+    public void testNonSeekableOutputShorterLength() throws Exception {
+        @Cleanup
+        val s = new ByteArrayOutputStream();
+        @Cleanup
+        val impl = RevisionDataOutputStream.wrap(s);
+        int correctLength = Byte.BYTES + Short.BYTES + Integer.BYTES;
+
+        // Shorter length.
+        impl.length(correctLength - 1);
+        impl.writeByte(1);
+        impl.writeShort(2);
+        impl.writeInt(3);
+
+        // Need to close so we flush any remaining stuff to the underlying stream.
+        impl.close();
+
+        // Verify the written data cannot be read back (we'll get an EOF at this time).
+        @Cleanup
+        val inputStream = RevisionDataInputStream.wrap(new ByteArrayInputStream(s.toByteArray()));
+        inputStream.readByte();
+        inputStream.readShort();
+        AssertExtensions.assertThrows(
+                "Expecting EOF.",
+                inputStream::readInt,
+                ex -> ex instanceof EOFException);
+    }
+
+    /**
+     * Tests the NonSeekableRevisionDataOutput class when we provide a shorter length than expected.
+     */
+    @Test
+    public void testNonSeekableOutputLongerLength() throws Exception {
+        byte b = 1;
+        short sn = 2;
+        int n = 3;
+        @Cleanup
+        val s = new ByteArrayOutputStream();
+        @Cleanup
+        val impl = RevisionDataOutputStream.wrap(s);
+        int correctLength = Byte.BYTES + Short.BYTES + Integer.BYTES;
+
+        // Shorter length.
+        impl.length(correctLength + 1);
+        impl.writeByte(b);
+        impl.writeShort(sn);
+        impl.writeInt(n);
+
+        // Need to close so we flush any remaining stuff to the underlying stream.
+        impl.close();
+
+        // Verify the written data can be read back.
+        val inputStream = RevisionDataInputStream.wrap(new ByteArrayInputStream(s.toByteArray()));
+        Assert.assertEquals("Unexpected byte read back.", b, inputStream.read());
+        Assert.assertEquals("Unexpected short read back.", sn, inputStream.readShort());
+        Assert.assertEquals("Unexpected int read back.", n, inputStream.readInt());
+
+        // And verify we can't read anything else and we'll get an exception upon close indicating we read fewer bytes than expected.
+        AssertExtensions.assertThrows(
+                "Expecting EOF.",
+                () -> inputStream.readFully(new byte[1]),
+                ex -> ex instanceof EOFException);
+        AssertExtensions.assertThrows(
+                "Expecting an exception when reading fewer bytes than declared.",
+                inputStream::close,
+                ex -> ex instanceof SerializationException);
     }
 
     private void testImpl(RevisionDataOutputStream impl, Supplier<ByteArraySegment> getWrittenData) throws Exception {
@@ -116,7 +189,7 @@ public class RevisionDataOutputStreamTests {
         Assert.assertEquals("Not expecting any more data. ", -1, inputStream.read());
         AssertExtensions.assertThrows(
                 "Expecting EOF.",
-                inputStream::readInt,
+                () -> inputStream.readFully(new byte[1]),
                 ex -> ex instanceof EOFException);
     }
 
