@@ -145,12 +145,12 @@ public class RetentionTest {
 
         //write an event
         String writeEvent = "event";
-        writer.writeEvent("", writeEvent);
+        writer.writeEvent(writeEvent);
         writer.flush();
         log.debug("Writing event: {} ", writeEvent);
 
         //sleep for 4 mins
-        Exceptions.handleInterrupted(() -> Thread.sleep(4 * 60 * 1000));
+        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         //create a reader
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
@@ -172,7 +172,6 @@ public class RetentionTest {
             Assert.fail("Unexpected request to reinitialize.Test failed.");
         }
 
-       log.debug("The stream is already truncated");
-       log.debug("Simple retention test passed");
+       log.debug("The stream is already truncated.Simple retention test passed.");
     }
 }
