@@ -10,11 +10,11 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +25,6 @@ import java.util.UUID;
 public class StreamSegmentMapOperation extends MetadataOperation implements StreamSegmentMapping {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentId;
     private String streamSegmentName;
     private long startOffset;
@@ -43,7 +42,6 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
      * @param streamSegmentProperties Information about the StreamSegment.
      */
     public StreamSegmentMapOperation(SegmentProperties streamSegmentProperties) {
-        super();
         this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = streamSegmentProperties.getName();
         this.startOffset = streamSegmentProperties.getStartOffset();
@@ -52,8 +50,10 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         this.attributes = streamSegmentProperties.getAttributes();
     }
 
-    protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private StreamSegmentMapOperation() {
     }
 
     //endregion
@@ -102,31 +102,10 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     //region Operation Implementation
 
     @Override
-    protected OperationType getOperationType() {
-        return OperationType.SegmentMap;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned for this entry.");
-        target.writeByte(CURRENT_VERSION);
-        target.writeLong(this.streamSegmentId);
-        target.writeUTF(this.streamSegmentName);
-        target.writeLong(this.startOffset);
-        target.writeLong(this.length);
-        target.writeBoolean(this.sealed);
-        AttributeSerializer.serialize(this.attributes, target);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        this.streamSegmentId = source.readLong();
-        this.streamSegmentName = source.readUTF();
-        this.startOffset = source.readLong();
-        this.length = source.readLong();
-        this.sealed = source.readBoolean();
-        this.attributes = AttributeSerializer.deserialize(source);
+    protected void ensureSerializationConditions() {
+        super.ensureSerializationConditions();
+        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "StreamSegment Id has not been assigned.");
     }
 
     @Override
@@ -142,4 +121,46 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     }
 
     //endregion
+
+    static class Serializer extends VersionedSerializer.WithBuilder<StreamSegmentMapOperation, OperationBuilder<StreamSegmentMapOperation>> {
+        private static final int STATIC_LENGTH = 4 * Long.BYTES + Byte.BYTES;
+
+        @Override
+        protected OperationBuilder<StreamSegmentMapOperation> newBuilder() {
+            return new OperationBuilder<>(new StreamSegmentMapOperation());
+        }
+
+        @Override
+        protected byte writeVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(StreamSegmentMapOperation o, RevisionDataOutput target) throws IOException {
+            o.ensureSerializationConditions();
+            target.length(STATIC_LENGTH + target.getUTFLength(o.streamSegmentName)
+                    + target.getMapLength(o.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.streamSegmentId);
+            target.writeUTF(o.streamSegmentName);
+            target.writeLong(o.startOffset);
+            target.writeLong(o.length);
+            target.writeBoolean(o.sealed);
+            target.writeMap(o.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentMapOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.streamSegmentId = source.readLong();
+            b.instance.streamSegmentName = source.readUTF();
+            b.instance.startOffset = source.readLong();
+            b.instance.length = source.readLong();
+            b.instance.sealed = source.readBoolean();
+            b.instance.attributes = source.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
+        }
+    }
 }

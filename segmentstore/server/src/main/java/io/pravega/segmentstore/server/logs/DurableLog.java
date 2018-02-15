@@ -27,13 +27,12 @@ import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -67,7 +66,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
-    private final LogItemFactory<Operation> operationFactory;
     private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
     private final MemoryStateUpdater memoryStateUpdater;
@@ -106,7 +104,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         assert this.durableDataLog != null : "dataFrameLogFactory created null durableDataLog.";
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
-        this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
@@ -438,7 +435,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, this.operationFactory, getId())) {
+        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, OperationSerializer.DEFAULT, getId())) {
             DataFrameReader.ReadResult<Operation> readResult;
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.

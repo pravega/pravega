@@ -10,9 +10,10 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
@@ -21,23 +22,7 @@ import java.io.IOException;
 abstract class CheckpointOperationBase extends MetadataOperation {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     private ByteArraySegment contents;
-
-    //endregion
-
-    //region Constructor
-
-    /**
-     * Creates a new instance of the CheckpointOperationBase class.
-     */
-    public CheckpointOperationBase() {
-        super();
-    }
-
-    protected CheckpointOperationBase(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
-    }
 
     //endregion
 
@@ -66,20 +51,9 @@ abstract class CheckpointOperationBase extends MetadataOperation {
     //region Operation Implementation
 
     @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.contents != null, "contents has not been assigned for this entry.");
-        target.writeByte(CURRENT_VERSION);
-        target.writeInt(this.contents.getLength());
-        this.contents.writeTo(target);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        int contentsLength = source.readInt();
-        this.contents = new ByteArraySegment(new byte[contentsLength]);
-        int bytesRead = this.contents.readFrom(source);
-        assert bytesRead == contentsLength : "StreamHelpers.readAll did not read all the bytes requested.";
+    protected void ensureSerializationConditions() {
+        super.ensureSerializationConditions();
+        ensureSerializationCondition(this.contents != null, "Contents has not been assigned.");
     }
 
     @Override
@@ -88,4 +62,36 @@ abstract class CheckpointOperationBase extends MetadataOperation {
     }
 
     //endregion
+
+    static abstract class SerializerBase<T extends CheckpointOperationBase> extends VersionedSerializer.WithBuilder<T, OperationBuilder<T>> {
+        @Override
+        protected abstract OperationBuilder<T> newBuilder();
+
+        @Override
+        protected byte writeVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(T o, RevisionDataOutput target) throws IOException {
+            o.ensureSerializationConditions();
+            ByteArraySegment c = o.getContents();
+            target.length(Long.BYTES + target.getCompactIntLength(c.getLength()) + c.getLength());
+            target.writeLong(o.getSequenceNumber());
+            target.writeCompactInt(c.getLength());
+            target.write(c.array(), c.arrayOffset(), c.getLength());
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<T> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            int contentsLength = source.readCompactInt();
+            byte[] c = new byte[contentsLength];
+            source.readFully(c);
+            b.instance.setContents(new ByteArraySegment(c));
+        }
+    }
 }

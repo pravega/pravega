@@ -11,9 +11,6 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.Collection;
 
 /**
@@ -88,21 +85,6 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     @Override
     public long getLength() {
         return this.length;
-    }
-
-    @Override
-    protected OperationType getOperationType() {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized, thus it does not have an Operation Type.");
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized.");
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be deserialized.");
     }
 
     //endregion
