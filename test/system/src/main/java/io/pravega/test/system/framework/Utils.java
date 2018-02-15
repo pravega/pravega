@@ -97,7 +97,7 @@ public class Utils {
     }
 
     public static boolean isAwsExecution() {
-        String dockerConfig = getConfig("awsExecution", "false");
+        String dockerConfig = getConfig("awsExec", "false");
         return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
 
     }

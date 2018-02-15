@@ -1,14 +1,13 @@
-/**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- */
 #!/bin/bash
+#
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
 pravegaOrg=${1:-pravega}
 branch=${2:-master}
 sudo cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/
@@ -23,4 +22,5 @@ sudo apt-get -y install docker-ce=17.09.0~ce-0~ubuntu
 cd /tmp && git clone https://github.com/$pravegaOrg/pravega.git && cd pravega/
 git checkout $branch
 sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew clean buildPravegaImage -PpravegaBaseTag=nautilus/pravega -PpravegaVersion=$branch  && ./gradlew clean buildBookkeeperImage -PbookkeeperBaseTag=nautilus/bookkeeper -PpravegaVersion=$branch
+sudo chmod 777 /var/run/docker.sock
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && sudo ./gradlew clean buildPravegaImage -PpravegaBaseTag=nautilus/pravega -PpravegaVersion=$branch  && sudo ./gradlew clean buildBookkeeperImage -PbookkeeperBaseTag=nautilus/bookkeeper -PpravegaVersion=$branch
