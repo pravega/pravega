@@ -39,6 +39,9 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
+    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
+
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
@@ -131,6 +134,12 @@ public class BookKeeperConfig {
     private final int bkLedgerMaxSize;
     private final byte[] bkPassword;
 
+    @Getter
+    private final boolean isTLSEnabled;
+
+    @Getter
+    private final String tlsTrustStore;
+
     //endregion
 
     //region Constructor
@@ -165,6 +174,8 @@ public class BookKeeperConfig {
         this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+        this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
+        tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
     }
 
     /**
