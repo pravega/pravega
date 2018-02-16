@@ -11,8 +11,11 @@ package io.pravega.common.io.serialization;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,9 +25,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -84,14 +89,33 @@ public class VersionedSerializerTests {
     //region Single Type Tests
 
     /**
+     * Tests Single Type serializer using a RandomOutput OutputStream (i.e., EnhancedByteArrayOutputStream or FixedByteArrayOutputStream.
+     */
+    @Test
+    public void testSingleTypeRandomOutput() throws IOException {
+        testSingleType((tc, s) -> s.serialize(tc));
+    }
+
+    /**
+     * Tests Single Type serializer using a Non-Seekable OutputStream.
+     */
+    @Test
+    public void testSingleTypeNonSeekableOutput() throws IOException {
+        testSingleType((tc, s) -> {
+            val os = new ByteArrayOutputStream();
+            s.serialize(os, tc);
+            return new ByteArraySegment(os.toByteArray());
+        });
+    }
+
+    /**
      * Tests serialization and deserialization for various cases, including:
      * * Backward and forward compatibility.
      * * Nested classes (multi-layer - see SINGLE_TYPE_DATA above). These are chosen such that in forward compatibility mode,
      * some nested class revisions may be skipped, which verifies that such scenarios work.
      * * Collections and Maps with simple and complex types.
      */
-    @Test
-    public void testSingleType() throws IOException {
+    private void testSingleType(TestClassSerializer serializerFunction) throws IOException {
         // TestClass and ImmutableClass need to have various revisions. Mix and match serializations and deserializations
         // and verify they have been written correctly.
         val descriptors = new HashMap<Integer, VersionedSerializer.Direct<TestClass>>();
@@ -103,7 +127,7 @@ public class VersionedSerializerTests {
             for (val deserializer : descriptors.entrySet()) {
                 for (TestClass tc : SINGLE_TYPE_DATA) {
                     // Serialize into the buffer.
-                    val data = serializer.getValue().serialize(tc);
+                    val data = serializerFunction.apply(tc, serializer.getValue());
 
                     // Create a blank TestClass and deserialize into it.
                     val tc2 = TestClass.builder().build();
@@ -167,7 +191,6 @@ public class VersionedSerializerTests {
                 }
             }
         }
-
     }
 
     private static ArrayList<ImmutableClass> immutableClasses(int seed, int count, int childrenCount) {
@@ -198,24 +221,36 @@ public class VersionedSerializerTests {
 
     //region Multi Type Tests
 
+    /**
+     * Tests the ability to serialize and deserialize objects sharing a common base class using a RandomOutput OutputStream.
+     */
+    @Test
+    public void testMultiTypeRandomOutput() throws IOException {
+        testMultiType(new EnhancedByteArrayOutputStream(), EnhancedByteArrayOutputStream::getData);
+    }
+
+    /**
+     * Tests the ability to serialize and deserialize objects sharing a common base class using a non-seekable OutputStream.
+     */
+    @Test
+    public void testMultiTypeNonSeekableOutput() throws IOException {
+        testMultiType(new ByteArrayOutputStream(), s -> new ByteArraySegment(s.toByteArray()));
+    }
 
     /**
      * Tests the ability to serialize and deserialize objects sharing a common base class.
      */
-    @Test
-    public void testMultiType() throws IOException {
+    private <T extends OutputStream> void testMultiType(T outStream, Function<T, ByteArraySegment> getData) throws IOException {
         val s = new BaseClassSerializer();
 
         // Serialize all test data into a single output stream.
-        val outStream = new EnhancedByteArrayOutputStream();
         for (val o : MULTI_TYPE_DATA) {
             s.serialize(outStream, o);
         }
 
         // Deserialize them back and verify contents.
-        val inputStream = outStream.getData().getReader();
-        for (int i = 0; i < MULTI_TYPE_DATA.size(); i++) {
-            val expected = MULTI_TYPE_DATA.get(i);
+        val inputStream = getData.apply(outStream).getReader();
+        for (val expected : MULTI_TYPE_DATA) {
             val deserialized = s.deserialize(inputStream);
             checkMultiType(expected, deserialized);
         }
@@ -304,6 +339,9 @@ public class VersionedSerializerTests {
         }
 
         private void write0(TestClass source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(Integer.BYTES + output.getUTFLength(source.name));
+            }
             output.writeInt((int) Math.min(Integer.MAX_VALUE, source.id));
             output.writeUTF(source.name);
         }
@@ -335,6 +373,11 @@ public class VersionedSerializerTests {
         }
 
         private void write1(TestClass source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                int l = Long.BYTES + output.getCollectionLength(source.subClasses, this::getSerializationLength);
+                output.length(l);
+            }
+
             output.writeLong(source.id);
             output.writeCollection(source.subClasses, this.ics::serialize);
         }
@@ -342,6 +385,13 @@ public class VersionedSerializerTests {
         private void read1(RevisionDataInput input, TestClass target) throws IOException {
             target.id = input.readLong();
             target.subClasses = input.readCollection(this.ics::deserialize, ArrayList::new);
+        }
+
+        @SneakyThrows(IOException.class)
+        private int getSerializationLength(ImmutableClass ic) {
+            // Note that this is an extremely expensive way to calculate the length. This is appropriate for this unit test
+            // but this should be avoided in real production code.
+            return this.ics.serialize(ic).getLength();
         }
     }
 
@@ -360,6 +410,9 @@ public class VersionedSerializerTests {
         }
 
         private void write1(TestClass source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(output.getCompactLongLength(source.compactLong) + output.getCompactIntLength(source.compactInt));
+            }
             output.writeCompactLong(source.compactLong);
             output.writeCompactInt(source.compactInt);
         }
@@ -369,7 +422,6 @@ public class VersionedSerializerTests {
             target.compactInt = input.readCompactInt();
         }
     }
-
 
     /**
      * In revision 0, we only encode "id" and "name".
@@ -393,6 +445,9 @@ public class VersionedSerializerTests {
         }
 
         private void write0(ImmutableClass source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(Integer.BYTES + output.getUTFLength(source.name));
+            }
             output.writeInt(source.id);
             output.writeUTF(source.name);
         }
@@ -413,14 +468,28 @@ public class VersionedSerializerTests {
             version(VERSION).revision(1, this::write1, this::read1);
         }
 
-
         private void write1(ImmutableClass source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(output.getMapLength(source.values, k -> RevisionDataOutput.UUID_BYTES, this::getSerializationLength));
+            }
             output.writeMap(source.values, RevisionDataOutput::writeUUID, this::serialize);
         }
 
         private void read1(RevisionDataInput input, ImmutableClass.ImmutableClassBuilder target) throws IOException {
             target.values(input.readMap(RevisionDataInput::readUUID, this::deserialize));
         }
+
+        @SneakyThrows(IOException.class)
+        private int getSerializationLength(ImmutableClass ic) {
+            // Note that this is an extremely expensive way to calculate the length. This is appropriate for this unit test
+            // but this should be avoided in real production code.
+            return serialize(ic).getLength();
+        }
+    }
+
+    @FunctionalInterface
+    interface TestClassSerializer {
+        ByteArraySegment apply(TestClass tc, VersionedSerializer.Direct<TestClass> serializer) throws IOException;
     }
 
     //endregion
@@ -499,6 +568,9 @@ public class VersionedSerializerTests {
         }
 
         private void write0(SubClass1 source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(2 * Integer.BYTES);
+            }
             output.writeInt(source.id);
             output.writeInt(source.field1);
         }
@@ -508,7 +580,6 @@ public class VersionedSerializerTests {
             target.field1(input.readInt());
         }
     }
-
 
     private static class SubClass11Serializer extends VersionedSerializer.WithBuilder<SubClass11, SubClass11.SubClass11Builder> {
         static final byte VERSION = 0;
@@ -529,6 +600,9 @@ public class VersionedSerializerTests {
         }
 
         private void write0(SubClass11 source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(3 * Integer.BYTES);
+            }
             output.writeInt(source.id);
             output.writeInt(source.field1);
             output.writeInt(source.field11);
@@ -540,7 +614,6 @@ public class VersionedSerializerTests {
             target.field11(input.readInt());
         }
     }
-
 
     private static class SubClass2Serializer extends VersionedSerializer.WithBuilder<SubClass2, SubClass2.SubClass2Builder> {
         static final byte VERSION = 0;
@@ -561,6 +634,9 @@ public class VersionedSerializerTests {
         }
 
         private void write0(SubClass2 source, RevisionDataOutput output) throws IOException {
+            if (output.requiresExplicitLength()) {
+                output.length(2 * Integer.BYTES);
+            }
             output.writeInt(source.id);
             output.writeInt(source.field2);
         }

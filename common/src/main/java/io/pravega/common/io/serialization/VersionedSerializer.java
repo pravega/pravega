@@ -18,6 +18,7 @@ import io.pravega.common.util.ByteArraySegment;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -84,34 +85,31 @@ public abstract class VersionedSerializer<T> {
      * @throws IOException If an IO Exception occurred.
      */
     public void serialize(OutputStream stream, T object) throws IOException {
-        // Wrap the given stream in a DataOutputStream, but make sure we don't close it, since we don't own it.
-        DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-
-        dataOutput.writeByte(SERIALIZER_VERSION);
-
-        // Write contents.
-        writeContents(dataOutput, stream, object);
+        stream.write(SERIALIZER_VERSION);
+        serializeContents(stream, object);
     }
 
     /**
      * When implemented in a derived class, this method will write the serialization contents, excluding the Header.
      * Refer to the format above for contents.
-     * @param dataOutput The DataOutputStream to write to.
-     * @param baseStream The OutputStream that dataOutput wraps.
+     * @param baseStream The OutputStream to write to.
      * @param object     The object to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    abstract void writeContents(DataOutputStream dataOutput, OutputStream baseStream, T object) throws IOException;
+    abstract void serializeContents(OutputStream baseStream, T object) throws IOException;
 
     /**
      * Reads a single unsigned byte from the given InputStream and interprets it as a Serializer Format Version, after
      * which it validates that it is supported.
      *
-     * @param dataInput The DataInputStream to read from.
+     * @param dataInput The InputStream to read from.
      * @throws IOException If an IO Exception occurred.
      */
-    void processHeader(DataInputStream dataInput) throws IOException {
-        int formatVersion = dataInput.readUnsignedByte();
+    void processHeader(InputStream dataInput) throws IOException {
+        int formatVersion = dataInput.read();
+        if (formatVersion < 0) {
+            throw new EOFException();
+        }
         ensureCondition(formatVersion == SERIALIZER_VERSION, "Unsupported format version %d.", formatVersion);
     }
 
@@ -258,7 +256,9 @@ public abstract class VersionedSerializer<T> {
         }
 
         @Override
-        void writeContents(DataOutputStream dataOutput, OutputStream baseStream, TargetType o) throws IOException {
+        void serializeContents(OutputStream stream, TargetType o) throws IOException {
+            DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
+
             val writeVersion = this.versions[writeVersion()];
             dataOutput.writeByte(writeVersion.getVersion());
             dataOutput.writeByte(writeVersion.getRevisions().size());
@@ -266,7 +266,7 @@ public abstract class VersionedSerializer<T> {
             // Write each Revision for this Version, in turn.
             for (val r : writeVersion.getRevisions()) {
                 dataOutput.writeByte(r.getRevision());
-                try (val revisionOutput = RevisionDataOutputStream.wrap(baseStream)) {
+                try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
                     r.getWriter().accept(o, revisionOutput);
                 }
             }
@@ -303,21 +303,20 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         public void deserialize(InputStream stream, ReaderType target) throws IOException {
-            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-            processHeader(dataInput);
-            deserializeContents(dataInput, stream, target);
+            processHeader(stream);
+            deserializeContents(stream, target);
         }
 
         /**
          * Deserializes data from the given InputStream into the given object. This does not attempt to read the serialization
          * header.
          *
-         * @param dataInput  The DataInputStream to deserialize from.
-         * @param baseStream The InputStream that dataInput wraps.
-         * @param target     The target object to apply the deserialization to.
+         * @param stream The InputStream to deserialize from.
+         * @param target The target object to apply the deserialization to.
          * @throws IOException If an IO Exception occurred.
          */
-        void deserializeContents(DataInputStream dataInput, InputStream baseStream, ReaderType target) throws IOException {
+        void deserializeContents(InputStream stream, ReaderType target) throws IOException {
+            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
             byte version = dataInput.readByte();
             val readVersion = this.versions[version];
             ensureCondition(readVersion != null, "Unsupported version %d.", version);
@@ -329,7 +328,7 @@ public abstract class VersionedSerializer<T> {
             for (int i = 0; i < revisionCount; i++) {
                 byte revision = dataInput.readByte();
                 val rd = readVersion.get(revisionIndex++);
-                try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(baseStream)) {
+                try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
                     if (rd != null) {
                         // We've encountered an unknown revision; we cannot read anymore.
                         ensureCondition(revision == rd.getRevision(),
@@ -495,9 +494,17 @@ public abstract class VersionedSerializer<T> {
             return deserialize(data.getReader());
         }
 
-        TargetType readContents(DataInputStream inputStream, InputStream baseStream) throws IOException {
+        /**
+         * Deserializes data from the given InputStream into a new instance of the TargetType type. This does not attempt
+         * to read the serialization header; just the contents.
+         *
+         * @param stream The InputStream to deserialize form.
+         * @return A new instance of TargetType.
+         * @throws IOException If an IO Exception occurred.
+         */
+        TargetType deserializeContents(InputStream stream) throws IOException {
             ReaderType builder = newBuilder();
-            super.deserializeContents(inputStream, baseStream, builder);
+            super.deserializeContents(stream, builder);
             return builder.build();
         }
     }
@@ -589,6 +596,7 @@ public abstract class VersionedSerializer<T> {
                     "SerializationTypeId %s already has a serializer registered.", serializationTypeId);
             Preconditions.checkArgument(!this.serializersByType.containsKey(type),
                     "Type %s already has a serializer registered.", type);
+
             val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
             this.serializersById.put(si.id, si);
             this.serializersByType.put(si.type, si);
@@ -597,16 +605,16 @@ public abstract class VersionedSerializer<T> {
 
         @Override
         @SuppressWarnings("unchecked")
-        public void writeContents(DataOutputStream dataOutput, OutputStream baseStream, BaseType o) throws IOException {
+        public void serializeContents(OutputStream stream, BaseType o) throws IOException {
             Class c = o.getClass();
             val si = this.serializersByType.get(c);
             ensureCondition(si != null, "No serializer found for %s.", c.getName());
 
             // Encode the Object type; this will be used upon deserialization.
-            dataOutput.writeByte(si.id);
+            stream.write(si.id);
 
             // Write contents.
-            si.serializer.writeContents(dataOutput, baseStream, o);
+            si.serializer.serializeContents(stream, o);
         }
 
         /**
@@ -619,13 +627,19 @@ public abstract class VersionedSerializer<T> {
          */
         @SuppressWarnings("unchecked")
         public BaseType deserialize(InputStream stream) throws IOException {
-            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-            processHeader(dataInput);
-            byte type = dataInput.readByte();
+            processHeader(stream);
+
+            // Decode the object type and look up its serializer.
+            byte type = (byte) stream.read();
+            if (type < 0) {
+                throw new EOFException();
+            }
+
             val si = this.serializersById.get(type);
             ensureCondition(si != null, "No serializer found for object type %s.", type);
 
-            return (BaseType) si.serializer.readContents(dataInput, stream);
+            // Deserialize contents.
+            return (BaseType) si.serializer.deserializeContents(stream);
         }
 
         @RequiredArgsConstructor

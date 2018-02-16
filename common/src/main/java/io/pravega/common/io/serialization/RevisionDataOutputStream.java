@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.ToIntFunction;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -48,21 +50,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() throws IOException {
-        // Nothing to do. We do not want to close the underlying Stream.
-    }
-
-    //endregion
-
     //region RevisionDataOutput Implementation
-
-    @Override
-    public OutputStream getBaseStream() {
-        return this.out;
-    }
 
     @Override
     public int getUTFLength(String s) {
@@ -111,11 +99,10 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             writeInt((int) (value | 0x8000_0000));
         } else if (value > 0x3F) {
             // Only 2 bytes.
-            this.out.write((int) (value >>> 8 | 0x40 & 0xFF));
-            this.out.write((int) (value & 0xFF));
+            writeShort((short) (value | 0x4000));
         } else {
             // 1 byte.
-            this.out.write((byte) value);
+            writeByte((byte) value);
         }
     }
 
@@ -140,20 +127,18 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
         } else if (value > 0x3F_FFFF) {
             // All 4 bytes
-            this.out.write(value >>> 24 | 0xC0 & 0xFF);
-            this.out.write(value >>> 16 & 0xFF);
-            this.out.write(value >>> 8 & 0xFF);
+            writeInt(value | 0xC000_0000);
         } else if (value > 0x3FFF) {
             // 3 bytes.
-            this.out.write(value >>> 16 | 0x80 & 0xFF);
-            this.out.write(value >>> 8 & 0xFF);
+            writeByte((byte) (value >>> 16 & 0xFF | 0x80));
+            writeShort((short) value);
         } else if (value > 0x3F) {
             // 2 Bytes.
-            this.out.write(value >>> 8 | 0x40 & 0xFF);
+            writeShort((short) (value | 0x4000));
+        } else {
+            // 1 byte.
+            writeByte((byte) value);
         }
-
-        // Last byte is always the same.
-        this.out.write(value & 0xFF);
     }
 
     @Override
@@ -165,6 +150,15 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     @Override
     public int getCollectionLength(int elementCount, int elementLength) {
         return getCompactIntLength(elementCount) + elementCount * elementLength;
+    }
+
+    @Override
+    public <T> int getCollectionLength(Collection<T> collection, ToIntFunction<T> elementLengthProvider) {
+        if (collection == null) {
+            return getCompactIntLength(0);
+        }
+
+        return getCompactIntLength(collection.size()) + collection.stream().mapToInt(elementLengthProvider).sum();
     }
 
     @Override
@@ -183,6 +177,18 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     @Override
     public int getMapLength(int elementCount, int keyLength, int valueLength) {
         return getCompactIntLength(elementCount) + elementCount * (keyLength + valueLength);
+    }
+
+    @Override
+    public <K, V> int getMapLength(Map<K, V> map, ToIntFunction<K> keyLengthProvider, ToIntFunction<V> valueLengthProvider) {
+        if (map == null) {
+            return getCompactIntLength(0);
+        }
+
+        return getCompactIntLength(map.size())
+                + map.entrySet().stream()
+                     .mapToInt(e -> keyLengthProvider.applyAsInt(e.getKey()) + valueLengthProvider.applyAsInt(e.getValue()))
+                     .sum();
     }
 
     @Override
@@ -237,6 +243,12 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         }
 
         @Override
+        public OutputStream getBaseStream() {
+            // We need to return an OutputStream that implements RandomOutput, which is our underlying OutputStream (and not us).
+            return this.out;
+        }
+
+        @Override
         public boolean requiresExplicitLength() {
             return false;
         }
@@ -253,10 +265,26 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      */
     private static class NonSeekableRevisionDataOutput extends RevisionDataOutputStream {
         private final OutputStream realStream;
+        private int length;
 
         NonSeekableRevisionDataOutput(OutputStream outputStream) {
             super(new LengthRequiredOutputStream());
             this.realStream = outputStream;
+            this.length = 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
+            // Also, we do not want to close the underlying Stream as it may be reused.
+            if (this.length != size()) {
+                throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, size()));
+            }
+        }
+
+        @Override
+        public OutputStream getBaseStream() {
+            return this;
         }
 
         @Override
@@ -269,6 +297,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             if (this.out instanceof LengthRequiredOutputStream) {
                 BitConverter.writeInt(this.realStream, length);
                 super.out = this.realStream;
+                this.length = length;
             }
         }
 

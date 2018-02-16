@@ -73,7 +73,7 @@ public class RevisionDataOutputStreamTests {
     public void testNonSeekableOutputShorterLength() throws Exception {
         @Cleanup
         val s = new ByteArrayOutputStream();
-        @Cleanup
+        // Wrap the stream, but do not auto-close it since we expect close() to fail, which is verified below.
         val impl = RevisionDataOutputStream.wrap(s);
         int correctLength = Byte.BYTES + Short.BYTES + Integer.BYTES;
 
@@ -83,8 +83,11 @@ public class RevisionDataOutputStreamTests {
         impl.writeShort(2);
         impl.writeInt(3);
 
-        // Need to close so we flush any remaining stuff to the underlying stream.
-        impl.close();
+        // Verify close() fails.
+        AssertExtensions.assertThrows(
+                "RevisionDataOutputStream.close() did not throw for byte mismatch.",
+                impl::close,
+                ex -> ex instanceof SerializationException);
 
         // Verify the written data cannot be read back (we'll get an EOF at this time).
         @Cleanup
@@ -107,7 +110,7 @@ public class RevisionDataOutputStreamTests {
         int n = 3;
         @Cleanup
         val s = new ByteArrayOutputStream();
-        @Cleanup
+        // Wrap the stream, but do not auto-close it since we expect close() to fail, which is verified below.
         val impl = RevisionDataOutputStream.wrap(s);
         int correctLength = Byte.BYTES + Short.BYTES + Integer.BYTES;
 
@@ -117,8 +120,11 @@ public class RevisionDataOutputStreamTests {
         impl.writeShort(sn);
         impl.writeInt(n);
 
-        // Need to close so we flush any remaining stuff to the underlying stream.
-        impl.close();
+        // Verify close() fails.
+        AssertExtensions.assertThrows(
+                "RevisionDataOutputStream.close() did not throw for byte mismatch.",
+                impl::close,
+                ex -> ex instanceof SerializationException);
 
         // Verify the written data can be read back.
         val inputStream = RevisionDataInputStream.wrap(new ByteArrayInputStream(s.toByteArray()));
