@@ -141,7 +141,7 @@ System diagram <a name="systemDiagram"></a>
 The following diagram shows the main components of a controller process.
 We discuss the elements of the diagram in detail next.
 
- <img src="./img/ControllerServiceDiagram.png" width="624" height="334" />
+ <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
 
 Controller Process Diagram
 
