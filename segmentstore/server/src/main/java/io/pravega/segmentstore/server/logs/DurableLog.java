@@ -186,12 +186,14 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         if (failureCause != null) {
             failureCause = Exceptions.unwrap(failureCause);
+            this.stopException.set(failureCause);
             if (state() == State.STARTING) {
-                // Make sure we stop the operation processor if we started it.
-                this.operationProcessor.stopAsync();
+                // Make sure we stop the OperationProcessor if we started it, but not before we stop ourselves (with the
+                // correct failure cause), otherwise the OperationProcessor's listener will shut us down with a totally
+                // different failure cause.
                 notifyFailed(failureCause);
+                this.operationProcessor.stopAsync();
             } else {
-                this.stopException.set(failureCause);
                 doStop();
             }
         }
@@ -537,8 +539,8 @@ public class DurableLog extends AbstractService implements OperationLog {
     private void queueStoppedHandler() {
         if (state() != State.STOPPING && state() != State.FAILED) {
             // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
-            log.warn("{}: QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. Shutting down DurableLog.", this.traceObjectId);
-            this.stopException.set(new StreamingException("QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
+            log.warn("{}: OperationProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. Shutting down DurableLog.", this.traceObjectId);
+            this.stopException.set(new StreamingException("OperationProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
             stopAsync();
         }
     }
