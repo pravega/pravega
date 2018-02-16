@@ -15,6 +15,7 @@ import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.ToIntFunction;
 
 /**
  * Extension to DataOutput that adds support for a few new constructs and supports formatting a Serialization Revision.
@@ -151,6 +152,16 @@ public interface RevisionDataOutput extends DataOutput {
     int getCollectionLength(int elementCount, int elementLength);
 
     /**
+     * Calculates the number of bytes required to serialize a Collection.
+     *
+     * @param collection            The Collection to measure.
+     * @param elementLengthProvider A Function that, given an Element of type T, will return its serialization length.
+     * @param <T>                   Type of the Map's Keys.
+     * @return The number of bytes.
+     */
+    <T> int getCollectionLength(Collection<T> collection, ToIntFunction<T> elementLengthProvider);
+
+    /**
      * Serializes the given Collection using the given ElementSerializer. It first writes a Compact Integer representing
      * the number of elements in the collection, followed by each element's serialization, in the same order as returned
      * by the Collection's iterator.
@@ -174,12 +185,24 @@ public interface RevisionDataOutput extends DataOutput {
     int getMapLength(int elementCount, int keyLength, int valueLength);
 
     /**
+     * Calculates the number of bytes required to serialize a Map.
+     *
+     * @param map                 The Map to measure.
+     * @param keyLengthProvider   A Function that, given a Key of type K, will return its serialization length.
+     * @param valueLengthProvider A Function that, given a Value of type V, will return its serialization length.
+     * @param <K>                 Type of the Map's Keys.
+     * @param <V>                 Type of the Map's Values.
+     * @return The number of bytes.
+     */
+    <K, V> int getMapLength(Map<K, V> map, ToIntFunction<K> keyLengthProvider, ToIntFunction<V> valueLengthProvider);
+
+    /**
      * Serializes the given Map using the given ElementSerializers (one for Key and one for Value). It first writes a
      * Compact Integer representing the number of elements in the Map, followed by each pair's serialization (first the key,
      * then the value), in the same order as returned by the Map's iterator.
      *
      * @param map             The Map to serialize. Can be null (in which case an Empty Map will be deserialized
-     *                        by RevisionDataInput.readCollection()).
+     *                        by RevisionDataInput.readMap()).
      * @param keySerializer   A Function that serializes a single Key of the Map to a RevisionDataOutput.
      * @param valueSerializer A Function that serializes a single Value of the Map to a RevisionDataOutput.
      * @param <K>             Type of the Map's Keys.
