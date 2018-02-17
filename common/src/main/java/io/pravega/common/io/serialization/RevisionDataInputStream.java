@@ -179,38 +179,34 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
      */
     private static class BoundedInputStream extends FilterInputStream {
         private final int bound;
-        private int relativePosition;
+        private int remaining;
 
         BoundedInputStream(InputStream inputStream, int bound) {
             super(inputStream);
             this.bound = bound;
-            this.relativePosition = 0;
+            this.remaining = bound;
         }
 
         @Override
         public void close() throws IOException {
             // Skip over the remaining bytes. Do not close the underlying InputStream.
-            if (this.relativePosition < this.bound) {
-                long toSkip = this.bound - this.relativePosition;
+            if (this.remaining > 0) {
+                int toSkip = this.remaining;
                 long skipped = skip(toSkip);
                 if (skipped != toSkip) {
-                    throw new SerializationException(String.format("Read fewer bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+                    throw new SerializationException(String.format("Read %d fewer byte(s) than expected only able to skip %d.", toSkip, skipped));
                 }
-            } else if (this.relativePosition > this.bound) {
-                throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+            } else if (this.remaining < 0) {
+                throw new SerializationException(String.format("Read more bytes than expected (%d).", -this.remaining));
             }
         }
 
         @Override
         public int read() throws IOException {
-            if (this.relativePosition >= this.bound) {
-                // Do not allow reading more than we should.
-                return -1;
-            }
-
-            int r = super.read();
+            // Do not allow reading more than we should.
+            int r = this.remaining > 0 ? super.read() : -1;
             if (r >= 0) {
-                this.relativePosition++;
+                this.remaining--;
             }
 
             return r;
@@ -218,30 +214,27 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
-            if (this.relativePosition >= this.bound) {
-                // Do not allow reading more than we should.
+            int readLength = Math.min(length, this.remaining);
+            int r = this.in.read(buffer, offset, readLength);
+            if (r > 0) {
+                this.remaining -= r;
+            } else if (length > 0 && this.remaining <= 0) {
+                // We have reached our bound.
                 return -1;
-            }
-
-            length = Math.min(length, this.bound - this.relativePosition);
-            int r = this.in.read(buffer, offset, length);
-            if (r >= 0) {
-                this.relativePosition += r;
             }
             return r;
         }
 
         @Override
         public long skip(long count) throws IOException {
-            count = (int) Math.min(count, this.bound - this.relativePosition);
-            long r = this.in.skip(count);
-            this.relativePosition += r;
+            long r = this.in.skip(Math.min(count, this.remaining));
+            this.remaining -= r;
             return r;
         }
 
         @Override
         public int available() throws IOException {
-            return Math.min(this.in.available(), this.bound - this.relativePosition);
+            return Math.min(this.in.available(), this.remaining);
         }
     }
 

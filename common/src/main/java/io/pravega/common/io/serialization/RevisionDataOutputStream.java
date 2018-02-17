@@ -275,10 +275,13 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
         @Override
         public void close() throws IOException {
-            // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
-            // Also, we do not want to close the underlying Stream as it may be reused.
+            // We do not want to close the underlying Stream as it may be reused.
             if (this.length != size()) {
+                // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
                 throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, size()));
+            } else if (this.out instanceof LengthRequiredOutputStream) {
+                // We haven't written anything nor declared a length. Write the length prior to exiting.
+                length(0);
             }
         }
 

@@ -50,10 +50,10 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the getCollectionLength() method.
+     * Tests the getCollectionLength() method with constant input
      */
     @Test
-    public void testGetCollectionLength() throws Exception {
+    public void testGetCollectionLengthConstant() throws Exception {
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
         Assert.assertEquals("Unexpected length for empty collection.",
@@ -65,7 +65,20 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the getMapLength() method.
+     * Tests the getCollectionLength() method with variable input
+     */
+    @Test
+    public void testGetCollectionLengthStatic() throws Exception {
+        val data = Arrays.asList(1, 2, 3, 4, 5);
+        val sum = data.stream().mapToInt(i -> i).sum();
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length.",
+                rdos.getCompactIntLength(data.size()) + sum, rdos.getCollectionLength(data, i -> i));
+    }
+
+    /**
+     * Tests the getMapLength() method with constant input.
      */
     @Test
     public void testGetMapLength() throws Exception {
@@ -81,6 +94,19 @@ public class RevisionDataStreamCommonTests {
                 rdos.getCompactIntLength(123), rdos.getMapLength(123, 0, 0));
         Assert.assertEquals("Unexpected length for non-empty map.",
                 rdos.getCompactIntLength(123) + 123 * (8 + 17), rdos.getMapLength(123, 8, 17));
+    }
+
+    /**
+     * Tests the getMapLength() method with variable input.
+     */
+    @Test
+    public void testGetMapLengthStatic() throws Exception {
+        val data = ImmutableMap.of(1, 10, 2, 20, 3, 30, 4, 40, 5, 50);
+        val sum = data.entrySet().stream().mapToInt(e -> e.getKey() + e.getValue()).sum();
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length.",
+                rdos.getCompactIntLength(data.size()) + sum, rdos.getMapLength(data, i -> i, i -> i));
     }
 
     /**
