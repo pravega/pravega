@@ -221,7 +221,10 @@ public class StreamMetadataTasks extends TaskBase {
         if (latestCut == null || recordingTime - latestCut.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
             return generateStreamCut(scope, stream, context, delegationToken)
                     .thenCompose(newRecord -> streamMetadataStore.addStreamCutToRetentionSet(scope, stream, newRecord, context, executor)
-                        .thenApply(x -> newRecord));
+                        .thenApply(x -> {
+                            log.debug("New streamCut generated for stream {}/{}", scope, stream);
+                            return newRecord;
+                        }));
         } else {
             return  CompletableFuture.completedFuture(null);
         }
@@ -337,7 +340,10 @@ public class StreamMetadataTasks extends TaskBase {
                                 // 3. start truncation by updating the metadata
                                 .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
-                                .thenApply(x -> true);
+                                .thenApply(x -> {
+                                    log.debug("Started truncation request for stream {}/{}", scope, stream);
+                                    return true;
+                                });
                     } else {
                         log.warn("Another truncation in progress for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(false);

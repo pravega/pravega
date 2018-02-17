@@ -27,6 +27,7 @@ rat {
             '**/*.log',
             '**/*.lock',
             '**/*.json',
+            '**/config/*jks*',
             'CODE_OF_CONDUCT.md'
     ]
 }

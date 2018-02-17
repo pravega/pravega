@@ -17,12 +17,13 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing truncation operations received from requeststream.
@@ -65,6 +66,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
                                                     OperationContext context, String delegationToken) {
+        log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
                  .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken))
                  .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
