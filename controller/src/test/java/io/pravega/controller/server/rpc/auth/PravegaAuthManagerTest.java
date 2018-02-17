@@ -10,9 +10,9 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
+import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthenticationException;
 import io.pravega.client.PravegaClientConfig;
-import io.pravega.client.auth.PravegaAuthHandler;
-import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.PravegaCredentials;

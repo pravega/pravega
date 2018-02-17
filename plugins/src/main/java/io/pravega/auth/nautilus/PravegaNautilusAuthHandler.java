@@ -9,7 +9,7 @@
  */
 package io.pravega.auth.nautilus;
 
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 import java.util.Map;
 
 public class PravegaNautilusAuthHandler implements PravegaAuthHandler {

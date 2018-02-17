@@ -10,7 +10,7 @@
 
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 
 /**
  * Default implementation of DelegegationTokenVerifier which asserts all the tokens as valid.

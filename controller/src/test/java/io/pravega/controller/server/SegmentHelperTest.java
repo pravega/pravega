@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.client.auth.PravegaAuthenticationException;
+import io.pravega.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;

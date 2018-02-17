@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.auth.PravegaAuthHandler;
-import io.pravega.client.auth.PravegaAuthenticationException;
+import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -93,8 +93,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
-import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
+import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;

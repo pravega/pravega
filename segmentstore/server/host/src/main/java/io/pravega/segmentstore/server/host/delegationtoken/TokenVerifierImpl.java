@@ -13,7 +13,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Map;
 import java.util.Optional;

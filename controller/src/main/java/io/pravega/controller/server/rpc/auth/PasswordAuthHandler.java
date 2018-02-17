@@ -11,8 +11,8 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.client.auth.PravegaAuthHandler;
-import io.pravega.client.auth.PravegaAuthenticationException;
+import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;

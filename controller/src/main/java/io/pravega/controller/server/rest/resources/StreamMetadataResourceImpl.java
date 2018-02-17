@@ -9,10 +9,10 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthenticationException;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.auth.PravegaAuthHandler;
-import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
@@ -57,8 +57,8 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
-import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
+import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 

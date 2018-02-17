@@ -11,7 +11,7 @@ package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;

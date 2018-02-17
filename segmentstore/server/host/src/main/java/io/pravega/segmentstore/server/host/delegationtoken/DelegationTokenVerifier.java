@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.

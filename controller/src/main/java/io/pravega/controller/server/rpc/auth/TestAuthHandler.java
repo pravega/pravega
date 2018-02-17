@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
-import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.auth.PravegaAuthHandler;
 import java.util.Map;
 
 public class TestAuthHandler implements PravegaAuthHandler {
