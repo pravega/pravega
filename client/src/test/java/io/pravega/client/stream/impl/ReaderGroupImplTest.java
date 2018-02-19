@@ -61,44 +61,40 @@ public class ReaderGroupImplTest {
     public void setUp() throws Exception {
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionFactory);
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamCutDuplicateStreamCut() {
-        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaders(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
-                .put(createStream("s1"), createStreamCut("s1", 3)).build());
+                .put(createStream("s2"), createStreamCut("s1", 3)).build());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamMissingStreamCut() {
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1", "s2"));
 
-        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaders(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamExtraStreamCut() {
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
 
-        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaders(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 2)).build());
     }
 
     @Test
     public void resetReadersToStreamCut() {
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1", "s2"));
 
-        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaders(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build());
         verify(synchronizer, times(1)).updateState(any(Function.class));
@@ -106,14 +102,12 @@ public class ReaderGroupImplTest {
 
     @Test
     public void resetReadersToCheckpoint() {
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
 
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        readerGroup.resetReadersToCheckpoint(checkpoint);
+        readerGroup.resetReaders(checkpoint);
         verify(synchronizer, times(1)).updateState(any(Function.class));
     }
 

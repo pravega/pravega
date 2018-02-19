@@ -162,12 +162,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void resetReadersToCheckpoint(Checkpoint checkpoint) {
-        resetReadersToStreamCut(checkpoint.asImpl().getPositions());
+    public void resetReaders(final Checkpoint checkpoint) {
+        resetReaders(checkpoint.asImpl().getPositions());
     }
 
     @Override
-    public void resetReadersToStreamCut(final Map<Stream, StreamCut> streamCuts) {
+    public void resetReaders(final Map<Stream, StreamCut> streamCuts) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();

@@ -57,7 +57,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * indication to them that they should persist their state. Once all of the readers have
      * received the notification, a {@link Checkpoint} object will be returned. This can be used to
      * reset the group to this point in the stream by calling
-     * {@link #resetReadersToCheckpoint(Checkpoint)} if the checkpoint fails or the result cannot be
+     * {@link #resetReaders(Checkpoint)} if the checkpoint fails or the result cannot be
      * obtained an exception will be set on the future.
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in
@@ -82,7 +82,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * 
      * @param checkpoint The checkpoint to restore to.
      */
-    void resetReadersToCheckpoint(Checkpoint checkpoint);
+    void resetReaders(Checkpoint checkpoint);
 
     /**
      * Restore the reader group to the provided stream cuts. All readers in the group will encounter
@@ -93,7 +93,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * @param streamCuts Map of streams that this group is reading from to the corresponding {@link StreamCut StreamCut(s)}
      */
     @Beta
-    void resetReadersToStreamCut(Map<Stream, StreamCut> streamCuts);
+    void resetReaders(Map<Stream, StreamCut> streamCuts);
     
     /**
      * Updates a reader group. All existing readers will have to call

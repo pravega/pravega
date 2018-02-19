@@ -154,7 +154,7 @@ public class StreamSeekTest {
         readAndVerify(reader, 3, 4, 5);
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
-        readerGroup.resetReadersToStreamCut(streamCut1); //reset the readers to offset 0.
+        readerGroup.resetReaders(streamCut1); //reset the readers to offset 0.
         verifyReinitializationRequiredException(reader);
 
         @Cleanup
@@ -164,7 +164,7 @@ public class StreamSeekTest {
         //verify that we are at streamCut1
         readAndVerify(reader1, 1, 2);
 
-        readerGroup.resetReadersToStreamCut(streamCut2); // reset readers to post scale offset 0
+        readerGroup.resetReaders(streamCut2); // reset readers to post scale offset 0
         verifyReinitializationRequiredException(reader1);
 
         @Cleanup
