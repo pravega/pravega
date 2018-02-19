@@ -46,6 +46,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -252,7 +253,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
+                ex -> ex instanceof IntentionalException);
 
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
@@ -264,7 +265,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();

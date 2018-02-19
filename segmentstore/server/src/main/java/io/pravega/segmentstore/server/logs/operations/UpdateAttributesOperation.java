@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
@@ -65,7 +64,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Segm
 
     //endregion
 
-    static class Serializer extends VersionedSerializer.WithBuilder<UpdateAttributesOperation, OperationBuilder<UpdateAttributesOperation>> {
+    static class Serializer extends OperationSerializer<UpdateAttributesOperation> {
         private static final int STATIC_LENGTH = 2 * Long.BYTES;
         private static final int ATTRIBUTE_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
 
@@ -85,7 +84,6 @@ public class UpdateAttributesOperation extends MetadataOperation implements Segm
         }
 
         private void write00(UpdateAttributesOperation o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             int attributesLength = o.attributeUpdates == null ? target.getCompactIntLength(0) : target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UPDATE_LENGTH);
             target.length(STATIC_LENGTH + attributesLength);
             target.writeLong(o.getSequenceNumber());

@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 
@@ -46,16 +45,6 @@ abstract class CheckpointOperationBase extends MetadataOperation {
         return this.contents;
     }
 
-    //endregion
-
-    //region Operation Implementation
-
-    @Override
-    protected void ensureSerializationConditions() {
-        super.ensureSerializationConditions();
-        ensureSerializationCondition(this.contents != null, "Contents has not been assigned.");
-    }
-
     @Override
     public String toString() {
         return String.format("%s, Length = %d", super.toString(), contents == null ? 0 : contents.getLength());
@@ -63,7 +52,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
 
     //endregion
 
-    static abstract class SerializerBase<T extends CheckpointOperationBase> extends VersionedSerializer.WithBuilder<T, OperationBuilder<T>> {
+    static abstract class SerializerBase<T extends CheckpointOperationBase> extends OperationSerializer<T> {
         @Override
         protected abstract OperationBuilder<T> newBuilder();
 
@@ -77,8 +66,13 @@ abstract class CheckpointOperationBase extends MetadataOperation {
             version(0).revision(0, this::write00, this::read00);
         }
 
+        @Override
+        protected void beforeSerialization(T o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.getContents() != null, "Contents has not been assigned.");
+        }
+
         private void write00(T o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             ByteArraySegment c = o.getContents();
             target.length(Long.BYTES + target.getCompactIntLength(c.getLength()) + c.getLength());
             target.writeLong(o.getSequenceNumber());

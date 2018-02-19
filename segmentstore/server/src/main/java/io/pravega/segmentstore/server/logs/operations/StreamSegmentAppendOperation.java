@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
@@ -115,12 +114,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected void ensureSerializationConditions() {
-        super.ensureSerializationConditions();
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned.");
-    }
-
-    @Override
     public String toString() {
         return String.format(
                 "%s, Offset = %s, Length = %d, Attributes = %d",
@@ -132,7 +125,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
 
     //endregion
 
-    static class Serializer extends VersionedSerializer.WithBuilder<StreamSegmentAppendOperation, OperationBuilder<StreamSegmentAppendOperation>> {
+    static class Serializer extends OperationSerializer<StreamSegmentAppendOperation> {
         private static final int STATIC_LENGTH = 3 * Long.BYTES;
         private static final int ATTRIBUTE_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
 
@@ -151,8 +144,13 @@ public class StreamSegmentAppendOperation extends StorageOperation {
             version(0).revision(0, this::write00, this::read00);
         }
 
+        @Override
+        protected void beforeSerialization(StreamSegmentAppendOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned.");
+        }
+
         private void write00(StreamSegmentAppendOperation o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             int attributesLength = o.attributeUpdates == null ? target.getCompactIntLength(0) : target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UPDATE_LENGTH);
             target.length(STATIC_LENGTH + target.getCompactIntLength(o.data.length) + o.data.length + attributesLength);
             target.writeLong(o.getSequenceNumber());

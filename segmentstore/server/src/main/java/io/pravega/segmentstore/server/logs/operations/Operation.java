@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.SequencedItemList;
 import lombok.RequiredArgsConstructor;
 
@@ -93,19 +94,15 @@ public abstract class Operation implements SequencedItemList.Element {
 
     //region Serialization
 
-    protected void ensureSerializationConditions() {
-        ensureSerializationCondition(this.sequenceNumber >= 0, "Sequence Number has not been assigned.");
-    }
-
     /**
-     * If the given condition is false, throws an exception with the given message.
-     *
-     * @param isTrue  Whether the condition is true or false.
-     * @param message The message to include in the exception.
-     * @throws IllegalStateException The exception that is thrown.
+     * Base class for any Operation Serializer.
+     * @param <T> Operation Type.
      */
-    void ensureSerializationCondition(boolean isTrue, String message) {
-        Preconditions.checkState(isTrue, "Unable to serialize Operation: %s", message);
+    protected static abstract class OperationSerializer<T extends Operation> extends VersionedSerializer.WithBuilder<T, OperationBuilder<T>> {
+        @Override
+        protected void beforeSerialization(T operation) {
+            Preconditions.checkState(operation.getSequenceNumber() >= 0, "Sequence Number has not been assigned.");
+        }
     }
 
     /**

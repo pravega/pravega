@@ -405,7 +405,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         }
 
         @Override
-        protected void ensureSerializationConditions() {
+        public long getStreamSegmentId() {
             throw new IntentionalException("intentional failure");
         }
     }

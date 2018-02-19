@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import lombok.Getter;
 
@@ -69,7 +68,7 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
 
     //endregion
 
-    static class Serializer extends VersionedSerializer.WithBuilder<StreamSegmentTruncateOperation, OperationBuilder<StreamSegmentTruncateOperation>> {
+    static class Serializer extends OperationSerializer<StreamSegmentTruncateOperation> {
         private static final int SERIALIZATION_LENGTH = 3 * Long.BYTES;
 
         @Override
@@ -88,7 +87,6 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
         }
 
         private void write00(StreamSegmentTruncateOperation o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             target.length(SERIALIZATION_LENGTH);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.streamSegmentId);

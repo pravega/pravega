@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import java.io.IOException;
@@ -97,17 +96,6 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         return this.attributes;
     }
 
-    //endregion
-
-    //region Operation Implementation
-
-    @Override
-    protected void ensureSerializationConditions() {
-        super.ensureSerializationConditions();
-        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
-                "StreamSegment Id has not been assigned.");
-    }
-
     @Override
     public String toString() {
         return String.format(
@@ -122,7 +110,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     //endregion
 
-    static class Serializer extends VersionedSerializer.WithBuilder<StreamSegmentMapOperation, OperationBuilder<StreamSegmentMapOperation>> {
+    static class Serializer extends OperationSerializer<StreamSegmentMapOperation> {
         private static final int STATIC_LENGTH = 4 * Long.BYTES + Byte.BYTES;
 
         @Override
@@ -140,8 +128,13 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
             version(0).revision(0, this::write00, this::read00);
         }
 
+        @Override
+        protected void beforeSerialization(StreamSegmentMapOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned.");
+        }
+
         private void write00(StreamSegmentMapOperation o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             target.length(STATIC_LENGTH + target.getUTFLength(o.streamSegmentName)
                     + target.getMapLength(o.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
             target.writeLong(o.getSequenceNumber());

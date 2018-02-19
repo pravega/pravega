@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 
 /**
@@ -105,13 +105,6 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     @Override
-    protected void ensureSerializationConditions() {
-        super.ensureSerializationConditions();
-        ensureSerializationCondition(this.length >= 0, "Transaction StreamSegment Length has not been assigned.");
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned.");
-    }
-
-    @Override
     public String toString() {
         return String.format(
                 "%s, TransactionSegmentId = %d, Length = %s, ParentOffset = %s",
@@ -123,7 +116,7 @@ public class MergeTransactionOperation extends StorageOperation {
 
     //endregion
 
-    static class Serializer extends VersionedSerializer.WithBuilder<MergeTransactionOperation, OperationBuilder<MergeTransactionOperation>> {
+    static class Serializer extends OperationSerializer<MergeTransactionOperation> {
         private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
 
         @Override
@@ -141,8 +134,14 @@ public class MergeTransactionOperation extends StorageOperation {
             version(0).revision(0, this::write00, this::read00);
         }
 
+        @Override
+        protected void beforeSerialization(MergeTransactionOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.length >= 0, "Transaction StreamSegment Length has not been assigned.");
+            Preconditions.checkState(o.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned.");
+        }
+
         private void write00(MergeTransactionOperation o, RevisionDataOutput target) throws IOException {
-            o.ensureSerializationConditions();
             target.length(SERIALIZATION_LENGTH);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
