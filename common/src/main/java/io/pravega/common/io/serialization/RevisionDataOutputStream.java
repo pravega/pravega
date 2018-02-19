@@ -86,6 +86,16 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * Encodes the given value as a compact long, using the following scheme (MSB=Most Significant Bits):
+     * * MSB = 00 for values in [0, 0x3F], with a 1-byte encoding.
+     * * MSB = 01 for values in (0x3F, 0x3FFF], with a 2-byte encoding (2 MSB are reserved, leaving 14 bits usable).
+     * * MSB = 10 for values in (0x3FFF, 0x3FFF_FFFF], with a 4-byte encoding (2 MSB are reserved, leaving 30 bits usable).
+     * * MSB = 11 for values in (0x3FFF_FFFF, 0x3FFF_FFFF_FFFF_FFFFL], with an 8-byte encoding (2 MSB are reserved, leaving 62 bits usable).
+     *
+     * @param value The value to encode.
+     */
     @Override
     public void writeCompactLong(long value) throws IOException {
         if (value < COMPACT_LONG_MIN || value >= COMPACT_LONG_MAX) {
@@ -110,37 +120,50 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     public int getCompactIntLength(int value) {
         if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
             throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
-        } else if (value > 0x3F_FFFF) {
-            return 4;
         } else if (value > 0x3FFF) {
-            return 3;
-        } else if (value > 0x3F) {
+            return 4;
+        } else if (value > 0x7F) {
             return 2;
         } else {
             return 1;
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * Encodes the given value as a compact integer, using the following scheme (MSB=Most Significant Bits):
+     * * MSB = 0 for values in [0, 0x7F], with a 1-byte encoding.
+     * * MSB = 10 for values in (0x7F, 0x3FFF], with a 2-byte encoding (2 MSB are reserved, leaving 14 bits usable).
+     * * MSB = 11 for values in (0x3FFF, 0x3FFF_FFFF], with a 4-byte encoding (2 MSB are reserved, leaving 30 bits usable).
+     *
+     * @param value The value to encode.
+     */
     @Override
     public void writeCompactInt(int value) throws IOException {
+        // MSB: 0  -> 1 byte with the remaining 7 bits
+        // MSB: 10 -> 2 bytes with the remaining 6+8 bits
+        // MSB: 11 -> 4 bytes with the remaining 6+8+8+8 bits
         if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
             throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
-        } else if (value > 0x3F_FFFF) {
+        } else if (value > 0x3FFF) {
             // All 4 bytes
             writeInt(value | 0xC000_0000);
-        } else if (value > 0x3FFF) {
-            // 3 bytes.
-            writeByte((byte) (value >>> 16 & 0xFF | 0x80));
-            writeShort((short) value);
-        } else if (value > 0x3F) {
+        } else if (value > 0x7F) {
             // 2 Bytes.
-            writeShort((short) (value | 0x4000));
+            writeShort((short) (value | 0x8000));
         } else {
             // 1 byte.
             writeByte((byte) value);
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * Encodes the given UUID as a sequence of 2 Longs, withe the Most Significant Bits first, followed by Least
+     * Significant bits.
+     *
+     * @param uuid The value to encode.
+     */
     @Override
     public void writeUUID(UUID uuid) throws IOException {
         writeLong(uuid.getMostSignificantBits());
@@ -161,6 +184,19 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         return getCompactIntLength(collection.size()) + collection.stream().mapToInt(elementLengthProvider).sum();
     }
 
+    /**
+     * {@inheritDoc}
+     * Encodes the given Collection using the following scheme:
+     * * A Compact Int representing the collection size (0 if null).
+     * * Each element in the Collection is serialized in turn using elementSerializer (this portion is skipped if the
+     * Collection is null.
+     *
+     * @param collection        The Collection to serialize. Can be null (in which case an Empty Collection will be deserialized
+     *                          by RevisionDataInput.readCollection()).
+     * @param elementSerializer A Function that serializes a single element of the collection to a RevisionDataOutput.
+     * @param <T>               Type of elements in the collection.
+     * @throws IOException If an IO Exception occurred.
+     */
     @Override
     public <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException {
         if (collection == null) {
@@ -191,6 +227,21 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
                      .sum();
     }
 
+    /**
+     * {@inheritDoc}
+     * Encodes the given map using the following scheme:
+     * * A Compact Int representing the Map size (0 if null).
+     * * Each Map.Entry is serialized in turn, first the Key (using keySerializer) then the Value (using valueSerializer). This
+     * portion is skipped if the Map is null.
+     *
+     * @param map             The Map to serialize. Can be null (in which case an Empty Map will be deserialized
+     *                        by RevisionDataInput.readMap()).
+     * @param keySerializer   A Function that serializes a single Key of the Map to a RevisionDataOutput.
+     * @param valueSerializer A Function that serializes a single Value of the Map to a RevisionDataOutput.
+     * @param <K>             Type of the Keys.
+     * @param <V>             Type of the Values.
+     * @throws IOException If an IO Exception occurred.
+     */
     @Override
     public <K, V> void writeMap(Map<K, V> map, ElementSerializer<K> keySerializer, ElementSerializer<V> valueSerializer) throws IOException {
         if (map == null) {

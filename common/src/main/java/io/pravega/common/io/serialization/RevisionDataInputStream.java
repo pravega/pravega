@@ -109,28 +109,17 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
         // Read first byte and determine how many other bytes are used.
         int b1 = readUnsignedByte();
-        int header = b1 >>> 6;
-        b1 &= 0x3F;
-
-        switch (header) {
-            case 0:
-                // Only this byte.
-                return b1;
-            case 1:
-                // 2 bytes
-                return (b1 << 8) + readUnsignedByte();
-            case 2:
-                // 3 bytes
-                return (b1 << 16)
-                        + readUnsignedShort();
-            case 3:
-                // All 4 bytes
-                return (b1 << 24)
-                        + (readUnsignedByte() << 16)
-                        + readUnsignedShort();
-            default:
-                throw new SerializationException(String.format(
-                        "Unable to deserialize compact int. Unrecognized header value %d.", header));
+        if (b1 >>> 7 == 0) {
+            // 1 byte.
+            return b1;
+        } else if ((b1 >>> 6 & 0x1) == 0) {
+            // 2 bytes; clear out the 2 MSBs and compose the result by reading 1 additional byte.
+            return ((b1 & 0x3F) << 8) + readUnsignedByte();
+        } else {
+            // All 4 bytes; clear out the 2 MSBs and compose the result by reading 3 additional bytes.
+            return ((b1 & 0x3F) << 24)
+                    + (readUnsignedByte() << 16)
+                    + readUnsignedShort();
         }
     }
 
