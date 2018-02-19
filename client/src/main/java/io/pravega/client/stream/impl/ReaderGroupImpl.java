@@ -242,19 +242,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public Map<Stream, StreamCut> getStreamCuts() {
+    public Set<StreamCut> getStreamCuts() {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
         ReaderGroupState state = synchronizer.getState();
-        Map<Stream, Map<Segment, Long>> positions = state.getPositions();
-        HashMap<Stream, StreamCut> cuts = new HashMap<>();
-
-        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
-            cuts.put(streamPosition.getKey(), position);
-        }
-
-        return cuts;
+        return state.getPositions().entrySet().stream().map(entry -> new StreamCut(entry.getKey(), entry
+                .getValue())).collect(Collectors.toSet());
     }
 }
