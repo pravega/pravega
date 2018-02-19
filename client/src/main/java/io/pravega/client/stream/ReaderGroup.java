@@ -85,14 +85,15 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
     void resetReadersToCheckpoint(Checkpoint checkpoint);
 
     /**
-     * Restore the reader group to the provided {@link StreamCut StreamCut(s)}. All readers in the group will encounter
+     * Restore the reader group to the provided stream cuts. All readers in the group will encounter
      * a {@link ReinitializationRequiredException} and when they rejoin the group they will resume from the position
-     * provided by the stream cuts.
+     * provided by the stream cuts. The {@link StreamCut StreamCut(s)} of all the streams managed by the reader group
+     * should be passed.
      *
-     * @param streamCuts {@link StreamCut} for every stream managed by the reader group.
+     * @param streamCuts Map of streams that this group is reading from to the corresponding {@link StreamCut StreamCut(s)}
      */
     @Beta
-    void resetReadersToStreamCut(Set<StreamCut> streamCuts);
+    void resetReadersToStreamCut(Map<Stream, StreamCut> streamCuts);
     
     /**
      * Updates a reader group. All existing readers will have to call

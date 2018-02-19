@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -60,41 +61,55 @@ public class ReaderGroupImplTest {
     public void setUp() throws Exception {
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionFactory);
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamCutDuplicateStreamCut() {
-        when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
-        readerGroup.resetReadersToStreamCut(ImmutableSet.of(createStreamCut("s1", 2), createStreamCut("s1", 3)));
+        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s1"), createStreamCut("s1", 3)).build());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamMissingStreamCut() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1", "s2"));
-        readerGroup.resetReadersToStreamCut(ImmutableSet.of(createStreamCut("s1", 2)));
+
+        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2)).build());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamExtraStreamCut() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
-        readerGroup.resetReadersToStreamCut(ImmutableSet.of(createStreamCut("s1", 2),
-                createStreamCut("s2", 2)));
+
+        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 2)).build());
     }
 
     @Test
     public void resetReadersToStreamCut() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1", "s2"));
-        readerGroup.resetReadersToStreamCut(ImmutableSet.of(createStreamCut("s1", 2),
-                createStreamCut("s2", 3)));
+
+        readerGroup.resetReadersToStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build());
         verify(synchronizer, times(1)).updateState(any(Function.class));
     }
 
     @Test
     public void resetReadersToCheckpoint() {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(state.getStreamNames()).thenReturn(ImmutableSet.of("s1"));
+
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
@@ -103,9 +118,12 @@ public class ReaderGroupImplTest {
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
-        Stream stream = new StreamImpl(SCOPE, streamName);
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
-        return new StreamCut(stream, positions);
+        return new StreamCut(createStream(streamName), positions);
+    }
+
+    private Stream createStream(String streamName) {
+        return new StreamImpl(SCOPE, streamName);
     }
 }
