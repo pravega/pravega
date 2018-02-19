@@ -72,6 +72,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
         stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
         stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
+        stringBuilderMap.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");

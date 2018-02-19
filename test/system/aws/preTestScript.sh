@@ -26,5 +26,3 @@ terraform apply -auto-approve -var aws_access_key=$aws_access_key \
  -var config_path=$config_path \
   -var pravega_org=$pravega_org  \
   -var pravega_branch=$pravega_branch
-master_public_ip=${terraform output ip}
-export  JAVA_OPTS ="-DmasterIP=$master_public_ip"

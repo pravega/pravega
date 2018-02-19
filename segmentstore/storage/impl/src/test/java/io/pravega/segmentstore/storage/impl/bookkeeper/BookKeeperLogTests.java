@@ -56,8 +56,10 @@ import org.junit.rules.Timeout;
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
  * filesystem. It starts up the local sandbox and uses that for testing purposes.
  */
-public class BookKeeperLogTests extends DurableDataLogTestBase {
+public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
+
+    private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
@@ -68,6 +70,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
@@ -78,9 +81,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
      * we only do it once.
      */
-    @BeforeClass
-    public static void setUpBookKeeper() throws Exception {
+    public static void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
+        SECURE_BK.set(secure);
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
@@ -91,10 +94,15 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .startZk(true)
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
+                                            .secureBK(isSecure())
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
         BK_SERVICE.set(runner);
+    }
+
+    public static boolean isSecure() {
+        return SECURE_BK.get();
     }
 
     @AfterClass
@@ -132,6 +140,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
                 .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
                 .build());
 
@@ -400,4 +409,17 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     //endregion
+    public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(true);
+        }
+    }
+
+    public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(false);
+        }
+    }
 }
