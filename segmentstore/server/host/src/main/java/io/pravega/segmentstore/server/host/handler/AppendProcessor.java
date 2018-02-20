@@ -14,8 +14,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.auth.PravegaAuthHandler;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -157,10 +157,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
         if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
-                setupAppend.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ)) {
+                setupAppend.getDelegationToken(), AuthHandler.Permissions.READ_UPDATE)) {
             log.warn("Delegation token verification failed");
             handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                    "Update Segment Attribute", new PravegaAuthenticationException("Token verification failed"));
+                    "Update Segment Attribute", new AuthenticationException("Token verification failed"));
             return;
         }
 
@@ -348,7 +348,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Attribute limit would be exceeded by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
-        } else if (u instanceof PravegaAuthenticationException) {
+        } else if (u instanceof AuthenticationException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();

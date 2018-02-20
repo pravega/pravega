@@ -10,8 +10,8 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
-import io.pravega.auth.PravegaAuthHandler;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,26 +25,26 @@ import lombok.extern.slf4j.Slf4j;
  * Auth manager class for Pravega controller. This manages the handlers for grpc and REST together.
  * In case of grpc, the routing of the authenticate function to specific registered interceptor is taken care by grpc
  * interceptor mechanism.
- * In case of REST calls, this class routes the call to specific PravegaAuthHandler.
+ * In case of REST calls, this class routes the call to specific AuthHandler.
  */
 @Slf4j
 public class PravegaAuthManager {
     private final GRPCServerConfig serverConfig;
     @GuardedBy("this")
-    private final Map<String, PravegaAuthHandler> handlerMap;
+    private final Map<String, AuthHandler> handlerMap;
 
     public PravegaAuthManager(GRPCServerConfig serverConfig) {
         this.serverConfig = serverConfig;
         this.handlerMap = new HashMap<>();
     }
 
-    private PravegaAuthHandler getHandler(String handlerName) throws PravegaAuthenticationException {
-        PravegaAuthHandler retVal;
+    private AuthHandler getHandler(String handlerName) throws AuthenticationException {
+        AuthHandler retVal;
         synchronized (this) {
                 retVal = handlerMap.get(handlerName);
             }
             if (retVal == null) {
-            throw new PravegaAuthenticationException("Handler does not exist for method " + handlerName);
+            throw new AuthenticationException("Handler does not exist for method " + handlerName);
         }
         return retVal;
     }
@@ -55,9 +55,9 @@ public class PravegaAuthManager {
      * @param headers  Custom headers used for authentication.
      * @param level    Expected level of access.
      * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
-     * @throws PravegaAuthenticationException Exception faced during authentication/authorization.
+     * @throws AuthenticationException Exception faced during authentication/authorization.
      */
-    public boolean authenticate(String resource, MultivaluedMap<String, String> headers, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
+    public boolean authenticate(String resource, MultivaluedMap<String, String> headers, AuthHandler.Permissions level) throws AuthenticationException {
         Map<String, String> paramMap = headers.entrySet().stream().collect(Collectors.toMap(k -> k.getKey(), k -> k.getValue().get(0)));
         return authenticate(resource, paramMap, level);
     }
@@ -68,31 +68,31 @@ public class PravegaAuthManager {
      * @param paramMap  Custom headers used for authentication.
      * @param level    Expected level of access.
      * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
-     * @throws PravegaAuthenticationException Exception faced during authentication/authorization.
+     * @throws AuthenticationException Exception faced during authentication/authorization.
      */
-    public boolean authenticate(String resource, Map<String, String> paramMap, PravegaAuthHandler.PravegaAccessControlEnum level) throws PravegaAuthenticationException {
+    public boolean authenticate(String resource, Map<String, String> paramMap, AuthHandler.Permissions level) throws AuthenticationException {
         boolean retVal = false;
         try {
             String method = paramMap.get("method");
-            PravegaAuthHandler handler = getHandler(method);
+            AuthHandler handler = getHandler(method);
             retVal = handler.authenticate(paramMap) &&
                     handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
         } catch (RuntimeException e) {
-            throw new PravegaAuthenticationException(e);
+            throw new AuthenticationException(e);
         }
         return retVal;
     }
 
     /**
-     * Loads the custom implementations of the PravegaAuthHandler interface dynamically. Registers the interceptors with grpc.
+     * Loads the custom implementations of the AuthHandler interface dynamically. Registers the interceptors with grpc.
      * Stores the implementation in a local map for routing the REST auth request.
      * @param builder The grpc service builder to register the interceptors.
      */
     public void registerInterceptors(ServerBuilder<?> builder) {
         try {
             if (serverConfig.isAuthorizationEnabled()) {
-                ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
-                for (PravegaAuthHandler handler : loader) {
+                ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
+                for (AuthHandler handler : loader) {
                     try {
                         handler.initialize(serverConfig);
                         synchronized (this) {

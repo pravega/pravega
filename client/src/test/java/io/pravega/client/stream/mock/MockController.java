@@ -10,7 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -212,7 +212,7 @@ public class MockController implements Controller {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
         CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), "", name, WireCommands.CreateSegment.NO_SCALE, 0);
@@ -251,7 +251,7 @@ public class MockController implements Controller {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
         DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), "", name);
@@ -314,7 +314,7 @@ public class MockController implements Controller {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
         sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), "", txId), replyProcessor, result);
@@ -361,7 +361,7 @@ public class MockController implements Controller {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
@@ -410,7 +410,7 @@ public class MockController implements Controller {
 
             @Override
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(new PravegaAuthenticationException(authTokenCheckFailed.toString()));
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
         sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);

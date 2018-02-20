@@ -98,6 +98,10 @@ project('authplugin') {
     javadoc {
         title = "Pravega Auth API"
         failOnError = false
+
+        source {
+            sourceSets.main.java
+        }
     }
 }
 
@@ -176,12 +180,6 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-    }
-}
-
-project('plugins') {
-    dependencies {
-        compile project(':client')
     }
 }
 

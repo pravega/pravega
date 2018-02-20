@@ -10,7 +10,7 @@
 
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.AuthHandler;
 
 /**
  * Default implementation of DelegegationTokenVerifier which asserts all the tokens as valid.
@@ -18,7 +18,7 @@ import io.pravega.auth.PravegaAuthHandler;
  */
 public class PassingTokenVerifier implements DelegationTokenVerifier {
     @Override
-    public boolean verifyToken(String resource, String token, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+    public boolean verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {
         return true;
     }
 }

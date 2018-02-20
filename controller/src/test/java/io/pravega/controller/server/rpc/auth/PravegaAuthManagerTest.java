@@ -10,8 +10,8 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
-import io.pravega.auth.PravegaAuthHandler;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -104,56 +104,56 @@ public class PravegaAuthManagerTest {
         MultivaluedMap<String, String> map = new MultivaluedHashMap();
 
         //Without specifying a valid handler.
-        assertThrows(PravegaAuthenticationException.class, () ->
-                manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertThrows(AuthenticationException.class, () ->
+                manager.authenticate("hi", map, AuthHandler.Permissions.READ));
 
         //Non existent interceptor method.
         map.add("method", "invalid");
-        assertThrows(PravegaAuthenticationException.class, () ->
-        manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertThrows(AuthenticationException.class, () ->
+        manager.authenticate("hi", map, AuthHandler.Permissions.READ));
 
         //Specify a valid method but no parameters for default interceptor.
         map.putSingle("method", "Pravega-Default");
-        assertThrows(PravegaAuthenticationException.class, () ->
-        manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertThrows(AuthenticationException.class, () ->
+        manager.authenticate("hi", map, AuthHandler.Permissions.READ));
 
         //Specify a valid method but no password for default interceptor.
         map.putSingle("username", "dummy3");
-        assertThrows(PravegaAuthenticationException.class, () ->
-                manager.authenticate("hi", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertThrows(AuthenticationException.class, () ->
+                manager.authenticate("hi", map, AuthHandler.Permissions.READ));
 
         //Specify a valid method and parameters but invalid resource for default interceptor.
         map.putSingle("password", "password");
         assertFalse("Not existent resource should return false",
-                manager.authenticate("invalid", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+                manager.authenticate("invalid", map, AuthHandler.Permissions.READ));
 
         //Valid parameters for default interceptor
         map.putSingle("username", "dummy3");
         map.putSingle("password", "password");
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+                manager.authenticate("readresource", map, AuthHandler.Permissions.READ));
 
         //Stream/scope access should be extended to segment.
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource/segment", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+                manager.authenticate("readresource/segment", map, AuthHandler.Permissions.READ));
 
         //Levels of access
         assertFalse("Write access for read resource should return false",
-                manager.authenticate("readresource", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
+                manager.authenticate("readresource", map, AuthHandler.Permissions.READ_UPDATE));
 
         assertTrue("Read access for write resource should return true",
-                manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ));
 
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
+                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ_UPDATE));
 
         //Check the wildcard access
         map.putSingle("username", "dummy4");
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", map, PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE));
+                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ_UPDATE));
 
         map.putSingle("method", "testHandler");
-        assertTrue("Test handler should be called", manager.authenticate("any", map, PravegaAuthHandler.PravegaAccessControlEnum.READ));
+        assertTrue("Test handler should be called", manager.authenticate("any", map, AuthHandler.Permissions.READ));
 
         assertThrows(RetriesExhaustedException.class, () -> controllerClient.createScope("hi").join());
     }

@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
@@ -61,7 +61,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                 && ex.getCause() instanceof  PravegaAuthenticationException
+                 && ex.getCause() instanceof AuthenticationException
                 );
     }
 
@@ -74,7 +74,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -88,7 +88,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -101,7 +101,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -114,7 +114,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -127,7 +127,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -140,7 +140,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -153,7 +153,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 
@@ -166,7 +166,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof  PravegaAuthenticationException
+                        && ex.getCause() instanceof AuthenticationException
         );
     }
 

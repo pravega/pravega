@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.AuthHandler;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.
@@ -22,5 +22,5 @@ public interface DelegationTokenVerifier {
      * @param expectedLevel  Maximum expected access to the given resoure after this verification.
      * @return               true if the delegation token allows access to the resource for the expected level.
      */
-    boolean verifyToken(String resource, String token, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel);
+    boolean verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel);
 }

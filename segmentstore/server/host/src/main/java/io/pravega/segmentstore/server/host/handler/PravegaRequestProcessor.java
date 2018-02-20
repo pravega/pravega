@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.auth.PravegaAuthHandler;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -93,8 +93,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
-import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
@@ -188,12 +188,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .exceptionally(ex -> handleException(readSegment.getOffset(), segment, "Read segment", ex));
     }
 
-    private boolean verifyToken(String segment, long requestId, String delegationToken, PravegaAuthHandler.PravegaAccessControlEnum read, String operation) {
+    private boolean verifyToken(String segment, long requestId, String delegationToken, AuthHandler.Permissions read, String operation) {
         if (!tokenVerifier.verifyToken(segment,
                 delegationToken, READ)) {
             log.warn("Delegation token verification failed");
             handleException(requestId, segment,
-                    "Read Segment", new PravegaAuthenticationException("Token verification failed"));
+                    "Read Segment", new AuthenticationException("Token verification failed"));
             return false;
         }
         return true;
@@ -455,7 +455,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof CancellationException) {
             log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
             connection.close();
-        } else if (u instanceof PravegaAuthenticationException) {
+        } else if (u instanceof AuthenticationException) {
             log.warn("Authentication error during '{}'.", operation);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();

@@ -20,13 +20,13 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.AuthHandler;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
 public class PravegaInterceptor implements ServerInterceptor {
@@ -36,11 +36,11 @@ public class PravegaInterceptor implements ServerInterceptor {
     private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
     private static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
-    private final PravegaAuthHandler handler;
+    private final AuthHandler handler;
     @Getter
     private String delegationToken;
 
-    PravegaInterceptor(PravegaAuthHandler handler) {
+    PravegaInterceptor(AuthHandler handler) {
         Preconditions.checkNotNull(handler, "handler can not be null");
         this.handler = handler;
     }
@@ -78,7 +78,7 @@ public class PravegaInterceptor implements ServerInterceptor {
 
     }
 
-    public PravegaAuthHandler.PravegaAccessControlEnum authorize(String resource) {
+    public AuthHandler.Permissions authorize(String resource) {
         return this.handler.authorize(resource, AUTH_CONTEXT_PARAMS.get());
     }
 
@@ -100,7 +100,7 @@ public class PravegaInterceptor implements ServerInterceptor {
             }
     }
 
-    public void setDelegationToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel, String tokenSigningKey) {
+    public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
         if (AUTH_ENABLED) {
             Map<String, Object> claims = new HashMap();
 

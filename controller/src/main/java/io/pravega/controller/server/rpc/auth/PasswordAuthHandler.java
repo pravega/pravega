@@ -11,8 +11,8 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.auth.PravegaAuthHandler;
-import io.pravega.auth.PravegaAuthenticationException;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -29,7 +29,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class PasswordAuthHandler implements PravegaAuthHandler {
+public class PasswordAuthHandler implements AuthHandler {
     private static final String DEFAULT_NAME = "Pravega-Default";
     private final Map<String, PravegaACls> userMap;
 
@@ -83,10 +83,10 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
     }
 
     @Override
-    public PravegaAccessControlEnum authorize(String resource, Map<String, String> headers) {
+    public Permissions authorize(String resource, Map<String, String> headers) {
         String userName = headers.get("username");
         if (Strings.isNullOrEmpty(userName) || !userMap.containsKey(userName)) {
-            throw new CompletionException(new PravegaAuthenticationException(userName));
+            throw new CompletionException(new AuthenticationException(userName));
         }
         return authorizeForUser(userMap.get(userName), resource);
 
@@ -97,8 +97,8 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
         loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
     }
 
-    private PravegaAccessControlEnum authorizeForUser(PravegaACls pravegaACls, String resource) {
-        PravegaAccessControlEnum retVal = PravegaAccessControlEnum.NONE;
+    private Permissions authorizeForUser(PravegaACls pravegaACls, String resource) {
+        Permissions retVal = Permissions.NONE;
 
         /**
          *  `*` Means a wildcard.
@@ -133,7 +133,7 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
 
             }
             return new PravegaAcl(resource,
-                    PravegaAccessControlEnum.valueOf(aclVal));
+                    Permissions.valueOf(aclVal));
         }).collect(Collectors.toList());
     }
 
@@ -146,7 +146,7 @@ public class PasswordAuthHandler implements PravegaAuthHandler {
     @Data
     private class PravegaAcl {
         private final String resource;
-        private final PravegaAccessControlEnum acl;
+        private final Permissions acl;
 
 
     }

@@ -27,8 +27,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.PravegaClientConfig;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
@@ -108,139 +108,9 @@ public class ConnectionFactoryImplTest {
                                     .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
                                     .pravegaTrustStore("../config/cert.pem")
                                    .build());
-        ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new ReplyProcessor() {
-            @Override
-            public void hello(WireCommands.Hello hello) {
-
-            }
-
-            @Override
-            public void wrongHost(WireCommands.WrongHost wrongHost) {
-
-            }
-
-            @Override
-            public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-
-            }
-
-            @Override
-            public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
-
-            }
-
-            @Override
-            public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-
-            }
-
-            @Override
-            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-
-            }
-
-            @Override
-            public void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction) {
-
-            }
-
-            @Override
-            public void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber) {
-
-            }
-
-            @Override
-            public void appendSetup(WireCommands.AppendSetup appendSetup) {
-
-            }
-
-            @Override
-            public void dataAppended(WireCommands.DataAppended dataAppended) {
-
-            }
-
-            @Override
-            public void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended) {
-
-            }
-
-            @Override
-            public void segmentRead(WireCommands.SegmentRead segmentRead) {
-
-            }
-
-            @Override
-            public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
-
-            }
-
-            @Override
-            public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-
-            }
-
-            @Override
-            public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
-
-            }
-
-            @Override
-            public void transactionInfo(WireCommands.TransactionInfo transactionInfo) {
-
-            }
-
-            @Override
-            public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-
-            }
-
-            @Override
-            public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
-
-            }
-
-            @Override
-            public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-
-            }
-
-            @Override
-            public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
-
-            }
-
-            @Override
-            public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
-
-            }
-
-            @Override
-            public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
-
-            }
-
-            @Override
-            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-
-            }
-
-            @Override
-            public void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported) {
-
-            }
-
-            @Override
-            public void keepAlive(WireCommands.KeepAlive keepAlive) {
-
-            }
-
+        ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
-
-            }
-
-            @Override
-            public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segmentPolicyUpdated) {
 
             }
 
@@ -254,6 +124,7 @@ public class ConnectionFactoryImplTest {
 
             }
         }).join();
+
         connection.send(new WireCommands.Hello(0, 0));
     }
 }

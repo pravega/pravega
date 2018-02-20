@@ -13,7 +13,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.AuthHandler;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +28,7 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
     }
 
     @Override
-    public boolean verifyToken(String resource, String token, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+    public boolean verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {
         if (config.isAuthEnabled()) {
             try {
                 Jws<Claims> claims = Jwts.parser()
@@ -36,7 +36,7 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                                          .parseClaimsJws(token);
                 Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry -> (resource.startsWith(entry.getKey())
                         || entry.getKey().equals("*"))
-                        && expectedLevel.compareTo(PravegaAuthHandler.PravegaAccessControlEnum.valueOf(entry.getValue().toString()))
+                        && expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString()))
                         <= 0).findFirst();
                 if (matchingClaim.isPresent()) {
                     log.debug("Found a matching claim {} for resource {}", matchingClaim, resource);

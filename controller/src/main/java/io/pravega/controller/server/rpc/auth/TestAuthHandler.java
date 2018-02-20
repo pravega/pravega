@@ -9,10 +9,10 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
-import io.pravega.auth.PravegaAuthHandler;
+import io.pravega.auth.AuthHandler;
 import java.util.Map;
 
-public class TestAuthHandler implements PravegaAuthHandler {
+public class TestAuthHandler implements AuthHandler {
 
     @Override
     public String getHandlerName() {
@@ -25,8 +25,8 @@ public class TestAuthHandler implements PravegaAuthHandler {
     }
 
     @Override
-    public PravegaAccessControlEnum authorize(String resource, Map<String, String> headers) {
-        return PravegaAccessControlEnum.READ_UPDATE;
+    public Permissions authorize(String resource, Map<String, String> headers) {
+        return Permissions.READ_UPDATE;
     }
 
     @Override
