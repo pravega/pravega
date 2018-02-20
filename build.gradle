@@ -615,7 +615,7 @@ project('test:system') {
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
-        testClassesDir = sourceSets.test.output.classesDir
+        testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
@@ -660,7 +660,7 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 
         description 'Used to invoke docker based system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
-        testClassesDir = sourceSets.test.output.classesDir
+        testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         systemProperty "execType", System.getProperty("execType")
