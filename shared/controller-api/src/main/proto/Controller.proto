@@ -194,8 +194,8 @@ message SegmentsAtTime {
         SegmentId segmentId = 1;
         int64 offset = 2;
     }
-    string delegationToken = 1;
-    repeated SegmentLocation segments = 2;
+    repeated SegmentLocation segments = 1;
+    string delegationToken = 2;
 }
 
 message TxnId {
@@ -211,8 +211,8 @@ message CreateTxnRequest {
 
 message CreateTxnResponse {
     TxnId txnId = 1;
-    string delegationToken = 2;
-    repeated SegmentRange activeSegments = 3;
+    repeated SegmentRange activeSegments = 2;
+    string delegationToken = 3;
 }
 
 message TxnRequest {
@@ -231,8 +231,8 @@ message SuccessorResponse {
         SegmentRange segment = 1;
         repeated int32 value = 2;
     }
-    string delegationToken = 1;
-    repeated SegmentEntry segments = 2;
+    repeated SegmentEntry segments = 1;
+    string delegationToken = 2;
 }
 
 message ScaleRequest {
@@ -274,8 +274,8 @@ message ScaleStatusResponse {
 }
 
 message SegmentRanges {
-    string delegationToken = 1;
-    repeated SegmentRange segmentRanges = 2;
+    repeated SegmentRange segmentRanges = 1;
+    string delegationToken = 2;
 }
 
 message GetSegmentsRequest {
