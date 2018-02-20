@@ -108,7 +108,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = createInMemoryLog();
-        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
+        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads, this.executor);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
