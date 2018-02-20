@@ -65,6 +65,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
                                                     OperationContext context) {
+        log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
                  .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut()))
                  .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete()))
