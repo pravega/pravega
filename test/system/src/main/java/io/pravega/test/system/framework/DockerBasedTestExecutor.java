@@ -170,7 +170,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER.trim() + " -DexecType=" + getConfig("execType",
+                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType",
                         "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
                         "SingleJUnitTestRunner " + className + "#" + methodName + " > server.log 2>&1")
                 .labels(labels)
