@@ -48,7 +48,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSetupAppend() throws IOException {
-        testCommand(new WireCommands.SetupAppend(l, uuid, "", testString1));
+        testCommand(new WireCommands.SetupAppend(l, uuid, testString1, ""));
     }
 
     @Test
@@ -266,7 +266,7 @@ public class WireCommandsTest {
 
     @Test
     public void testReadSegment() throws IOException {
-        testCommand(new WireCommands.ReadSegment(testString1, l, "", i));
+        testCommand(new WireCommands.ReadSegment(testString1, l, i, ""));
     }
 
     @Test
@@ -276,7 +276,7 @@ public class WireCommandsTest {
     
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, "", uuid, l, l));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l, ""));
     }
     
     @Test
@@ -287,7 +287,7 @@ public class WireCommandsTest {
 
     @Test
     public void testGetSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, "", uuid));
+        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid, ""));
     }
     
     @Test
@@ -297,7 +297,7 @@ public class WireCommandsTest {
     
     @Test
     public void testGetStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.GetStreamSegmentInfo(l, "", testString1));
+        testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1, ""));
     }
 
     @Test
@@ -307,7 +307,7 @@ public class WireCommandsTest {
 
     @Test
     public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, "", uuid));
+        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid, ""));
     }
 
     @Test
@@ -317,7 +317,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, "", testString1, b, i));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
     }
 
     @Test
@@ -327,7 +327,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(l, "", testString1, uuid));
+        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -337,7 +337,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(l, testString1, "", uuid));
+        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -347,7 +347,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(l, "", testString1, uuid));
+        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -357,7 +357,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSealSegment() throws IOException {
-        testCommand(new WireCommands.SealSegment(l, "", testString1));
+        testCommand(new WireCommands.SealSegment(l, testString1, ""));
     }
 
     @Test
@@ -367,7 +367,7 @@ public class WireCommandsTest {
 
     @Test
     public void testTruncateSegment() throws IOException {
-        testCommand(new WireCommands.TruncateSegment(l, "", testString1, l + 1));
+        testCommand(new WireCommands.TruncateSegment(l, testString1, l + 1, ""));
     }
 
     @Test
@@ -382,7 +382,7 @@ public class WireCommandsTest {
 
     @Test
     public void testDeleteSegment() throws IOException {
-        testCommand(new WireCommands.DeleteSegment(l, "", testString1));
+        testCommand(new WireCommands.DeleteSegment(l, testString1, ""));
     }
 
     @Test
@@ -392,7 +392,7 @@ public class WireCommandsTest {
 
     @Test
     public void testUpdateSegmentPolicy() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, "", b, i));
+        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, b, i, ""));
     }
 
     @Test

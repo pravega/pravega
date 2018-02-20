@@ -215,7 +215,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), "", name, WireCommands.CreateSegment.NO_SCALE, 0);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -254,7 +254,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), "", name);
+        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -317,7 +317,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), "", txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
         return result;
     }
 
@@ -364,7 +364,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
         return result;
     }
 
@@ -413,7 +413,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
         return result;
     }
 
