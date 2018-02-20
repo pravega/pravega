@@ -69,7 +69,7 @@ public class ReaderGroupStateManager {
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
     private static final double COMPACTION_PROBABILITY = 0.05;
-    private static final int MIN_UPDATES_BEFORE_COMPACTION = 500;
+    private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 512 * 1024;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
@@ -274,9 +274,8 @@ public class ReaderGroupStateManager {
     }
     
     private void compactIfNeeded() {
-        ReaderGroupState state = sync.getState();
         //Make sure it has been a while, and compaction are staggered.
-        if (state.getUpdatesSinceCompaction() > MIN_UPDATES_BEFORE_COMPACTION && Math.random() < COMPACTION_PROBABILITY) {
+        if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
             sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }

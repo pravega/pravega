@@ -63,8 +63,6 @@ public class ReaderGroupState implements Revisioned {
     private final Map<String, Map<Segment, Long>> assignedSegments;
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
-    @GuardedBy("$lock")
-    private int compactionCounter;
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
@@ -79,7 +77,6 @@ public class ReaderGroupState implements Revisioned {
         this.futureSegments = new HashMap<>();
         this.assignedSegments = new HashMap<>();
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
-        this.compactionCounter = 0;
     }
     
     /**
@@ -238,11 +235,6 @@ public class ReaderGroupState implements Revisioned {
     boolean hasOngoingCheckpoint() {
         return checkpointState.hasOngoingCheckpoint();
     }
-    
-    @Synchronized
-    int getUpdatesSinceCompaction() {
-        return compactionCounter;
-    }
 
     /**
      * This functions returns true if the readers part of reader group for sealed streams have completely read the data.
@@ -313,7 +305,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
-                                        futureSegments, assignedSegments, unassignedSegments, 0);
+                                        futureSegments, assignedSegments, unassignedSegments);
         }
     }
     
@@ -328,7 +320,6 @@ public class ReaderGroupState implements Revisioned {
             synchronized (oldState.$lock) {
                 update(oldState);
                 oldState.revision = newRevision;
-                oldState.compactionCounter++;
             }
             return oldState;
         }
