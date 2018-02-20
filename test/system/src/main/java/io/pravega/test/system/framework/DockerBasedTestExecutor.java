@@ -44,8 +44,9 @@ public class DockerBasedTestExecutor implements TestExecutor {
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
     private final AtomicReference<String> id = new AtomicReference();
-    private final DockerClient client = DefaultDockerClient.builder().uri("http://" +
-            getConfig("masterIP", "Invalid Master IP").trim() + ":" + DOCKER_CLIENT_PORT).build();
+    private final String masterIp = Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
+    private final DockerClient client = DefaultDockerClient.builder().uri("http://" + masterIp
+             + ":" + DOCKER_CLIENT_PORT).build();
     private final String expectedDockerApiVersion = "1.22";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 

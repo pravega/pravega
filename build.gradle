@@ -589,8 +589,8 @@ project('test:system') {
 
         ext.awsExecution = project.hasProperty('awsExecution') ? project.awsExecution : 'false'
 
-        if(ext.getProperty("awsExecution")){
-             commandLine './aws/preTestScript.sh'
+        if(ext.getProperty('awsExecution').toString().equals("true")) {
+            commandLine './aws/preTestScript.sh'
             args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
         } else {
             commandLine "./preTestScript.sh"
@@ -598,24 +598,39 @@ project('test:system') {
         }
     }
 
-    //This is  used to invoke docker based systemTests
-    task startSystemTestsWithDocker(type: Test) {
+    String variable
 
-        dependsOn 'testJarForDocker', 'execShellScript'
+    task setAwsMasterIp(type: Exec) {
 
-        def masterIpStdOut = new ByteArrayOutputStream()
+        commandLine 'echo', 'setting master ip for system tests execution on AWS'
 
-        if(System.getProperty("awsExec")== "true") {
+        doLast {
+            def masterIpStdOut = new ByteArrayOutputStream()
             exec {
                 workingDir "$rootDir/test/system/aws"
                 executable = "terraform"
                 args "output", "ip"
                 standardOutput = masterIpStdOut
             }
+
+            variable = masterIpStdOut.toString()
+        }
+    }
+
+
+    //This is  used to invoke docker based systemTests
+    task startSystemTestsWithDocker(type: Test) {
+
+        dependsOn 'testJarForDocker', 'execShellScript'
+
+        if (System.getProperty("awsExec").equals("true")) {
+            setAwsMasterIp.outputs.upToDateWhen { false }
+            dependsOn 'setAwsMasterIp'
         }
 
-        def masterip = masterIpStdOut.toString()
-        System.setProperty("masterIP", masterip)
+        doFirst {
+                systemProperty "awsMasterIP", variable
+        }
 
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 

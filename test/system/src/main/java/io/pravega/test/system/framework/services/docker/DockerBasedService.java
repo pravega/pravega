@@ -27,6 +27,7 @@ import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
 import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -44,12 +45,13 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
+    static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(final String serviceName) {
-        this.dockerClient = DefaultDockerClient.builder().uri("http://" + System.getProperty("masterIP").trim() + ":" + DOCKER_CLIENT_PORT).build();
+        this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();
         this.serviceName = serviceName;
     }
 
