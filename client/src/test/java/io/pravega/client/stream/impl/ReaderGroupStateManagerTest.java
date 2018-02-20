@@ -385,7 +385,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(segments2, segments1);
     }
 
-    @Test(timeout = 20000)
+    @Test//(timeout = 20000)
     public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -451,7 +451,8 @@ public class ReaderGroupStateManagerTest {
 
         Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertEquals(3, segments2.size());
-
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        
         ReaderGroupStateManager reader3 = new ReaderGroupStateManager("reader3", stateSynchronizer, controller,
                 clock::get);
         reader3.initializeReader(0);
