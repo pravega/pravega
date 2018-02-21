@@ -276,16 +276,20 @@ public class ReaderGroupStateManager {
     
     private boolean shouldAcquireSegment() throws ReinitializationRequiredException {
         synchronized (decisionLock) {
-            if (!sync.getState().isReaderOnline(readerId)) {
+            ReaderGroupState state = sync.getState();
+            if (!state.isReaderOnline(readerId)) {
                 throw new ReinitializationRequiredException();
             }
             if (acquireTimer.hasRemaining()) {
                 return false;
             }
-            if (sync.getState().getNumberOfUnassignedSegments() == 0) {
+            if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
-            if (sync.getState().getCheckpointForReader(readerId) != null) {
+            if (state.getNumberOfUnassignedSegments() == 0) {
+                if (doesReaderOwnTooManySegments(state)) {
+                    acquireTimer.reset(calculateAcquireTime(readerId, state));
+                }
                 return false;
             }
             acquireTimer.reset(UPDATE_WINDOW);
@@ -347,7 +351,7 @@ public class ReaderGroupStateManager {
 
     @VisibleForTesting
     static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
-        return TIME_UNIT.multipliedBy(2 * (state.getNumberOfReaders() - state.getRanking(readerId)));
+        return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
     
     String getCheckpoint() throws ReinitializationRequiredException {
