@@ -45,9 +45,12 @@ public abstract class VersionedSerializer<T> {
     /**
      * The Version of the Serializer format itself.
      * ALL               : Header|Version(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
-     * HEADER(SingleType): SFV(1)
-     * HEADER(MultiType) : SFV(1)|ObjectType(1)
+     * HEADER(SingleType): SerializerFormatVersion(1)
+     * HEADER(MultiType) : SerializerFormatVersion(1)|ObjectType(1)
      * REVISION          : RevisionId(1)|Length(4)|Data(Length)
+     * Notes:
+     * * SerializerFormatVersion: The version of the Serialization Format itself. This is internal to VersionedSerializer.
+     * * Version: The Serialization Version that the caller specifies
      */
     private static final int SERIALIZER_VERSION = 0;
 
@@ -356,8 +359,14 @@ public abstract class VersionedSerializer<T> {
      * class Segment { ... }
      *
      * class SegmentSerializer extends VersionedSerializer.Direct<Segment> {
+     *    // This is the version we'll be serializing now. We have already introduced read support for Version 1, but
+     *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
+     *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
+     *    // NOTE: Revisions within a Version are incremental (on top of previous ones), and can be added on the fly; they
+     *    // can be used to make quick changes to the format without breaking compatibility. Versions, on the other hand,
+     *    // allow resetting the format to something completely different, and may not be compatible with previous ones.
      *    @Override
-     *    protected byte writeVersion() { return 0; } // This is the version we'll be serializing now.
+     *    protected byte writeVersion() { return 0; }
      *
      *    @Override
      *    protected void declareVersions() {
