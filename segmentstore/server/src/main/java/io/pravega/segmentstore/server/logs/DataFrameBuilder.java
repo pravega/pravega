@@ -12,12 +12,13 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.SortedIndex;
 import io.pravega.segmentstore.server.LogItem;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -220,7 +221,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     /**
      * Contains Information about the committal of a DataFrame.
      */
-    static class CommitArgs implements SortedIndex.IndexEntry {
+    static class CommitArgs {
         /**
          * The Sequence Number of the last LogItem that was fully serialized (and committed).
          * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
@@ -245,8 +246,13 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         @Getter
         private final int dataFrameLength;
 
+        @Getter
         @Setter
-        private long indexKey;
+        private long metadataTransactionId;
+
+        @Getter
+        @Setter
+        private List<CompletableOperation> operations;
 
         /**
          * Creates a new instance of the CommitArgs class.
@@ -263,11 +269,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
             this.dataFrameLength = dataFrameLength;
             this.logAddress = new AtomicReference<>();
-        }
-
-        @Override
-        public long key() {
-            return this.indexKey;
         }
 
         /**
