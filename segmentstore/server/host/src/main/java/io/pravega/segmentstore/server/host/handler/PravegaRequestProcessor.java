@@ -189,8 +189,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, AuthHandler.Permissions read, String operation) {
-        if (!tokenVerifier.verifyToken(segment,
-                delegationToken, READ)) {
+        if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
             log.warn("Delegation token verification failed");
             handleException(requestId, segment,
                     "Read Segment", new AuthenticationException("Token verification failed"));
@@ -499,7 +498,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug("Committing transaction {} ", commitTx);
 
         if (!verifyToken(commitTx.getSegment(), commitTx.getRequestId(), commitTx.getDelegationToken(), READ_UPDATE,
-                "Commit Transactio")) {
+                "Commit Transaction")) {
             return;
         }
 
