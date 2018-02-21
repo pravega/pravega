@@ -106,10 +106,12 @@ class MemoryStateUpdater {
             }
         }
 
-        // Trigger Future Reads on those segments which were touched by Appends or Seals.
-        this.readIndex.triggerFutureReads(segmentIds);
-        if (this.commitSuccess != null) {
-            this.commitSuccess.run();
+        if (!this.recoveryMode.get()) {
+            // Trigger Future Reads on those segments which were touched by Appends or Seals.
+            this.readIndex.triggerFutureReads(segmentIds);
+            if (this.commitSuccess != null) {
+                this.commitSuccess.run();
+            }
         }
     }
 

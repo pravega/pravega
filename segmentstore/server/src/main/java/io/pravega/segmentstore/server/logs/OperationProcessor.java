@@ -382,7 +382,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             }
         }
 
-        log.warn("{}: Cancelling {} operations with exception: {} .", this.traceObjectId, cancelCount, failException.toString());
+        log.warn("{}: Cancelling {} operations with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
     }
 
     /**
