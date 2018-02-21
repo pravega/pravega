@@ -11,7 +11,9 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -158,23 +160,29 @@ class MemoryStateUpdater {
      * @param operation The operation to register.
      */
     private void addToReadIndex(StorageOperation operation) {
-        if (operation instanceof StreamSegmentAppendOperation) {
-            // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
-            // log a warning indicating so. This means we do not optimize memory properly, and we end up storing data
-            // in two different places.
-            StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
-            this.readIndex.append(appendOperation.getStreamSegmentId(),
-                    appendOperation.getStreamSegmentOffset(),
-                    appendOperation.getData());
-        } else if (operation instanceof MergeTransactionOperation) {
-            // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
-            MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
-            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(),
-                    mergeOperation.getStreamSegmentOffset(),
-                    mergeOperation.getTransactionSegmentId());
-        } else {
-            assert !(operation instanceof CachedStreamSegmentAppendOperation)
-                    : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
+        try {
+            if (operation instanceof StreamSegmentAppendOperation) {
+                // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
+                // log a warning indicating so. This means we do not optimize memory properly, and we end up storing data
+                // in two different places.
+                StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
+                this.readIndex.append(appendOperation.getStreamSegmentId(),
+                        appendOperation.getStreamSegmentOffset(),
+                        appendOperation.getData());
+            } else if (operation instanceof MergeTransactionOperation) {
+                // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
+                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
+                this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(),
+                        mergeOperation.getStreamSegmentOffset(),
+                        mergeOperation.getTransactionSegmentId());
+            } else {
+                assert !(operation instanceof CachedStreamSegmentAppendOperation)
+                        : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
+            }
+        } catch (ObjectClosedException | StreamSegmentNotExistsException ex) {
+            // The Segment is in the process of being deleted. We usually end up in here because a concurrent delete
+            // request has updated the metadata while we were executing.
+            log.warn("Not adding operation '{}' to ReadIndex because it refers to a deleted StreamSegment.", operation);
         }
     }
 
