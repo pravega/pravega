@@ -34,8 +34,8 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                 Jws<Claims> claims = Jwts.parser()
                                          .setSigningKey(config.getTokenSigningKey().getBytes())
                                          .parseClaimsJws(token);
-                Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry -> (resource.startsWith(entry.getKey())
-                        || entry.getKey().equals("*"))
+                Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry ->
+                        validateEntry(entry, resource)
                         && expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString()))
                         <= 0).findFirst();
                 if (matchingClaim.isPresent()) {
@@ -53,5 +53,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
         } else {
             return true;
         }
+    }
+
+    private boolean validateEntry(Map.Entry<String, Object> entry, String resource) {
+        return (entry.getKey().endsWith("/") && resource.startsWith(entry.getKey()))
+                    ||  resource.startsWith(entry.getKey() + "/")
+                || entry.getKey().equals("*");
     }
 }

@@ -83,8 +83,8 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     public static String retrieveDelegationToken(String tokenSigningKey) {
-        PravegaInterceptor interceptor;
-        if ((interceptor = getCurrentInterceptor()) != null) {
+        PravegaInterceptor interceptor = getCurrentInterceptor();
+        if (interceptor != null) {
             return interceptor.getDelegationToken();
         } else {
             Map<String, Object> claims = new HashMap();

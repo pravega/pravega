@@ -18,7 +18,7 @@ public class PasswordEncryptorTool {
     public static void main(String[] args) throws InvalidKeySpecException, NoSuchAlgorithmException {
         String userName = args[0];
         String userPassword = args[1];
-        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
+        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
         String encryptedPassword = passwordEncryptor.encryptPassword(userPassword);
         System.out.println(encryptedPassword);
     }

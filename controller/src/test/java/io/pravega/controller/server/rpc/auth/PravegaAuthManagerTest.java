@@ -53,7 +53,7 @@ public class PravegaAuthManagerTest {
     @Before
     public void setUp() throws Exception {
         file = File.createTempFile("passwd", ".txt");
-        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
+        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             writer.write("#:\n");

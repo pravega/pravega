@@ -13,8 +13,10 @@ import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import lombok.Builder;
 
 /**
  * This class implements a a `PBKDF2WithHmacSHA1` based password digest creator and validator.
@@ -28,9 +30,17 @@ import javax.crypto.spec.PBEKeySpec;
  *  For validation these steps are reversed to get the password digest from the stored password. The incoming password
  *  is digested with the retrieved iterations and salt. The generated digest is then cross checked against the created digest.
  */
+@Builder
 public class StrongPasswordProcessor {
 
-    private final int iterations = 1000;
+    @Builder.Default
+    private final String keyAlgorythm = "PBKDF2WithHmacSHA256";
+    @Builder.Default
+    private final int keyLength = 64 * 8;
+    @Builder.Default
+    private final int saltLength = 32;
+    @Builder.Default
+    private final int iterations = 5000;
 
     /*
      * @param password              The incoming password.
@@ -46,16 +56,13 @@ public class StrongPasswordProcessor {
         byte[] salt = fromHex(parts[1]);
         byte[] hash = fromHex(parts[2]);
 
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, hash.length * 8);
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, keyLength);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance(keyAlgorythm);
         byte[] testHash = skf.generateSecret(spec).getEncoded();
 
-        int diff = hash.length ^ testHash.length;
-        for (int i = 0; i < hash.length && i < testHash.length; i++) {
-            diff |= hash[i] ^ testHash[i];
-        }
-        return diff == 0;
+        return Arrays.equals(hash, testHash);
     }
+
 
     /*
      * @param userPassword The password to be encrypted.
@@ -67,15 +74,15 @@ public class StrongPasswordProcessor {
         char[] chars = userPassword.toCharArray();
         byte[] salt = getSalt();
 
-        PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, 64 * 8);
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, keyLength);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance(keyAlgorythm);
         byte[] hash = skf.generateSecret(spec).getEncoded();
         return toHex((iterations + ":" + toHex(salt) + ":" + toHex(hash)).getBytes());
     }
 
     private byte[] getSalt() throws NoSuchAlgorithmException {
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
-        byte[] salt = new byte[16];
+        byte[] salt = new byte[saltLength];
         sr.nextBytes(salt);
         return salt;
     }

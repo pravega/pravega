@@ -31,10 +31,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
     private static final String DEFAULT_NAME = "Pravega-Default";
-    private final Map<String, PravegaACls> userMap;
+    private final ConcurrentHashMap<String, PravegaACls> userMap;
+    private final StrongPasswordProcessor encryptor;
 
     public PasswordAuthHandler() {
         userMap = new ConcurrentHashMap<>();
+        encryptor = StrongPasswordProcessor.builder().build();
     }
 
     private void loadPasswordFile(String userPasswordFile) {
@@ -73,7 +75,6 @@ public class PasswordAuthHandler implements AuthHandler {
         Preconditions.checkArgument(userName != null, "Username not found in header");
         Preconditions.checkArgument(password != null, "Password not found in header");
 
-        StrongPasswordProcessor encryptor = new StrongPasswordProcessor();
         try {
             return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -106,15 +107,11 @@ public class PasswordAuthHandler implements AuthHandler {
          *  If it is a partial match, the target has to end with a `/`
          */
         for (PravegaAcl acl : pravegaACls.acls) {
-            if (acl.resource.equals(resource)) {
-                return acl.acl;
-            } else if ( (acl.resource.endsWith("/") && resource.startsWith(acl.resource))
-                    || ( resource.startsWith(acl.resource + "/"))) {
+            if (acl.resource.equals(resource) ||
+                    (acl.resource.endsWith("/") && resource.startsWith(acl.resource))
+                    || (resource.startsWith(acl.resource + "/"))
+                    || ((acl.resource.equals("*")) && (acl.acl.ordinal() > retVal.ordinal()))) {
                 retVal = acl.acl;
-            } else if (acl.resource.equals("*")) {
-                if (acl.acl.ordinal() > retVal.ordinal()) {
-                    retVal = acl.acl;
-                }
             }
         }
         return retVal;

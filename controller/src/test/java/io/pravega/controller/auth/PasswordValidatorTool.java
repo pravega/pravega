@@ -19,7 +19,7 @@ public class PasswordValidatorTool {
         String userName = args[0];
         String userPassword = args[1];
         String encryptedPassword = args[2];
-        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
+        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
         System.out.println( passwordEncryptor.checkPassword(userPassword, encryptedPassword));
     }
 }

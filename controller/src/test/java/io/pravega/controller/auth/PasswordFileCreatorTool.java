@@ -22,7 +22,7 @@ public class PasswordFileCreatorTool {
     public static void main(String[] args) throws IOException, InvalidKeySpecException, NoSuchAlgorithmException {
         String fileName = args[0];
 
-        StrongPasswordProcessor passwordEncryptor = new StrongPasswordProcessor();
+        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
         try (FileWriter writer = new FileWriter(fileName);
              BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in))) {
             while (true) {

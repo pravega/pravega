@@ -31,7 +31,7 @@ public class PravegaCredsWrapper extends Credentials {
 
     @Override
     public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
-        Map<String, String> metadata = creds.getAuthHeaders();
+        Map<String, String> metadata = creds.getAuthParameters();
         metadata.put("method", creds.getAuthenticationType());
 
         return metadata.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
