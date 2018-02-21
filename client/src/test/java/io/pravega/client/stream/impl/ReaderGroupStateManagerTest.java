@@ -254,7 +254,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 5000)
-    public void testReleaseAndAquireTimes() throws ReinitializationRequiredException {
+    public void testReleaseAndAcquireTimes() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);

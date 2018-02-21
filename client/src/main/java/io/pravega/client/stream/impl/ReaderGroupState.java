@@ -111,6 +111,7 @@ public class ReaderGroupState implements Revisioned {
     /**
      * @return The 0 indexed ranking of the requested reader in the reader group in terms of amount
      *         of keyspace assigned to it, or -1 if the reader is not part of the group.
+     *         The reader with the most keyspace will be 0 and the reader with the least keyspace will be numReaders-1.
      */
     @Synchronized
     int getRanking(String reader) {
