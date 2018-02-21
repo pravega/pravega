@@ -78,6 +78,22 @@ public class BlockingDrainingQueue<T> {
     }
 
     /**
+     * Cancels any pending Future from a take() operation.
+     */
+    public void cancelPendingTake() {
+        CompletableFuture<Queue<T>> pending;
+        synchronized (this.contents) {
+            pending = this.pendingTake;
+            this.pendingTake = null;
+        }
+
+        // Cancel any pending poll request.
+        if (pending != null) {
+            pending.cancel(true);
+        }
+    }
+
+    /**
      * Adds a new item to the queue.
      *
      * @param item The item to add.

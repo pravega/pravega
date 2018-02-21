@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -62,10 +63,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final int MAX_DELAY_MILLIS = 50;
 
     private final UpdateableContainerMetadata metadata;
+    private final MemoryStateUpdater stateUpdater;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final BlockingDrainingQueue<List<CompletableOperation>> commitQueue;
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
     @GuardedBy("stateLock")
@@ -90,10 +93,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
         this.metadata = metadata;
+        this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
-        this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
+        this.commitQueue = new BlockingDrainingQueue<>();
+        this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
@@ -110,18 +115,39 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected CompletableFuture<Void> doRun() {
-        return Futures
+        // The QueueProcessor is responsible with the processing of externally added Operations. It starts when the
+        // OperationProcessor starts and is shut down as soon as doStop() is invoked.
+        val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> delayIfNecessary()
                                 .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
+                        this.executor);
+
+        // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
+        // DurableDataLong and now need to be added to the in-memory State.
+        // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
+        // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
+        val commitProcessor = Futures
+                .loop(() -> isRunning() || this.commitQueue.size() > 0,
+                        () -> this.commitQueue.take(MAX_READ_AT_ONCE)
+                                .thenAcceptAsync(this::processCommits, this.executor),
                         this.executor)
+                .whenComplete((r, ex) -> {
+                    // The CommitProcessor is done. Safe to close its queue now, regardless of whether it failed or
+                    // shut down normally.
+                    this.commitQueue.close();
+                    if (ex != null) {
+                        throw new CompletionException(ex);
+                    }
+                });
+        return CompletableFuture.allOf(queueProcessor, commitProcessor)
                 .exceptionally(this::iterationErrorHandler);
     }
 
     @Override
     protected void doStop() {
-        // We need to first stop the queue, which will prevent any new items from being processed.
+        // We need to first stop the operation queue, which will prevent any new items from being processed.
         Throwable ex = new CancellationException("OperationProcessor is shutting down.");
         closeQueue(ex);
 
@@ -168,7 +194,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     //endregion
 
-    //region Operations
+    //region Queue Processing
 
     /**
      * Processes the given Operation. This method returns when the given Operation has been added to the internal queue.
@@ -198,10 +224,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         return result;
     }
-
-    //endregion
-
-    //region Queue Processing
 
     private CompletableFuture<Void> delayIfNecessary() {
         QueueStats stats = this.durableDataLog.getQueueStatistics();
@@ -337,17 +359,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
      */
     private void closeQueue(Throwable causingException) {
-        BlockingDrainingQueue<CompletableOperation> queue = this.operationQueue;
-        if (queue != null) {
-            // Close the queue and extract any outstanding Operations from it.
-            Collection<CompletableOperation> remainingOperations = queue.close();
-            if (remainingOperations != null && remainingOperations.size() > 0) {
-                // If any outstanding Operations were left in the queue, they need to be failed.
-                // If no other cause was passed, assume we are closing the queue because we are shutting down.
-                Throwable failException = causingException != null ? causingException : new CancellationException();
-                cancelIncompleteOperations(remainingOperations, failException);
-            }
+        // Close the operation queue and extract any outstanding Operations from it.
+        Collection<CompletableOperation> remainingOperations = this.operationQueue.close();
+        if (remainingOperations != null && remainingOperations.size() > 0) {
+            // If any outstanding Operations were left in the queue, they need to be failed.
+            // If no other cause was passed, assume we are closing the queue because we are shutting down.
+            Throwable failException = causingException != null ? causingException : new CancellationException();
+            cancelIncompleteOperations(remainingOperations, failException);
         }
+
+        // The commit queue will auto-close when we are done and it itself is empty. We just need to unblock it in case
+        // it was idle and waiting on a pending take() operation.
+        this.commitQueue.cancelPendingTake();
     }
 
     /**
@@ -363,7 +386,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             }
         }
 
-        log.warn("{}: Cancelling {} operations with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
+        log.warn("{}: Cancelling {} operations with exception: {} .", this.traceObjectId, cancelCount, failException.toString());
     }
 
     /**
@@ -375,12 +398,30 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 || ex instanceof ObjectClosedException;
     }
 
+    private void processCommits(Collection<List<CompletableOperation>> items) {
+        try {
+            do {
+                this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator());
+                items = this.commitQueue.poll(MAX_READ_AT_ONCE);
+            } while (!items.isEmpty());
+        } catch (Throwable ex) {
+            // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
+            // throws something else (i.e. NullPtr), we still need to handle it.
+            log.error("{}: MemoryStateUpdater.process failure.", traceObjectId, ex);
+
+            // Then fail the remaining operations (which also handles fatal errors) and bail out.
+            if (isFatalException(ex)) {
+                Callbacks.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
+            }
+        }
+    }
+
     //endregion
 
     //region QueueProcessingState
 
     /**
-     * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
+     * Temporary State for the OperationProcessor. Keeps track of pending Operations and allows committing or failing all of them.
      * Note: this class shares state with OperationProcessor, as it accesses many of its private fields and uses its stateLock
      * for synchronization. Care should be taken if it is refactored out of here.
      */
@@ -388,15 +429,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private class QueueProcessingState {
         @GuardedBy("stateLock")
         private final Deque<CompletableOperation> pendingOperations;
-        private final MemoryStateUpdater logUpdater;
         private final MetadataCheckpointPolicy checkpointPolicy;
         @GuardedBy("stateLock")
         private final SortedDeque<DataFrameBuilder.CommitArgs> metadataTransactions;
         @GuardedBy("stateLock")
         private long highestCommittedDataFrame;
 
-        private QueueProcessingState(MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy) {
-            this.logUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
+        private QueueProcessingState(MetadataCheckpointPolicy checkpointPolicy) {
             this.checkpointPolicy = Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
             this.pendingOperations = new ArrayDeque<>();
             this.metadataTransactions = new SortedDeque<>();
@@ -458,8 +497,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             log.debug("{}: CommitSuccess ({}).", traceObjectId, commitArgs);
             Timer timer = new Timer();
 
-            List<CompletableOperation> toComplete = new ArrayList<>();
-            Map<CompletableOperation, Throwable> toFail = new HashMap<>();
+            ArrayList<CompletableOperation> toCommit = new ArrayList<>();
             try {
                 // Record the end of a frame in the DurableDataLog directly into the base metadata. No need for locking here,
                 // as the metadata has its own.
@@ -486,56 +524,23 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
                     int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
 
-                    // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
+                    // Create a CommitGroup and add all eligible pending entries, in the order in which they are in the
+                    // queue (ascending seq no). They will be processed later, after we ack them, and after we release
+                    // the stateLock.
                     while (!this.pendingOperations.isEmpty()
                             && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastOperationSequence) {
-                        CompletableOperation op = this.pendingOperations.pollFirst();
-                        try {
-                            this.logUpdater.process(op.getOperation());
-                        } catch (Throwable ex) {
-                            // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
-                            // throws something else (i.e. NullPtr), we still need to handle it.
-                            // First, fail the operation, since it has already been taken off the pending list.
-                            log.error("{}: OperationCommitFailure ({}). {}", traceObjectId, op.getOperation(), ex);
-                            toFail.put(op, ex);
-
-                            // Then fail the remaining operations (which also handles fatal errors) and bail out.
-                            collectFailureCandidates(ex, commitArgs, toFail);
-                            if (isFatalException(ex)) {
-                                Callbacks.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
-                            }
-
-                            return;
-                        }
-
-                        Throwable stopException = OperationProcessor.this.getStopException();
-                        if (stopException != null) {
-                            // Even if the operation succeeded, we encountered a stop exception (fatal failure) and most likely
-                            // this operation will be corrupted in the DurableDataLog. Do not ack it as success. If the owning
-                            // Container does end up recovering successfully, it's up to the client to figure out the state
-                            // of the affected segments so it can resume operations.
-                            toFail.put(op, stopException);
-                        } else {
-                            toComplete.add(op);
-                        }
+                        toCommit.add(this.pendingOperations.pollFirst());
                     }
 
                     this.highestCommittedDataFrame = addressSequence;
+                    commitQueue.add(toCommit);
                     metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
                 }
-
-                this.logUpdater.flush();
             } finally {
-                toComplete.forEach(CompletableOperation::complete);
-                toFail.forEach(this::failOperation);
+                toCommit.forEach(CompletableOperation::complete);
+                metrics.operationsCompleted(toCommit, timer.getElapsed());
                 autoCompleteIfNeeded();
-                if (toFail.size() == 0) {
-                    // Only record the commit if we had no failures.
-                    this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
-                }
-
-                metrics.operationsCompleted(toComplete, timer.getElapsed());
-                metrics.operationsFailed(toFail.keySet());
+                this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
             }
         }
 
@@ -560,6 +565,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             } finally {
                 toFail.forEach(this::failOperation);
                 autoCompleteIfNeeded();
+                metrics.operationsFailed(toFail.keySet());
             }
 
             // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
