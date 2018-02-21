@@ -59,6 +59,7 @@ public class ReaderGroupStateTest {
         addR2.applyTo(readerState, revision);
         assertEquals(2, readerState.getOnlineReaders().size());
         new ReaderGroupState.AcquireSegment("r1", getSegment("S1")).applyTo(readerState, revision);
+        new ReaderGroupState.UpdateDistanceToTail("r1", 1);
         assertEquals(Collections.singleton(getSegment("S1")), readerState.getSegments("r1"));
         assertEquals(0, readerState.getRanking("r1"));
         assertEquals(1, readerState.getRanking("r2"));
@@ -70,6 +71,7 @@ public class ReaderGroupStateTest {
         new ReaderGroupState.ReleaseSegment("r1", getSegment("S2"), 1).applyTo(readerState, revision);
         new ReaderGroupState.AcquireSegment("r2", getSegment("S1")).applyTo(readerState, revision);
         new ReaderGroupState.AcquireSegment("r2", getSegment("S2")).applyTo(readerState, revision);
+        new ReaderGroupState.UpdateDistanceToTail("r1", 1);
         assertEquals(0, readerState.getSegments("r1").size());
         assertEquals(1, readerState.getRanking("r1"));
         assertEquals(0, readerState.getRanking("r2"));

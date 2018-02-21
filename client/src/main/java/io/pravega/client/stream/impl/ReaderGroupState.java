@@ -310,7 +310,7 @@ public class ReaderGroupState implements Revisioned {
             if (oldPos != null) {
                 throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
-            state.distanceToTail.putIfAbsent(readerId, 10 * ASSUMED_LAG_MILLIS);
+            state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
         }
     }
     
