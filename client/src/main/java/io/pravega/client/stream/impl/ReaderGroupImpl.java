@@ -188,9 +188,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     /*
-        Validate the following
-            - provided stream cuts are unique and has no duplicates.
-            - stream cuts for all the streams managed by the reader group are present.
+     * Validate the following
+     *      - provided stream cuts are unique and has no duplicates.
+     *      - stream cuts for all the streams managed by the reader group are present.
      */
     private boolean validateStreamCuts(final Collection<StreamCut> streamCuts, final Set<String> readerGroupStreams) {
         return streamCuts.stream().map(sc ->
