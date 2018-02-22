@@ -411,7 +411,7 @@ public final class WireCommands {
             UUID uuid = new UUID(in.readLong(), in.readLong());
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            return new SetupAppend(requestId, uuid, delegationToken, segment);
+            return new SetupAppend(requestId, uuid, segment, delegationToken);
         }
     }
 
