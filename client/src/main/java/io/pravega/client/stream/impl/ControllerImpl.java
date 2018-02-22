@@ -613,7 +613,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSegmentsInclusive(StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public CompletableFuture<Set<Segment>> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()), "Ensure streamCuts for the same stream is passed");
         //TODO: Validation check to ensure toStreamCut >= fromStreamCut.
         Stream stream = fromStreamCut.getStream();

@@ -35,6 +35,4 @@ public class SegmentMetadata {
      * End offset for the segment.
      */
     private final long endOffset;
-
-    //TODO: 1. validate that endOffset > startOffset.
 }

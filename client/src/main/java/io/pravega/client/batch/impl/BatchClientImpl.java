@@ -83,15 +83,15 @@ public class BatchClientImpl implements BatchClient {
     }
 
     private StreamSegmentInfo listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
-                                           final Optional<StreamCut> toStreamCut) {
-        //Validate that the stream cuts are for the stream requested stream.
+                                           final Optional<StreamCut> endStreamCut) {
+        //Validate that the stream cuts are for the requested stream.
         startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
-        toStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
+        endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
 
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
         return getStreamSegmentInfo(startStreamCut.orElse(fetchStreamCut(stream, new Date(0L))),
-                toStreamCut.orElse(fetchTailStreamCut(stream)));
+                endStreamCut.orElse(fetchTailStreamCut(stream)));
     }
 
     private StreamCut fetchStreamCut(final Stream stream, final Date from) {
@@ -111,7 +111,7 @@ public class BatchClientImpl implements BatchClient {
 
     private StreamSegmentInfo getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
         SortedSet<Segment> result = new TreeSet<>();
-        result.addAll(getAndHandleExceptions(controller.getSegmentsInclusive(startStreamCut, endStreamCut),
+        result.addAll(getAndHandleExceptions(controller.getSegments(startStreamCut, endStreamCut),
                 RuntimeException::new));
         Iterator<SegmentMetadata> iterator = Iterators.transform(result.iterator(), s -> getSegmentMetadata(s, startStreamCut,
                 endStreamCut));

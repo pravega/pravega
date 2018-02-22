@@ -416,7 +416,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSegmentsInclusive(StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public CompletableFuture<Set<Segment>> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.getPositions().keySet())
                                                                .addAll(toStreamCut.getPositions().keySet()).build();
         return CompletableFuture.completedFuture(segments);
