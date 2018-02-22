@@ -135,7 +135,7 @@ public class ReadTest {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, "", 10000));
+        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000, ""));
 
         assertEquals(result.getSegment(), segmentName);
         assertEquals(result.getOffset(), 0);
