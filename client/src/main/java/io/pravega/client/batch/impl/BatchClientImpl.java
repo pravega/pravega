@@ -10,11 +10,14 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.SegmentMetadata;
 import io.pravega.client.batch.StreamInfo;
+import io.pravega.client.batch.StreamSegmentInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -27,11 +30,14 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegments;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -60,43 +66,85 @@ public class BatchClientImpl implements BatchClient {
     }
 
     @Override
-    public Iterator<SegmentInfo> listSegments(Stream stream) {
-        return listSegments(stream, new Date(0L));
+    public StreamSegmentInfo getSegments(Stream stream) {
+        return listSegments(stream, Optional.empty(), Optional.empty());
     }
 
-    private Iterator<SegmentInfo> listSegments(Stream stream, Date from) {
-        // modify iteration above but starting with a timestamp and ending with a break
-        Map<Segment, Long> segments = getAndHandleExceptions(controller.getSegmentsAtTime(new StreamImpl(stream.getScope(),
-                                                                                                         stream.getStreamName()),
-                                                                                          from.getTime()),
-                                                             RuntimeException::new);
+    @Override
+    public StreamSegmentInfo getSegments(final Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Preconditions.checkNotNull(stream, "stream");
+        return listSegments(stream, Optional.ofNullable(fromStreamCut), Optional.ofNullable(toStreamCut));
+    }
+
+    @Override
+    public <T> SegmentIterator<T> readSegment(final SegmentMetadata segment, final Serializer<T> deserializer) {
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment.getSegment(), deserializer,
+                segment.getStartOffset(), segment.getEndOffset());
+    }
+
+    private StreamSegmentInfo listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
+                                           final Optional<StreamCut> toStreamCut) {
+        //Validate that the stream cuts are for the stream requested stream.
+        startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
+        toStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
+
+        // if startStreamCut is not provided use the streamCut at the start of the stream.
+        // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
+        return getStreamSegmentInfo(startStreamCut.orElse(fetchStreamCut(stream, new Date(0L))),
+                toStreamCut.orElse(fetchTailStreamCut(stream)));
+    }
+
+    private StreamCut fetchStreamCut(final Stream stream, final Date from) {
+        Map<Segment, Long> segments = getAndHandleExceptions(controller.getSegmentsAtTime(
+                new StreamImpl(stream.getScope(), stream.getStreamName()), from.getTime()), RuntimeException::new);
+        return new StreamCut(stream, segments);
+    }
+
+    private StreamCut fetchTailStreamCut(final Stream stream) {
+        StreamSegments currentSegments = getAndHandleExceptions(controller
+                .getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
+        Map<Segment, Long> segmentOffsetMap =
+                currentSegments.getSegments().stream().map(this::getSegmentInfo)
+                               .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
+        return new StreamCut(stream, segmentOffsetMap);
+    }
+
+    private StreamSegmentInfo getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
         SortedSet<Segment> result = new TreeSet<>();
-        result.addAll(segments.keySet());
-        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
-                                             RuntimeException::new));
-        return Iterators.transform(result.iterator(), s -> segmentToInfo(s));
+        result.addAll(getAndHandleExceptions(controller.getSegmentsInclusive(startStreamCut, endStreamCut),
+                RuntimeException::new));
+        Iterator<SegmentMetadata> iterator = Iterators.transform(result.iterator(), s -> getSegmentMetadata(s, startStreamCut,
+                endStreamCut));
+        return StreamSegmentInfo.builder().segmentMetaDataIterator(iterator)
+                                .startStreamCut(startStreamCut)
+                                .endStreamCut(endStreamCut).build();
     }
 
-    private SegmentInfo segmentToInfo(Segment s) {
+    private SegmentInfo getSegmentInfo(final Segment s) {
         @Cleanup
         SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
         return client.getSegmentInfo();
     }
 
-    @Override
-    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer) {
-        @Cleanup
-        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, segmentInfo.getStartingOffset(), segmentInfo.getWriteOffset());
-    }
-
-    @Override
-    public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset) {
-        @Cleanup
-        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, segmentInfo.getWriteOffset());
+    /*
+     * Given a segment fetch its SegmentMetadata.
+     * - If segment is part of startStreamCut / endStreamCut update startOffset and endOffset accordingly.
+     * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
+     */
+    private SegmentMetadata getSegmentMetadata(final Segment segment, final StreamCut startStreamCut,
+                                               final StreamCut endStreamCut) {
+        SegmentMetadata.SegmentMetadataBuilder metaDataBuilder = SegmentMetadata.builder().segment(segment);
+        if (startStreamCut.getPositions().containsKey(segment) && endStreamCut.getPositions().containsKey(segment)) {
+            //use the meta data present in startStreamCut and endStreamCuts.
+            metaDataBuilder.startOffset(startStreamCut.getPositions().get(segment))
+                   .endOffset(endStreamCut.getPositions().get(segment));
+        } else {
+            //use segment meta data client to fetch the segment offsets.
+            SegmentInfo r = getSegmentInfo(segment);
+            metaDataBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
+                   .endOffset(endStreamCut.getPositions().getOrDefault(segment, r.getWriteOffset()));
+        }
+        return metaDataBuilder.build();
     }
 
 }

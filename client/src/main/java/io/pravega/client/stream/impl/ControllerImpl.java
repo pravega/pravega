@@ -56,6 +56,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.util.Collection;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -604,17 +605,34 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
-                                                     RuntimeException::new);
-        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
+                                                     RuntimeException::new).getSegments();
+        Set<Segment> unread = getSegmentsInclusive(from, currentSegments);
+        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        return CompletableFuture.completedFuture(unread);
+    }
+
+    @Override
+    public CompletableFuture<Set<Segment>> getSegmentsInclusive(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()), "Ensure streamCuts for the same stream is passed");
+        //TODO: Validation check to ensure toStreamCut >= fromStreamCut.
+        Stream stream = fromStreamCut.getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        Set<Segment> segments = getSegmentsInclusive(fromStreamCut, toStreamCut.getPositions().keySet());
+        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        return CompletableFuture.completedFuture(segments);
+    }
+
+    private Set<Segment> getSegmentsInclusive(StreamCut fromStreamCut, Collection<Segment> currentSegments) {
+        HashSet<Segment> unread = new HashSet<>(fromStreamCut.getPositions().keySet());
+        unread.addAll(currentSegments);
+        unread.addAll(computeKnownUnreadSegments(currentSegments, fromStreamCut));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : from.getPositions().keySet()) {
+        for (Segment toFetch : fromStreamCut.getPositions().keySet()) {
             if (!unread.contains(toFetch)) {
                 toFetchSuccessors.add(toFetch);
             }
         }
-        unread.addAll(currentSegments.getSegments());
         while (!toFetchSuccessors.isEmpty()) {
             Segment segment = toFetchSuccessors.remove();
             Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new).getSegmentToPredecessor()
@@ -626,13 +644,12 @@ public class ControllerImpl implements Controller {
                 }
             }
         }
-        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
-        return CompletableFuture.completedFuture(unread);
+        return unread;
     }
-    
-    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
+
+    private List<Segment> computeKnownUnreadSegments(Collection<Segment> currentSegments, StreamCut from) {
         int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
-        int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+        int lowestCurrent = currentSegments.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }

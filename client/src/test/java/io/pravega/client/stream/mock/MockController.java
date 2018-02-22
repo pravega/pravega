@@ -10,6 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -412,6 +413,13 @@ public class MockController implements Controller {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }
         return CompletableFuture.completedFuture(Collections.emptySet());
+    }
+
+    @Override
+    public CompletableFuture<Set<Segment>> getSegmentsInclusive(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.getPositions().keySet())
+                                                               .addAll(toStreamCut.getPositions().keySet()).build();
+        return CompletableFuture.completedFuture(segments);
     }
 
     @Override

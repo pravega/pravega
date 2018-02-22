@@ -9,7 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;

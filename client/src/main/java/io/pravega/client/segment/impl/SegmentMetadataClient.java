@@ -9,8 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.batch.SegmentInfo;
-
 /**
  * A client for looking at and editing the metadata related to a specific segment.
  */

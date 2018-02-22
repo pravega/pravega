@@ -16,7 +16,6 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
 
-import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 
@@ -30,7 +29,7 @@ import lombok.Getter;
 public class StreamCut implements Serializable {
 
     private final Stream stream;
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final Map<Segment, Long> positions;
 
     @VisibleForTesting
