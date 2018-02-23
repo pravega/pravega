@@ -51,6 +51,8 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -73,6 +75,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
+import static io.pravega.shared.MetricsNames.TRUNCATED_SIZE;
+import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -83,8 +88,9 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  */
 @Slf4j
 public class StreamMetadataTasks extends TaskBase {
+    private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
-    public static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
@@ -207,7 +213,8 @@ public class StreamMetadataTasks extends TaskBase {
                             .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
                     return checkGenerateStreamCut(scope, stream, context, latestCut, recordingTime)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime));
-                });
+                })
+                .thenAccept(x -> DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, stream), 1));
 
     }
 
