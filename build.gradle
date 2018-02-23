@@ -159,12 +159,6 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-all:" + grpcVersion
-        compile "io.grpc:grpc-protobuf:" + grpcVersion
-        compile "io.grpc:grpc-stub:" + grpcVersion
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
 
         compile project(':common')
         compile project(':authplugin')
@@ -407,6 +401,13 @@ project('shared:controller-api') {
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+
+        compile "io.grpc:grpc-netty:" + grpcVersion
+        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-protobuf:" + grpcVersion
+        compile "io.grpc:grpc-stub:" + grpcVersion
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
     }
 
     javadoc {
