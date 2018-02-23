@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.ServerConfig;
 import java.util.Map;
 
 public class TestAuthHandler implements AuthHandler {
@@ -30,7 +31,7 @@ public class TestAuthHandler implements AuthHandler {
     }
 
     @Override
-    public void initialize(Object serverConfig) {
+    public void initialize(ServerConfig serverConfig) {
 
     }
 }

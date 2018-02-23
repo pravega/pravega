@@ -9,12 +9,13 @@
  */
 package io.pravega.controller.server.rpc.grpc;
 
+import io.pravega.auth.ServerConfig;
 import java.util.Optional;
 
 /**
  * Configuration of controller gRPC server.
  */
-public interface GRPCServerConfig {
+public interface GRPCServerConfig extends ServerConfig {
     /**
      * Fetches the port on which controller gRPC server listens.
      *

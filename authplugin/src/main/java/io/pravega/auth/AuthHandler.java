@@ -60,5 +60,5 @@ public interface AuthHandler {
      *
      * @param serverConfig The server configuration.
      */
-    void initialize(Object serverConfig);
+    void initialize(ServerConfig serverConfig);
 }

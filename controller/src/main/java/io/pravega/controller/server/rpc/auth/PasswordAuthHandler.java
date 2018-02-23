@@ -12,6 +12,7 @@ package io.pravega.controller.server.rpc.auth;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.ServerConfig;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
@@ -94,7 +95,7 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     @Override
-    public void initialize(Object serverConfig) {
+    public void initialize(ServerConfig serverConfig) {
         loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
     }
 
