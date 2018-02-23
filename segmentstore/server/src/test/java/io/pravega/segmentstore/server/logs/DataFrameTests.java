@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
 import java.util.List;
 import lombok.val;
 import org.junit.Assert;
@@ -29,27 +28,6 @@ public class DataFrameTests {
     public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
-     * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.
-     */
-    @Test
-    public void testAppendRead() throws Exception {
-        int maxFrameSize = 1024 * 1024;
-        int maxRecordCount = 2500;
-        int minRecordSize = 0;
-        int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
-
-        // Append some records.
-        DataFrame df = DataFrame.ofSize(maxFrameSize);
-        int recordsAppended = appendRecords(allRecords, df);
-        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
-        df.seal();
-
-        // Read them back.
-        DataFrameTestHelpers.checkReadRecords(df, allRecords, b -> b);
-    }
-
-    /**
      * Tests the ability to append a set of records to a DataFrame, serialize it, deserialize it, and then read those
      * records back.
      */
@@ -62,7 +40,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame writeFrame = DataFrame.ofSize(maxFrameSize);
+        WriteFrame writeFrame = WriteFrame.ofSize(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -71,7 +49,7 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        DataFrame readFrame = DataFrame.from(new ByteArrayInputStream(frameData.array(), frameData.arrayOffset(), frameData.getLength()), frameData.getLength());
+        ReadFrame readFrame = new ReadFrame(frameData.getReader(), frameData.getLength());
         DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
     }
 
@@ -81,7 +59,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        DataFrame df = DataFrame.ofSize(dataFrameSize);
+        WriteFrame df = WriteFrame.ofSize(dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -160,7 +138,7 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        DataFrame df = DataFrame.ofSize(dataFrameSize);
+        WriteFrame df = WriteFrame.ofSize(dataFrameSize);
 
         LogAddress a = new LogAddress(newSequence) {
         };
@@ -169,7 +147,7 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected value for getFrameSequence().", newSequence, df.getAddress().getSequence());
     }
 
-    private int appendRecords(List<ByteArraySegment> allRecords, DataFrame dataFrame) {
+    private int appendRecords(List<ByteArraySegment> allRecords, WriteFrame dataFrame) {
         int fullRecordsAppended = 0;
         boolean filledUpFrame = false;
         for (ByteArraySegment record : allRecords) {

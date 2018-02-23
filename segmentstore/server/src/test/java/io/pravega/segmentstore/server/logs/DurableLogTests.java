@@ -847,10 +847,10 @@ public class DurableLogTests extends OperationLogTestBase {
             AtomicInteger readCounter = new AtomicInteger();
             dataLog.get().setReadInterceptor(
                     readItem -> {
-                        if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
+                        if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > WriteFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = DataFrame.ofSize(readItem.getLength());
+                            WriteFrame df = WriteFrame.ofSize(readItem.getLength());
                             df.seal();
                             ArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());

@@ -9,6 +9,10 @@
  */
 package io.pravega.common.util;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+
 /**
  * Helper methods for various Number to Bit conversions.
  */
@@ -67,6 +71,25 @@ public final class BitConverter {
                 | (source.get(position + 1) & 0xFF) << 16
                 | (source.get(position + 2) & 0xFF) << 8
                 | (source.get(position + 3) & 0xFF);
+    }
+
+    /**
+     * Reads a 32-bit integer from the given InputStream that was encoded using BitConverter.writeInt.
+     *
+     * @param source The InputStream to read from.
+     * @return The read number.
+     * @throws IOException If an exception got thrown.
+     */
+    public static int readInt(InputStream source) throws IOException {
+        int b1 = source.read();
+        int b2 = source.read();
+        int b3 = source.read();
+        int b4 = source.read();
+        if ((b1 | b2 | b3 | b4) < 0) {
+            throw new EOFException();
+        } else {
+            return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+        }
     }
 
     /**

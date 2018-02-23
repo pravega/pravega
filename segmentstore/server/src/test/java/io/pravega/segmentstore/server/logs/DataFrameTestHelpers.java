@@ -9,10 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.io.SerializationException;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -67,15 +68,15 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<ReadFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
         checkReadRecords(dataFrames, records, new HashSet<>(), recordConverter);
     }
 
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(DataFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
-        ArrayList<DataFrame> frames = new ArrayList<>();
+    static <T> void checkReadRecords(ReadFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+        ArrayList<ReadFrame> frames = new ArrayList<>();
         frames.add(dataFrame);
         checkReadRecords(frames, records, recordConverter);
     }
@@ -83,12 +84,12 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given collection of DataFrames contain the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<ReadFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
-        for (DataFrame dataFrame : dataFrames) {
-            CloseableIterator<DataFrame.DataFrameEntry, SerializationException> reader = dataFrame.getEntries();
-            DataFrame.DataFrameEntry entry;
+        for (ReadFrame dataFrame : dataFrames) {
+            CloseableIterator<ReadFrame.DataFrameEntry, IOException> reader = dataFrame.getEntries();
+            ReadFrame.DataFrameEntry entry;
             boolean isLastEntryInFrame = true;
             while ((entry = reader.getNext()) != null) {
 
@@ -106,7 +107,9 @@ class DataFrameTestHelpers {
                 isLastEntryInFrame = entry.isLastEntryInDataFrame();
 
                 // Record the current entry
-                state.getCurrentRecordEntries().add(entry);
+                if (entry.getLength() > 0) {
+                    state.getCurrentRecordEntries().add(StreamHelpers.readAll(entry.getData(), entry.getLength()));
+                }
                 if (entry.isLastRecordEntry()) {
                     // We have reached the LastEntry for a Record. We are now ready to compare it to the current record.
                     Assert.assertFalse("Unexpected entry with isLastRecordEntry flag (when current record is bad).", state.isCurrentRecordBad());
@@ -120,10 +123,9 @@ class DataFrameTestHelpers {
                             state.getCurrentRecordEntriesSize());
 
                     int recordOffset = 0;
-                    for (DataFrame.DataFrameEntry recordEntry : state.getCurrentRecordEntries()) {
-                        ByteArraySegment entryData = recordEntry.getData();
-                        for (int i = 0; i < entryData.getLength(); i++) {
-                            if (currentRecord.get(recordOffset) != entryData.get(i)) {
+                    for (byte[] data : state.getCurrentRecordEntries()) {
+                        for (int i = 0; i < data.length; i++) {
+                            if (currentRecord.get(recordOffset) != data[i]) {
                                 Assert.fail(String.format("Unexpected entry contents. FrameIndex = %d, RecordIndex = %d, EntryNumberInRecord = %d.", state.getFrameIndex(), state.getNextGoodRecordIndex(), i));
                             }
 
@@ -157,7 +159,7 @@ class DataFrameTestHelpers {
 
     private static class ReadState {
         private final Collection<Integer> knownBadRecordIndices;
-        private final ArrayList<DataFrame.DataFrameEntry> currentRecordEntries;
+        private final ArrayList<byte[]> currentRecordEntries;
         private final int recordCount;
         private int recordIndex;
         private int currentRecordEntriesSize;
@@ -184,7 +186,7 @@ class DataFrameTestHelpers {
             return this.knownBadRecordIndices.contains(this.recordIndex);
         }
 
-        List<DataFrame.DataFrameEntry> getCurrentRecordEntries() {
+        List<byte[]> getCurrentRecordEntries() {
             return this.currentRecordEntries;
         }
 

@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.LogItem;
@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -144,7 +145,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     private SegmentCollection getNextOperationSegments() throws Exception {
         SegmentCollection result = new SegmentCollection();
         while (true) {
-            DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext();
+            ReadFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext();
             if (nextEntry == null) {
                 // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
                 // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
@@ -170,7 +171,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                 }
 
                 // Add the current entry's contents to the result.
-                result.add(nextEntry.getData(), nextEntry.getFrameAddress(), nextEntry.isLastEntryInDataFrame());
+                result.add(nextEntry.getData(), nextEntry.getLength(), nextEntry.getFrameAddress(), nextEntry.isLastEntryInDataFrame());
 
                 if (nextEntry.isLastRecordEntry()) {
                     // We are done. We found the last entry for a record.
@@ -244,7 +245,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
      * A collection of ByteArraySegments that, together, make up the serialization for a Log Operation.
      */
     private static class SegmentCollection {
-        private final LinkedList<ByteArraySegment> segments;
+        private final LinkedList<byte[]> segments;
         private LogAddress lastUsedDataFrameAddress;
         private LogAddress lastFullDataFrameAddress;
         private boolean lastFrameEntry;
@@ -266,7 +267,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * @throws NullPointerException     If segment is null.
          * @throws IllegalArgumentException If lastUsedDataFrameSequence is invalid.
          */
-        public void add(ByteArraySegment segment, LogAddress dataFrameAddress, boolean lastFrameEntry) throws DataCorruptionException {
+        public void add(InputStream segment, int length, LogAddress dataFrameAddress, boolean lastFrameEntry) throws DataCorruptionException {
             Preconditions.checkNotNull(segment, "segment");
 
             long dataFrameSequence = dataFrameAddress.getSequence();
@@ -281,7 +282,12 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
             this.lastUsedDataFrameAddress = dataFrameAddress;
             this.lastFrameEntry = lastFrameEntry;
-            this.segments.add(segment);
+            try {
+                // TODO: fix from here
+                this.segments.add(StreamHelpers.readAll(segment, length));
+            } catch (IOException ex) {
+                throw new DataCorruptionException("Unable to parse entry.", ex);
+            }
         }
 
         /**
@@ -305,7 +311,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * Returns an InputStream that reads from all ByteArraySegments making up this collection.
          */
         InputStream getInputStream() {
-            Stream<InputStream> ss = this.segments.stream().map(ByteArraySegment::getReader);
+            Stream<InputStream> ss = this.segments.stream().map(ByteArrayInputStream::new);
             return new SequenceInputStream(Iterators.asEnumeration(ss.iterator()));
         }
 
@@ -351,12 +357,12 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     /**
      * Enumerates DataFrameEntries from all frames, in sequence.
      */
-    private static class FrameEntryEnumerator implements CloseableIterator<DataFrame.DataFrameEntry, Exception> {
+    private static class FrameEntryEnumerator implements CloseableIterator<ReadFrame.DataFrameEntry, Exception> {
         //region Members
 
         private final String traceObjectId;
         private final DataFrameEnumerator dataFrameEnumerator;
-        private CloseableIterator<DataFrame.DataFrameEntry, SerializationException> currentFrameContents;
+        private CloseableIterator<ReadFrame.DataFrameEntry, IOException> currentFrameContents;
 
         //endregion
 
@@ -394,9 +400,9 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * entry exists, it will contain a null value.
          */
         @Override
-        public DataFrame.DataFrameEntry getNext() throws Exception {
+        public ReadFrame.DataFrameEntry getNext() throws Exception {
             // Check to see if we are in the middle of a frame, in which case, just return the next element.
-            DataFrame.DataFrameEntry result;
+            ReadFrame.DataFrameEntry result;
             if (this.currentFrameContents != null) {
                 result = this.currentFrameContents.getNext();
                 if (result != null) {
@@ -405,7 +411,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
             }
 
             // We need to fetch a new frame.
-            DataFrame dataFrame = this.dataFrameEnumerator.getNext();
+            ReadFrame dataFrame = this.dataFrameEnumerator.getNext();
             if (dataFrame == null) {
                 // No more frames to retrieve
                 this.currentFrameContents = null;
@@ -435,7 +441,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     /**
      * Enumerates DataFrames from a DataFrameLog.
      */
-    private static class DataFrameEnumerator implements CloseableIterator<DataFrame, Exception> {
+    private static class DataFrameEnumerator implements CloseableIterator<ReadFrame, Exception> {
         //region Members
 
         private static final long INITIAL_LAST_READ_FRAME_SEQUENCE = -1;
@@ -487,16 +493,16 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * frame exists, it will contain a null value.
          */
         @Override
-        public DataFrame getNext() throws Exception {
+        public ReadFrame getNext() throws Exception {
             DurableDataLog.ReadItem nextItem = this.reader.getNext();
             if (nextItem == null) {
                 // We have reached the end. Stop here.
                 return null;
             }
 
-            DataFrame frame;
+            ReadFrame frame;
             try {
-                frame = DataFrame.from(nextItem.getPayload(), nextItem.getLength());
+                frame = new ReadFrame(nextItem.getPayload(), nextItem.getLength());
                 frame.setAddress(nextItem.getAddress());
             } catch (SerializationException ex) {
                 throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.",

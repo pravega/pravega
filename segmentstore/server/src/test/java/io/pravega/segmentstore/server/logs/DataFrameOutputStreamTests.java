@@ -14,12 +14,16 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -40,8 +44,8 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        Consumer<DataFrame> callback = df -> {
+        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
+        Consumer<WriteFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -80,7 +84,7 @@ public class DataFrameOutputStreamTests {
 
         Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame);
         Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
-        DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+        DataFrameTestHelpers.checkReadRecords(toReadFrame(writtenFrame.get()), records, ByteArraySegment::new);
     }
 
     /**
@@ -94,7 +98,7 @@ public class DataFrameOutputStreamTests {
         final int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
+        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
 
         int expectedStartIndex = 0;
         @Cleanup
@@ -137,8 +141,8 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        Consumer<DataFrame> callback = df -> {
+        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
+        Consumer<WriteFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -170,7 +174,7 @@ public class DataFrameOutputStreamTests {
 
         // Verify that the output frame only has record 2.
         records.remove(0);
-        DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+        DataFrameTestHelpers.checkReadRecords(toReadFrame(writtenFrame.get()), records, ByteArraySegment::new);
     }
 
     /**
@@ -182,7 +186,7 @@ public class DataFrameOutputStreamTests {
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
-        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
+        ArrayList<WriteFrame> writtenFrames = new ArrayList<>();
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
@@ -199,7 +203,8 @@ public class DataFrameOutputStreamTests {
         }
 
         AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
-        DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
+        val readFrames = writtenFrames.stream().map(this::toReadFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, records, ByteArraySegment::new);
     }
 
     /**
@@ -211,7 +216,7 @@ public class DataFrameOutputStreamTests {
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
-        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
+        ArrayList<WriteFrame> writtenFrames = new ArrayList<>();
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
@@ -225,7 +230,8 @@ public class DataFrameOutputStreamTests {
         }
 
         AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
-        DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
+        val readFrames = writtenFrames.stream().map(this::toReadFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, records, ByteArraySegment::new);
     }
 
     /**
@@ -236,9 +242,9 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 50;
 
         // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the frame.
-        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
+        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
         AtomicBoolean throwException = new AtomicBoolean();
-        Consumer<DataFrame> callback = df -> {
+        Consumer<WriteFrame> callback = df -> {
             if (throwException.get()) {
                 throw new IntentionalException();
             }
@@ -277,7 +283,7 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData1.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(toReadFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
 
         // Test #2: startNewRecord()
@@ -305,7 +311,7 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData2.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(toReadFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
 
         // Test #3: write(byte[])
@@ -331,7 +337,13 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData2.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(toReadFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
     }
+
+    @SneakyThrows(IOException.class)
+    private ReadFrame toReadFrame(WriteFrame wf) {
+        return new ReadFrame(wf.getData().getReader(), wf.getLength());
+    }
+
 }
