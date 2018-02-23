@@ -43,7 +43,7 @@ import com.spotify.docker.client.messages.swarm.Task;
 public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
+    static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
     final DockerClient dockerClient;
