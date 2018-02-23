@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.TreeMap;
 import org.junit.Test;
 
@@ -41,6 +42,17 @@ public class StreamSegmentsTest {
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
+            assertNotNull(segment);
+            counts[segment.getSegmentNumber()]++;
+        }
+        for (int count : counts) {
+            assertTrue(count > 1);
+        }
+        
+        Random r = new Random(0);
+        Arrays.fill(counts, 0);
+        for (int i = 0; i < 20; i++) {
+            Segment segment = streamSegments.getSegmentForKey(r.nextDouble());
             assertNotNull(segment);
             counts[segment.getSegmentNumber()]++;
         }
