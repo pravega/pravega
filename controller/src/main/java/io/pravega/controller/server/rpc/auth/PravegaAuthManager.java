@@ -11,7 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.HashMap;
 import java.util.Map;

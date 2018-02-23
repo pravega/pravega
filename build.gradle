@@ -161,7 +161,7 @@ project('client') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile project(':common')
-        compile project(':authplugin')
+   //     compile project(':authplugin')/
         compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
@@ -262,6 +262,7 @@ project('segmentstore:server:host') {
 
     dependencies {
         compile project(':common')
+        compile project(":authplugin")
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
@@ -452,6 +453,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:controller-api")
+        compile project(":authplugin")
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion

@@ -9,9 +9,9 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
-import com.sun.tools.javac.util.Assert;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class StrongPasswordProcessorTest {
@@ -25,7 +25,7 @@ public class StrongPasswordProcessorTest {
         secondProcessor.checkPassword("1111_aaaa", encrypted);
 
         StrongPasswordProcessor failingProcessor = StrongPasswordProcessor.builder().iterations(1000).build();
-        Assert.check(!encrypted.equals(failingProcessor.encryptPassword("1111_aaaa")),
-                "Passwords with different iterations should not match");
+        Assert.assertTrue("Passwords with different iterations should not match",
+                !encrypted.equals(failingProcessor.encryptPassword("1111_aaaa")));
     }
 }
