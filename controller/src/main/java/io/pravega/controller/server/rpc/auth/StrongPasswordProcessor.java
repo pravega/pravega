@@ -34,13 +34,13 @@ import lombok.Builder;
 public class StrongPasswordProcessor {
 
     @Builder.Default
-    private final String keyAlgorythm = "PBKDF2WithHmacSHA256";
+    private String keyAlgorythm = "PBKDF2WithHmacSHA256";
     @Builder.Default
-    private final int keyLength = 64 * 8;
+    private int keyLength = 64 * 8;
     @Builder.Default
-    private final int saltLength = 32;
+    private int saltLength = 32;
     @Builder.Default
-    private final int iterations = 5000;
+    private int iterations = 5000;
 
     /*
      * @param password              The incoming password.
