@@ -76,7 +76,6 @@ import java.util.stream.IntStream;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
-import static io.pravega.shared.MetricsNames.TRUNCATED_SIZE;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
