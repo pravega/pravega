@@ -13,7 +13,6 @@ import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import lombok.Builder;
@@ -60,7 +59,11 @@ public class StrongPasswordProcessor {
         SecretKeyFactory skf = SecretKeyFactory.getInstance(keyAlgorythm);
         byte[] testHash = skf.generateSecret(spec).getEncoded();
 
-        return Arrays.equals(hash, testHash);
+        int diff = hash.length ^ testHash.length;
+        for (int i = 0; i < hash.length && i < testHash.length; i++) {
+            diff |= hash[i] ^ testHash[i];
+        }
+        return diff == 0;
     }
 
 
