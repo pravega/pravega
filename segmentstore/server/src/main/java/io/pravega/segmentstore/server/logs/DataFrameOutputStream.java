@@ -29,8 +29,8 @@ import lombok.RequiredArgsConstructor;
 class DataFrameOutputStream extends OutputStream {
     //region Members
 
-    private final Consumer<WriteFrame> dataFrameCompleteCallback;
-    private WriteFrame currentFrame;
+    private final Consumer<DataFrame> dataFrameCompleteCallback;
+    private DataFrame currentFrame;
     private boolean hasDataInCurrentFrame;
     @Getter
     private boolean closed;
@@ -48,9 +48,9 @@ class DataFrameOutputStream extends OutputStream {
      * @throws IllegalArgumentException If maxDataFrameSize is not a positive integer.
      * @throws NullPointerException     If any of the arguments are null.
      */
-    DataFrameOutputStream(int maxDataFrameSize, Consumer<WriteFrame> dataFrameCompleteCallback) {
-        Exceptions.checkArgument(maxDataFrameSize > WriteFrame.MIN_ENTRY_LENGTH_NEEDED, "maxDataFrameSize",
-                "Must be a at least %s.", WriteFrame.MIN_ENTRY_LENGTH_NEEDED);
+    DataFrameOutputStream(int maxDataFrameSize, Consumer<DataFrame> dataFrameCompleteCallback) {
+        Exceptions.checkArgument(maxDataFrameSize > DataFrame.MIN_ENTRY_LENGTH_NEEDED, "maxDataFrameSize",
+                "Must be a at least %s.", DataFrame.MIN_ENTRY_LENGTH_NEEDED);
 
         this.bufferFactory = new BufferFactory(maxDataFrameSize);
         this.dataFrameCompleteCallback = Preconditions.checkNotNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
@@ -216,7 +216,7 @@ class DataFrameOutputStream extends OutputStream {
     private void createNewFrame() {
         Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
-        this.currentFrame = new WriteFrame(this.bufferFactory.next());
+        this.currentFrame = new DataFrame(this.bufferFactory.next());
         this.hasDataInCurrentFrame = false;
     }
 

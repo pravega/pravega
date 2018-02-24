@@ -44,8 +44,8 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
-        Consumer<WriteFrame> callback = df -> {
+        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -98,7 +98,7 @@ public class DataFrameOutputStreamTests {
         final int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
+        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
 
         int expectedStartIndex = 0;
         @Cleanup
@@ -141,8 +141,8 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 10 * 1024;
 
         // Callback for when a frame is written.
-        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
-        Consumer<WriteFrame> callback = df -> {
+        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
@@ -186,7 +186,7 @@ public class DataFrameOutputStreamTests {
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
-        ArrayList<WriteFrame> writtenFrames = new ArrayList<>();
+        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
@@ -216,7 +216,7 @@ public class DataFrameOutputStreamTests {
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
-        ArrayList<WriteFrame> writtenFrames = new ArrayList<>();
+        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
@@ -242,9 +242,9 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 50;
 
         // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the frame.
-        AtomicReference<WriteFrame> writtenFrame = new AtomicReference<>();
+        AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
         AtomicBoolean throwException = new AtomicBoolean();
-        Consumer<WriteFrame> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             if (throwException.get()) {
                 throw new IntentionalException();
             }
@@ -342,8 +342,8 @@ public class DataFrameOutputStreamTests {
     }
 
     @SneakyThrows(IOException.class)
-    private ReadFrame toReadFrame(WriteFrame wf) {
-        return new ReadFrame(wf.getData().getReader(), wf.getLength());
+    private DataFrame.DataFrameEntryIterator toReadFrame(DataFrame wf) {
+        return DataFrame.read(wf.getData().getReader(), wf.getLength(), wf.getAddress());
     }
 
 }

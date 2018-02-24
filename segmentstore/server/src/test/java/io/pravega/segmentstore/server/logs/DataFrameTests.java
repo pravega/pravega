@@ -40,7 +40,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        WriteFrame writeFrame = WriteFrame.ofSize(maxFrameSize);
+        DataFrame writeFrame = DataFrame.ofSize(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -49,8 +49,8 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        ReadFrame readFrame = new ReadFrame(frameData.getReader(), frameData.getLength());
-        DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
+        val contents = DataFrame.read(frameData.getReader(), frameData.getLength(), writeFrame.getAddress());
+        DataFrameTestHelpers.checkReadRecords(contents, allRecords, b -> b);
     }
 
     /**
@@ -59,7 +59,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        WriteFrame df = WriteFrame.ofSize(dataFrameSize);
+        DataFrame df = DataFrame.ofSize(dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -138,7 +138,7 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        WriteFrame df = WriteFrame.ofSize(dataFrameSize);
+        DataFrame df = DataFrame.ofSize(dataFrameSize);
 
         LogAddress a = new LogAddress(newSequence) {
         };
@@ -147,7 +147,7 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected value for getFrameSequence().", newSequence, df.getAddress().getSequence());
     }
 
-    private int appendRecords(List<ByteArraySegment> allRecords, WriteFrame dataFrame) {
+    private int appendRecords(List<ByteArraySegment> allRecords, DataFrame dataFrame) {
         int fullRecordsAppended = 0;
         boolean filledUpFrame = false;
         for (ByteArraySegment record : allRecords) {

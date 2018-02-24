@@ -171,7 +171,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws NullPointerException     If the data frame is null.
      * @throws IllegalArgumentException If the data frame is not sealed.
      */
-    private void handleDataFrameComplete(WriteFrame dataFrame) {
+    private void handleDataFrameComplete(DataFrame dataFrame) {
         Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog.

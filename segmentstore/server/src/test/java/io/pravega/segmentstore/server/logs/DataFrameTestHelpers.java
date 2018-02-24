@@ -11,9 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -22,6 +20,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import lombok.val;
 import org.junit.Assert;
 
 /**
@@ -68,15 +67,15 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<ReadFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame.DataFrameEntryIterator> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
         checkReadRecords(dataFrames, records, new HashSet<>(), recordConverter);
     }
 
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(ReadFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
-        ArrayList<ReadFrame> frames = new ArrayList<>();
+    static <T> void checkReadRecords(DataFrame.DataFrameEntryIterator dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+        ArrayList<DataFrame.DataFrameEntryIterator> frames = new ArrayList<>();
         frames.add(dataFrame);
         checkReadRecords(frames, records, recordConverter);
     }
@@ -84,12 +83,11 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given collection of DataFrames contain the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<ReadFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame.DataFrameEntryIterator> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
-        for (ReadFrame dataFrame : dataFrames) {
-            CloseableIterator<ReadFrame.DataFrameEntry, IOException> reader = dataFrame.getEntries();
-            ReadFrame.DataFrameEntry entry;
+        for (val reader : dataFrames) {
+            DataFrame.DataFrameEntry entry;
             boolean isLastEntryInFrame = true;
             while ((entry = reader.getNext()) != null) {
 
@@ -97,7 +95,7 @@ class DataFrameTestHelpers {
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
                         "Unexpected value returned by getFrameAddress(). " + state.getPosition(),
-                        dataFrame.getAddress(),
+                        reader.getFrameAddress(),
                         entry.getFrameAddress());
 
                 if (entry.isFirstRecordEntry()) {
