@@ -30,12 +30,60 @@ import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
+ *
  * Subclass one of the following based on your needs:
- * <ul>
- *  <li> VersionedSerializer.Direct for mutable objects.
- *  <li> VersionedSerializer.WithBuilder for immutable objects with Builders.
- *  <li> VersionedSerializer.MultiType for objects of multiple types inheriting from a common base type.
- * </ul>
+ * * VersionedSerializer.Direct for mutable objects.
+ * * VersionedSerializer.WithBuilder for immutable objects with Builders.
+ * * VersionedSerializer.MultiType for objects of multiple types inheriting from a common base type.
+ *
+ * General Notes:
+ *
+ * Versions
+ * * Provide a means of making incompatible format changes, most likely once enough Revisions are accumulated. Serializations
+ * in different versions are not meant to be compatible, and that's exactly what the goal of Versions is.
+ * * To introduce a new Version B = A + 1, its format needs to be established and published with the code. While doing so,
+ * the code must still write version A (since during an upgrade not all existing code will immediately know how to handle
+ * Version B). Only after all existing deployed code knows about Version B, can we have the code serialize in Version B.
+ * ** This can be achieved by declaring the serialization version using the writeVersion() method.
+ *
+ * Revisions
+ * * Are incremental on top of the previous ones, can be added on the fly, and can be used to make format changes
+ * without breaking backward or forward compatibility.
+ * * Older code will read as many revisions as it knows about, so even if newer code encodes B revisions, older code that
+ * only knows about A < B revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
+ * knows about B revisions will be able to handle A < B revisions by reading as much as is available.
+ * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions > A.
+ * * Once published, the format for a Version-Revision should never change, otherwise existing (older) code will not be
+ * able to process that serialization.
+ *
+ * OutputStreams/InputStreams
+ * * Each Revision's serialization gets an exclusive RevisionDataOutput for writing and an exclusive RevisionDataInput
+ * for reading. These are backed by OutputStreams/InputStreams that segment the data within the entire Serialization Stream.
+ * * A RevisionDataInput will disallow reading beyond the data serialized for a Revision, and if less data was read, it
+ * will skip over the remaining bytes as needed.
+ * * A RevisionDataOutput requires the length of the serialization so that it can encode it (for use by RevisionDataInput).
+ * This length is encoded as the first 4 bytes of the serialization of each Revision.
+ * ** If the target OutputStream (where we serialize to) implements RandomOutput, then the length can be automatically
+ * determined and backfilled without any extra work by the caller. Otherwise the caller is required to call length(int)
+ * with an appropriate value prior to writing any data to this object so that the length can be written (the serialization
+ * will fail if the number of bytes written differs from the length declared).
+ * ** RevisionDataOutput has a requiresExplicitLength() to aid in determining which kind of OutputStream is being used.
+ * ** RevisionDataOutput has a number of methods that can be used in calculating the length of Strings and other complex
+ * structures.
+ * ** Consider serializing to a FixedByteArrayOutputStream or EnhancedByteArrayOutputStream if you want to make use
+ * of the RandomOutput features (automatic length measurement).
+ * *** Consider using {@code ByteArraySegment serialize(T object)} if you want the VersionedSerializer to do this for you.
+ * Be mindful that this will create a new buffer for the serialization, which might affect performance.
+ *
+ * Data Formats
+ * * RevisionDataOutput and RevisionDataInput extend Java's DataOutput(Stream) and DataInput(Stream) and they use those
+ * classes' implementations for encoding primitive data types.
+ * * On top of that, they provide APIs for serializing commonly used structures:
+ * ** UUIDs
+ * ** Collections
+ * ** Maps
+ * ** Compact Numbers (Integers which serialize to 1, 2 or 4 bytes and Longs that serialize to 1, 2, 4 or 8 bytes).
+ * * Refer to RevisionDataOutput and RevisionDataInput Javadoc for more details.
  *
  * @param <T> Type of the object to serialize.
  */
@@ -362,9 +410,6 @@ public abstract class VersionedSerializer<T> {
      *    // This is the version we'll be serializing now. We have already introduced read support for Version 1, but
      *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
      *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
-     *    // NOTE: Revisions within a Version are incremental (on top of previous ones), and can be added on the fly; they
-     *    // can be used to make quick changes to the format without breaking compatibility. Versions, on the other hand,
-     *    // allow resetting the format to something completely different, and may not be compatible with previous ones.
      *    @Override
      *    protected byte writeVersion() { return 0; }
      *
