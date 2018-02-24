@@ -15,17 +15,37 @@ import java.io.IOException;
 import java.io.InputStream;
 import lombok.Getter;
 
+/**
+ * A wrapper for an InputStream that allows reading up to a specified number of bytes.
+ */
 public class BoundedInputStream extends FilterInputStream {
+    //region Members
+
     @Getter
     private final int bound;
     @Getter
     private int remaining;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the BoundedInputStream class.
+     *
+     * @param inputStream The InputStream to wrap.
+     * @param bound       The maximum number of bytes that can be read with this instance.
+     */
     public BoundedInputStream(InputStream inputStream, int bound) {
         super(inputStream);
+        Preconditions.checkArgument(bound >= 0, "bound must be a non-negative integer.");
         this.bound = bound;
         this.remaining = bound;
     }
+
+    //endregion
+
+    //region InputStream Implementation
 
     @Override
     public void close() throws IOException {
@@ -41,16 +61,10 @@ public class BoundedInputStream extends FilterInputStream {
         }
     }
 
-    public BoundedInputStream subStream(int length) {
-        Preconditions.checkArgument(length <= this.remaining, "Too large.");
-        this.remaining -= length;
-        return new BoundedInputStream(this.in, length);
-    }
-
     @Override
     public int read() throws IOException {
         // Do not allow reading more than we should.
-        int r = this.remaining > 0 ? super.read() : -1;
+        int r = this.remaining > 0 ? this.in.read() : -1;
         if (r >= 0) {
             this.remaining--;
         }
@@ -82,4 +96,24 @@ public class BoundedInputStream extends FilterInputStream {
     public int available() throws IOException {
         return Math.min(this.in.available(), this.remaining);
     }
+
+    /**
+     * Creates a new BoundedInputStream wrapping the same InputStream as this one, starting at the current position, with
+     * the given bound.
+     * <p>
+     * NOTE: both this instance and the result of this method should not be both used at the same time to read from the
+     * InputStream. When this method returns, this instance's remaining count will be reduced by the given bound (that's
+     * since upon closing, the BoundedInputStream will auto-advance to its bound position).
+     *
+     * @param bound The bound of the sub-stream.
+     * @return A new instance of a BoundedInputStream.
+     */
+    public BoundedInputStream subStream(int bound) {
+        Preconditions.checkArgument(bound >= 0 && bound <= this.remaining,
+                "bound must be a non-negative integer and less than or equal to the remaining length.");
+        this.remaining -= bound;
+        return new BoundedInputStream(this.in, bound);
+    }
+
+    //endregion
 }
