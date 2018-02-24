@@ -166,6 +166,7 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     /**
      * InputStream wrapper that counts how many bytes were read and prevents over-reading.
      */
+    @NotThreadSafe
     private static class BoundedInputStream extends FilterInputStream {
         private final int bound;
         private int remaining;

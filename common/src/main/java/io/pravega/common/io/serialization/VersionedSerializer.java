@@ -67,7 +67,7 @@ public abstract class VersionedSerializer<T> {
     }
 
     /**
-     * Serializes the given object to an in-memory buffer (RandomOutput) and returns a view of it.
+     * Serializes the given object to an in-memory buffer (RandomAccessOutputStream) and returns a view of it.
      *
      * @param object The object to serialize.
      * @return An ArrayView which represents the serialized data. This provides a view (offset+length) into a Java byte

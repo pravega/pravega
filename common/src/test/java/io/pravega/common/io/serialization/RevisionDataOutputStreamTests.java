@@ -32,7 +32,7 @@ import org.junit.Test;
  */
 public class RevisionDataOutputStreamTests {
     /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomOutput.
+     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream.
      */
     @Test
     public void testRandomOutputExpandable() throws Exception {
@@ -44,7 +44,7 @@ public class RevisionDataOutputStreamTests {
     }
 
     /**
-     * Tests the RandomRevisionDataOutput class with an fixed-length RandomOutput.
+     * Tests the RandomRevisionDataOutput class with an fixed-length RandomAccessOutputStream.
      */
     @Test
     public void testRandomOutputFixed() throws Exception {
@@ -146,7 +146,7 @@ public class RevisionDataOutputStreamTests {
     }
 
     /**
-     * Tests the case when a RevisionDataOutputStream is created but left empty upon closing, while writing to a RandomOutput OutputStream.
+     * Tests the case when a RevisionDataOutputStream is created but left empty upon closing, while writing to a RandomAccessOutputStream OutputStream.
      */
     @Test
     public void testZeroLengthRandomOutput() throws Exception {

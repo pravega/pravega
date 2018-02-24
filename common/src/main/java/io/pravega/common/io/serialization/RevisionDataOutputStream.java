@@ -36,12 +36,12 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      *
      * @param outputStream The OutputStream to wrap.
      * @return A new instance of a RevisionDataOutputStream sub-class, depending on whether the given OutputStream is a
-     * RandomOutput (supports seeking) or not.
-     * @throws IOException If an IO Exception occurred. This is because if the given OutputStream is a RandomOutput, this
+     * RandomAccessOutputStream (supports seeking) or not.
+     * @throws IOException If an IO Exception occurred. This is because if the given OutputStream is a RandomAccessOutputStream, this
      *                     will pre-allocate 4 bytes for the length.
      */
     public static RevisionDataOutputStream wrap(OutputStream outputStream) throws IOException {
-        if (outputStream instanceof RandomOutput) {
+        if (outputStream instanceof RandomAccessOutputStream) {
             return new RandomRevisionDataOutput(outputStream);
         } else {
             return new NonSeekableRevisionDataOutput(outputStream);
@@ -261,7 +261,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     //region Implementations
 
     /**
-     * RevisionDataOutput implementation that writes to a RandomOutput OutputStream. This does not force the caller to
+     * RevisionDataOutput implementation that writes to a RandomAccessOutputStream OutputStream. This does not force the caller to
      * explicitly declare the length prior to serialization as it can be back-filled upon closing.
      */
     private static class RandomRevisionDataOutput extends RevisionDataOutputStream {
@@ -279,14 +279,14 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             super(outputStream);
 
             // Pre-allocate 4 bytes so we can write the length later, but remember this position.
-            this.initialPosition = ((RandomOutput) outputStream).size();
+            this.initialPosition = ((RandomAccessOutputStream) outputStream).size();
             BitConverter.writeInt(outputStream, 0);
         }
 
         @Override
         public void close() throws IOException {
             // Calculate the number of bytes written, making sure to exclude the bytes for the length encoding.
-            RandomOutput ros = (RandomOutput) this.out;
+            RandomAccessOutputStream ros = (RandomAccessOutputStream) this.out;
             int length = ros.size() - this.initialPosition - Integer.BYTES;
 
             // Write the length at the appropriate position.
@@ -295,7 +295,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
         @Override
         public OutputStream getBaseStream() {
-            // We need to return an OutputStream that implements RandomOutput, which is our underlying OutputStream (and not us).
+            // We need to return an OutputStream that implements RandomAccessOutputStream, which is our underlying OutputStream (and not us).
             return this.out;
         }
 
@@ -314,6 +314,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      * RevisionDataOutput implementation that writes to a general OutputStream. This will force the caller to explicitly
      * calculate and declare the length prior to serialization as it cannot be back-filled upon closing.
      */
+    @NotThreadSafe
     private static class NonSeekableRevisionDataOutput extends RevisionDataOutputStream {
         private final OutputStream realStream;
         private int length;

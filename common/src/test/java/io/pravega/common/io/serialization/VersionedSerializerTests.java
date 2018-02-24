@@ -89,7 +89,7 @@ public class VersionedSerializerTests {
     //region Single Type Tests
 
     /**
-     * Tests Single Type serializer using a RandomOutput OutputStream (i.e., EnhancedByteArrayOutputStream or FixedByteArrayOutputStream.
+     * Tests Single Type serializer using a RandomAccessOutputStream OutputStream (i.e., EnhancedByteArrayOutputStream or FixedByteArrayOutputStream.
      */
     @Test
     public void testSingleTypeRandomOutput() throws IOException {
@@ -222,7 +222,7 @@ public class VersionedSerializerTests {
     //region Multi Type Tests
 
     /**
-     * Tests the ability to serialize and deserialize objects sharing a common base class using a RandomOutput OutputStream.
+     * Tests the ability to serialize and deserialize objects sharing a common base class using a RandomAccessOutputStream OutputStream.
      */
     @Test
     public void testMultiTypeRandomOutput() throws IOException {

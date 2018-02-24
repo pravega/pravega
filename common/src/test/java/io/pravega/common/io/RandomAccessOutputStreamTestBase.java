@@ -9,7 +9,7 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.io.serialization.RandomOutput;
+import io.pravega.common.io.serialization.RandomAccessOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,9 +21,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Base class for all tests of classes implementing RandomOutput.
+ * Base class for all tests of classes implementing RandomAccessOutputStream.
  */
-public abstract class RandomOutputTestBase<T extends OutputStream & RandomOutput> {
+public abstract class RandomAccessOutputStreamTestBase<T extends OutputStream & RandomAccessOutputStream> {
     private static final int INITIAL_LENGTH = 100;
     private static final byte INITIAL_FILL = -1;
 
@@ -164,7 +164,7 @@ public abstract class RandomOutputTestBase<T extends OutputStream & RandomOutput
 
     //region Implementations
 
-    public static class FixedByteArrayOutputStreamTest extends RandomOutputTestBase<FixedByteArrayOutputStream> {
+    public static class FixedByteArrayOutputStreamTest extends RandomAccessOutputStreamTestBase<FixedByteArrayOutputStream> {
 
         @Override
         protected boolean canGrow() {
@@ -184,7 +184,7 @@ public abstract class RandomOutputTestBase<T extends OutputStream & RandomOutput
         }
     }
 
-    public static class EnhancedByteArrayOutputStreamTest extends RandomOutputTestBase<EnhancedByteArrayOutputStream> {
+    public static class EnhancedByteArrayOutputStreamTest extends RandomAccessOutputStreamTestBase<EnhancedByteArrayOutputStream> {
         @Override
         protected boolean canGrow() {
             return true;
