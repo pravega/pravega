@@ -16,15 +16,20 @@ import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * An InputStream that abstracts reading from DataFrames that were previously serialized into a DurableDataLog. This can
+ * be used to read back data that was written using DataFrameOutputStream.
+ */
 @Slf4j
+@NotThreadSafe
 public class DataFrameInputStream extends InputStream {
     //region Members
 
@@ -38,13 +43,19 @@ public class DataFrameInputStream extends InputStream {
     private boolean isLastFrameEntry;
     @Getter
     private boolean closed;
-    private int readEntryCount;
+    private boolean hasReadAnyData;
     private boolean prefetchedEntry;
 
     //endregion
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the DataFrameInputStream class.
+     *
+     * @param reader        An Iterator that produces DurableDataLog.ReadItems, which are then interpreted as DataFrames.
+     * @param traceObjectId Used for logging.
+     */
     DataFrameInputStream(CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader, String traceObjectId) {
         this.reader = Preconditions.checkNotNull(reader, "reader");
         this.traceObjectId = Exceptions.checkNotNullOrEmpty(traceObjectId, "traceObjectId");
@@ -72,12 +83,13 @@ public class DataFrameInputStream extends InputStream {
                 // We have data to return.
                 return r;
             } else {
-                // Nothing to return. Fetch next entry and repeat.
+                // Reached the end of the current entry.
+                checkEndOfRecord();
                 fetchNextEntry();
             }
         }
 
-        // We've reached the end.
+        // We've reached the end of the DataFrameInputStream.
         return -1;
     }
 
@@ -95,7 +107,8 @@ public class DataFrameInputStream extends InputStream {
                 // We found data.
                 count += r;
             } else {
-                // Fetch next entry and repeat.
+                // Reached the end of the current entry.
+                checkEndOfRecord();
                 fetchNextEntry();
             }
         }
@@ -112,14 +125,37 @@ public class DataFrameInputStream extends InputStream {
 
     //region Frame Processing
 
-    void beginRecord() throws IOException {
-        if (this.currentEntry != null && !this.prefetchedEntry) {
-            endRecord();
-        }
+    /**
+     * Indicates that a new record is to be expected. When invoked, if in the middle of a record, it will be skipped over
+     * and the DataFrameInputStream will be positioned at the beginning of the next record.
+     *
+     * @return True if a new record can be read, false if we reached the end of the DataFrameInputStream and can no longer
+     * read.
+     * @throws IOException If an IO Exception occurred.
+     */
+    boolean beginRecord() throws IOException {
+        try {
+            if (this.currentEntry != null && !this.prefetchedEntry) {
+                endRecord();
+            }
 
-        fetchNextEntry();
+            fetchNextEntry();
+            return true;
+        } catch (NoMoreRecordsException ex) {
+            // We've reached the end of the DataFrameInputStream. We are done.
+            return false;
+        }
     }
 
+    /**
+     * Indicates that the current record has finished processing. When invoked, the DataFrameInputStream will be repositioned
+     * at the start of the next record. This method only needs to be called upon a successful record read. If an IOException
+     * occurred while reading data from a record, either the DataFrameInputStream will be auto-closed or a subsequent call
+     * to beginRecord() will reposition the stream accordingly.
+     *
+     * @return A RecordInfo containing metadata about the record that just ended, such as addressing information.
+     * @throws IOException If an IO Exception occurred.
+     */
     RecordInfo endRecord() throws IOException {
         RecordInfo r = new RecordInfo(this.lastUsedDataFrameAddress, this.lastFullDataFrameAddress, this.isLastFrameEntry);
         while (this.currentEntry != null) {
@@ -131,6 +167,14 @@ public class DataFrameInputStream extends InputStream {
             }
         }
         return r;
+    }
+
+    private void checkEndOfRecord() throws IOException {
+        if (this.currentEntry.isLastRecordEntry()) {
+            // We've reached the end of the current record, but the caller wants to read more. This is usually
+            // indicative of some data corruption.
+            throw new EndOfRecordException("Reached the end of the current record.");
+        }
     }
 
     private void resetContext() {
@@ -158,14 +202,11 @@ public class DataFrameInputStream extends InputStream {
             }
 
             if (nextEntry == null) {
-                // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
-                // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
+                // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the
+                // middle of an entry that hasn't been fully committed. We need to discard it and mark the end of the
+                // DataFrameInputStream.
                 close();
-                if (this.currentEntry != null && !this.currentEntry.isLastRecordEntry()) {
-                    throw new EOFException();
-                } else {
-                    throw new NoMoreRecordsException();
-                }
+                throw new NoMoreRecordsException();
             }
 
             if (nextEntry.isFirstRecordEntry()) {
@@ -182,7 +223,7 @@ public class DataFrameInputStream extends InputStream {
                 // We found an entry that is not marked as "First Record Entry", yet we are expecting one marked as such
                 // This happens when the DurableDataLog has been truncated, and an entry has been "cut" in two.
                 // In this case, this entry is garbage, so it should be skipped.
-                if (this.readEntryCount > 0) {
+                if (this.hasReadAnyData) {
                     // But this should ONLY happen at the very beginning of a read. If we encounter something like
                     // this in the middle of a log, we very likely have some sort of corruption.
                     throw new SerializationException(String.format("Found a DataFrameEntry which is not marked as " +
@@ -214,7 +255,7 @@ public class DataFrameInputStream extends InputStream {
         this.isLastFrameEntry = nextEntry.isLastEntryInDataFrame();
         this.currentEntry = nextEntry;
         if (this.currentEntry.isLastRecordEntry()) {
-            this.readEntryCount++;
+            this.hasReadAnyData = true;
         }
     }
 
@@ -322,6 +363,17 @@ public class DataFrameInputStream extends InputStream {
      * current record and proceed to the next.
      */
     static class RecordResetException extends IOException {
+    }
+
+    /**
+     * Exception that is thrown whenever we attempt to read beyond the end of a Record. The DataFrameInputStream allows
+     * reading bytes continuously, but the caller needs to call beginRecord() and endRecord() to confirm that the record
+     * data has been successfully processed.
+     */
+    static class EndOfRecordException extends IOException {
+        private EndOfRecordException(String message) {
+            super(message);
+        }
     }
 
     //endregion

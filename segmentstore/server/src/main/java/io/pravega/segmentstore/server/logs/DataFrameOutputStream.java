@@ -24,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
  * from one Data Frame to another if the previous Data Frame was full.
+ *
+ * Data written with this class can be read back using DataFrameInputStream.
  */
 @NotThreadSafe
 class DataFrameOutputStream extends OutputStream {
@@ -161,7 +163,7 @@ class DataFrameOutputStream extends OutputStream {
     void startNewRecord() throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
 
-        // If there is any data in the current frame, seal it and ship it. And create a new one with StartMagic = Last.EndMagic.
+        // If there is any data in the current frame, seal it and ship it.
         if (this.currentFrame == null) {
             // No active frame, create a new one.
             createNewFrame();

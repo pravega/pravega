@@ -88,8 +88,12 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
         try {
             while (!this.dataFrameInputStream.isClosed()) {
                 try {
+                    if (!this.dataFrameInputStream.beginRecord()) {
+                        // We've reached the end of the DataFrameInputStream.
+                        return null;
+                    }
+
                     // Attempt to deserialize the next record. If the serialization was bad, this will throw an exception which we'll pass along.
-                    this.dataFrameInputStream.beginRecord();
                     T logItem = this.logItemFactory.deserialize(this.dataFrameInputStream);
                     DataFrameInputStream.RecordInfo recordInfo = this.dataFrameInputStream.endRecord();
                     long seqNo = logItem.getSequenceNumber();
@@ -100,17 +104,14 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
                     this.lastReadSequenceNumber = seqNo;
                     return new ReadResult<>(logItem, recordInfo);
-                } catch (DataFrameInputStream.RecordResetException ex) {
+                } catch (DataFrameInputStream.RecordResetException | DataFrameInputStream.NoMoreRecordsException ex) {
                     // We partially "deserialized" a record, but realized it was garbage (a product of a failed, partial
                     // serialization). Discard whatever we have and try again.
-                } catch (DataFrameInputStream.NoMoreRecordsException ex) {
-                    // We are done.
-                    return null;
                 } catch (IOException ex) {
-                    // This catches all EOFExceptions and SerializationExceptions too.
+                    // This catches all EOFExceptions, EndOfRecordExceptions and SerializationExceptions too.
+                    // Any other exceptions are considered to be non-DataCorruption.
                     throw new DataCorruptionException("Deserialization failed.", ex);
                 }
-                // Any other exceptions are considered to be non-DataCorruption.
             }
 
             // No more data.
