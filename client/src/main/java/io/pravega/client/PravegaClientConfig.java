@@ -52,4 +52,8 @@ public class PravegaClientConfig {
         return this.controllerURI.getScheme().equals("tls") || this.controllerURI.getScheme().equals("ssl")
                 || this.controllerURI.getScheme().equals("pravegas");
     }
+
+    public static final class PravegaClientConfigBuilder {
+        private boolean validateHostName = true;
+    }
 }

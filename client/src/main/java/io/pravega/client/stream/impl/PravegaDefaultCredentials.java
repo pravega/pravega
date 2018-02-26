@@ -9,16 +9,15 @@
  */
 package io.pravega.client.stream.impl;
 
-import java.util.HashMap;
+import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 
 public class PravegaDefaultCredentials implements PravegaCredentials {
-    private final HashMap<String, String> credsMap;
+    private final ImmutableMap<String, String> credsMap;
 
     public PravegaDefaultCredentials(String password, String userName) {
-        credsMap = new HashMap<>();
-        credsMap.put("userName", userName);
-        credsMap.put("password", password);
+        credsMap = ImmutableMap.of("userName", userName,
+                "password", password);
     }
 
     @Override
