@@ -542,10 +542,10 @@ public class VersionedSerializerTests {
 
     private static class BaseClassSerializer extends VersionedSerializer.MultiType<BaseClass> {
         @Override
-        protected void declareSerializers() {
-            serializer(SubClass1.class, 1, new SubClass1Serializer());
-            serializer(SubClass2.class, 2, new SubClass2Serializer());
-            serializer(SubClass11.class, 11, new SubClass11Serializer());
+        protected void declareSerializers(Builder b) {
+            b.serializer(SubClass1.class, 1, new SubClass1Serializer())
+             .serializer(SubClass2.class, 2, new SubClass2Serializer())
+             .serializer(SubClass11.class, 11, new SubClass11Serializer());
         }
     }
 

@@ -10,6 +10,7 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
@@ -23,7 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Map;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -598,12 +599,12 @@ public abstract class VersionedSerializer<T> {
      *
      * class BaseTypeSerializer extends VersionedSerializer.MultiType<BaseType> {
      *    @Override
-     *    protected void declareSerializers() {
+     *    protected void declareSerializers(Builder b) {
      *        // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring) and not necessarily
      *        // sequential or contiguous.
-     *        serializer(SubType1.class, 0, new SubType1.SubType1Serializer());
-     *        serializer(SubType11.class, 10, new SubType11.SubType11Serializer());
-     *        serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
+     *        b.serializer(SubType1.class, 0, new SubType1.SubType1Serializer())
+     *         .serializer(SubType11.class, 10, new SubType11.SubType11Serializer())
+     *         .serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
      *    }
      * }
      * }
@@ -612,50 +613,25 @@ public abstract class VersionedSerializer<T> {
      * @param <BaseType> The base type that all other types will derive from.
      */
     public static abstract class MultiType<BaseType> extends VersionedSerializer<BaseType> {
-        private final HashMap<Byte, SerializerInfo> serializersById;
-        private final HashMap<Class, SerializerInfo> serializersByType;
+        private final Map<Byte, SerializerInfo> serializersById;
+        private final Map<Class, SerializerInfo> serializersByType;
 
         /**
          * Creates a new instance of the MultiType class.
          */
         public MultiType() {
-            this.serializersByType = new HashMap<>();
-            this.serializersById = new HashMap<>();
-            declareSerializers();
+            val builder = new Builder();
+            declareSerializers(builder);
+            this.serializersByType = builder.builderByType.build();
+            this.serializersById = builder.builderById.build();
         }
 
         /**
          * When implemented in a derived class, this method will declare all supported serializers of subtypes of BaseType
          * by using the serializer() method.
+         * @param builder A MultiType.Builder that can be used to declare serializers.
          */
-        protected abstract void declareSerializers();
-
-        /**
-         * Registers a new serializer for the given class.
-         *
-         * @param type                The type of the class to register. Must derive from BaseClass.
-         * @param serializationTypeId A unique identifier associated with this serializer. This will be used to identify
-         *                            object types upon deserialization, so it is very important for this value not to
-         *                            change or be reused upon code refactoring. Valid range: [0, 127]
-         * @param serializer          The serializer for the given type.
-         * @param <TargetType>        Type of the object to serialize. Must derive from BaseType.
-         * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
-         * @return This instance.
-         */
-        protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType> serializer(
-                Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
-            Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
-                    "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
-            Preconditions.checkArgument(!this.serializersById.containsKey((byte) serializationTypeId),
-                    "SerializationTypeId %s already has a serializer registered.", serializationTypeId);
-            Preconditions.checkArgument(!this.serializersByType.containsKey(type),
-                    "Type %s already has a serializer registered.", type);
-
-            val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
-            this.serializersById.put(si.id, si);
-            this.serializersByType.put(si.type, si);
-            return this;
-        }
+        protected abstract void declareSerializers(Builder builder);
 
         @Override
         @SuppressWarnings("unchecked")
@@ -701,6 +677,34 @@ public abstract class VersionedSerializer<T> {
             final Class type;
             final byte id;
             final VersionedSerializer.WithBuilder serializer;
+        }
+
+        protected final class Builder {
+            private final ImmutableMap.Builder<Byte, SerializerInfo> builderById = ImmutableMap.builder();
+            private final ImmutableMap.Builder<Class, SerializerInfo> builderByType = ImmutableMap.builder();
+
+            /**
+             * Registers a new serializer for the given class.
+             *
+             * @param type                The type of the class to register. Must derive from BaseClass.
+             * @param serializationTypeId A unique identifier associated with this serializer. This will be used to identify
+             *                            object types upon deserialization, so it is very important for this value not to
+             *                            change or be reused upon code refactoring. Valid range: [0, 127]
+             * @param serializer          The serializer for the given type.
+             * @param <TargetType>        Type of the object to serialize. Must derive from BaseType.
+             * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
+             * @return This instance.
+             */
+            protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
+                    Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
+                Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
+                        "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
+
+                val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
+                this.builderById.put(si.id, si);
+                this.builderByType.put(si.type, si);
+                return this;
+            }
         }
     }
 

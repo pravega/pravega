@@ -331,7 +331,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             if (this.length != size()) {
                 // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
                 throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, size()));
-            } else if (this.out instanceof LengthRequiredOutputStream) {
+            } else if (requiresExplicitLength()) {
                 // We haven't written anything nor declared a length. Write the length prior to exiting.
                 length(0);
             }
@@ -344,12 +344,13 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
         @Override
         public boolean requiresExplicitLength() {
-            return true;
+            // We only require the Length to be declared once; after it's been set there's no need to set it again.
+            return this.out instanceof LengthRequiredOutputStream;
         }
 
         @Override
         public void length(int length) throws IOException {
-            if (this.out instanceof LengthRequiredOutputStream) {
+            if (requiresExplicitLength()) {
                 BitConverter.writeInt(this.realStream, length);
                 super.out = this.realStream;
                 this.length = length;
