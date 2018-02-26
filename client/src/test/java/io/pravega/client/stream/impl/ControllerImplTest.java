@@ -1129,4 +1129,30 @@ public class ControllerImplTest {
                                      new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
                      successors);
     }
+
+    @Test
+    public void testSegments() throws Exception {
+        String scope = "scope1";
+        String stream = "stream1";
+        Stream s = new StreamImpl(scope, stream);
+
+        Map<Segment, Long> startSegments = new HashMap<>();
+        startSegments.put(new Segment(scope, stream, 0), 4L);
+        startSegments.put(new Segment(scope, stream, 1), 6L);
+        StreamCut cut = new StreamCut(s, startSegments);
+
+        Map<Segment, Long> endSegments = new HashMap<>();
+        endSegments.put(new Segment(scope, stream, 6), 10L);
+        endSegments.put(new Segment(scope, stream, 7), 10L);
+        StreamCut endSC = new StreamCut(s, endSegments);
+
+        Set<Segment> result = controllerClient.getSegments(cut, endSC).get();
+        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
+                new Segment(scope, stream, 2), new Segment(scope, stream, 3),
+                new Segment(scope, stream, 4), new Segment(scope, stream, 5),
+                new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
+                result);
+    }
+
+
 }

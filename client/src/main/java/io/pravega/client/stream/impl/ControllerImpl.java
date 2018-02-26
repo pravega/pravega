@@ -601,30 +601,33 @@ public class ControllerImpl implements Controller {
     }
     
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+    public CompletableFuture<Set<Segment>> getSuccessors(final StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
                                                      RuntimeException::new).getSegments();
-        Set<Segment> unread = getSegmentsInclusive(from, currentSegments);
+        final Set<Segment> unread = getSegmentsInclusive(from, currentSegments);
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(unread);
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public CompletableFuture<Set<Segment>> getSegments(final StreamCut fromStreamCut, final StreamCut toStreamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
+        Preconditions.checkNotNull(toStreamCut, "toStreamCut");
         Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()), "Ensure streamCuts for the same stream is passed");
-        //TODO: Validation check to ensure toStreamCut >= fromStreamCut.
-        Stream stream = fromStreamCut.getStream();
+
+        final Stream stream = fromStreamCut.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        Set<Segment> segments = getSegmentsInclusive(fromStreamCut, toStreamCut.getPositions().keySet());
+        final Set<Segment> segments = getSegmentsInclusive(fromStreamCut, toStreamCut.getPositions().keySet());
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(segments);
     }
 
     private Set<Segment> getSegmentsInclusive(StreamCut fromStreamCut, Collection<Segment> currentSegments) {
-        HashSet<Segment> unread = new HashSet<>(fromStreamCut.getPositions().keySet());
+        final HashSet<Segment> unread = new HashSet<>(fromStreamCut.getPositions().keySet());
         unread.addAll(currentSegments);
         unread.addAll(computeKnownUnreadSegments(currentSegments, fromStreamCut));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();

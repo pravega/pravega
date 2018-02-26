@@ -9,7 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.batch.SegmentMetadata;
+import io.pravega.client.batch.SegmentInputSplit;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -35,7 +35,7 @@ import static org.junit.Assert.assertTrue;
 
 public class BatchClientImplTest {
 
-    @Test//(timeout = 5000)
+    @Test(timeout = 5000)
     public void testSegmentIterator() throws ConnectionFailedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = Mockito.mock(ClientConnection.class);
@@ -72,7 +72,7 @@ public class BatchClientImplTest {
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build())
                       .join();
-        Iterator<SegmentMetadata> segments = client.getSegments(stream).getSegmentMetaDataIterator();
+        Iterator<SegmentInputSplit> segments = client.getSegments(stream).getSegmentInputSplitIterator();
         assertTrue(segments.hasNext());
         assertEquals(0, segments.next().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());

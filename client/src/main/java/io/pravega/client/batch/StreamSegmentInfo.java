@@ -39,7 +39,7 @@ public class StreamSegmentInfo {
     private final StreamCut endStreamCut;
     @NonNull
     @Setter(AccessLevel.NONE)
-    private final Iterator<SegmentMetadata> segmentMetaDataIterator;
+    private final Iterator<SegmentInputSplit> segmentInputSplitIterator;
 
     public static StreamSegmentInfoBuilder builder() {
         return new StreamSegmentInfoValidator();
@@ -51,26 +51,25 @@ public class StreamSegmentInfo {
             validateStreamCuts(super.startStreamCut, super.endStreamCut);
             return super.build();
         }
+    }
 
-        //TODO: Add Junits.
-        private void validateStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
-            //Validate that startStreamCut and endStreamCut are for the same stream.
-            Preconditions.checkArgument(startStreamCut.getStream().equals(endStreamCut.getStream()));
-            //Validate that two streamCuts are not overlapping.
+    public static void validateStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+        //Validate that startStreamCut and endStreamCut are for the same stream.
+        Preconditions.checkArgument(startStreamCut.getStream().equals(endStreamCut.getStream()));
 
-            Map<Segment, Long> startSegments = startStreamCut.getPositions();
-            Map<Segment, Long> endSegments = endStreamCut.getPositions();
-            val startSCSummary = startSegments.keySet().stream().collect(summarizingInt(Segment::getSegmentNumber));
-            val endSCSummary = endSegments.keySet().stream().collect(summarizingInt(Segment::getSegmentNumber));
+        //Validate that two streamCuts are not overlapping.
+        Map<Segment, Long> startSegments = startStreamCut.getPositions();
+        Map<Segment, Long> endSegments = endStreamCut.getPositions();
+        val startSCSummary = startSegments.keySet().stream().collect(summarizingInt(Segment::getSegmentNumber));
+        val endSCSummary = endSegments.keySet().stream().collect(summarizingInt(Segment::getSegmentNumber));
 
-            //Ensure no overlap.
-            Preconditions.checkState(startSCSummary.getMin() <= endSCSummary.getMin());
-            Preconditions.checkState(startSCSummary.getMax() <= endSCSummary.getMax());
+        //Ensure no overlap.
+        Preconditions.checkState(startSCSummary.getMin() <= endSCSummary.getMin());
+        Preconditions.checkState(startSCSummary.getMax() <= endSCSummary.getMax());
 
-            //Ensure that the offsets of overlapping segments does not decrease from startStreamCut to endStreamCut.
-            val commonSegments = startSegments.keySet().stream().filter(endSegments::containsKey)
-                                              .collect(Collectors.toList());
-            commonSegments.forEach(s -> Preconditions.checkState(startSegments.get(s) <= endSegments.get(s)));
-        }
+        //Ensure that the offsets of overlapping segments does not decrease from startStreamCut to endStreamCut.
+        val commonSegments = startSegments.keySet().stream().filter(endSegments::containsKey)
+                                          .collect(Collectors.toList());
+        commonSegments.forEach(s -> Preconditions.checkState(startSegments.get(s) <= endSegments.get(s)));
     }
 }

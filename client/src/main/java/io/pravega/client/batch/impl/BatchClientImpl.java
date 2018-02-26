@@ -13,9 +13,9 @@ import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.batch.BatchClient;
+import io.pravega.client.batch.SegmentInputSplit;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.batch.SegmentIterator;
-import io.pravega.client.batch.SegmentMetadata;
 import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.StreamSegmentInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -30,20 +30,22 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegments;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Beta
+@Slf4j
 public class BatchClientImpl implements BatchClient {
 
     private final Controller controller;
@@ -55,7 +57,7 @@ public class BatchClientImpl implements BatchClient {
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
-    
+
     private StreamInfo getStreamInfo(Stream stream) {
         // TODO: Implement this method and make it public
         // Name from stream
@@ -71,13 +73,13 @@ public class BatchClientImpl implements BatchClient {
     }
 
     @Override
-    public StreamSegmentInfo getSegments(final Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public StreamSegmentInfo getSegments(final Stream stream, final StreamCut fromStreamCut, final StreamCut toStreamCut) {
         Preconditions.checkNotNull(stream, "stream");
         return listSegments(stream, Optional.ofNullable(fromStreamCut), Optional.ofNullable(toStreamCut));
     }
 
     @Override
-    public <T> SegmentIterator<T> readSegment(final SegmentMetadata segment, final Serializer<T> deserializer) {
+    public <T> SegmentIterator<T> readSegment(final SegmentInputSplit segment, final Serializer<T> deserializer) {
         return new SegmentIteratorImpl<>(inputStreamFactory, segment.getSegment(), deserializer,
                 segment.getStartOffset(), segment.getEndOffset());
     }
@@ -90,34 +92,48 @@ public class BatchClientImpl implements BatchClient {
 
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
-        return getStreamSegmentInfo(startStreamCut.orElse(fetchStreamCut(stream, new Date(0L))),
-                endStreamCut.orElse(fetchTailStreamCut(stream)));
+        CompletableFuture<StreamCut> startSC = startStreamCut.isPresent() ?
+                CompletableFuture.completedFuture(startStreamCut.get()) : fetchStreamCut(stream, new Date(0L));
+        CompletableFuture<StreamCut> endSC = endStreamCut.isPresent() ?
+                CompletableFuture.completedFuture(endStreamCut.get()) : fetchTailStreamCut(stream);
+        return getStreamSegmentInfo(startSC, endSC);
     }
 
-    private StreamCut fetchStreamCut(final Stream stream, final Date from) {
-        Map<Segment, Long> segments = getAndHandleExceptions(controller.getSegmentsAtTime(
-                new StreamImpl(stream.getScope(), stream.getStreamName()), from.getTime()), RuntimeException::new);
-        return new StreamCut(stream, segments);
+    private CompletableFuture<StreamCut> fetchStreamCut(final Stream stream, final Date from) {
+        return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(),
+                stream.getStreamName()), from.getTime()).thenApply(segmentLongMap -> new StreamCut(stream,
+                segmentLongMap));
     }
 
-    private StreamCut fetchTailStreamCut(final Stream stream) {
-        StreamSegments currentSegments = getAndHandleExceptions(controller
-                .getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
-        Map<Segment, Long> segmentOffsetMap =
-                currentSegments.getSegments().stream().map(this::getSegmentInfo)
-                               .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
-        return new StreamCut(stream, segmentOffsetMap);
+    private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
+        return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
+                         .thenApply(s -> s.getSegments().stream()
+                                              .map(this::getSegmentInfo)
+                                              .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset)))
+                         .thenApply(segmentMap -> new StreamCut(stream, segmentMap));
     }
 
-    private StreamSegmentInfo getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
-        SortedSet<Segment> result = new TreeSet<>();
-        result.addAll(getAndHandleExceptions(controller.getSegments(startStreamCut, endStreamCut),
-                RuntimeException::new));
-        Iterator<SegmentMetadata> iterator = Iterators.transform(result.iterator(), s -> getSegmentMetadata(s, startStreamCut,
-                endStreamCut));
-        return StreamSegmentInfo.builder().segmentMetaDataIterator(iterator)
-                                .startStreamCut(startStreamCut)
-                                .endStreamCut(endStreamCut).build();
+    private StreamSegmentInfo getStreamSegmentInfo(final CompletableFuture<StreamCut> startStreamCut,
+                                                   final CompletableFuture<StreamCut> endStreamCut) {
+
+        CompletableFuture<Set<Segment>> segmentsFuture =
+                CompletableFuture.allOf(startStreamCut, endStreamCut)
+                                 .thenCompose(v -> {
+                                     StreamCut startSC = startStreamCut.join();
+                                     StreamCut endSC = endStreamCut.join();
+                                     log.debug("Start stream cut: {}, End stream cut: {}", startSC, endSC);
+                                     StreamSegmentInfo.validateStreamCuts(startSC, endSC);
+                                     return controller.getSegments(startSC, endSC);
+                                 });
+
+        final SortedSet<Segment> segmentSet = new TreeSet<>();
+        segmentSet.addAll(getAndHandleExceptions(segmentsFuture, RuntimeException::new));
+        log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
+        Iterator<SegmentInputSplit> iterator = Iterators.transform(segmentSet.iterator(),
+                s -> getSegmentInputSplit(s, startStreamCut.join(), endStreamCut.join()));
+        return StreamSegmentInfo.builder().segmentInputSplitIterator(iterator)
+                                .startStreamCut(startStreamCut.join())
+                                .endStreamCut(endStreamCut.join()).build();
     }
 
     private SegmentInfo getSegmentInfo(final Segment s) {
@@ -127,24 +143,23 @@ public class BatchClientImpl implements BatchClient {
     }
 
     /*
-     * Given a segment fetch its SegmentMetadata.
+     * Given a segment fetch its SegmentInputSplit.
      * - If segment is part of startStreamCut / endStreamCut update startOffset and endOffset accordingly.
      * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
      */
-    private SegmentMetadata getSegmentMetadata(final Segment segment, final StreamCut startStreamCut,
-                                               final StreamCut endStreamCut) {
-        SegmentMetadata.SegmentMetadataBuilder metaDataBuilder = SegmentMetadata.builder().segment(segment);
+    private SegmentInputSplit getSegmentInputSplit(final Segment segment, final StreamCut startStreamCut,
+                                                   final StreamCut endStreamCut) {
+        SegmentInputSplit.SegmentInputSplitBuilder segmentSplitBuilder = SegmentInputSplit.builder().segment(segment);
         if (startStreamCut.getPositions().containsKey(segment) && endStreamCut.getPositions().containsKey(segment)) {
             //use the meta data present in startStreamCut and endStreamCuts.
-            metaDataBuilder.startOffset(startStreamCut.getPositions().get(segment))
-                   .endOffset(endStreamCut.getPositions().get(segment));
+            segmentSplitBuilder.startOffset(startStreamCut.getPositions().get(segment))
+                           .endOffset(endStreamCut.getPositions().get(segment));
         } else {
             //use segment meta data client to fetch the segment offsets.
             SegmentInfo r = getSegmentInfo(segment);
-            metaDataBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
-                   .endOffset(endStreamCut.getPositions().getOrDefault(segment, r.getWriteOffset()));
+            segmentSplitBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
+                           .endOffset(endStreamCut.getPositions().getOrDefault(segment, r.getWriteOffset()));
         }
-        return metaDataBuilder.build();
+        return segmentSplitBuilder.build();
     }
-
 }

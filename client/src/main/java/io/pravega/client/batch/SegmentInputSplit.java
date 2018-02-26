@@ -10,29 +10,50 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
+import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.Setter;
 
+/**
+ * Class to represent a Segment split information.
+ */
 @Beta
 @Data
 @Builder
-public class SegmentMetadata {
+public class SegmentInputSplit {
 
     /**
      * Segment to which the metadata relates to.
      */
     @NonNull
+    @Setter(AccessLevel.NONE)
     private final Segment segment;
 
     /**
      * Start offset for the segment.
      */
+    @Setter(AccessLevel.NONE)
     private final long startOffset;
 
     /**
      * End offset for the segment.
      */
+    @Setter(AccessLevel.NONE)
     private final long endOffset;
+
+    public static SegmentInputSplit.SegmentInputSplitBuilder builder() {
+        return new SegmentInputSplit.SegmentInputSplitBuilderWithValidation();
+    }
+
+    private static class SegmentInputSplitBuilderWithValidation extends SegmentInputSplitBuilder {
+        @Override
+        public SegmentInputSplit build() {
+            Preconditions.checkState(super.startOffset <= super.endOffset);
+            return super.build();
+        }
+    }
 }

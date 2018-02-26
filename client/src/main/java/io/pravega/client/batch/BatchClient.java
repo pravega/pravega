@@ -38,13 +38,13 @@ public interface BatchClient {
     StreamSegmentInfo getSegments(Stream stream);
 
     /**
-     * Provide a list of segments and their metadata for a given stream between fromStreamCut and toStreamCut.
+     * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
      * i) If only fromStreamCut is provided then
-     *      - Segment meta data of all segments upto the tail of the stream are returned.
+     *      - All segments up to the tail of the stream are returned.
      *      - StreamSegmentInfo.endStreamCut is populated with the effective end point of the stream.
      * ii) If only toStreamCut is provided then
-     *      - Segment meta data of all segments from the start of the stream to toStreamCut are returned.
-     *      - StreamSegmentInfo.startStreamCut is populated with the stream cut which points to start of the stream
+     *      - All segments from the start of the stream to toStreamCut are returned.
+     *      - StreamSegmentInfo.startStreamCut is populated with the stream cut which points to start of the stream.
      * iii) If neither fromStreamCut nor toStreamCut are specified
      *      - then the behaviour is same as BatchClient#getSegments(io.pravega.client.stream.Stream)
 
@@ -64,6 +64,6 @@ public interface BatchClient {
      * @param deserializer A deserializer to be used to parse events
      * @return A SegmentIterator over the requested segment
      */
-    <T> SegmentIterator<T> readSegment(SegmentMetadata segment, Serializer<T> deserializer);
+    <T> SegmentIterator<T> readSegment(SegmentInputSplit segment, Serializer<T> deserializer);
 
 }
