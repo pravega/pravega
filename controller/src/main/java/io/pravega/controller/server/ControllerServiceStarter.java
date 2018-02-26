@@ -150,6 +150,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                                                                   .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
                                                                           "tls://" : "tcp://") + "localhost"))
                                                                   .pravegaTrustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                                                                  .validateHostName(false)
                                                                   .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);

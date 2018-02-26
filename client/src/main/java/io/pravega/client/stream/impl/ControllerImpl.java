@@ -161,7 +161,7 @@ public class ControllerImpl implements Controller {
         this.channel = channelBuilder.build();
         ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         PravegaCredentials credentials = config.getClientConfig().getCredentials();
-        if (config.getClientConfig().isEnableTls() && credentials != null) {
+        if (credentials != null) {
             PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }

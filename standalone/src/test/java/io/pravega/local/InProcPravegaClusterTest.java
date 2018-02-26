@@ -73,6 +73,7 @@ public class InProcPravegaClusterTest {
                                                               .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                                                               .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
                                                               .pravegaTrustStore("../config/cert.pem")
+                                                              .validateHostName(false)
                                                               .build();
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);

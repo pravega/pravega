@@ -21,8 +21,6 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
     public void setUp() throws Exception {
         this.authEnabled = true;
         this.tlsEnabled = false;
-        System.setProperty("io.pravega.tls.enabled", "false");
-        System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
         super.setUp();
     }
 
@@ -30,7 +28,5 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        System.setProperty("io.pravega.tls.enabled", "false");
-        System.setProperty("io.pravega.auth.certfile", "../config/cert.pem");
     }
 }

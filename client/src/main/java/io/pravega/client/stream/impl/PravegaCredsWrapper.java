@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.auth.Credentials;
-import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
@@ -39,7 +38,7 @@ public class PravegaCredsWrapper extends Credentials {
                     List<String> list = Collections.singletonList(e.getValue());
                     return list;
                 }));
-        retVal.put("method", ImmutableList.of(creds.getAuthenticationType()));
+        retVal.put("method", Collections.singletonList(creds.getAuthenticationType()));
         return retVal;
     }
 
