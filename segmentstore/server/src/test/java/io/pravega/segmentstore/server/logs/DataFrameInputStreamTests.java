@@ -50,6 +50,30 @@ public class DataFrameInputStreamTests {
     }
 
     /**
+     * Tests a general read case while reading records only partially (verifies that endRecord() skips over to the next one).
+     */
+    @Test
+    public void testReadsIncompleteRecords() throws Exception {
+        val items = generateData();
+        try (val reader = toReader(toDataFrames(items));
+             val inputStream = new DataFrameInputStream(reader, TRACE_ID)) {
+            int readLength = 0;
+            for (val item : items) {
+                readLength = (readLength + 1) % RECORD_SIZE;
+                inputStream.beginRecord();
+                val readData = StreamHelpers.readAll(inputStream, readLength);
+                Assert.assertEquals("Unexpected read length.", readLength, readData.length);
+                AssertExtensions.assertArrayEquals("Unexpected data.", item.data, 0, readData, 0, readData.length);
+                inputStream.endRecord();
+            }
+
+            Assert.assertFalse("beginRecord() returned true when reaching the end.", inputStream.beginRecord());
+            Assert.assertEquals("read() allowed reading beyond the end of the DataFrameInputStream.", -1, inputStream.read());
+            Assert.assertTrue("Expected InputStream to be closed.", inputStream.isClosed());
+        }
+    }
+
+    /**
      * Tests the case when the DataFrameInputStream begins with a partial record at the beginning (i.e., after a truncation).
      */
     @Test
@@ -142,7 +166,7 @@ public class DataFrameInputStreamTests {
             Assert.assertTrue("Unexpected value for beginRecord() for record " + i, br);
             val readData = StreamHelpers.readAll(inputStream, RECORD_SIZE);
             Assert.assertEquals("Unexpected length for record " + i, expectedData.data.length, readData.length);
-            // Assert.assertArrayEquals("Unexpected data for record " + i, expectedData.data, readData);
+            Assert.assertArrayEquals("Unexpected data for record " + i, expectedData.data, readData);
             val recordInfo = inputStream.endRecord();
             Assert.assertEquals("Unexpected address for record " + i,
                     expectedData.address.getSequence(), recordInfo.getLastUsedDataFrameAddress().getSequence());
