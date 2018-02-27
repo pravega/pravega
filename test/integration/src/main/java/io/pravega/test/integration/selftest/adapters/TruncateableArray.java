@@ -82,12 +82,12 @@ public class TruncateableArray implements ArrayView {
 
     @Override
     public byte[] array() {
-        throw new IllegalStateException("array() not supported.");
+        throw new UnsupportedOperationException("array() not supported.");
     }
 
     @Override
     public int arrayOffset() {
-        throw new IllegalStateException("arrayOffset() not supported.");
+        throw new UnsupportedOperationException("arrayOffset() not supported.");
     }
 
     @Override
@@ -127,6 +127,16 @@ public class TruncateableArray implements ArrayView {
         }
 
         return new SequenceInputStream(Iterators.asEnumeration(streams.iterator()));
+    }
+
+    @Override
+    public void copyTo(byte[] target, int targetOffset, int length) {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
+    public byte[] getCopy() {
+        throw new UnsupportedOperationException("getCopy() not supported.");
     }
 
     //endregion
