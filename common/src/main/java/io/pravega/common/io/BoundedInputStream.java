@@ -100,7 +100,7 @@ public class BoundedInputStream extends FilterInputStream {
     /**
      * Creates a new BoundedInputStream wrapping the same InputStream as this one, starting at the current position, with
      * the given bound.
-     * <p>
+     * 
      * NOTE: both this instance and the result of this method should not be both used at the same time to read from the
      * InputStream. When this method returns, this instance's remaining count will be reduced by the given bound (that's
      * since upon closing, the BoundedInputStream will auto-advance to its bound position).
