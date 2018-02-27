@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;

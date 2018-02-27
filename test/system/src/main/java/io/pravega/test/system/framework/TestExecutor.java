@@ -25,10 +25,9 @@ public interface TestExecutor {
     CompletableFuture<Void> startTestExecution(Method testMethod);
 
     /**
-     * Stop Test Execution given the testID.
-     *  @param testID testIdentifier indicating the test to be terminated.
-     *  @return a CompletableFuture which is completed once the test method execution is stopped.
+     * Stop Test Execution.
+     *
      */
-    CompletableFuture<Void> stopTestExecution(String testID);
+    void stopTestExecution();
 
 }

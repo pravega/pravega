@@ -12,7 +12,9 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
@@ -24,10 +26,11 @@ import org.apache.bookkeeper.client.LedgerHandle;
  */
 @Slf4j
 final class Ledgers {
+    static final long NO_ENTRY_ID = LedgerHandle.INVALID_ENTRY_ID;
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
      */
-    private static final int MIN_FENCE_LEDGER_COUNT = 2;
+    static final int MIN_FENCE_LEDGER_COUNT = 2;
     private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
 
     /**
@@ -146,33 +149,40 @@ final class Ledgers {
     /**
      * Fences out a Log made up of the given ledgers.
      *
-     * @param ledgerIds     An ordered list of LedgerMetadata objects representing all the Ledgers in the log.
+     * @param ledgers       An ordered list of LedgerMetadata objects representing all the Ledgers in the log.
      * @param bookKeeper    A reference to the BookKeeper client to use.
      * @param config        Configuration to use.
      * @param traceObjectId Used for logging.
-     * @return A LedgerAddress representing the address of the last written entry in the Log. This value is null if the log
-     * is empty.
+     * @return A Map of LedgerId to LastAddConfirmed for those Ledgers that were fenced out and had a different
+     * LastAddConfirmed than what their LedgerMetadata was indicating.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerAddress fenceOut(List<LedgerMetadata> ledgerIds, BookKeeper bookKeeper, BookKeeperConfig config, String traceObjectId) throws DurableDataLogException {
-        // Fence out the last few ledgers, in descending order. We need to fence out at least MIN_FENCE_LEDGER_COUNT,
-        // but we also need to find the LedgerId & EntryID of the last written entry (it's possible that the last few
-        // ledgers are empty, so we need to look until we find one).
-        int count = 0;
-        val iterator = ledgerIds.listIterator(ledgerIds.size());
-        LedgerAddress lastAddress = null;
-        while (iterator.hasPrevious() && (count < MIN_FENCE_LEDGER_COUNT || lastAddress == null)) {
+    static Map<Long, Long> fenceOut(List<LedgerMetadata> ledgers, BookKeeper bookKeeper, BookKeeperConfig config, String traceObjectId) throws DurableDataLogException {
+        // Fence out the ledgers, in descending order. During the process, we need to determine whether the ledgers we
+        // fenced out actually have any data in them, and update the LedgerMetadata accordingly.
+        // We need to fence out at least MIN_FENCE_LEDGER_COUNT ledgers that are not empty to properly ensure we fenced
+        // the log correctly and identify any empty ledgers (Since this algorithm is executed upon every recovery, any
+        // empty ledgers should be towards the end of the Log).
+        int nonEmptyCount = 0;
+        val result = new HashMap<Long, Long>();
+        val iterator = ledgers.listIterator(ledgers.size());
+        while (iterator.hasPrevious() && (nonEmptyCount < MIN_FENCE_LEDGER_COUNT)) {
             LedgerMetadata ledgerMetadata = iterator.previous();
             LedgerHandle handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
-            if (lastAddress == null && handle.getLastAddConfirmed() >= 0) {
-                lastAddress = new LedgerAddress(ledgerMetadata, handle.getLastAddConfirmed());
+            if (handle.getLastAddConfirmed() != NO_ENTRY_ID) {
+                // Non-empty.
+                nonEmptyCount++;
+            }
+
+            if (ledgerMetadata.getStatus() == LedgerMetadata.Status.Unknown) {
+                // We did not know the status of this Ledger before, but now we do.
+                result.put(ledgerMetadata.getLedgerId(), handle.getLastAddConfirmed());
             }
 
             close(handle);
             log.info("{}: Fenced out Ledger {}.", traceObjectId, ledgerMetadata);
-            count++;
         }
 
-        return lastAddress;
+        return result;
     }
 }

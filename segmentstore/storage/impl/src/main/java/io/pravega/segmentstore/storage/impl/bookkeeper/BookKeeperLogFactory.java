@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -102,19 +103,33 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
     }
 
+    @VisibleForTesting
+    BookKeeper getBookKeeperClient() {
+        return this.bookKeeper.get();
+    }
+
     //endregion
 
     //region Initialization
 
     private BookKeeper startBookKeeperClient() throws Exception {
-        // AddEntryTimeout is in Seconds, not Millis.
-        int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        // These two are in Seconds, not Millis.
+        int writeTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        int readTimeout = (int) Math.ceil(this.config.getBkReadTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
                 .setClientTcpNoDelay(true)
-                .setAddEntryTimeout(entryTimeout)
+                .setAddEntryTimeout(writeTimeout)
+                .setReadEntryTimeout(readTimeout)
+                .setGetBookieInfoTimeout(readTimeout)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
+
+        if (this.config.isTLSEnabled()) {
+            config = (ClientConfiguration) config.setTLSProvider("OpenSSL");
+            config = config.setTLSTrustStore(this.config.getTlsTrustStore());
+        }
+
         if (this.config.getBkLedgerPath().isEmpty()) {
             config.setZkLedgersRootPath("/" + this.namespace + "/bookkeeper/ledgers");
         } else {

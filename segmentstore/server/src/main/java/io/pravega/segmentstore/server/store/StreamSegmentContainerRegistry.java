@@ -92,7 +92,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
-        if (result == null || isShutdown(result.container.state())) {
+        if (result == null || Services.isTerminating(result.container.state())) {
             throw new ContainerNotFoundException(containerId);
         }
 
@@ -106,7 +106,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         // Check if container exists
         ContainerWithHandle existingContainer = this.containers.get(containerId);
         if (existingContainer != null) {
-            if (!isShutdown(existingContainer.container.state())) {
+            if (!Services.isTerminating(existingContainer.container.state())) {
                 // Container is already registered and not in the process of shutting down.
                 throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
             }
@@ -188,11 +188,6 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         containerWithHandle.shutdownNotifier.complete(null);
     }
 
-    private static boolean isShutdown(Service.State state) {
-        return state == Service.State.FAILED
-                || state == Service.State.STOPPING
-                || state == Service.State.TERMINATED;
-    }
 
     //endregion
 

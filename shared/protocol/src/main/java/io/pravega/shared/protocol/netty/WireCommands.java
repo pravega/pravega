@@ -864,7 +864,7 @@ public final class WireCommands {
         final boolean isSealed;
         final boolean isDeleted;
         final long lastModified;
-        final long segmentLength;
+        final long writeOffset;
         final long startOffset;
 
         @Override
@@ -880,7 +880,7 @@ public final class WireCommands {
             out.writeBoolean(isSealed);
             out.writeBoolean(isDeleted);
             out.writeLong(lastModified);
-            out.writeLong(segmentLength);
+            out.writeLong(writeOffset);
             out.writeLong(startOffset);
         }
 

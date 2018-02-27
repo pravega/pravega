@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
+import java.io.IOException;
 
 /**
  * Log Operation that contains a checkpoint of the Metadata at a particular point in time that contains only information
@@ -26,7 +26,7 @@ public class StorageMetadataCheckpointOperation extends CheckpointOperationBase 
         super();
     }
 
-    protected StorageMetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected StorageMetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws IOException {
         super(header, source);
     }
 

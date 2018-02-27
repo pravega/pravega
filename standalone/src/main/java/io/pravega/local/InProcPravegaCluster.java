@@ -308,7 +308,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .build();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
-                .host("localhost")
+                .host("0.0.0.0")
                 .port(this.restServerPort)
                 .build();
 

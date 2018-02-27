@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -29,7 +30,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.contracts.WrongHostException;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -83,7 +83,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -385,32 +384,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             throw exception;
         }
 
-        if (u instanceof CompletionException) {
-            u = u.getCause();
-        }
-
+        u = Exceptions.unwrap(u);
         if (u instanceof StreamSegmentExistsException) {
-            log.info("Segment '{}' already exists and cannot perform operation '{}'", segment, operation);
+            log.info("Segment '{}' already exists and cannot perform operation '{}'.", segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn("Segment '{}' does not exist and cannot perform operation '{}'", segment, operation);
+            log.warn("Segment '{}' does not exist and cannot perform operation '{}'.", segment, operation);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info("Segment '{}' is sealed and cannot perform operation '{}'", segment, operation);
+            log.info("Segment '{}' is sealed and cannot perform operation '{}'.", segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment));
-        } else if (u instanceof WrongHostException) {
-            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
-            WrongHostException wrongHost = (WrongHostException) u;
-            connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else if (u instanceof ContainerNotFoundException) {
-            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
+            int containerId = ((ContainerNotFoundException) u).getContainerId();
+            log.warn("Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection {} while performing {} due to {} ", connection, operation, u.getMessage());
+            log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn("Unsupported Operation '{}'.", operation);
+            log.warn("Unsupported Operation '{}'.", operation, u);
             connection.send(new OperationUnsupported(requestId, operation));
+        } else if (u instanceof BadOffsetException) {
+            BadOffsetException badOffset = (BadOffsetException) u;
+            log.warn("Bad offset when performing '{}'; Expected Offset {}, Given {}.", operation, badOffset.getExpectedOffset(), badOffset.getGivenOffset());
+            connection.send(new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset()));
         } else {
             log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem

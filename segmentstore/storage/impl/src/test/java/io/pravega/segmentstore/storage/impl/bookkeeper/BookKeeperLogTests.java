@@ -21,9 +21,11 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -41,6 +45,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -51,8 +56,10 @@ import org.junit.rules.Timeout;
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
  * filesystem. It starts up the local sandbox and uses that for testing purposes.
  */
-public class BookKeeperLogTests extends DurableDataLogTestBase {
+public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
+
+    private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
@@ -63,6 +70,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
@@ -73,9 +81,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
      * we only do it once.
      */
-    @BeforeClass
-    public static void setUpBookKeeper() throws Exception {
+    public static void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
+        SECURE_BK.set(secure);
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
@@ -86,10 +94,15 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .startZk(true)
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
+                                            .secureBK(isSecure())
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
         BK_SERVICE.set(runner);
+    }
+
+    public static boolean isSecure() {
+        return SECURE_BK.get();
     }
 
     @AfterClass
@@ -127,6 +140,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
                 .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
                 .build());
 
@@ -137,7 +151,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
@@ -153,7 +167,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Tests the BookKeeperLogFactory and its initialization.
      */
     @Test
-    public void testFactoryInitialize() throws Exception {
+    public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
@@ -293,6 +307,60 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
+    /**
+     * Tests the ability of BookKeeperLog to automatically remove empty ledgers during initialization.
+     */
+    @Test
+    public void testRemoveEmptyLedgers() throws Exception {
+        final int count = 100;
+        final int writeEvery = count / 10;
+        final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
+        val allLedgers = new ArrayList<Map.Entry<Long, LedgerMetadata.Status>>();
+        final Predicate<Integer> shouldExist = index -> (index >= allLedgers.size() - Ledgers.MIN_FENCE_LEDGER_COUNT)
+                || (allLedgers.get(index).getValue() != LedgerMetadata.Status.Empty);
+
+        for (int i = 0; i < count; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+
+                boolean shouldAppend = shouldAppendAnything.test(i);
+                val currentMetadata = log.loadMetadata();
+                val lastLedger = currentMetadata.getLedgers().get(currentMetadata.getLedgers().size() - 1);
+                allLedgers.add(new AbstractMap.SimpleImmutableEntry<>(lastLedger.getLedgerId(),
+                        shouldAppend ? LedgerMetadata.Status.NotEmpty : LedgerMetadata.Status.Empty));
+                val metadataLedgers = currentMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toSet());
+
+                // Verify Log Metadata does not contain old empty ledgers.
+                for (int j = 0; j < allLedgers.size(); j++) {
+                    val e = allLedgers.get(j);
+                    val expectedExist = shouldExist.test(j);
+                    Assert.assertEquals("Unexpected state for metadata. AllLedgerCount=" + allLedgers.size() +
+                                    ", LedgerIndex=" + j + ", LedgerStatus=" + e.getValue(),
+                            expectedExist, metadataLedgers.contains(e.getKey()));
+                }
+
+                // Append some data to this Ledger, if needed.
+                if (shouldAppend) {
+                    log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+            }
+        }
+
+        // Verify that these ledgers have also been deleted from BookKeeper.
+        for (int i = 0; i < allLedgers.size(); i++) {
+            val e = allLedgers.get(i);
+            if (shouldExist.test(i)) {
+                // This should not throw any exceptions.
+                Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get());
+            } else {
+                AssertExtensions.assertThrows(
+                        "Ledger not deleted from BookKeeper.",
+                        () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
+                        ex -> true);
+            }
+        }
+    }
+
     @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_SIZE;
@@ -341,4 +409,17 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     //endregion
+    public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(true);
+        }
+    }
+
+    public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(false);
+        }
+    }
 }

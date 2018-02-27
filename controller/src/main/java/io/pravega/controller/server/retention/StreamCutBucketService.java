@@ -44,6 +44,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private final ScheduledExecutorService executor;
     private final ConcurrentMap<Stream, CompletableFuture> retentionFutureMap;
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
+    private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
 
     StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
@@ -55,6 +56,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
         this.notifications = new LinkedBlockingQueue<>();
         this.retentionFutureMap = new ConcurrentHashMap<>();
+        this.latch = new CompletableFuture<>();
     }
 
     @Override
@@ -63,6 +65,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                 .thenAccept(streams -> retentionFutureMap.putAll(streams.stream()
                         .map(s -> {
                             String[] splits = s.split("/");
+                            log.info("Adding new stream {}/{} to bucket {} during bootstrap", splits[0], splits[1], bucketId);
                             return new StreamImpl(splits[0], splits[1]);
                         })
                         .collect(Collectors.toMap(s -> s, this::getStreamRetentionFuture))
@@ -79,6 +82,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                         notifyStarted();
                         notificationLoop = Futures.loop(this::isRunning, this::processNotification, executor);
                     }
+                    latch.complete(null);
                 });
     }
 
@@ -89,10 +93,12 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                 final StreamImpl stream;
                 switch (notification.getType()) {
                     case StreamAdded:
+                        log.info("New stream {}/{} added to bucket {} ", notification.getScope(), notification.getStream(), bucketId);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
-                        retentionFutureMap.putIfAbsent(stream, getStreamRetentionFuture(stream));
+                        retentionFutureMap.computeIfAbsent(stream, x -> getStreamRetentionFuture(stream));
                         break;
                     case StreamRemoved:
+                        log.info("Stream {}/{} removed from bucket {} ", notification.getScope(), notification.getStream(), bucketId);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
                         retentionFutureMap.remove(stream).cancel(true);
                         break;
@@ -120,6 +126,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     }
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
+        log.debug("Periodic background processing for retention called for stream {}/{}", stream.getScope(), stream.getStreamName());
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
@@ -136,17 +143,22 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
     @Override
     protected void doStop() {
-        notificationLoop.thenAccept(x -> {
-            // cancel all retention futures
-            retentionFutureMap.forEach((key, value) -> value.cancel(true));
-            streamMetadataStore.unregisterBucketListener(bucketId);
-        }).whenComplete((r, e) -> {
-            if (e != null) {
-                notifyFailed(e);
-            } else {
-                notifyStopped();
-            }
-        });
+        Futures.await(latch);
+        if (notificationLoop != null) {
+            notificationLoop.thenAccept(x -> {
+                // cancel all retention futures
+                retentionFutureMap.forEach((key, value) -> value.cancel(true));
+                streamMetadataStore.unregisterBucketListener(bucketId);
+            }).whenComplete((r, e) -> {
+                if (e != null) {
+                    notifyFailed(e);
+                } else {
+                    notifyStopped();
+                }
+            });
+        } else {
+            notifyStopped();
+        }
     }
 
     @Override

@@ -35,9 +35,13 @@ public class BookKeeperConfig {
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
+    public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 5000);
     public static final Property<Integer> BK_LEDGER_MAX_SIZE = Property.named("bkLedgerMaxSize", 1024 * 1024 * 1024);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
+    public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
+    public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
+
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
@@ -116,6 +120,12 @@ public class BookKeeperConfig {
     private final int bkWriteTimeoutMillis;
 
     /**
+     * The Read Timeout (BookKeeper client), in milliseconds.
+     */
+    @Getter
+    private final int bkReadTimeoutMillis;
+
+    /**
      * The Maximum size of a ledger, in bytes. On or around this value the current ledger is closed and a new one
      * is created. By design, this property cannot be larger than Int.MAX_VALUE, since we want Ledger Entry Ids to be
      * representable with an Int.
@@ -123,6 +133,12 @@ public class BookKeeperConfig {
     @Getter
     private final int bkLedgerMaxSize;
     private final byte[] bkPassword;
+
+    @Getter
+    private final boolean isTLSEnabled;
+
+    @Getter
+    private final String tlsTrustStore;
 
     //endregion
 
@@ -155,8 +171,11 @@ public class BookKeeperConfig {
         }
 
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
+        this.bkReadTimeoutMillis = properties.getInt(BK_READ_TIMEOUT);
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+        this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
+        tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
     }
 
     /**

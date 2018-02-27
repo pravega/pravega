@@ -97,7 +97,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testSmallerThanNeededRead() throws EndOfSegmentException {
+    public void testSmallerThanNeededRead() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 5);
@@ -112,7 +112,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testLongerThanRequestedRead() throws EndOfSegmentException {
+    public void testLongerThanRequestedRead() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
@@ -136,25 +136,63 @@ public class SegmentInputStreamTest {
         assertEquals(ByteBuffer.wrap(data), read);
     }
 
+    @Test(timeout = 10000)
+    public void testTimeout() throws EndOfSegmentException, SegmentTruncatedException {
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 7);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+
+        testBlocking(() -> stream.read(),
+                     () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
+        ByteBuffer read = stream.read(10);
+        assertNull(read);
+        fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> stream.read());
+        stream.read(10);
+        assertNull(read);
+        read = stream.read(10);
+        assertNull(read);
+    }
+    
+    
     @Test
-    public void testExceptionRecovery() throws EndOfSegmentException {
+    public void testExceptionRecovery() throws EndOfSegmentException, SegmentTruncatedException {
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 7);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
+        fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
+        fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
+        fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
+        fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
+        fakeNetwork.complete(5, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> stream.read());
+        ByteBuffer read = stream.read();
+        assertEquals(ByteBuffer.wrap(data), read);
+    }
+    
+    @Test
+    public void testStreamTruncated() throws EndOfSegmentException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 6);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
-        fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
+        fakeNetwork.completeExceptionally(1, new SegmentTruncatedException());
         fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
         fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
-        assertNull(stream.read());
-        ByteBuffer read = stream.read();
-        assertEquals(ByteBuffer.wrap(data), read);
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream.read());
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream.read());
     }
     
     @Test
-    public void testReadWithoutBlocking() throws EndOfSegmentException {
+    public void testReadWithoutBlocking() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
@@ -182,7 +220,7 @@ public class SegmentInputStreamTest {
     }
     
     @Test
-    public void testEndOfSegment() throws EndOfSegmentException {
+    public void testEndOfSegment() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         
@@ -242,7 +280,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testSetOffset() throws EndOfSegmentException {
+    public void testSetOffset() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data1 = new byte[]{0, 1, 2, 3, 4, 5};
         byte[] data2 = new byte[]{6, 7, 8, 9};
         ByteBuffer wireData1 = createEventFromData(data1);

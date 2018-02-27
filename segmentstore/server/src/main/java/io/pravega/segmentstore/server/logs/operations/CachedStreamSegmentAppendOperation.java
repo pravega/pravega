@@ -9,9 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -102,7 +101,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
+    protected void deserializeContent(DataInputStream source) throws IOException {
         throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be deserialized.");
     }
 

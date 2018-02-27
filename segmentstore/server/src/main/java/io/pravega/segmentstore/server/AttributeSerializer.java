@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -34,6 +34,8 @@ public final class AttributeSerializer {
      * @throws IOException If an exception occurred.
      */
     public static void serialize(Map<UUID, Long> attributes, DataOutputStream stream) throws IOException {
+        Preconditions.checkArgument(attributes.size() <= Short.MAX_VALUE,
+                "Too many attributes. Must be at most %s.", Short.MAX_VALUE);
         stream.writeShort(attributes.size());
         for (Map.Entry<UUID, Long> attribute : attributes.entrySet()) {
             stream.writeLong(attribute.getKey().getMostSignificantBits());
@@ -71,7 +73,9 @@ public final class AttributeSerializer {
      * @throws IOException If an exception occurred.
      */
     public static void serializeUpdates(Collection<AttributeUpdate> attributeUpdates, DataOutputStream stream) throws IOException {
-        stream.writeShort(attributeUpdates == null ? 0 : attributeUpdates.size());
+        int count = attributeUpdates == null ? 0 : attributeUpdates.size();
+        Preconditions.checkArgument(count <= Short.MAX_VALUE, "Too many attribute updates. Must be at most %s.", Short.MAX_VALUE);
+        stream.writeShort(count);
         if (attributeUpdates != null) {
             for (AttributeUpdate au : attributeUpdates) {
                 UUID attributeId = au.getAttributeId();
