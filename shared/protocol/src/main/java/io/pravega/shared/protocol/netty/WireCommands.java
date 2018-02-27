@@ -96,6 +96,11 @@ public final class WireCommands {
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
         }
+        
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
     }
 
     @Data
@@ -325,6 +330,11 @@ public final class WireCommands {
         @Override
         public boolean isFailure() {
             return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
         }
     }
 
@@ -627,6 +637,11 @@ public final class WireCommands {
 
             return new DataAppended(writerId, offset, previousEventNumber);
         }
+        
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
     }
 
     @Data
@@ -651,6 +666,11 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             return new ConditionalCheckFailed(writerId, offset);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
         }
     }
 
@@ -678,6 +698,11 @@ public final class WireCommands {
             long offset = in.readLong();
             int suggestedLength = in.readInt();
             return new ReadSegment(segment, offset, suggestedLength);
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -718,6 +743,11 @@ public final class WireCommands {
             byte[] data = new byte[dataLength];
             in.readFully(data);
             return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data));
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -1425,6 +1455,11 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) {
             return new KeepAlive();
+        }
+
+        @Override
+        public long getRequestId() {
+            return -1;
         }
     }
 
