@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.Serializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.segmentstore.server.logs.Serializer;
 
 /**
  * Operation Serializer.
@@ -19,16 +19,16 @@ public class OperationSerializer extends VersionedSerializer.MultiType<Operation
     public static final OperationSerializer DEFAULT = new OperationSerializer();
 
     @Override
-    protected void declareSerializers() {
+    protected void declareSerializers(Builder b) {
         // We reserve 0 as an "Unsupported Serializer".
-        serializer(StreamSegmentAppendOperation.class, 1, new StreamSegmentAppendOperation.Serializer());
-        serializer(StreamSegmentSealOperation.class, 2, new StreamSegmentSealOperation.Serializer());
-        serializer(MergeTransactionOperation.class, 3, new MergeTransactionOperation.Serializer());
-        serializer(StreamSegmentMapOperation.class, 4, new StreamSegmentMapOperation.Serializer());
-        serializer(TransactionMapOperation.class, 5, new TransactionMapOperation.Serializer());
-        serializer(UpdateAttributesOperation.class, 6, new UpdateAttributesOperation.Serializer());
-        serializer(StreamSegmentTruncateOperation.class, 7, new StreamSegmentTruncateOperation.Serializer());
-        serializer(MetadataCheckpointOperation.class, 8, new MetadataCheckpointOperation.Serializer());
-        serializer(StorageMetadataCheckpointOperation.class, 9, new StorageMetadataCheckpointOperation.Serializer());
+        b.serializer(StreamSegmentAppendOperation.class, 1, new StreamSegmentAppendOperation.Serializer())
+         .serializer(StreamSegmentSealOperation.class, 2, new StreamSegmentSealOperation.Serializer())
+         .serializer(MergeTransactionOperation.class, 3, new MergeTransactionOperation.Serializer())
+         .serializer(StreamSegmentMapOperation.class, 4, new StreamSegmentMapOperation.Serializer())
+         .serializer(TransactionMapOperation.class, 5, new TransactionMapOperation.Serializer())
+         .serializer(UpdateAttributesOperation.class, 6, new UpdateAttributesOperation.Serializer())
+         .serializer(StreamSegmentTruncateOperation.class, 7, new StreamSegmentTruncateOperation.Serializer())
+         .serializer(MetadataCheckpointOperation.class, 8, new MetadataCheckpointOperation.Serializer())
+         .serializer(StorageMetadataCheckpointOperation.class, 9, new StorageMetadataCheckpointOperation.Serializer());
     }
 }

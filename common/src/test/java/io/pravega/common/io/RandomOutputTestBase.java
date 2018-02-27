@@ -9,7 +9,7 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.io.serialization.RandomOutput;
+import io.pravega.common.io.serialization.RandomAccessOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,7 +23,7 @@ import org.junit.Test;
 /**
  * Base class for all tests of classes implementing RandomOutput.
  */
-public abstract class RandomOutputTestBase<T extends OutputStream & RandomOutput> {
+public abstract class RandomOutputTestBase<T extends OutputStream & RandomAccessOutputStream> {
     private static final int INITIAL_LENGTH = 100;
     private static final byte INITIAL_FILL = -1;
 

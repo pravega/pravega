@@ -713,7 +713,7 @@ public abstract class VersionedSerializer<T> {
              * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
              * @return This instance.
              */
-            protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
+            public <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
                     Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
                 Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
                         "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
