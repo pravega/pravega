@@ -10,6 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -258,7 +259,8 @@ public class ControllerRestApiTest {
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
+                     PravegaClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
                     new HashSet<>(Arrays.asList(testStream1, testStream2)));
             readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),
@@ -311,6 +313,8 @@ public class ControllerRestApiTest {
     }
 
     private Controller createController(URI controllerUri, InlineExecutor executor) {
-        return new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                                      .clientConfig(PravegaClientConfig.builder().controllerURI(controllerUri).build())
+                                                      .retryAttempts(1).build(), executor);
     }
 }

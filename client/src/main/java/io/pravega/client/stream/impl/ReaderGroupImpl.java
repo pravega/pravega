@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -216,11 +215,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
-        CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
-        for (Segment s : Futures.getAndHandleExceptions(unread, RuntimeException::new)) {
+        CompletableFuture<StreamSegmentSuccessors> unread = controller.getSuccessors(position);
+        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
+        for (Segment s : unreadVal.getSegments()) {
             @Cleanup
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
-            totalLength += metadataClient.fetchCurrentSegmentLength();
+            totalLength += metadataClient.fetchCurrentSegmentLength(unreadVal.getDelegationToken());
         }
         for (long bytesRead : position.getPositions().values()) {
             totalLength -= bytesRead;
