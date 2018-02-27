@@ -10,19 +10,34 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
+import org.apache.bookkeeper.util.MathUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 /**
  * Helps run ZooKeeper Server in process.
@@ -56,7 +71,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             this.tmpDir.get().deleteOnExit();
         }
         if (secureZK) {
-          //-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory
+            //-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory
             //-Dzookeeper.ssl.keyStore.location=/root/zookeeper/ssl/testKeyStore.jks
             //-Dzookeeper.ssl.keyStore.password=testpass
             //-Dzookeeper.ssl.trustStore.location=/root/zookeeper/ssl/testTrustStore.jks
@@ -110,11 +125,80 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      * @param zkPort The ZooKeeper Port.
      * @return True if ZooKeeper started within a specified timeout, false otherwise.
      */
-    public static boolean waitForServerUp(int zkPort) {
+    public boolean waitForServerUp(int zkPort) {
         val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + zkPort;
-        return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
+        if (!this.secureZK) {
+            return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
+        } else {
+            return waitForSSLServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
+        }
     }
 
+    private static boolean waitForSSLServerUp(String address, long timeout) {
+        long start = MathUtils.now();
+        String[] split = address.split(":");
+        String host = split[0];
+        int port = Integer.parseInt(split[1]);
+
+        while (true) {
+            try {
+                SSLContext context = SSLContext.getInstance("TLS");
+                TrustManagerFactory trustManager = getTrustManager();
+
+                context.init(null, trustManager.getTrustManagers(), null);
+                Socket sock = context.getSocketFactory().createSocket(new Socket(host, port), host, port, true);
+                BufferedReader reader = null;
+                try {
+                    OutputStream outstream = sock.getOutputStream();
+                    outstream.write("stat".getBytes(UTF_8));
+                    outstream.flush();
+
+                    reader =
+                            new BufferedReader(
+                                    new InputStreamReader(sock.getInputStream(), UTF_8));
+                    String line = reader.readLine();
+                    if (line != null && line.startsWith("Zookeeper version:")) {
+                        log.info("Server UP");
+                        return true;
+                    }
+                } finally {
+                    sock.close();
+                    if (reader != null) {
+                        reader.close();
+                    }
+                }
+            } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
+                // ignore as this is expected
+                log.info("server " + address + " not up " + e);
+            }
+
+            if (MathUtils.now() > start + timeout) {
+                break;
+            }
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
+        return false;
+    }
+
+    private static TrustManagerFactory getTrustManager() throws IOException, CertificateException, NoSuchAlgorithmException, KeyStoreException {
+        FileInputStream myKeys = new FileInputStream("../config/bookie.truststore.jks");
+
+        // Do the same with your trust store this time
+        // Adapt how you load the keystore to your needs
+        KeyStore myTrustStore = KeyStore.getInstance("JKS");
+        myTrustStore.load(myKeys, "1111_aaaa".toCharArray());
+
+        myKeys.close();
+
+        TrustManagerFactory tmf = TrustManagerFactory
+                .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(myTrustStore);
+        return tmf;
+    }
 
     /**
      * Main method that can be used to start ZooKeeper out-of-process using BookKeeperServiceRunner.
