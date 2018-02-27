@@ -16,10 +16,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -245,9 +243,9 @@ public interface Controller extends AutoCloseable {
      * Returns all the segments that come after the provided cutpoint. 
      * 
      * @param from The position from which to find the remaining bytes.
-     * @return The total number of bytes beyond the provided positions.
+     * @return The segments beyond a given cut position.
      */
-    CompletableFuture<Set<Segment>> getSuccessors(StreamCut from);
+    CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from);
 
     // Controller Apis that are called by writers and readers
 
@@ -279,4 +277,11 @@ public interface Controller extends AutoCloseable {
     @Override
     void close();
 
+    /**
+     * Refreshes an expired/non-existent delegation token.
+     * @param scope         Scope of the stream.
+     * @param streamName    Name of the stream.
+     * @return              The delegation token for the given stream.
+     */
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
 }

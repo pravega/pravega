@@ -11,6 +11,7 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.stream.EventPointer;
@@ -150,7 +151,9 @@ class ClientReader implements StoreReader, AutoCloseable {
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
             this.readerId = UUID.randomUUID().toString().replace("-", "");
-            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, ClientReader.this.controllerUri)) {
+            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
+                    PravegaClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
+            .build())) {
                 readerGroupManager.createReaderGroup(this.readerGroup, READER_GROUP_CONFIG, Collections.singleton(streamName));
             }
 

@@ -38,7 +38,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
-    private long readOffset = 0; 
+    private long readOffset = 0;
     @GuardedBy("$lock")
     private int eventsWritten = 0;
     @GuardedBy("$lock")
@@ -71,7 +71,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength() {
+    public long fetchCurrentSegmentLength(String delegationToken) {
         return writeOffset;
     }
 
@@ -152,7 +152,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue, String delegationToken) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
         return attributes.replace(attribute, expectedValue, newValue);
     }
@@ -163,17 +163,16 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo() {
+    public SegmentInfo getSegmentInfo(String delegationToken) {
         return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
     }
 
     @Override
     @Synchronized
-    public void truncateSegment(Segment segment, long offset) {
+    public void truncateSegment(Segment segment, long offset, String delegationToken) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;
         }
     }
-
 }
