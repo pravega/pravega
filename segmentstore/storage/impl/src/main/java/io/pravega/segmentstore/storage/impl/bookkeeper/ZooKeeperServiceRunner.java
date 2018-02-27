@@ -21,7 +21,7 @@ import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.io.FileUtils;
-import org.apache.zookeeper.server.NIOServerCnxnFactory;
+import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 /**
@@ -31,10 +31,12 @@ import org.apache.zookeeper.server.ZooKeeperServer;
 @Slf4j
 public class ZooKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_ZK_PORT = "zkPort";
+    private static final String PROPERTY_SECURE_ZK = "secureZK";
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
-    private final AtomicReference<NIOServerCnxnFactory> serverFactory = new AtomicReference<>();
+    private final AtomicReference<ServerCnxnFactory> serverFactory = new AtomicReference<ServerCnxnFactory>();
     private final int zkPort;
+    private final boolean secureZK;
     private final AtomicReference<File> tmpDir = new AtomicReference<>();
 
     @Override
@@ -53,6 +55,16 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         if (this.tmpDir.compareAndSet(null, IOUtils.createTempDir("zookeeper", "inproc"))) {
             this.tmpDir.get().deleteOnExit();
         }
+        if (secureZK) {
+          //-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory
+            //-Dzookeeper.ssl.keyStore.location=/root/zookeeper/ssl/testKeyStore.jks
+            //-Dzookeeper.ssl.keyStore.password=testpass
+            //-Dzookeeper.ssl.trustStore.location=/root/zookeeper/ssl/testTrustStore.jks
+            //-Dzookeeper.ssl.trustStore.password=testpass
+            System.setProperty("zookeeper.serverCnxnFactory", "org.apache.zookeeper.server.NettyServerCnxnFactory");
+            System.setProperty("zookeeper.ssl.keyStore.location", "../config/bookie.keystore.jks");
+            System.setProperty("zookeeper.ssl.keyStore.password", "1111_aaaa");
+        }
     }
 
     /**
@@ -68,10 +80,10 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             throw new IllegalStateException("Already started.");
         }
 
-        this.serverFactory.set(new NIOServerCnxnFactory());
+        this.serverFactory.set(ServerCnxnFactory.createFactory());
         val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort;
         log.info("Starting Zookeeper server at " + address + " ...");
-        this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000);
+        this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000, secureZK);
         this.serverFactory.get().startup(s);
 
         if (!waitForServerUp(this.zkPort)) {
@@ -85,7 +97,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             zs.shutdown();
         }
 
-        NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+        ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
         if (sf != null) {
             sf.closeAll();
             sf.shutdown();
@@ -113,8 +125,10 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      */
     public static void main(String[] args) throws Exception {
         int zkPort;
+        boolean secureZK = false;
         try {
             zkPort = Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT));
+            secureZK = Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_ZK));
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int). (%s)",
                     PROPERTY_ZK_PORT, ex.getMessage()));
@@ -122,7 +136,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             return;
         }
 
-        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort);
+        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort, secureZK);
         runner.initialize();
         runner.start();
         Thread.sleep(Long.MAX_VALUE);

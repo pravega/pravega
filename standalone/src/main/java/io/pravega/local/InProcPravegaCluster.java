@@ -80,6 +80,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private boolean isInProcZK;
     private int zkPort;
     private String zkHost;
+    private boolean secureZK;
     private ZooKeeperServiceRunner zkService;
 
     /*HDFS related variables*/
@@ -99,7 +100,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private boolean startRestServer = true;
 
     @Builder
-    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
+    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean secureZK, boolean isInMemStorage,
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
@@ -127,6 +128,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.isInProcZK = isInProcZK;
         this.zkUrl = zkUrl;
         this.zkPort = zkPort;
+        this.secureZK = secureZK;
         this.isInProcController = isInProcController;
         this.controllerURI = controllerURI;
         this.controllerCount = controllerCount;
@@ -185,7 +187,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK);
         zkService.initialize();
         zkService.start();
     }

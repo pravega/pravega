@@ -49,6 +49,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final int zkPort;
     private final String ledgersPath;
     private final boolean secureBK;
+    private final boolean secureZK;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -131,7 +132,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception got thrown.
      */
     public void resumeZooKeeper() throws Exception {
-        val zk = new ZooKeeperServiceRunner(this.zkPort);
+        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK);
         if (this.zkServer.compareAndSet(null, zk)) {
             // Initialize ZK runner (since nobody else did it for us).
             zk.initialize();
