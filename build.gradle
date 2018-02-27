@@ -586,14 +586,51 @@ project('test:system') {
     }
 
     task execShellScript(type: Exec) {
-        commandLine "./preTestScript.sh"
-        args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+
+        ext.awsExecution = project.hasProperty('awsExecution') ? project.awsExecution : 'false'
+
+        if(ext.getProperty('awsExecution').toString().equals("true")) {
+            commandLine './aws/preTestScript.sh'
+            args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
+        } else {
+            commandLine "./preTestScript.sh"
+            args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+        }
     }
+
+    String variable
+
+    task setAwsMasterIp(type: Exec) {
+
+        commandLine 'echo', 'setting master ip for system tests execution on AWS'
+
+        doLast {
+            def masterIpStdOut = new ByteArrayOutputStream()
+            exec {
+                workingDir "$rootDir/test/system/aws"
+                executable = "terraform"
+                args "output", "ip"
+                standardOutput = masterIpStdOut
+            }
+
+            variable = masterIpStdOut.toString()
+        }
+    }
+
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
 
         dependsOn 'testJarForDocker', 'execShellScript'
+
+        if (System.getProperty("awsExec").equals("true")) {
+            setAwsMasterIp.outputs.upToDateWhen { false }
+            dependsOn 'setAwsMasterIp'
+        }
+
+        doFirst {
+                systemProperty "awsMasterIP", variable
+        }
 
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 
@@ -606,6 +643,7 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+        systemProperty "awsExec", System.getProperty("awsExec")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "DOCKER"
@@ -620,10 +658,12 @@ project('test:system') {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "false"
         }
+        if (System.getProperty("awsExec") == null) {
+            systemProperty "awsExec", "false"
+        }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
 
-        onlyIf { dockerRegistryUrl }
     }
 }
 
