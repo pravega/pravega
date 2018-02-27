@@ -20,14 +20,13 @@ import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.Task;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
-import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.TestFrameworkException;
-import lombok.extern.slf4j.Slf4j;
+import io.pravega.test.system.framework.Utils;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,20 +35,24 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import com.spotify.docker.client.messages.swarm.Task;
+import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
+    static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
+    static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(final String serviceName) {
-        this.dockerClient = DefaultDockerClient.builder().uri("http://" + System.getProperty("masterIP") + ":" + DOCKER_CLIENT_PORT).build();
+        this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();
         this.serviceName = serviceName;
     }
 
@@ -154,8 +157,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
-            String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
-            log.info("Update state {}", updateState);
 
             return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
