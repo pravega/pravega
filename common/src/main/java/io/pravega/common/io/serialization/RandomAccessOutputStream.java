@@ -15,7 +15,7 @@ import java.io.OutputStream;
 /**
  * Defines an extension to OutputStream that allows writing to an arbitrary position.
  */
-public interface RandomOutput {
+public interface RandomAccessOutputStream {
     /**
      * Writes the given byte value at the given position.
      *
@@ -28,7 +28,7 @@ public interface RandomOutput {
 
     /**
      * Writes a sequence of bytes at the given position.
-     * <p>
+     *
      * NOTE: depending on the implementation of this interface, this may result in increasing the size of the stream. For
      * example, if position is smaller than size() AND position + length is larger than size() then the extra bytes may
      * be appended at the end, if the underlying OutputStream's structure permits it.

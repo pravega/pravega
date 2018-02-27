@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -26,7 +26,6 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.MarathonException;
-
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 /**
@@ -119,6 +118,7 @@ public class PravegaControllerService extends MarathonBasedService {
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
+
         //set env
         String controllerSystemProperties = "-Xmx512m" +
                 setSystemProperty("ZK_URL", zk) +
@@ -130,7 +130,8 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
                 setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
-                setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
+                setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000)) +
+                setSystemProperty("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);

@@ -65,6 +65,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                 .thenAccept(streams -> retentionFutureMap.putAll(streams.stream()
                         .map(s -> {
                             String[] splits = s.split("/");
+                            log.info("Adding new stream {}/{} to bucket {} during bootstrap", splits[0], splits[1], bucketId);
                             return new StreamImpl(splits[0], splits[1]);
                         })
                         .collect(Collectors.toMap(s -> s, this::getStreamRetentionFuture))
@@ -92,10 +93,12 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                 final StreamImpl stream;
                 switch (notification.getType()) {
                     case StreamAdded:
+                        log.info("New stream {}/{} added to bucket {} ", notification.getScope(), notification.getStream(), bucketId);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
-                        retentionFutureMap.putIfAbsent(stream, getStreamRetentionFuture(stream));
+                        retentionFutureMap.computeIfAbsent(stream, x -> getStreamRetentionFuture(stream));
                         break;
                     case StreamRemoved:
+                        log.info("Stream {}/{} removed from bucket {} ", notification.getScope(), notification.getStream(), bucketId);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
                         retentionFutureMap.remove(stream).cancel(true);
                         break;
@@ -123,6 +126,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     }
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
+        log.debug("Periodic background processing for retention called for stream {}/{}", stream.getScope(), stream.getStreamName());
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),

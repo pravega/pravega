@@ -10,6 +10,7 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
@@ -23,19 +24,67 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Map;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
+ *
  * Subclass one of the following based on your needs:
- * <ul>
- *  <li> VersionedSerializer.Direct for mutable objects.
- *  <li> VersionedSerializer.WithBuilder for immutable objects with Builders.
- *  <li> VersionedSerializer.MultiType for objects of multiple types inheriting from a common base type.
- * </ul>
+ * * VersionedSerializer.Direct for mutable objects.
+ * * VersionedSerializer.WithBuilder for immutable objects with Builders.
+ * * VersionedSerializer.MultiType for objects of multiple types inheriting from a common base type.
+ *
+ * General Notes:
+ *
+ * Versions
+ * * Provide a means of making incompatible format changes, most likely once enough Revisions are accumulated. Serializations
+ * in different versions are not meant to be compatible, and that's exactly what the goal of Versions is.
+ * * To introduce a new Version B = A + 1, its format needs to be established and published with the code. While doing so,
+ * the code must still write version A (since during an upgrade not all existing code will immediately know how to handle
+ * Version B). Only after all existing deployed code knows about Version B, can we have the code serialize in Version B.
+ * ** This can be achieved by declaring the serialization version using the writeVersion() method.
+ *
+ * Revisions
+ * * Are incremental on top of the previous ones, can be added on the fly, and can be used to make format changes
+ * without breaking backward or forward compatibility.
+ * * Older code will read as many revisions as it knows about, so even if newer code encodes B revisions, older code that
+ * only knows about A < B revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
+ * knows about B revisions will be able to handle A < B revisions by reading as much as is available.
+ * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions > A.
+ * * Once published, the format for a Version-Revision should never change, otherwise existing (older) code will not be
+ * able to process that serialization.
+ *
+ * OutputStreams/InputStreams
+ * * Each Revision's serialization gets an exclusive RevisionDataOutput for writing and an exclusive RevisionDataInput
+ * for reading. These are backed by OutputStreams/InputStreams that segment the data within the entire Serialization Stream.
+ * * A RevisionDataInput will disallow reading beyond the data serialized for a Revision, and if less data was read, it
+ * will skip over the remaining bytes as needed.
+ * * A RevisionDataOutput requires the length of the serialization so that it can encode it (for use by RevisionDataInput).
+ * This length is encoded as the first 4 bytes of the serialization of each Revision.
+ * ** If the target OutputStream (where we serialize to) implements RandomOutput, then the length can be automatically
+ * determined and backfilled without any extra work by the caller. Otherwise the caller is required to call length(int)
+ * with an appropriate value prior to writing any data to this object so that the length can be written (the serialization
+ * will fail if the number of bytes written differs from the length declared).
+ * ** RevisionDataOutput has a requiresExplicitLength() to aid in determining which kind of OutputStream is being used.
+ * ** RevisionDataOutput has a number of methods that can be used in calculating the length of Strings and other complex
+ * structures.
+ * ** Consider serializing to a FixedByteArrayOutputStream or EnhancedByteArrayOutputStream if you want to make use
+ * of the RandomOutput features (automatic length measurement).
+ * *** Consider using {@code ByteArraySegment serialize(T object)} if you want the VersionedSerializer to do this for you.
+ * Be mindful that this will create a new buffer for the serialization, which might affect performance.
+ *
+ * Data Formats
+ * * RevisionDataOutput and RevisionDataInput extend Java's DataOutput(Stream) and DataInput(Stream) and they use those
+ * classes' implementations for encoding primitive data types.
+ * * On top of that, they provide APIs for serializing commonly used structures:
+ * ** UUIDs
+ * ** Collections
+ * ** Maps
+ * ** Compact Numbers (Integers which serialize to 1, 2 or 4 bytes and Longs that serialize to 1, 2, 4 or 8 bytes).
+ * * Refer to RevisionDataOutput and RevisionDataInput Javadoc for more details.
  *
  * @param <T> Type of the object to serialize.
  */
@@ -45,9 +94,12 @@ public abstract class VersionedSerializer<T> {
     /**
      * The Version of the Serializer format itself.
      * ALL               : Header|Version(1)|RevisionCount(1)|Revision1|...|Revision[RevisionCount]
-     * HEADER(SingleType): SFV(1)
-     * HEADER(MultiType) : SFV(1)|ObjectType(1)
+     * HEADER(SingleType): SerializerFormatVersion(1)
+     * HEADER(MultiType) : SerializerFormatVersion(1)|ObjectType(1)
      * REVISION          : RevisionId(1)|Length(4)|Data(Length)
+     * Notes:
+     * * SerializerFormatVersion: The version of the Serialization Format itself. This is internal to VersionedSerializer.
+     * * Version: The Serialization Version that the caller specifies
      */
     private static final int SERIALIZER_VERSION = 0;
 
@@ -64,7 +116,7 @@ public abstract class VersionedSerializer<T> {
     }
 
     /**
-     * Serializes the given object to an in-memory buffer (RandomOutput) and returns a view of it.
+     * Serializes the given object to an in-memory buffer (RandomAccessOutputStream) and returns a view of it.
      *
      * @param object The object to serialize.
      * @return An ArrayView which represents the serialized data. This provides a view (offset+length) into a Java byte
@@ -368,8 +420,11 @@ public abstract class VersionedSerializer<T> {
      * class Segment { ... }
      *
      * class SegmentSerializer extends VersionedSerializer.Direct<Segment> {
+     *    // This is the version we'll be serializing now. We have already introduced read support for Version 1, but
+     *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
+     *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
      *    @Override
-     *    protected byte writeVersion() { return 0; } // This is the version we'll be serializing now.
+     *    protected byte writeVersion() { return 0; }
      *
      *    @Override
      *    protected void declareVersions() {
@@ -556,12 +611,12 @@ public abstract class VersionedSerializer<T> {
      *
      * class BaseTypeSerializer extends VersionedSerializer.MultiType<BaseType> {
      *    @Override
-     *    protected void declareSerializers() {
+     *    protected void declareSerializers(Builder b) {
      *        // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring) and not necessarily
      *        // sequential or contiguous.
-     *        serializer(SubType1.class, 0, new SubType1.SubType1Serializer());
-     *        serializer(SubType11.class, 10, new SubType11.SubType11Serializer());
-     *        serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
+     *        b.serializer(SubType1.class, 0, new SubType1.SubType1Serializer())
+     *         .serializer(SubType11.class, 10, new SubType11.SubType11Serializer())
+     *         .serializer(SubType2.class, 1, new SubType2.SubType2Serializer());
      *    }
      * }
      * }
@@ -570,50 +625,25 @@ public abstract class VersionedSerializer<T> {
      * @param <BaseType> The base type that all other types will derive from.
      */
     public static abstract class MultiType<BaseType> extends VersionedSerializer<BaseType> {
-        private final HashMap<Byte, SerializerInfo> serializersById;
-        private final HashMap<Class, SerializerInfo> serializersByType;
+        private final Map<Byte, SerializerInfo> serializersById;
+        private final Map<Class, SerializerInfo> serializersByType;
 
         /**
          * Creates a new instance of the MultiType class.
          */
         public MultiType() {
-            this.serializersByType = new HashMap<>();
-            this.serializersById = new HashMap<>();
-            declareSerializers();
+            val builder = new Builder();
+            declareSerializers(builder);
+            this.serializersByType = builder.builderByType.build();
+            this.serializersById = builder.builderById.build();
         }
 
         /**
          * When implemented in a derived class, this method will declare all supported serializers of subtypes of BaseType
          * by using the serializer() method.
+         * @param builder A MultiType.Builder that can be used to declare serializers.
          */
-        protected abstract void declareSerializers();
-
-        /**
-         * Registers a new serializer for the given class.
-         *
-         * @param type                The type of the class to register. Must derive from BaseClass.
-         * @param serializationTypeId A unique identifier associated with this serializer. This will be used to identify
-         *                            object types upon deserialization, so it is very important for this value not to
-         *                            change or be reused upon code refactoring. Valid range: [0, 127]
-         * @param serializer          The serializer for the given type.
-         * @param <TargetType>        Type of the object to serialize. Must derive from BaseType.
-         * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
-         * @return This instance.
-         */
-        protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType> serializer(
-                Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
-            Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
-                    "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
-            Preconditions.checkArgument(!this.serializersById.containsKey((byte) serializationTypeId),
-                    "SerializationTypeId %s already has a serializer registered.", serializationTypeId);
-            Preconditions.checkArgument(!this.serializersByType.containsKey(type),
-                    "Type %s already has a serializer registered.", type);
-
-            val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
-            this.serializersById.put(si.id, si);
-            this.serializersByType.put(si.type, si);
-            return this;
-        }
+        protected abstract void declareSerializers(Builder builder);
 
         @Override
         @SuppressWarnings("unchecked")
@@ -665,6 +695,34 @@ public abstract class VersionedSerializer<T> {
             final Class type;
             final byte id;
             final VersionedSerializer.WithBuilder serializer;
+        }
+
+        protected final class Builder {
+            private final ImmutableMap.Builder<Byte, SerializerInfo> builderById = ImmutableMap.builder();
+            private final ImmutableMap.Builder<Class, SerializerInfo> builderByType = ImmutableMap.builder();
+
+            /**
+             * Registers a new serializer for the given class.
+             *
+             * @param type                The type of the class to register. Must derive from BaseClass.
+             * @param serializationTypeId A unique identifier associated with this serializer. This will be used to identify
+             *                            object types upon deserialization, so it is very important for this value not to
+             *                            change or be reused upon code refactoring. Valid range: [0, 127]
+             * @param serializer          The serializer for the given type.
+             * @param <TargetType>        Type of the object to serialize. Must derive from BaseType.
+             * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
+             * @return This instance.
+             */
+            protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
+                    Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
+                Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
+                        "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
+
+                val si = new SerializerInfo(type, (byte) serializationTypeId, serializer);
+                this.builderById.put(si.id, si);
+                this.builderByType.put(si.type, si);
+                return this;
+            }
         }
     }
 

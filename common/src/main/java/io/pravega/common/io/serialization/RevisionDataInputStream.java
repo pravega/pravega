@@ -109,28 +109,17 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
         // Read first byte and determine how many other bytes are used.
         int b1 = readUnsignedByte();
-        int header = b1 >>> 6;
-        b1 &= 0x3F;
-
-        switch (header) {
-            case 0:
-                // Only this byte.
-                return b1;
-            case 1:
-                // 2 bytes
-                return (b1 << 8) + readUnsignedByte();
-            case 2:
-                // 3 bytes
-                return (b1 << 16)
-                        + readUnsignedShort();
-            case 3:
-                // All 4 bytes
-                return (b1 << 24)
-                        + (readUnsignedByte() << 16)
-                        + readUnsignedShort();
-            default:
-                throw new SerializationException(String.format(
-                        "Unable to deserialize compact int. Unrecognized header value %d.", header));
+        if (b1 >>> 7 == 0) {
+            // 1 byte.
+            return b1;
+        } else if ((b1 >>> 6 & 0x1) == 0) {
+            // 2 bytes; clear out the 2 MSBs and compose the result by reading 1 additional byte.
+            return ((b1 & 0x3F) << 8) + readUnsignedByte();
+        } else {
+            // All 4 bytes; clear out the 2 MSBs and compose the result by reading 3 additional bytes.
+            return ((b1 & 0x3F) << 24)
+                    + (readUnsignedByte() << 16)
+                    + readUnsignedShort();
         }
     }
 
@@ -177,40 +166,37 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     /**
      * InputStream wrapper that counts how many bytes were read and prevents over-reading.
      */
+    @NotThreadSafe
     private static class BoundedInputStream extends FilterInputStream {
         private final int bound;
-        private int relativePosition;
+        private int remaining;
 
         BoundedInputStream(InputStream inputStream, int bound) {
             super(inputStream);
             this.bound = bound;
-            this.relativePosition = 0;
+            this.remaining = bound;
         }
 
         @Override
         public void close() throws IOException {
             // Skip over the remaining bytes. Do not close the underlying InputStream.
-            if (this.relativePosition < this.bound) {
-                long toSkip = this.bound - this.relativePosition;
+            if (this.remaining > 0) {
+                int toSkip = this.remaining;
                 long skipped = skip(toSkip);
                 if (skipped != toSkip) {
-                    throw new SerializationException(String.format("Read fewer bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+                    throw new SerializationException(String.format("Read %d fewer byte(s) than expected only able to skip %d.", toSkip, skipped));
                 }
-            } else if (this.relativePosition > this.bound) {
-                throw new SerializationException(String.format("Read more bytes than expected. Expected %d, actual %d.", this.bound, relativePosition));
+            } else if (this.remaining < 0) {
+                throw new SerializationException(String.format("Read more bytes than expected (%d).", -this.remaining));
             }
         }
 
         @Override
         public int read() throws IOException {
-            if (this.relativePosition >= this.bound) {
-                // Do not allow reading more than we should.
-                return -1;
-            }
-
-            int r = super.read();
+            // Do not allow reading more than we should.
+            int r = this.remaining > 0 ? super.read() : -1;
             if (r >= 0) {
-                this.relativePosition++;
+                this.remaining--;
             }
 
             return r;
@@ -218,30 +204,27 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
-            if (this.relativePosition >= this.bound) {
-                // Do not allow reading more than we should.
+            int readLength = Math.min(length, this.remaining);
+            int r = this.in.read(buffer, offset, readLength);
+            if (r > 0) {
+                this.remaining -= r;
+            } else if (length > 0 && this.remaining <= 0) {
+                // We have reached our bound.
                 return -1;
-            }
-
-            length = Math.min(length, this.bound - this.relativePosition);
-            int r = this.in.read(buffer, offset, length);
-            if (r >= 0) {
-                this.relativePosition += r;
             }
             return r;
         }
 
         @Override
         public long skip(long count) throws IOException {
-            count = (int) Math.min(count, this.bound - this.relativePosition);
-            long r = this.in.skip(count);
-            this.relativePosition += r;
+            long r = this.in.skip(Math.min(count, this.remaining));
+            this.remaining -= r;
             return r;
         }
 
         @Override
         public int available() throws IOException {
-            return Math.min(this.in.available(), this.bound - this.relativePosition);
+            return Math.min(this.in.available(), this.remaining);
         }
     }
 

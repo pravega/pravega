@@ -63,6 +63,67 @@ public class ReaderGroupStateManagerTest {
         }
     }
     
+    @Test(timeout = 10000)
+    public void testCompaction() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+                                                            streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state1 = createState(stream, clientFactory, config);
+        Segment s1 = new Segment(scope, stream, 1);
+        Segment s2 = new Segment(scope, stream, 2);
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(s1, 1L);
+        segments.put(s2, 2L);
+        AtomicLong clock = new AtomicLong();
+        ReaderGroupStateManager.initializeReaderGroup(state1, ReaderGroupConfig.builder().build(), segments);
+        ReaderGroupStateManager r1 = new ReaderGroupStateManager("r1", state1, controller, clock::get);
+        r1.initializeReader(0);
+        r1.acquireNewSegmentsIfNeeded(0);
+        assertTrue(state1.getState().getUnassignedSegments().isEmpty());
+        state1.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        r1.acquireNewSegmentsIfNeeded(0);
+        state1.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state2 = createState(stream, clientFactory, config);
+        ReaderGroupStateManager r2 = new ReaderGroupStateManager("r2", state2, controller, clock::get);
+        r2.initializeReader(0);
+        assertEquals(state1.getState().getPositions(), state2.getState().getPositions());
+        state1.fetchUpdates();
+        assertTrue(r1.releaseSegment(s1, 1, 1));
+        state2.fetchUpdates();
+        assertFalse(state2.getState().getUnassignedSegments().isEmpty());
+        assertFalse(r2.acquireNewSegmentsIfNeeded(0).isEmpty());
+        state2.fetchUpdates();
+        assertTrue(state2.getState().getUnassignedSegments().isEmpty());
+        assertEquals(Collections.singleton(s2), state2.getState().getSegments("r1"));
+        assertEquals(Collections.singleton(s1), state2.getState().getSegments("r2"));
+        state2.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
+        r1.findSegmentToReleaseIfRequired();
+        r1.acquireNewSegmentsIfNeeded(0);
+        r2.getCheckpoint();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state3 = createState(stream, clientFactory, config);
+        state3.fetchUpdates();
+        assertEquals(state3.getState().getPositions(), state1.getState().getPositions());
+        assertEquals(state3.getState().getPositions(), state2.getState().getPositions());
+    }
+
+    private StateSynchronizer<ReaderGroupState> createState(String stream, ClientFactory clientFactory,
+                                                            SynchronizerConfig config) {
+        return clientFactory.createStateSynchronizer(stream, new JavaSerializer<>(), new JavaSerializer<>(), config);
+    }
+    
     @Test(timeout = 20000)
     public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
@@ -83,10 +144,7 @@ public class ReaderGroupStateManagerTest {
                 streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
-                config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
@@ -125,10 +183,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
@@ -168,10 +223,7 @@ public class ReaderGroupStateManagerTest {
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
@@ -204,10 +256,7 @@ public class ReaderGroupStateManagerTest {
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         AtomicLong clock = new AtomicLong();
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 123L);
@@ -264,10 +313,7 @@ public class ReaderGroupStateManagerTest {
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         AtomicLong clock = new AtomicLong();
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 0L);
@@ -339,10 +385,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         AtomicLong clock = new AtomicLong();
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 0L);
@@ -438,10 +481,7 @@ public class ReaderGroupStateManagerTest {
                                                             streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);
@@ -481,10 +521,7 @@ public class ReaderGroupStateManagerTest {
                                                             streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);
         val readerState1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, null);
@@ -522,10 +559,7 @@ public class ReaderGroupStateManagerTest {
                                                             streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      new JavaSerializer<>(),
-                                                                                                      config);
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         AtomicLong clock = new AtomicLong();
         Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
         ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);

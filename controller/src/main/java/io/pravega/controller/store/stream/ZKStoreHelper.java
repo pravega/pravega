@@ -26,6 +26,7 @@ import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
 @Slf4j
@@ -275,7 +276,8 @@ public class ZKStoreHelper {
                             result.completeExceptionally(e);
                         }
                     }, path);
-                createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
+                createBuilder.creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL)
+                        .inBackground(callback, executor).forPath(path, data);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -182,6 +183,53 @@ public class TableHelper {
         Set<Integer> toDelete = computeToDelete(cutMapSegments, historyTable, segmentTable, previousTruncationRecord.getDeletedSegments());
         return new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), ImmutableMap.copyOf(epochCutMap),
                 previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete));
+    }
+
+    /**
+     * A method to compute size of stream in bytes from start till given stream cut.
+     * Note: this computed size is absolute size and even if the stream has been truncated, this size is computed for the
+     * entire amount of data that was written into the stream.
+     *
+     * @param indexTable index table for the stream
+     * @param historyTable history table for the stream
+     * @param segmentTable segment table for the stream
+     * @param streamCut stream cut to compute size till
+     * @param sealedSegmentsRecord record for all the sealed segments for the given stream.
+     * @return size (in bytes) of stream till the given stream cut.
+     */
+    public static long getSizeTillStreamCut(final byte[] indexTable, final byte[] historyTable, final byte[] segmentTable,
+                                            final Map<Integer, Long> streamCut, final SealedSegmentsRecord sealedSegmentsRecord) {
+        Preconditions.checkNotNull(streamCut);
+        Preconditions.checkNotNull(indexTable);
+        Preconditions.checkNotNull(historyTable);
+        Preconditions.checkNotNull(sealedSegmentsRecord);
+        Preconditions.checkNotNull(segmentTable);
+        Preconditions.checkArgument(!streamCut.isEmpty());
+        Map<Integer, Integer> epochCutMap = computeEpochCutMap(historyTable, indexTable, segmentTable, streamCut);
+        Map<Segment, Integer> cutMapSegments = transform(segmentTable, epochCutMap);
+        AtomicLong size = new AtomicLong();
+        Map<Integer, Long> sealedSegmentSizeMap = sealedSegmentsRecord.getSealedSegmentsSizeMap();
+
+        // add sizes for segments in stream cut
+        streamCut.forEach((key, value) -> size.addAndGet(value));
+
+        int highestEpoch = epochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
+        Optional<HistoryRecord> historyRecordOpt = HistoryRecord.readRecord(historyTable, 0, true);
+
+        // start with epoch 0 and go all the way upto epochCutMap.highEpoch
+        while (historyRecordOpt.isPresent() && historyRecordOpt.get().getEpoch() <= highestEpoch) {
+            HistoryRecord historyRecord = historyRecordOpt.get();
+            int epoch = historyRecord.getEpoch();
+
+            size.addAndGet(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
+                Segment epochSegment = getSegment(epochSegmentNumber, segmentTable);
+                return cutMapSegments.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getNumber() == epochSegment.getNumber() ||
+                        (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
+            }).map(sealedSegmentSizeMap::get).reduce((x, y) -> x + y).orElse(0L));
+            historyRecordOpt = HistoryRecord.fetchNext(historyRecord, historyTable, true);
+        }
+
+        return size.get();
     }
 
     public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
@@ -441,18 +489,14 @@ public class TableHelper {
      * Add a new row to index table.
      *
      * @param timestamp     timestamp
-     * @param historyOffset history offset
+     * @param historyOffset history Offset
      * @return
      */
-    public static byte[] createIndexTable(final long timestamp,
-                                          final int historyOffset) {
+    public static byte[] createIndexTable(final long timestamp, final int historyOffset) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
         try {
-            indexStream.write(new IndexRecord(
-                    timestamp,
-                    historyOffset)
-                    .toByteArray());
+            indexStream.write(new IndexRecord(timestamp, historyOffset).toByteArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -464,7 +508,7 @@ public class TableHelper {
      *
      * @param indexTable    index table
      * @param timestamp     timestamp
-     * @param historyOffset history offset
+     * @param historyOffset history table offset
      * @return
      */
     public static byte[] updateIndexTable(final byte[] indexTable,

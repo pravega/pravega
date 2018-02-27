@@ -32,15 +32,17 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.val;
 
 /**
- * This class encapsulates the state machine of a reader group. The class represents the full state, and each
- * of the nested classes are state transitions that can occur.
+ * This class encapsulates the state machine of a reader group. The class represents the full state,
+ * and each of the nested classes are state transitions that can occur.
  */
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
@@ -52,24 +54,28 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private final CheckpointState checkpointState = new CheckpointState();
+    private final CheckpointState checkpointState;
     @GuardedBy("$lock")
-    private final Map<String, Long> distanceToTail = new HashMap<>();
+    private final Map<String, Long> distanceToTail;
     @GuardedBy("$lock")
-    private final Map<Segment, Set<Integer>> futureSegments = new HashMap<>();
+    private final Map<Segment, Set<Integer>> futureSegments;
     @GuardedBy("$lock")
-    private final Map<String, Map<Segment, Long>> assignedSegments = new HashMap<>();
+    private final Map<String, Map<Segment, Long>> assignedSegments;
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
-
+    
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
         Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
         this.scopedSynchronizerStream = scopedSynchronizerStream;
-        this.revision = revision;
         this.config = config;
+        this.revision = revision;
+        this.checkpointState = new CheckpointState();
+        this.distanceToTail = new HashMap<>();
+        this.futureSegments = new HashMap<>();
+        this.assignedSegments = new HashMap<>();
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
     }
     
@@ -266,6 +272,40 @@ public class ReaderGroupState implements Revisioned {
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, revision, config, segments);
+        }
+    }
+    
+    static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState>, Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private final ReaderGroupConfig config;
+        private final CheckpointState checkpointState;
+        private final Map<String, Long> distanceToTail;
+        private final Map<Segment, Set<Integer>> futureSegments;
+        private final Map<String, Map<Segment, Long>> assignedSegments;
+        private final Map<Segment, Long> unassignedSegments;
+        
+        CompactReaderGroupState(ReaderGroupState state) {
+            synchronized (state.$lock) {
+                config = state.config;
+                checkpointState = state.checkpointState.copy();
+                distanceToTail = new HashMap<>(state.distanceToTail);
+                futureSegments = new HashMap<>();
+                for (Entry<Segment, Set<Integer>> entry : state.futureSegments.entrySet()) {
+                    futureSegments.put(entry.getKey(), new HashSet<>(entry.getValue()));
+                }
+                assignedSegments = new HashMap<>();
+                for (Entry<String, Map<Segment, Long>> entry : state.assignedSegments.entrySet()) {
+                    assignedSegments.put(entry.getKey(), new HashMap<>(entry.getValue()));
+                }
+                unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
+            }
+        }
+        
+        @Override
+        public ReaderGroupState create(String scopedStreamName, Revision revision) {
+            return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
+                                        futureSegments, assignedSegments, unassignedSegments);
         }
     }
     

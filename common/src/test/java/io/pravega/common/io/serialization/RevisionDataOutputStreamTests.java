@@ -17,7 +17,9 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
+import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.val;
@@ -30,7 +32,7 @@ import org.junit.Test;
  */
 public class RevisionDataOutputStreamTests {
     /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomOutput.
+     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream.
      */
     @Test
     public void testRandomOutputExpandable() throws Exception {
@@ -42,7 +44,7 @@ public class RevisionDataOutputStreamTests {
     }
 
     /**
-     * Tests the RandomRevisionDataOutput class with an fixed-length RandomOutput.
+     * Tests the RandomRevisionDataOutput class with an fixed-length RandomAccessOutputStream.
      */
     @Test
     public void testRandomOutputFixed() throws Exception {
@@ -141,6 +143,41 @@ public class RevisionDataOutputStreamTests {
                 "Expecting an exception when reading fewer bytes than declared.",
                 inputStream::close,
                 ex -> ex instanceof SerializationException);
+    }
+
+    /**
+     * Tests the case when a RevisionDataOutputStream is created but left empty upon closing, while writing to a RandomAccessOutputStream OutputStream.
+     */
+    @Test
+    public void testZeroLengthRandomOutput() throws Exception {
+        testZeroLength(EnhancedByteArrayOutputStream::new, EnhancedByteArrayOutputStream::getData);
+    }
+
+    /**
+     * Tests the case when a RevisionDataOutputStream is created but left empty upon closing, while writing to a non-seekable OutputStream.
+     */
+    @Test
+    public void testZeroLengthNonSeekable() throws Exception {
+        testZeroLength(ByteArrayOutputStream::new, os -> new ByteArraySegment(os.toByteArray()));
+    }
+
+    private <T extends OutputStream> void testZeroLength(Supplier<T> newBaseStream, Function<T, ByteArraySegment> getWrittenData) throws Exception {
+        @Cleanup
+        val os = newBaseStream.get();
+
+        // Open and immediately close the RevisionDataOutputStream.
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(os);
+        rdos.close();
+
+        val data = getWrittenData.apply(os);
+        @Cleanup
+        val rdis = RevisionDataInputStream.wrap(data.getReader());
+        Assert.assertEquals("Unexpected length encoded.", 0, rdis.getLength());
+        AssertExtensions.assertThrows(
+                "Expecting EOF.",
+                () -> rdis.readFully(new byte[1]),
+                ex -> ex instanceof EOFException);
     }
 
     private void testImpl(RevisionDataOutputStream impl, Supplier<ByteArraySegment> getWrittenData) throws Exception {

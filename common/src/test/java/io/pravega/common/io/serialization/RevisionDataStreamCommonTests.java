@@ -50,10 +50,10 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the getCollectionLength() method.
+     * Tests the getCollectionLength() method with constant input
      */
     @Test
-    public void testGetCollectionLength() throws Exception {
+    public void testGetCollectionLengthConstant() throws Exception {
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
         Assert.assertEquals("Unexpected length for empty collection.",
@@ -65,7 +65,20 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the getMapLength() method.
+     * Tests the getCollectionLength() method with variable input
+     */
+    @Test
+    public void testGetCollectionLengthStatic() throws Exception {
+        val data = Arrays.asList(1, 2, 3, 4, 5);
+        val sum = data.stream().mapToInt(i -> i).sum();
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length.",
+                rdos.getCompactIntLength(data.size()) + sum, rdos.getCollectionLength(data, i -> i));
+    }
+
+    /**
+     * Tests the getMapLength() method with constant input.
      */
     @Test
     public void testGetMapLength() throws Exception {
@@ -81,6 +94,19 @@ public class RevisionDataStreamCommonTests {
                 rdos.getCompactIntLength(123), rdos.getMapLength(123, 0, 0));
         Assert.assertEquals("Unexpected length for non-empty map.",
                 rdos.getCompactIntLength(123) + 123 * (8 + 17), rdos.getMapLength(123, 8, 17));
+    }
+
+    /**
+     * Tests the getMapLength() method with variable input.
+     */
+    @Test
+    public void testGetMapLengthStatic() throws Exception {
+        val data = ImmutableMap.of(1, 10, 2, 20, 3, 30, 4, 40, 5, 50);
+        val sum = data.entrySet().stream().mapToInt(e -> e.getKey() + e.getValue()).sum();
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        Assert.assertEquals("Unexpected length.",
+                rdos.getCompactIntLength(data.size()) + sum, rdos.getMapLength(data, i -> i, i -> i));
     }
 
     /**
@@ -122,10 +148,9 @@ public class RevisionDataStreamCommonTests {
         val expectedValues = ImmutableMap.<Integer, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_INT_MIN - 1, -1)
                 .put(RevisionDataOutput.COMPACT_INT_MAX, -1)
-                .put(0, 1).put(0x3F, 1)
-                .put(0x3F + 1, 2).put(0x3FFF, 2)
-                .put(0x3FFF + 1, 3).put(0x3F_FFFF, 3)
-                .put(0x3F_FFFF + 1, 4).build();
+                .put(0, 1).put(0x7F, 1)
+                .put(0x7F + 1, 2).put(0x3FFF, 2)
+                .put(0x3FFF + 1, 4).build();
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
         for (val e : expectedValues.entrySet()) {
@@ -159,7 +184,8 @@ public class RevisionDataStreamCommonTests {
         toTest.addAll(getAllOneBitNumbers(Long.SIZE - 2));
 
         val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN - 1, RevisionDataOutput.COMPACT_LONG_MAX);
-        testCompact(RevisionDataOutputStream::writeCompactLong, RevisionDataInputStream::readCompactLong, toTest, shouldFail, Long::equals);
+        testCompact(RevisionDataOutputStream::writeCompactLong, RevisionDataInputStream::readCompactLong,
+                RevisionDataOutputStream::getCompactLongLength, toTest, shouldFail, Long::equals);
     }
 
     /**
@@ -170,13 +196,14 @@ public class RevisionDataStreamCommonTests {
         val toTest = new ArrayList<Integer>();
         // Boundary tests.
         toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN, RevisionDataOutput.COMPACT_INT_MAX - 1,
-                0x3F, 0x3F + 1, 0x3FFF, 0x3FFF + 1, 0x3F_FFFF, 0x3F_FFFF + 1));
+                0x7F, 0x7F + 1, 0x3FFF, 0x3FFF + 1, 0x3F_FFFF, 0x3F_FFFF + 1));
 
         // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
         getAllOneBitNumbers(Integer.SIZE - 2).forEach(n -> toTest.add((int) (long) n));
 
         val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN - 1, RevisionDataOutput.COMPACT_INT_MAX);
-        testCompact(RevisionDataOutputStream::writeCompactInt, RevisionDataInputStream::readCompactInt, toTest, shouldFail, Integer::equals);
+        testCompact(RevisionDataOutputStream::writeCompactInt, RevisionDataInputStream::readCompactInt, RevisionDataOutputStream::getCompactIntLength,
+                toTest, shouldFail, Integer::equals);
     }
 
     /**
@@ -186,7 +213,7 @@ public class RevisionDataStreamCommonTests {
     public void testUUID() throws Exception {
         val toTest = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
         for (val value : toTest) {
-            testEncodeDecode(RevisionDataOutputStream::writeUUID, RevisionDataInputStream::readUUID, value, UUID::equals);
+            testEncodeDecode(RevisionDataOutputStream::writeUUID, RevisionDataInputStream::readUUID, (s, v) -> RevisionDataOutput.UUID_BYTES, value, UUID::equals);
         }
     }
 
@@ -203,6 +230,7 @@ public class RevisionDataStreamCommonTests {
             testEncodeDecode(
                     (os, v) -> os.writeCollection(v, RevisionDataOutput::writeLong),
                     is -> is.readCollection(DataInput::readLong),
+                    (s, v) -> s.getCollectionLength(v, e -> Long.BYTES),
                     value,
                     this::collectionsEqual);
         }
@@ -221,6 +249,7 @@ public class RevisionDataStreamCommonTests {
             testEncodeDecode(
                     (os, v) -> os.writeMap(v, RevisionDataOutput::writeLong, RevisionDataOutput::writeUTF),
                     is -> is.readMap(DataInput::readLong, DataInput::readUTF),
+                    (s, v) -> s.getMapLength(v, e -> Long.BYTES, s::getUTFLength),
                     value,
                     this::mapsEqual);
         }
@@ -241,9 +270,10 @@ public class RevisionDataStreamCommonTests {
     }
 
     private <T> void testCompact(BiConsumerWithException<RevisionDataOutputStream, T> write, FunctionWithException<RevisionDataInputStream, T> read,
-                                 Collection<T> toTest, Collection<T> invalid, BiPredicate<T, T> areEqual) throws Exception {
+                                 BiFunction<RevisionDataOutputStream, T, Integer> getLength, Collection<T> toTest, Collection<T> invalid,
+                                 BiPredicate<T, T> areEqual) throws Exception {
         for (val value : toTest) {
-            testEncodeDecode(write, read, value, areEqual);
+            testEncodeDecode(write, read, getLength, value, areEqual);
         }
 
         @Cleanup
@@ -256,8 +286,8 @@ public class RevisionDataStreamCommonTests {
         }
     }
 
-    private <T> void testEncodeDecode(BiConsumerWithException<RevisionDataOutputStream, T> write,
-                                      FunctionWithException<RevisionDataInputStream, T> read, T value, BiPredicate<T, T> equalityTester) throws Exception {
+    private <T> void testEncodeDecode(BiConsumerWithException<RevisionDataOutputStream, T> write, FunctionWithException<RevisionDataInputStream, T> read,
+                                      BiFunction<RevisionDataOutputStream, T, Integer> getLength, T value, BiPredicate<T, T> equalityTester) throws Exception {
         @Cleanup
         val os = new EnhancedByteArrayOutputStream();
         @Cleanup
@@ -265,10 +295,14 @@ public class RevisionDataStreamCommonTests {
         write.accept(rdos, value);
         rdos.close();
         os.close();
+
+        val actualLength = os.size() - Integer.BYTES; // Subtract 4 because this is the Length being encoded.
+        Assert.assertEquals("Unexpected length for value " + value, (int) getLength.apply(rdos, value), actualLength);
+
         @Cleanup
         val rdis = RevisionDataInputStream.wrap(os.getData().getReader());
         val actualValue = read.apply(rdis);
-        Assert.assertTrue("Encoding/decoding failed for: " + value, equalityTester.test(value, actualValue));
+        Assert.assertTrue(String.format("Encoding/decoding failed for %s (decoded %s).", value, actualValue), equalityTester.test(value, actualValue));
     }
 
     private String getUTFString(int minChar, int maxChar) {

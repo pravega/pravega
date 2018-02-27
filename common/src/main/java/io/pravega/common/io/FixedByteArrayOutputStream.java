@@ -11,7 +11,7 @@ package io.pravega.common.io;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.serialization.RandomOutput;
+import io.pravega.common.io.serialization.RandomAccessOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,7 +19,7 @@ import java.io.OutputStream;
 /**
  * OutputStream that writes to a fixed-size buffer (this is needed because ByteArrayOutputStream auto-grows the buffer).
  */
-public class FixedByteArrayOutputStream extends OutputStream implements RandomOutput {
+public class FixedByteArrayOutputStream extends OutputStream implements RandomAccessOutputStream {
     //region Members
 
     private final byte[] array;
@@ -53,7 +53,7 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomOu
 
     //endregion
 
-    //region OutputStream and RandomOutput Implementation
+    //region OutputStream and RandomAccessOutputStream Implementation
 
     @Override
     public void write(int b) throws IOException {

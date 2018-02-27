@@ -34,7 +34,7 @@ public interface RevisionDataInput extends DataInput {
     /**
      * Decodes a Long that has been serialized using RevisionDataOutput.writeCompactLong(). After this method is complete,
      * the underlying InputStream may have advanced by 1, 2, 4, or 8 bytes.
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using
      * RevisionDataOutput.writeCompactLong(). It may throw a SerializationException (after reading 1 byte) or it may produce
      * a result that is not as expected.
@@ -47,7 +47,7 @@ public interface RevisionDataInput extends DataInput {
     /**
      * Decodes an Integer that has been serialized using RevisionDataOutput.writeCompactInt(). After this method is complete,
      * the underlying InputStream may have advanced by 1, 2, 3, or 4 bytes.
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using
      * RevisionDataOutput.writeCompactInt(). It may throw a SerializationException (after reading 1 byte) or it may produce
      * a result that is not as expected.
@@ -59,7 +59,7 @@ public interface RevisionDataInput extends DataInput {
 
     /**
      * Decodes a UUID that has been serialized using RevisionDataOutput.writeUUID().
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using
      * RevisionDataOutput.writeUUID().
      *
@@ -72,7 +72,7 @@ public interface RevisionDataInput extends DataInput {
      * Decodes a generic Collection that has been serialized using RevisionDataOutput.writeCollection(). The underlying type
      * of the collection will be an ArrayList. Should a different type of Collection be desired, consider using the appropriate
      * overload of this method.
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using
      * RevisionDataOutput.writeCollection().
      *
@@ -86,7 +86,7 @@ public interface RevisionDataInput extends DataInput {
 
     /**
      * Decodes a specific Collection that has been serialized using RevisionDataOutput.writeCollection().
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using
      * RevisionDataOutput.writeCollection().
      *
@@ -103,7 +103,7 @@ public interface RevisionDataInput extends DataInput {
     /**
      * Decodes a generic Map that has been serialized using RevisionDataOutput.writeMap(). The underlying type of the map
      * will be a HashMap. Should a different type of Map be desired, consider using the appropriate overload of this method.
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using RevisionDataOutput.writeMap().
      *
      * @param keyDeserializer   A Function that will decode a single Key of the Map from the given RevisionDataInput.
@@ -117,7 +117,7 @@ public interface RevisionDataInput extends DataInput {
 
     /**
      * Decodes a specific Map that has been serialized using RevisionDataOutput.writeMap().
-     * <p>
+     *
      * This method has undefined behavior if the data starting at the current position was not encoded using RevisionDataOutput.writeMap().
      *
      * @param keyDeserializer   A Function that will decode a single Key of the Map from the given RevisionDataInput.

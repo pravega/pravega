@@ -10,7 +10,7 @@
 package io.pravega.common.io;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.serialization.RandomOutput;
+import io.pravega.common.io.serialization.RandomAccessOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -18,7 +18,7 @@ import java.io.OutputStream;
 /**
  * A ByteArrayOutputStream that exposes the contents as a ByteArraySegment, without requiring a memory copy.
  */
-public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream implements RandomOutput {
+public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream implements RandomAccessOutputStream {
     /**
      * Returns a readonly ByteArraySegment wrapping the current buffer of the ByteArrayOutputStream.
      *
@@ -33,7 +33,7 @@ public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream impleme
         this.write(array, 0, array.length);
     }
 
-    //region RandomOutput Implementation
+    //region RandomAccessOutputStream Implementation
 
     @Override
     public void write(int byteValue, int streamPosition) {
