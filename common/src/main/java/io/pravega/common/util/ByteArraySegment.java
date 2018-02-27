@@ -9,10 +9,10 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -112,6 +112,21 @@ public class ByteArraySegment implements ArrayView {
         return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
     }
 
+    @Override
+    public byte[] getCopy() {
+        byte[] buffer = new byte[this.length];
+        System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
+        return buffer;
+    }
+
+    @Override
+    public void copyTo(byte[] target, int targetOffset, int length) {
+        Preconditions.checkElementIndex(length, this.length + 1, "length");
+        Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
+
+        System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
+    }
+
     //endregion
 
     //region Operations
@@ -154,32 +169,6 @@ public class ByteArraySegment implements ArrayView {
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
         System.arraycopy(source.array, source.startOffset, this.array, targetOffset + this.startOffset, length);
-    }
-
-    /**
-     * Copies a specified number of bytes from this ByteArraySegment into the given target array.
-     *
-     * @param target       The target array.
-     * @param targetOffset The offset within the target array to start copying data at.
-     * @param length       The number of bytes to copy.
-     * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
-     */
-    public void copyTo(byte[] target, int targetOffset, int length) {
-        Preconditions.checkElementIndex(length, this.length + 1, "length");
-        Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
-
-        System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
-    }
-
-    /**
-     * Returns a copy of the contents of this ByteArraySegment.
-     *
-     * @return A byte array with the same length as this ByteArraySegment, containing a copy of the data within it.
-     */
-    public byte[] getCopy() {
-        byte[] buffer = new byte[this.length];
-        System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
-        return buffer;
     }
 
     /**
