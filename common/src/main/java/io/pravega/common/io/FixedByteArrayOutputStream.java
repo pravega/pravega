@@ -9,16 +9,17 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.io.serialization.RandomAccessOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
 
 /**
  * OutputStream that writes to a fixed-size buffer (this is needed because ByteArrayOutputStream auto-grows the buffer).
  */
-public class FixedByteArrayOutputStream extends OutputStream {
+public class FixedByteArrayOutputStream extends OutputStream implements RandomAccessOutputStream {
     //region Members
 
     private final byte[] array;
@@ -52,7 +53,7 @@ public class FixedByteArrayOutputStream extends OutputStream {
 
     //endregion
 
-    //region OutputStream Implementation
+    //region OutputStream and RandomAccessOutputStream Implementation
 
     @Override
     public void write(int b) throws IOException {
@@ -66,6 +67,53 @@ public class FixedByteArrayOutputStream extends OutputStream {
 
         this.array[this.offset + this.position] = (byte) b;
         this.position++;
+    }
+
+    @Override
+    public void write(int byteValue, int streamPosition) throws IOException {
+        if (this.isClosed) {
+            throw new IOException("OutputStream is closed.");
+        }
+        streamPosition += this.offset;
+        Preconditions.checkElementIndex(streamPosition, this.array.length, "streamPosition");
+        this.array[streamPosition] = (byte) byteValue;
+    }
+
+    @Override
+    public void write(byte[] buffer, int bufferOffset, int length, int streamPosition) throws IOException {
+        if (this.isClosed) {
+            throw new IOException("OutputStream is closed.");
+        }
+
+        if (bufferOffset < 0 || length < 0 || (length > 0 && bufferOffset + length > buffer.length)) {
+            throw new ArrayIndexOutOfBoundsException("bufferOffset and length must refer to a range within buffer.");
+        }
+
+        streamPosition += this.offset;
+        if (streamPosition + length > this.array.length) {
+            throw new ArrayIndexOutOfBoundsException("streamPosition+length must refer to a position within the Stream array.");
+        }
+
+        System.arraycopy(buffer, bufferOffset, this.array, streamPosition, length);
+    }
+
+    @Override
+    public OutputStream subStream(int streamPosition, int length) {
+        return new FixedByteArrayOutputStream(this.array, this.offset + streamPosition, length);
+    }
+
+    @Override
+    public int size() {
+        return this.position;
+    }
+
+    /**
+     * Returns a readonly ByteArraySegment wrapping this Stream's buffer.
+     *
+     * @return A readonly ByteArraySegment from the current buffer.
+     */
+    public ByteArraySegment getData() {
+        return new ByteArraySegment(this.array, this.offset, this.length, true);
     }
 
     @Override

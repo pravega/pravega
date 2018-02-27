@@ -65,4 +65,21 @@ public interface ArrayView {
      * @return The InputStream.
      */
     InputStream getReader(int offset, int length);
+
+    /**
+     * Copies a specified number of bytes from this ArrayView into the given target array.
+     *
+     * @param target       The target array.
+     * @param targetOffset The offset within the target array to start copying data at.
+     * @param length       The number of bytes to copy.
+     * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
+     */
+    void copyTo(byte[] target, int targetOffset, int length);
+
+    /**
+     * Returns a copy of the contents of this ArrayView.
+     *
+     * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
+     */
+    byte[] getCopy();
 }
