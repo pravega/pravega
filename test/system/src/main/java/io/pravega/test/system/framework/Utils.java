@@ -94,4 +94,10 @@ public class Utils {
         return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
 
     }
+
+    public static boolean isAwsExecution() {
+        String dockerConfig = getConfig("awsExec", "false");
+        return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
+
+    }
 }
