@@ -12,6 +12,7 @@ package io.pravega.common.util;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Helper methods for various Number to Bit conversions.
@@ -42,6 +43,22 @@ public final class BitConverter {
         target[offset + 1] = (byte) (value >>> 16);
         target[offset + 2] = (byte) (value >>> 8);
         target[offset + 3] = (byte) value;
+        return Integer.BYTES;
+    }
+
+    /**
+     * Writes the given 32-bit Integer to the given OutputStream.
+     *
+     * @param target The OutputStream to write to.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     * @throws IOException If an exception got thrown.
+     */
+    public static int writeInt(OutputStream target, int value) throws IOException {
+        target.write(value >>> 24);
+        target.write(value >>> 16);
+        target.write(value >>> 8);
+        target.write(value);
         return Integer.BYTES;
     }
 
