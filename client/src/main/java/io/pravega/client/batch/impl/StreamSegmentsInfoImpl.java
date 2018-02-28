@@ -17,13 +17,13 @@ import io.pravega.client.stream.impl.StreamCut;
 import java.util.Iterator;
 import java.util.Map;
 import lombok.Builder;
-import lombok.Data;
 import lombok.NonNull;
+import lombok.ToString;
 
 /**
  * This class contains the segment information of a stream between two StreamCuts.
  */
-@Data
+@ToString
 @Builder
 public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
 
@@ -38,6 +38,11 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
 
     public static StreamSegmentsInfoImplBuilder builder() {
         return new StreamSegmentsImplValidator();
+    }
+
+    @Override
+    public Iterator<SegmentInputSplit> getSegmentInputSplitIterator() {
+        return segmentInputSplitIterator;
     }
 
     @Override

@@ -7,9 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.batch;
+package io.pravega.client.batch.impl;
 
-import io.pravega.client.batch.impl.SegmentInputSplitImpl;
 import io.pravega.client.segment.impl.Segment;
 import org.junit.Test;
 

@@ -94,7 +94,7 @@ public class BatchClientImpl implements BatchClient {
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
         CompletableFuture<StreamSegmentsInfoImpl> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
-                (startSC1, endSC1) -> getStreamSegmentInfo(startSC1, endSC1));
+                (startSC, endSC) -> getStreamSegmentInfo(startSC, endSC));
         return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
     }
 

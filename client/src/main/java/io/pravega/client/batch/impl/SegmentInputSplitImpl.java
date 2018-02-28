@@ -13,32 +13,37 @@ import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import io.pravega.client.batch.SegmentInputSplit;
 import io.pravega.client.segment.impl.Segment;
+import lombok.AccessLevel;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.ToString;
 
 /**
  * Class to represent a Segment split information.
  */
 @Beta
-@Data
 @Builder
+@ToString
 public class SegmentInputSplitImpl implements SegmentInputSplit {
 
     /**
      * Segment to which the metadata relates to.
      */
     @NonNull
+    @Getter(value = AccessLevel.PACKAGE)
     private final Segment segment;
 
     /**
      * Start offset for the segment.
      */
+    @Getter(value = AccessLevel.PACKAGE)
     private final long startOffset;
 
     /**
      * End offset for the segment.
      */
+    @Getter(value = AccessLevel.PACKAGE)
     private final long endOffset;
 
     @Override

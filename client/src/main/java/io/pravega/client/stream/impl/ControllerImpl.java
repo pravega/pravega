@@ -651,7 +651,7 @@ public class ControllerImpl implements Controller {
         return unread;
     }
 
-    private List<Segment> computeKnownUnreadSegments(Collection<Segment> currentSegments, StreamCut from) {
+    private List<Segment> computeKnownUnreadSegments(final Collection<Segment> currentSegments, final StreamCut from) {
         int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
