@@ -10,50 +10,32 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
-import com.google.common.base.Preconditions;
-import io.pravega.client.segment.impl.Segment;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NonNull;
-import lombok.Setter;
+import io.pravega.client.batch.impl.SegmentInputSplitImpl;
 
-/**
- * Class to represent a Segment split information.
- */
 @Beta
-@Data
-@Builder
-public class SegmentInputSplit {
+public interface SegmentInputSplit {
 
     /**
-     * Segment to which the metadata relates to.
+     * Returns the segment number of Segment.
+     * @return The segment number
      */
-    @NonNull
-    @Setter(AccessLevel.NONE)
-    private final Segment segment;
+    int getSegmentNumber();
 
     /**
-     * Start offset for the segment.
+     * Returns the stream name the segment is associated with.
+     * @return The stream name.
      */
-    @Setter(AccessLevel.NONE)
-    private final long startOffset;
+    String getStreamName();
 
     /**
-     * End offset for the segment.
+     * Returns the scope name.
+     * @return The scope name.
      */
-    @Setter(AccessLevel.NONE)
-    private final long endOffset;
+    String getScopeName();
 
-    public static SegmentInputSplit.SegmentInputSplitBuilder builder() {
-        return new SegmentInputSplit.SegmentInputSplitBuilderWithValidation();
-    }
-
-    private static class SegmentInputSplitBuilderWithValidation extends SegmentInputSplitBuilder {
-        @Override
-        public SegmentInputSplit build() {
-            Preconditions.checkState(super.startOffset <= super.endOffset);
-            return super.build();
-        }
-    }
+    /**
+     * For internal use. Do not call.
+     * @return This
+     */
+    SegmentInputSplitImpl asImpl();
 }

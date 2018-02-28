@@ -15,6 +15,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentInputSplit;
 import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.impl.SegmentInputSplitImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -151,7 +152,7 @@ public class BatchClientTest {
         BatchClient batchClient = clientFactory.createBatchClient();
 
         //List out all the segments in the stream.
-        ArrayList<SegmentInputSplit> segments = Lists.newArrayList(batchClient.getSegments(stream).getSegmentInputSplitIterator());
+        ArrayList<SegmentInputSplit> segments = Lists.newArrayList(batchClient.getSegments(stream, null, null).getSegmentInputSplitIterator());
         assertEquals("Expected number of segments", 6, segments.size());
 
         //Batch read all events from stream.
@@ -165,7 +166,7 @@ public class BatchClientTest {
 
         //read from a given offset.
         Segment seg0 = new Segment(SCOPE, STREAM, 0);
-        SegmentInputSplit seg0Info = SegmentInputSplit.builder().segment(seg0).startOffset(60).endOffset(90).build();
+        SegmentInputSplit seg0Info = SegmentInputSplitImpl.builder().segment(seg0).startOffset(60).endOffset(90).build();
         @Cleanup
         SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0Info, serializer);
         ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);

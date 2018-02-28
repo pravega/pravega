@@ -30,30 +30,22 @@ import io.pravega.client.stream.impl.StreamCut;
 public interface BatchClient {
 
     /**
-     * Provides a list of segments and their metadata for a given stream.
-     * 
-     * @param stream the stream
-     * @return The segment information in the requested stream.
-     */
-    StreamSegmentInfo getSegments(Stream stream);
-
-    /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
      * i) If only fromStreamCut is provided then
      *      - All segments up to the tail of the stream are returned.
-     *      - StreamSegmentInfo.endStreamCut is populated with the effective end point of the stream.
+     *      - StreamSegmentsInfo.endStreamCut is populated with the effective end point of the stream.
      * ii) If only toStreamCut is provided then
      *      - All segments from the start of the stream to toStreamCut are returned.
-     *      - StreamSegmentInfo.startStreamCut is populated with the stream cut which points to start of the stream.
+     *      - StreamSegmentsInfo.startStreamCut is populated with the stream cut which points to start of the stream.
      * iii) If neither fromStreamCut nor toStreamCut are specified
-     *      - then the behaviour is same as BatchClient#getSegments(io.pravega.client.stream.Stream)
+     *      - then all segments from the start of the stream upto the current tail of the stream are returned.
 
      * @param stream the stream.
      * @param fromStreamCut starting stream cut.
      * @param toStreamCut end stream cut.
      * @return Segment information between the two stream cuts.
      */
-    StreamSegmentInfo getSegments(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
+    StreamSegmentsInfo getSegments(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the

@@ -617,7 +617,8 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
         Preconditions.checkNotNull(toStreamCut, "toStreamCut");
-        Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()), "Ensure streamCuts for the same stream is passed");
+        Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()),
+                "Ensure streamCuts for the same stream is passed");
 
         final Stream stream = fromStreamCut.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);

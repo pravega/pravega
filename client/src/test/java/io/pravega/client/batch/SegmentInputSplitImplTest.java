@@ -9,28 +9,29 @@
  */
 package io.pravega.client.batch;
 
+import io.pravega.client.batch.impl.SegmentInputSplitImpl;
 import io.pravega.client.segment.impl.Segment;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class SegmentInputSplitTest {
+public class SegmentInputSplitImplTest {
 
     @Test(expected = IllegalStateException.class)
     public void testInvalidSegmentInputSplit() {
         //StartOffset > endOffset.
-        SegmentInputSplit.builder().endOffset(10L).startOffset(20L)
-                         .segment(new Segment("scope", "stream", 1)).build();
+        SegmentInputSplitImpl.builder().endOffset(10L).startOffset(20L)
+                                       .segment(new Segment("scope", "stream", 1)).build();
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullSegment() {
-        SegmentInputSplit.builder().startOffset(10L).endOffset(20L).build();
+        SegmentInputSplitImpl.builder().startOffset(10L).endOffset(20L).build();
     }
 
     @Test
     public void testValid() {
-        SegmentInputSplit split = SegmentInputSplit.builder().endOffset(20L).segment(new Segment("scope", "stream",
+        SegmentInputSplitImpl split = SegmentInputSplitImpl.builder().endOffset(20L).segment(new Segment("scope", "stream",
                 0)).build();
         assertEquals(0L, split.getStartOffset());
         assertEquals(20L, split.getEndOffset());

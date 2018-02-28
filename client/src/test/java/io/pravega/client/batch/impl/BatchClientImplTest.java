@@ -72,13 +72,13 @@ public class BatchClientImplTest {
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build())
                       .join();
-        Iterator<SegmentInputSplit> segments = client.getSegments(stream).getSegmentInputSplitIterator();
+        Iterator<SegmentInputSplit> segments = client.getSegments(stream, null, null).getSegmentInputSplitIterator();
         assertTrue(segments.hasNext());
-        assertEquals(0, segments.next().getSegment().getSegmentNumber());
+        assertEquals(0, segments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());
-        assertEquals(1, segments.next().getSegment().getSegmentNumber());
+        assertEquals(1, segments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());
-        assertEquals(2, segments.next().getSegment().getSegmentNumber());
+        assertEquals(2, segments.next().asImpl().getSegment().getSegmentNumber());
         assertFalse(segments.hasNext());
     }
 

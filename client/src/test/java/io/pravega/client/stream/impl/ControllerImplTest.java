@@ -1153,6 +1153,4 @@ public class ControllerImplTest {
                 new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
                 result);
     }
-
-
 }
