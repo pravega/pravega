@@ -80,7 +80,7 @@ public abstract class ControllerServiceStarterTest {
         final String testScope = "testScope";
         StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(uri)
                                                                         .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                                                        .pravegaTrustStore("../config/cert.pem").build());
+                                                                        .trustStore("../config/cert.pem").build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);
