@@ -23,6 +23,7 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
@@ -302,7 +303,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        return truncateStream(scope, stream, streamCut.getPositions().entrySet()
+        return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
     }
 
@@ -602,14 +603,14 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Stream stream = from.getStream();
+        Stream stream = from.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
+        HashSet<Segment> unread = new HashSet<>(from.asImpl().getPositions().keySet());
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
                                                      RuntimeException::new);
-        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
+        unread.addAll(computeKnownUnreadSegments(currentSegments, from));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : from.getPositions().keySet()) {
+        for (Segment toFetch : from.asImpl().getPositions().keySet()) {
             if (!unread.contains(toFetch)) {
                 toFetchSuccessors.add(toFetch);
             }
@@ -629,16 +630,16 @@ public class ControllerImpl implements Controller {
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(unread);
     }
-    
+
     private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
-        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int highestCut = from.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }
         List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
         for (int num = highestCut + 1; num < lowestCurrent; num++) {
-            result.add(new Segment(from.getStream().getScope(), from.getStream().getStreamName(), num));
+            result.add(new Segment(from.asImpl().getStream().getScope(), from.asImpl().getStream().getStreamName(), num));
         }
         return result;
     }

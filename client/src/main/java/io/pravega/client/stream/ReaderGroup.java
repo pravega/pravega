@@ -10,7 +10,6 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.ClientFactory;
-import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
 import java.util.Map;
