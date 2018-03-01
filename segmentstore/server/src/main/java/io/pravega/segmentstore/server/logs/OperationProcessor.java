@@ -59,9 +59,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
-    private static final int MAX_DELAY_MILLIS = 50;
+    private static final int MAX_BATCHING_DELAY_MILLIS = 50;
+    private static final int MAX_THROTTLING_DELAY_MILLIS = 10000;
+    private static final double MAX_CACHE_UTILIZATION = 1.25; // 125% of the cache capacity.
 
     private final UpdateableContainerMetadata metadata;
+    private final MemoryStateUpdater stateUpdater;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
     private final DurableDataLog durableDataLog;
@@ -90,6 +93,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
         this.metadata = metadata;
+        this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
@@ -112,7 +116,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected CompletableFuture<Void> doRun() {
         return Futures
                 .loop(this::isRunning,
-                        () -> delayIfNecessary()
+                        () -> throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor)
@@ -203,7 +207,49 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     //region Queue Processing
 
-    private CompletableFuture<Void> delayIfNecessary() {
+    private CompletableFuture<Void> throttle() {
+        int batchingDelayMillis = getBatchingDelayMillis();
+        int throttlingDelayMillis = getThrottlingDelayMillis();
+
+        // These delays are not additive. There's no benefit to adding a batching delay on top of a throttling delay, since
+        // a throttling delay will have increased batching as a side effect.
+        int totalDelayMillis = Math.max(batchingDelayMillis, throttlingDelayMillis);
+        this.metrics.processingDelay(totalDelayMillis);
+        return Futures.delayedFuture(Duration.ofMillis(totalDelayMillis), this.executor);
+    }
+
+    /**
+     * Determines whether there is a need to introduce a throttling delay.
+     */
+    private boolean isThrottlingRequired() {
+        return this.stateUpdater.getCacheUtilization() >= 1;
+    }
+
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
+     * on downstream components. This is based on ReadIndex statistics, mainly cache utilization ratio.
+     *
+     * @return The amount of time, in milliseconds.
+     */
+    private int getThrottlingDelayMillis() {
+        double cacheUtilization = this.stateUpdater.getCacheUtilization();
+        if (cacheUtilization <= 1) {
+            // Cache utilization is below 100%. No need for throttling.
+            return 0;
+        } else {
+            // We are exceeding the cache capacity. Start throttling proportionally to the amount of excess, but make sure
+            // we don't exceed the max allowed.
+            return (int) (Math.max(1.0, (cacheUtilization - 1) / (MAX_CACHE_UTILIZATION - 1)) * MAX_THROTTLING_DELAY_MILLIS);
+        }
+    }
+
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to aggregate them
+     * into larger writes. This is based on statistics from the DurableDataLog.
+     *
+     * @return The amount of time, in milliseconds.
+     */
+    private int getBatchingDelayMillis() {
         QueueStats stats = this.durableDataLog.getQueueStatistics();
 
         // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
@@ -212,9 +258,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
         int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-        delayMillis = Math.min(delayMillis, MAX_DELAY_MILLIS);
-        this.metrics.processingDelay(delayMillis);
-        return Futures.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
+        return Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS);
     }
 
     /**
@@ -267,7 +311,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
+                    if (!isThrottlingRequired()) {
+                        // Only pull in new operations if we do not require throttling. If we do, we need to go back to
+                        // the main OperationProcessor loop and delay processing the next batch of operations.
+                        operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
+                    }
+
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
                         synchronized (this.stateLock) {
