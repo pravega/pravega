@@ -9,8 +9,8 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
@@ -33,7 +33,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
 
     /**
@@ -43,7 +43,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @param clientConfig Configuration for the client.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, PravegaClientConfig clientConfig) {
+    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
         return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
     }
 

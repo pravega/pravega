@@ -10,7 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -44,7 +44,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
         this.controller = new MockController(endpoint, port, connectionFactory);
         this.clientFactory = new MockClientFactory(scope, controller);
     }

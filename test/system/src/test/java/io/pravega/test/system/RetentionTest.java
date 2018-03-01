@@ -9,8 +9,8 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -133,9 +133,9 @@ public class RetentionTest {
     @Test
     public void retentionTest() throws Exception {
 
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
-                PravegaClientConfig.builder().controllerURI(controllerURI).build())
+                ClientConfig.builder().controllerURI(controllerURI).build())
                 .build(),
                  connectionFactory.getInternalExecutor());
 

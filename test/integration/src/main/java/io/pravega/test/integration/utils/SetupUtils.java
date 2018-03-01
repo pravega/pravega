@@ -10,8 +10,8 @@
 package io.pravega.test.integration.utils;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -134,7 +134,7 @@ public final class SetupUtils {
         Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder().controllerURI(this.controllerUri).build());
+        StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(this.controllerUri).build());
         streamManager.createScope(this.scope);
         streamManager.createStream(this.scope, streamName,
                 StreamConfiguration.builder()
@@ -156,7 +156,7 @@ public final class SetupUtils {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, PravegaClientConfig.builder().controllerURI(this.controllerUri).build());
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         return clientFactory.createEventWriter(
                 streamName,
                 new IntegerSerializer(),
@@ -175,14 +175,14 @@ public final class SetupUtils {
         Preconditions.checkNotNull(streamName);
 
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope,
-                PravegaClientConfig.builder().controllerURI(controllerUri).build());
+                ClientConfig.builder().controllerURI(controllerUri).build());
         final String readerGroup = "testReaderGroup" + this.scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(streamName));
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, PravegaClientConfig.builder().controllerURI(this.controllerUri).build());
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(
                 readerGroupId,

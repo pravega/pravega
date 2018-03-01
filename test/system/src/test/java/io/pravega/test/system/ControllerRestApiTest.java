@@ -9,8 +9,8 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -41,30 +41,30 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.glassfish.jersey.client.ClientConfig;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import static javax.ws.rs.core.Response.Status.NOT_FOUND;
-import static javax.ws.rs.core.Response.Status.OK;
-import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import static javax.ws.rs.core.Response.Status.CREATED;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -78,7 +78,7 @@ public class ControllerRestApiTest {
     private String resourceURl;
 
     public ControllerRestApiTest() {
-        ClientConfig clientConfig = new ClientConfig();
+        org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         client = ClientBuilder.newClient(clientConfig);
@@ -275,7 +275,7 @@ public class ControllerRestApiTest {
         final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
         URI controllerUri = ctlURIs.get(0);
-        try (StreamManager streamManager = new StreamManagerImpl(PravegaClientConfig.builder().controllerURI(controllerUri).build())) {
+        try (StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerUri).build())) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -297,11 +297,11 @@ public class ControllerRestApiTest {
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
-                                     .clientConfig(PravegaClientConfig.builder().controllerURI(controllerUri).build())
+                                     .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
                                      .build(), executor);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
-                     PravegaClientConfig.builder().controllerURI(controllerUri).build())) {
+                     ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
                     new HashSet<>(Arrays.asList(testStream1, testStream2)));
             readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),

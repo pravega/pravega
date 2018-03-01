@@ -11,7 +11,7 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
@@ -34,7 +34,7 @@ public class StreamManagerImpl implements StreamManager {
 
     private final ScheduledExecutorService executor; 
     
-    public StreamManagerImpl(PravegaClientConfig clientConfig) {
+    public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
 

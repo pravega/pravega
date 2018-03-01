@@ -62,7 +62,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
 
     /**
@@ -72,8 +72,7 @@ public interface ClientFactory extends AutoCloseable {
      * @param config Configuration for the client.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, PravegaClientConfig config) {
-
+    static ClientFactory withScope(String scope, ClientConfig config) {
         val connectionFactory = new ConnectionFactoryImpl(config);
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);

@@ -9,8 +9,8 @@
  */
 package io.pravega.test.integration.selftest.adapters;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -58,14 +58,14 @@ class ExternalAdapter extends ClientAdapterBase {
             URI controllerUri = new URI(getControllerUrl());
 
             // Create Stream Manager, Scope and Client Factory.
-            this.streamManager.set(StreamManager.create(PravegaClientConfig.builder().controllerURI(controllerUri).build()));
+            this.streamManager.set(StreamManager.create(ClientConfig.builder().controllerURI(controllerUri).build()));
             Retry.withExpBackoff(500, 2, 10)
                  .retryWhen(ex -> true)
                  .throwingOn(Exception.class)
                  .run(() -> this.streamManager.get().createScope(SCOPE));
 
             // Create Client Factory.
-            this.clientFactory.set(ClientFactory.withScope(SCOPE, PravegaClientConfig.builder().controllerURI(controllerUri).build()));
+            this.clientFactory.set(ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build()));
 
             // Create, Seal and Delete a dummy segment - this verifies that the client is properly setup and that all the
             // components are running properly.

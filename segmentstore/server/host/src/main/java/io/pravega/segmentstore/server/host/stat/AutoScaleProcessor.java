@@ -15,14 +15,14 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.PravegaDefaultCredentials;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -116,13 +116,13 @@ public class AutoScaleProcessor {
                         ClientFactory factory = null;
                         if (configuration.isAuthEnabled()) {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                                    PravegaClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                    .credentials(new PravegaDefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
-                                    .pravegaTrustStore(configuration.getTlsCertFile())
-                                    .build());
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
+                                                .pravegaTrustStore(configuration.getTlsCertFile())
+                                                .build());
                         } else {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                                    PravegaClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
                         }
                         clientFactory.compareAndSet(null, factory);
                     }

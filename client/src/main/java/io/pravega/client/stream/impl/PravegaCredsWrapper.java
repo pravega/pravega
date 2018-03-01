@@ -9,7 +9,6 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
@@ -17,10 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class PravegaCredsWrapper extends Credentials {
-    private final PravegaCredentials creds;
+public class PravegaCredsWrapper extends com.google.auth.Credentials {
+    private final Credentials creds;
 
-    public PravegaCredsWrapper(PravegaCredentials creds) {
+    public PravegaCredsWrapper(Credentials creds) {
         this.creds = creds;
     }
 

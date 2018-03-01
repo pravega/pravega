@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -141,7 +141,7 @@ public class ControllerFailoverTest {
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
                                     .build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -181,7 +181,7 @@ public class ControllerFailoverTest {
         // Connect to another controller instance.
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
                                     .build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.

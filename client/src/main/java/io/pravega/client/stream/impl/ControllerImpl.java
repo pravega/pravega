@@ -143,7 +143,7 @@ public class ControllerImpl implements Controller {
 
         if (config.getClientConfig().isEnableTls()) {
             SslContextBuilder sslContextBuilder = null;
-            String trustStore = config.getClientConfig().getPravegaTrustStore();
+            String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
             if (!Strings.isNullOrEmpty(trustStore)) {
                 sslContextBuilder = sslContextBuilder.trustManager(new File(trustStore));
@@ -160,7 +160,7 @@ public class ControllerImpl implements Controller {
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
-        PravegaCredentials credentials = config.getClientConfig().getCredentials();
+        Credentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
             PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));

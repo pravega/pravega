@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -101,7 +101,7 @@ public class TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, hostId, connectionFactory, false, "");
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -243,7 +243,7 @@ public class TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, "2", connectionFactory,  false, "");

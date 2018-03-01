@@ -9,8 +9,8 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -38,6 +38,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -102,17 +103,17 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         //get Controller Uri
         controller = new ControllerImpl(
                                         ControllerImplConfig.builder()
-                                                            .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                                            .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
                                                             .maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
         testState = new TestState(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl( PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
+        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope,  PravegaClientConfig.builder().controllerURI(controllerURIDirect).build());
+        readerGroupManager = ReaderGroupManager.withScope(scope,  ClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
     @After

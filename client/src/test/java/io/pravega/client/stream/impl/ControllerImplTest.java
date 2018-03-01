@@ -16,7 +16,7 @@ import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -113,7 +113,7 @@ public class ControllerImplTest {
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
     private NettyServerBuilder serverBuilder;
-    private PravegaCredentials creds;
+    private Credentials creds;
 
     @Before
     public void setup() throws IOException {
@@ -628,7 +628,7 @@ public class ControllerImplTest {
         if (testSecure) {
          serverBuilder = serverBuilder.useTransportSecurity(new File("../config/cert.pem"),
                  new File("../config/key.pem"));
-         creds = new PravegaDefaultCredentials("1111_aaaa", "admin");
+         creds = new DefaultCredentials("1111_aaaa", "admin");
         }
         testGRPCServer = serverBuilder
                 .build()
@@ -636,10 +636,10 @@ public class ControllerImplTest {
         executor = Executors.newSingleThreadScheduledExecutor();
         controllerClient = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(
-                        PravegaClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                           .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
-                                           .pravegaTrustStore("../config/cert.pem")
-                                                 .build())
+                        ClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                    .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                    .pravegaTrustStore("../config/cert.pem")
+                                    .build())
                 .retryAttempts(1).build(), executor);
     }
 
@@ -661,10 +661,10 @@ public class ControllerImplTest {
             builder = builder.usePlaintext(true);
         }
         final ControllerImpl controller = new ControllerImpl(builder,
-                ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
-                                             .pravegaTrustStore("../config/cert.pem")
-                                             .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                             .build())
+                ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
+                                                                        .pravegaTrustStore("../config/cert.pem")
+                                                                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                                                        .build())
                                     .retryAttempts(1).build(),
                 this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
@@ -696,10 +696,10 @@ public class ControllerImplTest {
             builder = builder.usePlaintext(true);
         }
         final ControllerImpl controller1 = new ControllerImpl(builder,
-                ControllerImplConfig.builder().clientConfig(PravegaClientConfig.builder()
-                                                                               .pravegaTrustStore("../config/cert.pem")
-                                                                               .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                                                               .build())
+                ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
+                                                                        .pravegaTrustStore("../config/cert.pem")
+                                                                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                                                        .build())
                                     .retryAttempts(1).build(), this.executor);
         createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
@@ -715,9 +715,9 @@ public class ControllerImplTest {
 
         // Verify retries exhausted error after multiple attempts.
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
-                .clientConfig(PravegaClientConfig.builder()
-                                                 .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                                 .pravegaTrustStore("../config/cert.pem").build())
+                .clientConfig(ClientConfig.builder()
+                                          .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                          .pravegaTrustStore("../config/cert.pem").build())
                 .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamretryfailure")
@@ -740,9 +740,9 @@ public class ControllerImplTest {
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
-                .clientConfig(PravegaClientConfig.builder()
-                                                 .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                                 .pravegaTrustStore("../config/cert.pem").build())
+                .clientConfig(ClientConfig.builder()
+                                          .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                                          .pravegaTrustStore("../config/cert.pem").build())
                 .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()
                 .streamName("streamretrysuccess")

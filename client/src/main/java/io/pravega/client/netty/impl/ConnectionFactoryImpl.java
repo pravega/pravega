@@ -33,7 +33,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -62,7 +62,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                     String.valueOf(Runtime.getRuntime().availableProcessors())));
     private EventLoopGroup group;
     private boolean nio = false;
-    private final PravegaClientConfig clientConfig;
+    private final ClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
                                                                                                     "clientInternal");
@@ -72,7 +72,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
      * Actual implementation of ConnectionFactory interface.
      * @param clientConfig Configuration object holding details about connection to the segmentstore.
      */
-    public ConnectionFactoryImpl(PravegaClientConfig clientConfig) {
+    public ConnectionFactoryImpl(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
         try {
             this.group = new EpollEventLoopGroup();
@@ -91,12 +91,12 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         if (clientConfig.isEnableTls()) {
             try {
                 SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
-                if (Strings.isNullOrEmpty(clientConfig.getPravegaTrustStore())) {
+                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
                     sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
                 } else {
                     sslCtxFactory = SslContextBuilder.forClient()
-                                              .trustManager(new File(clientConfig.getPravegaTrustStore()));
+                                              .trustManager(new File(clientConfig.getTrustStore()));
                 }
                 sslCtx = sslCtxFactory.build();
             } catch (SSLException | NoSuchAlgorithmException e) {

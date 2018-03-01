@@ -9,8 +9,8 @@
  */
 package io.pravega.client.admin.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.state.SynchronizerConfig;
@@ -47,7 +47,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
-    public ReaderGroupManagerImpl(String scope, PravegaClientConfig config, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());

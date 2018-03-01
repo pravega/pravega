@@ -9,15 +9,15 @@
  */
 package io.pravega.local;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.PravegaDefaultCredentials;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
@@ -69,12 +69,12 @@ public class InProcPravegaClusterTest {
         String streamName = "Stream";
         int numSegments = 10;
 
-        PravegaClientConfig clientConfig = PravegaClientConfig.builder()
-                                                              .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                                                              .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
-                                                              .pravegaTrustStore("../config/cert.pem")
-                                                              .validateHostName(false)
-                                                              .build();
+        ClientConfig clientConfig = ClientConfig.builder()
+                                                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                                .pravegaTrustStore("../config/cert.pem")
+                                                .validateHostName(false)
+                                                .build();
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 

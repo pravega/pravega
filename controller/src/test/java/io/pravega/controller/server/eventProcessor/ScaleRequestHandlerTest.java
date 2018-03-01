@@ -11,8 +11,8 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -113,7 +113,7 @@ public class ScaleRequestHandlerTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory, false, "");

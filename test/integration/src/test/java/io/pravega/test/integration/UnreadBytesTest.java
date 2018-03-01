@@ -9,8 +9,8 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -105,13 +105,13 @@ public class UnreadBytesTest {
         controller.createStream(config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().build(), Collections
                 .singleton("unreadbytes"));

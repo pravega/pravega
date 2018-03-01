@@ -25,7 +25,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -104,10 +104,10 @@ public class ConnectionFactoryImplTest {
 
     @Test
     public void establishConnection() throws ConnectionFailedException {
-        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
-                                    .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                    .pravegaTrustStore("../config/cert.pem")
-                                   .build());
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                                                                              .pravegaTrustStore("../config/cert.pem")
+                                                                              .build());
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {

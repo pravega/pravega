@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
@@ -66,9 +66,9 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
-                                                                                               .controllerURI(URI.create("tcp://localhost"))
-                                                                                               .build());
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory,  false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),

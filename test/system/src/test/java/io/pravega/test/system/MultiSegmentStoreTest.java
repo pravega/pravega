@@ -9,15 +9,10 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.test.system.framework.Environment;
-import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.Service;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -27,6 +22,17 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.test.system.framework.Environment;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.Service;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -36,12 +42,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import java.io.Serializable;
-import java.net.URI;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Test cases for deploying multiple segment stores.
@@ -155,7 +155,7 @@ public class MultiSegmentStoreTest {
         String stream = "teststream" + RandomStringUtils.randomAlphanumeric(10);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(controllerUri).build());
         Assert.assertTrue(streamManager.createScope(scope));
 
         // Create stream with large number of segments so that most segment containers are used.
@@ -167,7 +167,7 @@ public class MultiSegmentStoreTest {
 
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(scope,
-                PravegaClientConfig.builder().controllerURI(controllerUri).build());
+                ClientConfig.builder().controllerURI(controllerUri).build());
 
         log.info("Invoking writer with controller URI: {}", controllerUri);
         @Cleanup
@@ -185,7 +185,7 @@ public class MultiSegmentStoreTest {
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, PravegaClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(readerGroup,
                 ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
                 Collections.singleton(stream));

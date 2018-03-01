@@ -9,8 +9,8 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -106,9 +106,9 @@ public class EndToEndWithScaleTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder()
-                                                                                           .controllerURI(URI.create("tcp://localhost"))
-                                                                                           .build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup

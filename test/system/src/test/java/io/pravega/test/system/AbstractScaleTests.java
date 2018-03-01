@@ -9,8 +9,8 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -35,16 +35,16 @@ abstract class AbstractScaleTests {
     @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
     @Getter(lazy = true)
-    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
     @Getter(lazy = true)
     private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
             ControllerImplConfig.builder().clientConfig(
-                    PravegaClientConfig.builder().controllerURI(getControllerURI()).build())
+                    ClientConfig.builder().controllerURI(getControllerURI()).build())
                                 .build(), getConnectionFactory().getInternalExecutor()));
     @Getter(lazy = true)
     private final ControllerImpl controller = new ControllerImpl(
             ControllerImplConfig.builder().clientConfig(
-                    PravegaClientConfig.builder().controllerURI(getControllerURI()).build()
+                    ClientConfig.builder().controllerURI(getControllerURI()).build()
             ).build(), getConnectionFactory().getInternalExecutor());
 
     private URI createControllerURI() {

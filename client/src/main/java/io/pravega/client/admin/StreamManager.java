@@ -9,7 +9,7 @@
  */
 package io.pravega.client.admin;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCut;
@@ -26,7 +26,7 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return create(PravegaClientConfig.builder().controllerURI(controller).build());
+        return create(ClientConfig.builder().controllerURI(controller).build());
     }
 
     /**
@@ -35,7 +35,7 @@ public interface StreamManager extends AutoCloseable {
      * @param clientConfig Configuration for the client connection to Pravega.
      * @return Instance of Stream Manager implementation.
      */
-    public static StreamManager create(PravegaClientConfig clientConfig) {
+    public static StreamManager create(ClientConfig clientConfig) {
         return new StreamManagerImpl(clientConfig);
     }
 

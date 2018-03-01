@@ -11,7 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -146,12 +146,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            PravegaClientConfig clientConfig = PravegaClientConfig.builder()
-                                                                  .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
+            ClientConfig clientConfig = ClientConfig.builder()
+                                                    .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
                                                                           "tls://" : "tcp://") + "localhost"))
-                                                                  .pravegaTrustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
-                                                                  .validateHostName(false)
-                                                                  .build();
+                                                    .pravegaTrustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                                                    .validateHostName(false)
+                                                    .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();

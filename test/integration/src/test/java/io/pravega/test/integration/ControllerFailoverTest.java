@@ -9,7 +9,7 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -95,7 +95,7 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitRunning();
 
         URI controllerURI = URI.create("tcp://localhost:" + controllerPort);
-        StreamManager streamManager = StreamManager.create( PravegaClientConfig.builder().controllerURI(controllerURI).build());
+        StreamManager streamManager = StreamManager.create( ClientConfig.builder().controllerURI(controllerURI).build());
 
         // Create scope
         streamManager.createScope(SCOPE);

@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
@@ -186,7 +186,7 @@ public class MultiControllerTest {
     CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
         final ControllerImpl controllerClient = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(PravegaClientConfig.builder().controllerURI(controllerURI).build())
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURI).build())
                                     .build(), EXECUTOR_SERVICE);
         return controllerClient.createScope(scopeName);
     }

@@ -10,7 +10,7 @@
 package io.pravega.controller.server.retention;
 
 import com.google.common.collect.Lists;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
@@ -123,7 +123,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory,
                 false, "");

@@ -17,7 +17,7 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -207,7 +207,7 @@ public class AppendTest {
         server.startListening();
 
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(PravegaClientConfig.builder().build());
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());

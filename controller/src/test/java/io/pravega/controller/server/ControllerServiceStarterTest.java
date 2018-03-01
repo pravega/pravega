@@ -9,10 +9,10 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.stream.impl.PravegaDefaultCredentials;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClient;
@@ -78,9 +78,9 @@ public abstract class ControllerServiceStarterTest {
         }
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(PravegaClientConfig.builder().controllerURI(uri)
-                .credentials(new PravegaDefaultCredentials("1111_aaaa", "admin"))
-                .pravegaTrustStore("../config/cert.pem").build());
+        StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(uri)
+                                                                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                                                        .pravegaTrustStore("../config/cert.pem").build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);

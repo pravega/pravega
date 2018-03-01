@@ -11,11 +11,11 @@ package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthHandler;
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.PravegaCredentials;
-import io.pravega.client.stream.impl.PravegaDefaultCredentials;
+import io.pravega.client.stream.impl.Credentials;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -93,11 +93,11 @@ public class PravegaAuthManagerTest {
         server.build().start();
 
         InlineExecutor executor = new InlineExecutor();
-        PravegaCredentials creds = new PravegaDefaultCredentials("1111_aaaa", "admin");
+        Credentials creds = new DefaultCredentials("1111_aaaa", "admin");
 
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(PravegaClientConfig.builder()
-                             .controllerURI(URI.create("tcp://localhost:" + port)).build())
+                .clientConfig(ClientConfig.builder()
+                                          .controllerURI(URI.create("tcp://localhost:" + port)).build())
                 .retryAttempts(1).build(),
                 executor);
 

@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task;
 
-import io.pravega.client.PravegaClientConfig;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
@@ -102,9 +102,9 @@ public class TaskTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(PravegaClientConfig.builder()
-                                                                                 .controllerURI(URI.create("tcp://localhost"))
-                                                                                 .build()),
+                executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                          .controllerURI(URI.create("tcp://localhost"))
+                                                                          .build()),
                 false, "");
     }
 

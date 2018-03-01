@@ -10,8 +10,8 @@
 package io.pravega.test.integration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.PravegaClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -101,8 +101,8 @@ public class MultiReadersEndToEndTest {
     private void runTest(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         @Cleanup
-        StreamManager streamManager = StreamManager.create(PravegaClientConfig.builder()
-                                           .controllerURI(SETUP_UTILS.getControllerUri()).build());
+        StreamManager streamManager = StreamManager.create(ClientConfig.builder()
+                                                                       .controllerURI(SETUP_UTILS.getControllerUri()).build());
         streamManager.createScope(SETUP_UTILS.getScope());
         streamNames.stream().forEach(stream -> {
             streamManager.createStream(SETUP_UTILS.getScope(),
@@ -116,8 +116,8 @@ public class MultiReadersEndToEndTest {
         });
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SETUP_UTILS.getScope(), PravegaClientConfig.builder()
-                                                   .controllerURI(SETUP_UTILS.getControllerUri()).build());
+        ClientFactory clientFactory = ClientFactory.withScope(SETUP_UTILS.getScope(), ClientConfig.builder()
+                                                                                                  .controllerURI(SETUP_UTILS.getControllerUri()).build());
         streamNames.stream().forEach(stream -> {
             EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(
                     stream, new IntegerSerializer(), EventWriterConfig.builder().build());
@@ -132,8 +132,8 @@ public class MultiReadersEndToEndTest {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(),
-                                    PravegaClientConfig.builder()
-                                   .controllerURI(SETUP_UTILS.getControllerUri()).build());
+                                    ClientConfig.builder()
+                                                .controllerURI(SETUP_UTILS.getControllerUri()).build());
         readerGroupManager.createReaderGroup(readerGroupName,
                                              ReaderGroupConfig.builder().startingTime(0).build(),
                                              streamNames);
