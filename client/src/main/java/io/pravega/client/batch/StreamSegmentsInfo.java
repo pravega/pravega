@@ -19,10 +19,10 @@ import java.util.Iterator;
 public interface StreamSegmentsInfo {
 
     /**
-     * This returns an iterator for {@link SegmentInputSplit} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
-     * @return Iterator for {@link SegmentInputSplit}
+     * This returns an iterator for {@link SegmentRange} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * @return Iterator for {@link SegmentRange}
      */
-    Iterator<SegmentInputSplit> getSegmentInputSplitIterator();
+    Iterator<SegmentRange> getSegmentRangeIterator();
 
     /**
      * For internal use. Do not call.

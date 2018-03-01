@@ -11,7 +11,7 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
-import io.pravega.client.batch.SegmentInputSplit;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.segment.impl.Segment;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -20,12 +20,12 @@ import lombok.NonNull;
 import lombok.ToString;
 
 /**
- * Class to represent a Segment split information.
+ * Implementation of {@link SegmentRange}.
  */
 @Beta
 @Builder
 @ToString
-public class SegmentInputSplitImpl implements SegmentInputSplit {
+public class SegmentRangeImpl implements SegmentRange {
 
     /**
      * Segment to which the metadata relates to.
@@ -62,17 +62,17 @@ public class SegmentInputSplitImpl implements SegmentInputSplit {
     }
 
     @Override
-    public SegmentInputSplitImpl asImpl() {
+    public SegmentRangeImpl asImpl() {
         return this;
     }
 
-    public static SegmentInputSplitImpl.SegmentInputSplitImplBuilder builder() {
-        return new SegmentInputSplitImpl.SegmentInputSplitBuilderWithValidation();
+    public static SegmentRangeImpl.SegmentRangeImplBuilder builder() {
+        return new SegmentRangeBuilderWithValidation();
     }
 
-    private static class SegmentInputSplitBuilderWithValidation extends SegmentInputSplitImplBuilder {
+    private static class SegmentRangeBuilderWithValidation extends SegmentRangeImplBuilder {
         @Override
-        public SegmentInputSplitImpl build() {
+        public SegmentRangeImpl build() {
             Preconditions.checkState(super.startOffset <= super.endOffset,
                     "Start offset should be less than end offset.");
             return super.build();

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.batch.SegmentInputSplit;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -72,7 +72,7 @@ public class BatchClientImplTest {
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build())
                       .join();
-        Iterator<SegmentInputSplit> segments = client.getSegments(stream, null, null).getSegmentInputSplitIterator();
+        Iterator<SegmentRange> segments = client.getSegments(stream, null, null).getSegmentRangeIterator();
         assertTrue(segments.hasNext());
         assertEquals(0, segments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());

@@ -10,7 +10,7 @@
 package io.pravega.client.batch.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.batch.SegmentInputSplit;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.StreamCut;
@@ -34,15 +34,15 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
     private final StreamCut endStreamCut;
 
     @NonNull
-    private final Iterator<SegmentInputSplit> segmentInputSplitIterator;
+    private final Iterator<SegmentRange> segmentRangeIterator;
 
     public static StreamSegmentsInfoImplBuilder builder() {
         return new StreamSegmentsImplValidator();
     }
 
     @Override
-    public Iterator<SegmentInputSplit> getSegmentInputSplitIterator() {
-        return segmentInputSplitIterator;
+    public Iterator<SegmentRange> getSegmentRangeIterator() {
+        return segmentRangeIterator;
     }
 
     @Override

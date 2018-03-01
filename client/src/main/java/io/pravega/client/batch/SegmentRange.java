@@ -10,10 +10,13 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.batch.impl.SegmentInputSplitImpl;
+import io.pravega.client.batch.impl.SegmentRangeImpl;
 
+/**
+ * This is used to represent range bounded portion of a Segment.
+ */
 @Beta
-public interface SegmentInputSplit {
+public interface SegmentRange {
 
     /**
      * Returns the segment number of Segment.
@@ -37,5 +40,5 @@ public interface SegmentInputSplit {
      * For internal use. Do not call.
      * @return This
      */
-    SegmentInputSplitImpl asImpl();
+    SegmentRangeImpl asImpl();
 }

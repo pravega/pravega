@@ -27,20 +27,20 @@ public class StreamSegmentsInfoTest {
     private static final String SCOPE = "scope";
     private static final String STREAM_NAME = "stream";
     @Mock
-    private Iterator<SegmentInputSplit> iterator;
+    private Iterator<SegmentRange> iterator;
 
     @Test
     public void testStreamSegmentInfoBuilderValid1() {
         StreamSegmentsInfoImpl.builder().startStreamCut(getStreamCut(0, 1, 5, 6))
                               .endStreamCut(getStreamCut(1, 3, 4, 5, 6))
-                              .segmentInputSplitIterator(iterator).build();
+                              .segmentRangeIterator(iterator).build();
     }
 
     @Test
     public void testStreamSegmentInfoBuilderValid2() {
         StreamSegmentsInfoImpl.builder().startStreamCut(getStreamCut(0L, 3, 4, 5, 6))
                               .endStreamCut(getStreamCut(10L, 3, 4, 7))
-                              .segmentInputSplitIterator(iterator).build();
+                              .segmentRangeIterator(iterator).build();
     }
 
     @Test(expected = NullPointerException.class)

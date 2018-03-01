@@ -13,7 +13,7 @@ import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.SegmentInputSplit;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsInfo;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.batch.SegmentIterator;
@@ -74,7 +74,7 @@ public class BatchClientImpl implements BatchClient {
     }
 
     @Override
-    public <T> SegmentIterator<T> readSegment(final SegmentInputSplit segment, final Serializer<T> deserializer) {
+    public <T> SegmentIterator<T> readSegment(final SegmentRange segment, final Serializer<T> deserializer) {
         return new SegmentIteratorImpl<>(inputStreamFactory, segment.asImpl().getSegment(), deserializer,
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());
     }
@@ -122,9 +122,9 @@ public class BatchClientImpl implements BatchClient {
                 RuntimeException::new));
         log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
 
-        Iterator<SegmentInputSplit> iterator = Iterators.transform(segmentSet.iterator(),
-                s -> getSegmentInputSplit(s, startStreamCut, endStreamCut));
-        return StreamSegmentsInfoImpl.builder().segmentInputSplitIterator(iterator)
+        Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),
+                s -> getSegmentRange(s, startStreamCut, endStreamCut));
+        return StreamSegmentsInfoImpl.builder().segmentRangeIterator(iterator)
                                      .startStreamCut(startStreamCut)
                                      .endStreamCut(endStreamCut).build();
     }
@@ -136,24 +136,24 @@ public class BatchClientImpl implements BatchClient {
     }
 
     /*
-     * Given a segment fetch its SegmentInputSplit.
+     * Given a segment fetch its SegmentRange.
      * - If segment is part of startStreamCut / endStreamCut update startOffset and endOffset accordingly.
      * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
      */
-    private SegmentInputSplit getSegmentInputSplit(final Segment segment, final StreamCut startStreamCut,
-                                                   final StreamCut endStreamCut) {
-        SegmentInputSplitImpl.SegmentInputSplitImplBuilder segmentSplitBuilder = SegmentInputSplitImpl.builder()
-                                                                                                      .segment(segment);
+    private SegmentRange getSegmentRange(final Segment segment, final StreamCut startStreamCut,
+                                              final StreamCut endStreamCut) {
+        SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder()
+                                                                                            .segment(segment);
         if (startStreamCut.getPositions().containsKey(segment) && endStreamCut.getPositions().containsKey(segment)) {
             //use the meta data present in startStreamCut and endStreamCuts.
-            segmentSplitBuilder.startOffset(startStreamCut.getPositions().get(segment))
+            segmentRangeBuilder.startOffset(startStreamCut.getPositions().get(segment))
                            .endOffset(endStreamCut.getPositions().get(segment));
         } else {
             //use segment meta data client to fetch the segment offsets.
             SegmentInfo r = getSegmentInfo(segment);
-            segmentSplitBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
+            segmentRangeBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
                            .endOffset(endStreamCut.getPositions().getOrDefault(segment, r.getWriteOffset()));
         }
-        return segmentSplitBuilder.build();
+        return segmentRangeBuilder.build();
     }
 }

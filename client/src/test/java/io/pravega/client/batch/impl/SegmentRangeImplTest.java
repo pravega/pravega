@@ -14,26 +14,26 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class SegmentInputSplitImplTest {
+public class SegmentRangeImplTest {
 
     @Test(expected = IllegalStateException.class)
-    public void testInvalidSegmentInputSplit() {
+    public void testInvalidSegmentRange() {
         //StartOffset > endOffset.
-        SegmentInputSplitImpl.builder().endOffset(10L).startOffset(20L)
-                                       .segment(new Segment("scope", "stream", 1)).build();
+        SegmentRangeImpl.builder().endOffset(10L).startOffset(20L)
+                        .segment(new Segment("scope", "stream", 1)).build();
     }
 
     @Test(expected = NullPointerException.class)
     public void testNullSegment() {
-        SegmentInputSplitImpl.builder().startOffset(10L).endOffset(20L).build();
+        SegmentRangeImpl.builder().startOffset(10L).endOffset(20L).build();
     }
 
     @Test
     public void testValid() {
-        SegmentInputSplitImpl split = SegmentInputSplitImpl.builder().endOffset(20L).segment(new Segment("scope", "stream",
+        SegmentRangeImpl segmentRange = SegmentRangeImpl.builder().endOffset(20L).segment(new Segment("scope", "stream",
                 0)).build();
-        assertEquals(0L, split.getStartOffset());
-        assertEquals(20L, split.getEndOffset());
-        assertEquals(new Segment("scope", "stream", 0), split.getSegment());
+        assertEquals(0L, segmentRange.getStartOffset());
+        assertEquals(20L, segmentRange.getEndOffset());
+        assertEquals(new Segment("scope", "stream", 0), segmentRange.getSegment());
     }
 }

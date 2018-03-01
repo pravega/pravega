@@ -56,6 +56,6 @@ public interface BatchClient {
      * @param deserializer A deserializer to be used to parse events
      * @return A SegmentIterator over the requested segment
      */
-    <T> SegmentIterator<T> readSegment(SegmentInputSplit segment, Serializer<T> deserializer);
+    <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
 
 }
