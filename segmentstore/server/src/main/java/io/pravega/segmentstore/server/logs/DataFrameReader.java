@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.LogItem;
@@ -21,12 +20,8 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
-import lombok.AccessLevel;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Stream;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
+public class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
@@ -145,7 +140,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
      * Represents a DataFrame Read Result, wrapping a LogItem.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class ReadResult<T extends LogItem> {
+    public static class ReadResult<T extends LogItem> {
         /**
          * The wrapped Log Operation.
          */
@@ -179,9 +174,40 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
             return this.recordInfo.isLastFrameEntry();
         }
 
+        /**
+         * An ordered list of EntryInfo objects representing metadata about the actual serialization of this ReadResult item.
+         */
+        public List<EntryInfo> getFrameEntries() {
+            return this.recordInfo.getEntries();
+        }
+
         @Override
         public String toString() {
             return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), this.getLastUsedDataFrameAddress().getSequence(), isLastFrameEntry());
+        }
+
+        /**
+         * Metadata about a particular DataFrameEntry.
+         */
+        @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+        @Getter
+        public static class EntryInfo {
+            /**
+             * Address of the containing DataFrame.
+             */
+            private final LogAddress frameAddress;
+            /**
+             * Offset within the DataFrame.
+             */
+            private final int frameOffset;
+            /**
+             * Contents length.
+             */
+            private final int length;
+            /**
+             * Whether it is the last entry in the DataFrame.
+             */
+            private final boolean lastEntryInDataFrame;
         }
     }
 

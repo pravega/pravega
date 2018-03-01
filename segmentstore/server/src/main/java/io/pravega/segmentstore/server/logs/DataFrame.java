@@ -294,7 +294,7 @@ public class DataFrame {
         }
 
         BoundedInputStream contents = new BoundedInputStream(source, header.getContentLength());
-        return new DataFrameEntryIterator(contents, address);
+        return new DataFrameEntryIterator(contents, address, ReadFrameHeader.SERIALIZATION_LENGTH);
     }
 
     //endregion
@@ -480,19 +480,28 @@ public class DataFrame {
         private final boolean lastEntryInDataFrame;
 
         /**
-         * The address of the containing DataFrame
+         * The address of the containing DataFrame.
          */
         @Getter
         private final LogAddress frameAddress;
 
         /**
-         * The contents of the entry
+         * The contents of the entry.
          */
         @Getter
         private final InputStream data;
 
+        /**
+         * The length of the entry.
+         */
         @Getter
         private final int length;
+
+        /**
+         * The offset within the DataFrame where the contents begins.
+         */
+        @Getter
+        private final int frameOffset;
 
         /**
          * Creates a new instance of the DataFrameEntry class.
@@ -501,14 +510,16 @@ public class DataFrame {
          * @param data                 A ByteArraySegment representing the contents of this frame.
          * @param frameAddress         The Address of the containing DataFrame.
          * @param lastEntryInDataFrame Whether this is the last entry in the DataFrame.
+         * @param frameOffset          The offset within the DataFrame where this Entry starts.
          */
-        private DataFrameEntry(EntryHeader header, BoundedInputStream data, LogAddress frameAddress, boolean lastEntryInDataFrame) {
+        private DataFrameEntry(EntryHeader header, BoundedInputStream data, LogAddress frameAddress, boolean lastEntryInDataFrame, int frameOffset) {
             this.firstRecordEntry = header.isFirstRecordEntry();
             this.lastRecordEntry = header.isLastRecordEntry();
             this.lastEntryInDataFrame = lastEntryInDataFrame;
             this.frameAddress = frameAddress;
             this.data = data;
             this.length = data.getBound();
+            this.frameOffset = frameOffset;
         }
 
         @Override
@@ -530,7 +541,9 @@ public class DataFrame {
         private final BoundedInputStream contents;
         @Getter
         private final LogAddress frameAddress;
+        private final int bufferOffset;
         private BoundedInputStream lastEntryContents;
+
 
         @Override
         @SneakyThrows(IOException.class)
@@ -575,9 +588,10 @@ public class DataFrame {
             }
 
             // Get the result contents && advance the positions.
+            int frameOffset = this.bufferOffset + this.contents.getBound() - this.contents.getRemaining();
             BoundedInputStream resultContents = this.contents.subStream(header.getEntryLength());
             this.lastEntryContents = resultContents;
-            return new DataFrameEntry(header, resultContents, this.frameAddress, reachedEnd());
+            return new DataFrameEntry(header, resultContents, this.frameAddress, reachedEnd(), frameOffset);
         }
 
         private boolean reachedEnd() {

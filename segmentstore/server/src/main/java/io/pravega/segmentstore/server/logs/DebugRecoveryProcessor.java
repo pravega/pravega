@@ -126,7 +126,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         /**
          * Invoked before attempting to recover an operation. Args: Operation, DataFrameEntries making up that operation.
          */
-        private final BiConsumer<Operation, List<DataFrame.DataFrameEntry>> beginRecoverOperation;
+        private final BiConsumer<Operation, List<DataFrameReader.ReadResult.EntryInfo>> beginRecoverOperation;
 
         /**
          * Invoked when an operation was successfully recovered.
