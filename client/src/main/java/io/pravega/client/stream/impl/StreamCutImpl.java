@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 
 import lombok.EqualsAndHashCode;
-import lombok.NonNull;
 import lombok.ToString;
 
 /**
@@ -29,10 +28,8 @@ import lombok.ToString;
 public class StreamCutImpl extends StreamCutInternal {
     private static final long serialVersionUID = 1L;
 
-    @NonNull
     private final Stream stream;
 
-    @NonNull
     private final Map<Segment, Long> positions;
 
     public StreamCutImpl(Stream stream, Map<Segment, Long> positions) {
