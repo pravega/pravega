@@ -15,10 +15,10 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,6 @@ class RecoveryProcessor {
 
     private final UpdateableContainerMetadata metadata;
     private final DurableDataLog durableDataLog;
-    private final LogItemFactory<Operation> operationFactory;
     private final MemoryStateUpdater stateUpdater;
     private final String traceObjectId;
 
@@ -45,14 +44,11 @@ class RecoveryProcessor {
      *
      * @param metadata         The UpdateableContainerMetadata to use for recovery.
      * @param durableDataLog   The (uninitialized) DurableDataLog to read data from for recovery.
-     * @param operationFactory A LogItemFactory that can create Operations.
      * @param stateUpdater     A MemoryStateUpdater that can be used to apply the recovered operations.
      */
-    RecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, LogItemFactory<Operation> operationFactory,
-                      MemoryStateUpdater stateUpdater) {
+    RecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, MemoryStateUpdater stateUpdater) {
         this.metadata = Preconditions.checkNotNull(metadata, "metadata");
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
-        this.operationFactory = Preconditions.checkNotNull(operationFactory, "operationFactory");
         this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.traceObjectId = String.format("RecoveryProcessor[%s]", this.metadata.getContainerId());
     }
@@ -127,7 +123,7 @@ class RecoveryProcessor {
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, this.operationFactory, this.metadata.getContainerId())) {
+        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, OperationSerializer.DEFAULT, this.metadata.getContainerId())) {
             DataFrameReader.ReadResult<Operation> readResult;
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.

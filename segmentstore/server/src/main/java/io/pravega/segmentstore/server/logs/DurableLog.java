@@ -30,7 +30,6 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -215,7 +214,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             this.durableDataLog.initialize(RECOVERY_TIMEOUT);
 
             // Initiate the recovery.
-            RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.operationFactory, this.memoryStateUpdater);
+            RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.memoryStateUpdater);
             int recoveredItemCount = p.performRecovery();
             this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
 
