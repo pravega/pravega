@@ -41,7 +41,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
     private final AtomicReference<ServerCnxnFactory> serverFactory = new AtomicReference<ServerCnxnFactory>();
     private final int zkPort;
-    private static final boolean secureZK;
+    private final boolean secureZK;
     private final AtomicReference<File> tmpDir = new AtomicReference<>();
 
     @Override

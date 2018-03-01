@@ -9,18 +9,16 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.common.util.Property;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
-
+import io.pravega.common.util.Property;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.shared.metrics.MetricsConfig;
 import java.util.Map;
 import java.util.Set;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -60,7 +58,7 @@ public final class Config {
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
     public static final int ZK_SESSION_TIMEOUT_MS = CONFIG.getInt("config.controller.server.zk.sessionTimeoutMS");
-
+    public static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.secureZK");
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         log.info("Controller configuration:");

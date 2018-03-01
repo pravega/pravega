@@ -185,6 +185,12 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
+        if (this.serviceConfig.isSecureZK()) {
+            System.setProperty("zookeeper.client.secure", Boolean.toString(this.serviceConfig.isSecureZK()));
+            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty("zookeeper.ssl.trustStore.location", this.serviceConfig.getZkTrustStore());
+            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+        }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
@@ -194,6 +200,10 @@ public final class ServiceStarter {
                 .build();
         zkClient.start();
         return zkClient;
+    }
+
+    private String loadPasswordFrom(String zkTrustStorePasswordPath) {
+        return null;
     }
 
     //endregion

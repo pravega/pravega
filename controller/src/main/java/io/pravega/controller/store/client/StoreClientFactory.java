@@ -9,10 +9,9 @@
  */
 package io.pravega.controller.store.client;
 
-
-import io.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
@@ -49,6 +48,12 @@ public class StoreClientFactory {
     }
 
     private static CuratorFramework createZKClient(ZKClientConfig zkClientConfig) {
+        if (zkClientConfig.isSecureZK()) {
+            System.setProperty("zookeeper.client.secure", "true");
+            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
+            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+        }
         //Create and initialize the curator client framework.
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
                 .connectString(zkClientConfig.getConnectionString())

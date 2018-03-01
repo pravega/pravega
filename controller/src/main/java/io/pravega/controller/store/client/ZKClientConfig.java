@@ -47,4 +47,8 @@ public interface ZKClientConfig {
      */
     int getSessionTimeoutMs();
 
+    /**
+     * Fetches whether the connection is secure.
+     */
+    boolean isSecureZK();
 }

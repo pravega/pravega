@@ -187,10 +187,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        System.setProperty("zookeeper.client.secure", "true");
-        System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-        System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
-        System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
         zkService = new ZooKeeperServiceRunner(zkPort, secureZK);
         zkService.initialize();
         zkService.start();
@@ -200,6 +196,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
 
+        if (this.secureZK) {
+            System.setProperty("zookeeper.client.secure", "true");
+            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
+            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+        }
         RetryPolicy rp = new ExponentialBackoffRetry(1000, 3);
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
@@ -245,6 +247,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                        .with(ServiceConfig.SECURE_ZK, this.secureZK)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
