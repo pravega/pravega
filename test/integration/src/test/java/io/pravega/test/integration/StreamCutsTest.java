@@ -28,7 +28,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -201,7 +202,7 @@ public class StreamCutsTest {
         Set<String> streamNames = group.getStreamNames();
         cuts.forEach((s, c) -> {
                 assertTrue(streamNames.contains(s.getStreamName()));
-                assertTrue(c.validate(segmentNames));
+                assertTrue(((StreamCutImpl) c).validate(segmentNames));
         });
     }
 }
