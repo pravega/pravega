@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
-import io.pravega.common.VisibleForDebugging;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -200,7 +199,6 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
          * An ordered list of DataFrame.DataFrameEntry objects representing the actual serialization of this ReadResult item.
          */
         @Getter
-        @VisibleForDebugging
         private final List<DataFrame.DataFrameEntry> frameEntries;
 
         /**

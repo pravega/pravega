@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import io.pravega.common.VisibleForDebugging;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +18,6 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 @Getter
-@VisibleForDebugging
 public class LedgerMetadata {
     /**
      * The BookKeeper-assigned Ledger Id.

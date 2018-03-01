@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.VisibleForDebugging;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -172,7 +171,6 @@ class RecoveryProcessor {
         return recoveredItemCount;
     }
 
-    @VisibleForDebugging
     protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
         // Update Metadata Sequence Number.
         Operation operation = readResult.getItem();

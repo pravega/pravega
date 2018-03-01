@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import io.pravega.common.VisibleForDebugging;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
@@ -29,8 +28,9 @@ import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Wrapper for a BookKeeperLog which only exposes methods that should be used for debugging/admin tools.
+ * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
+ * from the admin tools.
  */
-@VisibleForDebugging
 public class DebugLogWrapper implements AutoCloseable {
     //region Members
 

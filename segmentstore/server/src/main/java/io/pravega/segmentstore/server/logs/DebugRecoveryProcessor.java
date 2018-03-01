@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.VisibleForDebugging;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
@@ -36,8 +35,9 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Recovery Processor used for Debugging purposes.
+ * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
+ * from the admin tools.
  */
-@VisibleForDebugging
 public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoCloseable {
     //region Members
 
