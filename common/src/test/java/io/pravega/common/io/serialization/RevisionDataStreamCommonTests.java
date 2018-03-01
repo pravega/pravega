@@ -217,6 +217,44 @@ public class RevisionDataStreamCommonTests {
         }
     }
 
+    @Test
+    public void testGenericArrays() throws Exception {
+        val numbers = getAllOneBitNumbers(Long.SIZE);
+        val toTest = Arrays.<Long[]>asList(
+                null,
+                new Long[0],
+                numbers.toArray(new Long[numbers.size()]));
+        for (Long[] value : toTest) {
+            testEncodeDecode(
+                    (os, v) -> os.writeArray(v, RevisionDataOutput::writeLong),
+                    is -> is.readArray(DataInput::readLong, Long[]::new),
+                    (s, v) -> s.getCollectionLength(v, e -> Long.BYTES),
+                    value,
+                    this::arraysEqual);
+        }
+    }
+
+    @Test
+    public void testByteArrays() throws Exception {
+        byte[] numbers = new byte[Byte.MAX_VALUE];
+        for (int i = 0; i < numbers.length; i++) {
+            numbers[i] = (byte) (i % Byte.MAX_VALUE);
+        }
+
+        val toTest = Arrays.<byte[]>asList(
+                null,
+                new byte[0],
+                numbers);
+        for (byte[] value : toTest) {
+            testEncodeDecode(
+                    RevisionDataOutput::writeArray,
+                    RevisionDataInput::readArray,
+                    (s, v) -> s.getCollectionLength(v == null ? 0 : v.length, 1),
+                    value,
+                    this::byteArraysEqual);
+        }
+    }
+
     /**
      * Tests the ability to encode and decode a Collection.
      */
@@ -311,6 +349,42 @@ public class RevisionDataStreamCommonTests {
             sb.append((char) i);
         }
         return sb.toString();
+    }
+
+    private <T> boolean arraysEqual(T[] a1, T[] a2) {
+        int s1 = a1 == null ? 0 : a1.length;
+        int s2 = a2 == null ? 0 : a2.length;
+        if (s1 != s2) {
+            return false;
+        } else if (s1 == 0) {
+            // Both empty arrays; they could be null so don't proceed.
+            return true;
+        }
+        for (int i = 0; i < a1.length; i++) {
+            if (!a1[i].equals(a2[i])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean byteArraysEqual(byte[] a1, byte[] a2) {
+        int s1 = a1 == null ? 0 : a1.length;
+        int s2 = a2 == null ? 0 : a2.length;
+        if (s1 != s2) {
+            return false;
+        } else if (s1 == 0) {
+            // Both empty arrays; they could be null so don't proceed.
+            return true;
+        }
+        for (int i = 0; i < a1.length; i++) {
+            if (a1[i] != a2[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private <T> boolean collectionsEqual(Collection<T> c1, Collection<T> c2) {
