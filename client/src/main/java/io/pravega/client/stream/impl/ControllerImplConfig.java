@@ -30,6 +30,6 @@ public class ControllerImplConfig implements Serializable {
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private ClientConfig config = ClientConfig.builder().controllerURI(null)
-                                                  .credentials(null).pravegaTrustStore("").build();
+                                                  .credentials(null).trustStore("").build();
     }
 }

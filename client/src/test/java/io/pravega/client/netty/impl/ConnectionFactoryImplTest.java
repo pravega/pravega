@@ -106,7 +106,7 @@ public class ConnectionFactoryImplTest {
     public void establishConnection() throws ConnectionFailedException {
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                              .pravegaTrustStore("../config/cert.pem")
+                                                                              .trustStore("../config/cert.pem")
                                                                               .build());
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override

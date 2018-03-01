@@ -638,7 +638,7 @@ public class ControllerImplTest {
                 .clientConfig(
                         ClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                    .pravegaTrustStore("../config/cert.pem")
+                                    .trustStore("../config/cert.pem")
                                     .build())
                 .retryAttempts(1).build(), executor);
     }
@@ -662,7 +662,7 @@ public class ControllerImplTest {
         }
         final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .pravegaTrustStore("../config/cert.pem")
+                                                                        .trustStore("../config/cert.pem")
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(),
@@ -697,7 +697,7 @@ public class ControllerImplTest {
         }
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .pravegaTrustStore("../config/cert.pem")
+                                                                        .trustStore("../config/cert.pem")
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(), this.executor);
@@ -717,7 +717,7 @@ public class ControllerImplTest {
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .pravegaTrustStore("../config/cert.pem").build())
+                                          .trustStore("../config/cert.pem").build())
                 .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamretryfailure")
@@ -742,7 +742,7 @@ public class ControllerImplTest {
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .pravegaTrustStore("../config/cert.pem").build())
+                                          .trustStore("../config/cert.pem").build())
                 .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()
                 .streamName("streamretrysuccess")
