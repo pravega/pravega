@@ -126,12 +126,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose((Void v) -> createSealedSegmentsRecord(
                                 SerializationUtils.serialize(new SealedSegmentsRecord(Collections.emptyMap()))))
                         .thenCompose((Void v) -> {
-                            byte[] array;
-                            try {
-                                array = RetentionRecord.SERIALIZER_V1.serialize(new RetentionRecord(Collections.emptyList())).array();
-                            } catch (IOException e) {
-                                throw new CompletionException(e);
-                            }
+                            byte[] array = serializeRetentionRecord(new RetentionRecord(Collections.emptyList()));
                             return createRetentionSet(array);
                         })
                         .thenApply((Void v) -> createStreamResponse));
@@ -926,22 +921,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<Void> addStreamCutToRetentionSet(StreamCutRecord streamCut) {
         return getRetentionSet()
                 .thenCompose(data -> {
-                    RetentionRecord retention;
-                    try {
-                        retention = RetentionRecord.SERIALIZER_V1.deserialize(data.getData());
-                    } catch (IOException e) {
-                        throw Lombok.sneakyThrow(e);
-                    }
+                    RetentionRecord retention = deserializeRetentionRecord(data.getData());
                     if (retention.getStreamCuts().contains(streamCut)) {
                         return CompletableFuture.completedFuture(null);
                     } else {
                         RetentionRecord update = RetentionRecord.addStreamCutIfLatest(retention, streamCut);
-                        byte[] array;
-                        try {
-                            array = RetentionRecord.SERIALIZER_V1.serialize(update).array();
-                        } catch (IOException e) {
-                            throw Lombok.sneakyThrow(e);
-                        }
+                        byte[] array = serializeRetentionRecord(update);
                         return updateRetentionSet(new Data<>(array, data.getVersion()));
                     }
                 });
@@ -949,13 +934,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     public CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts() {
         return getRetentionSet()
-                .thenApply(data -> {
-                    try {
-                        return RetentionRecord.SERIALIZER_V1.deserialize(data.getData());
-                    } catch (IOException e) {
-                        throw Lombok.sneakyThrow(e);
-                    }
-                })
+                .thenApply(data -> deserializeRetentionRecord(data.getData()))
                 .thenApply(RetentionRecord::getStreamCuts);
     }
 
@@ -963,26 +942,38 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<Void> deleteStreamCutBefore(StreamCutRecord streamCut) {
         return getRetentionSet()
                 .thenCompose(data -> {
-                    RetentionRecord retention;
-                    try {
-                        retention = RetentionRecord.SERIALIZER_V1.deserialize(data.getData());
-                    } catch (IOException e) {
-                        throw Lombok.sneakyThrow(e);
-                    }
+                    RetentionRecord retention = deserializeRetentionRecord(data.getData());
 
                     if (!retention.getStreamCuts().contains(streamCut)) {
                         return CompletableFuture.completedFuture(null);
                     } else {
                         RetentionRecord update = RetentionRecord.removeStreamCutBefore(retention, streamCut);
-                        byte[] array = new byte[0];
-                        try {
-                            array = RetentionRecord.SERIALIZER_V1.serialize(update).array();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                        byte[] array = serializeRetentionRecord(update);
                         return updateRetentionSet(new Data<>(array, data.getVersion()));
                     }
                 });
+    }
+
+    private RetentionRecord deserializeRetentionRecord(byte[] data) {
+        RetentionRecord retention;
+        try {
+            retention = RetentionRecord.SERIALIZER_V1.deserialize(data);
+        } catch (IOException e) {
+            log.error("Exception while deserializing retention record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return retention;
+    }
+
+    private byte[] serializeRetentionRecord(RetentionRecord update) {
+        byte[] array;
+        try {
+            array = RetentionRecord.SERIALIZER_V1.serialize(update).array();
+        } catch (IOException e) {
+            log.error("Exception while serializing retention record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return array;
     }
 
     private <U> CompletableFuture<U> verifyState(Supplier<CompletableFuture<U>> future, List<State> states) {
