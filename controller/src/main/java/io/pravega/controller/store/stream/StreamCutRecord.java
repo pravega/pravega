@@ -9,18 +9,25 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.controller.store.stream.tables.serializers.StreamCutRecordSerializerV1;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serializable;
 import java.util.Map;
-
 
 /**
  * This is data class for storing stream cut with time when the cut was computed.
  * And the size of data being cut.
  */
 @Data
-public class StreamCutRecord implements Serializable {
+@Builder
+@AllArgsConstructor
+public class StreamCutRecord {
+    public static final VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> SERIALIZER_V1 = new StreamCutRecordSerializerV1();
+
     /**
      * Time when this stream cut was recorded.
      */
@@ -33,4 +40,8 @@ public class StreamCutRecord implements Serializable {
      * Actual Stream cut.
      */
     final Map<Integer, Long> streamCut;
+
+    public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
+
+    }
 }

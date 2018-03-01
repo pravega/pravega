@@ -287,7 +287,9 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, map, context, executor)
-                            .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, ImmutableMap.copyOf(map)));
+                            .thenApply(sizeTill -> StreamCutRecord.builder().recordingTime(generationTime)
+                                    .recordingSize(sizeTill)
+                                    .streamCut(ImmutableMap.copyOf(map)).build());
                 });
     }
 
