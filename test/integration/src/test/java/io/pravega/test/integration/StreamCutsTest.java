@@ -202,7 +202,7 @@ public class StreamCutsTest {
         Set<String> streamNames = group.getStreamNames();
         cuts.forEach((s, c) -> {
                 assertTrue(streamNames.contains(s.getStreamName()));
-            assertTrue(((StreamCutImpl) c).validate(segmentNames));
+                assertTrue(((StreamCutImpl) c).validate(segmentNames));
         });
     }
 }
