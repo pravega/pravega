@@ -310,7 +310,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
-        //TODO: get a proper security context.
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
                 new ClientFactoryImpl(scopeName, this.localController), this.connectionFactory);
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();

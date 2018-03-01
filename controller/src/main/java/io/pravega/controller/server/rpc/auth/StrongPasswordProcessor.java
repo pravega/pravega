@@ -48,7 +48,8 @@ public class StrongPasswordProcessor {
      * @throws NoSuchAlgorithmException encryption exceptions.
      * @throws InvalidKeySpecException encryption exceptions.
      */
-    public boolean checkPassword(String password, String encryptedPassword) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public boolean checkPassword(String password, String encryptedPassword)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
         String storedPassword = new String(fromHex(encryptedPassword));
         String[] parts = storedPassword.split(":");
         int iterations = Integer.parseInt(parts[0]);
