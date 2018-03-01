@@ -21,14 +21,14 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-public class SerializerTest {
+public class ControllerMetadataSerializerTest {
 
     @Test
     public void streamCutRecordTest() throws IOException {
         Map<Integer, Long> streamcut = new HashMap<>();
         streamcut.put(0, 1L);
         streamcut.put(1, 1L);
-        StreamCutRecord record = new StreamCutRecord(1L, 1l, streamcut);
+        StreamCutRecord record = new StreamCutRecord(1L, 1L, streamcut);
         byte[] serialized = StreamCutRecord.SERIALIZER_V1.serialize(record).array();
         StreamCutRecord deserialized = StreamCutRecord.SERIALIZER_V1.deserialize(serialized);
         assertEquals(record, deserialized);
@@ -39,8 +39,8 @@ public class SerializerTest {
         Map<Integer, Long> map = new HashMap<>();
         map.put(0, 1L);
         map.put(1, 1L);
-        StreamCutRecord s1 = new StreamCutRecord(1L, 1l, map);
-        StreamCutRecord s2 = new StreamCutRecord(1L, 1l, map);
+        StreamCutRecord s1 = new StreamCutRecord(1L, 1L, map);
+        StreamCutRecord s2 = new StreamCutRecord(1L, 1L, map);
         List<StreamCutRecord> streamCuts = Lists.newArrayList(s1, s2);
         RetentionRecord record = RetentionRecord.builder().streamCuts(streamCuts).build();
         byte[] serialized = RetentionRecord.SERIALIZER_V1.serialize(record).array();
