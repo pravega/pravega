@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.LogItem;
@@ -21,6 +22,11 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import lombok.AccessLevel;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +43,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     private final DataFrameInputStream dataFrameInputStream;
     private final LogItemFactory<T> logItemFactory;
     private long lastReadSequenceNumber;
+    private int readEntryCount;
     private boolean closed;
 
     //endregion

@@ -12,26 +12,45 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
-import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Getter;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
- * A set of segment/offset pairs for a single stream that represent a consistent position in the
- * stream. (IE: Segment 1 and 2 will not both appear in the set if 2 succeeds 1, and if 0 appears
- * and is responsible for keyspace 0-0.5 then other segments covering the range 0.5-1.0 will also be
- * included.)
+ * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
+ * used as in intermediate class to make StreamCut instances opaque.
  */
-@Data
-public class StreamCut implements Serializable {
+@EqualsAndHashCode(callSuper = false)
+@ToString
+public class StreamCutImpl extends StreamCutInternal {
+    private static final long serialVersionUID = 1L;
 
     private final Stream stream;
-    @Getter(value = AccessLevel.PACKAGE)
+
     private final Map<Segment, Long> positions;
+
+    public StreamCutImpl(Stream stream, Map<Segment, Long> positions) {
+        this.stream = stream;
+        this.positions = positions;
+    }
+
+    @Override
+    public Map<Segment, Long> getPositions() {
+        return Collections.unmodifiableMap(positions);
+    }
+
+    @Override
+    public Stream getStream() {
+        return stream;
+    }
+
+    @Override
+    public StreamCutInternal asImpl() {
+        return this;
+    }
 
     @VisibleForTesting
     public boolean validate(Set<String> segmentNames) {
