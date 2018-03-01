@@ -174,9 +174,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createScope", scopeName);
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
-            client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
-            return callback.getFuture();
+                RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
+                client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+                return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
                 switch (x.getStatus()) {
@@ -195,14 +195,14 @@ public class ControllerImpl implements Controller {
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating scope " + scopeName
-                            + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("createScope failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "createScope", traceId);
-        });
+                                                         + " " + x.getStatus());
+                }
+            }).whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn("createScope failed: ", e);
+                }
+                LoggerHelpers.traceLeave(log, "createScope", traceId);
+            });
     }
 
     @Override

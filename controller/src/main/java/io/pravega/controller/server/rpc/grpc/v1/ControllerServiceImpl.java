@@ -350,7 +350,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     public boolean checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
         if (isAuthEnabled) {
-            PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
+            PravegaInterceptor currentInterceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
 
             AuthHandler.Permissions allowedLevel;
             if (currentInterceptor == null) {
@@ -372,7 +372,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         if (isAuthEnabled) {
             boolean retVal = checkAuthorization(resource, expectedLevel);
             if (retVal) {
-                PravegaInterceptor interceptor = PravegaInterceptor.getCurrentInterceptor();
+                PravegaInterceptor interceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
                 interceptor.setDelegationToken(resource, expectedLevel, tokenSigningKey);
             }
             return retVal;

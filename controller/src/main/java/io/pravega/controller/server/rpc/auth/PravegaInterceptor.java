@@ -34,7 +34,7 @@ public class PravegaInterceptor implements ServerInterceptor {
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
-    private static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
+    public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     private final AuthHandler handler;
     @Getter
@@ -73,17 +73,12 @@ public class PravegaInterceptor implements ServerInterceptor {
         return Contexts.interceptCall(context, call, headers, next);
     }
 
-    public static PravegaInterceptor getCurrentInterceptor() {
-        return INTERCEPTOR_OBJECT.get();
-
-    }
-
     public AuthHandler.Permissions authorize(String resource) {
         return this.handler.authorize(resource, AUTH_CONTEXT_PARAMS.get());
     }
 
     public static String retrieveDelegationToken(String tokenSigningKey) {
-        PravegaInterceptor interceptor = getCurrentInterceptor();
+        PravegaInterceptor interceptor = INTERCEPTOR_OBJECT.get();
         if (interceptor != null) {
             return interceptor.getDelegationToken();
         } else {

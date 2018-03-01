@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TokenVerifierImpl implements DelegationTokenVerifier {
     private final AutoScalerConfig config;
 
-    public TokenVerifierImpl(AutoScalerConfig config) {
+    TokenVerifierImpl(AutoScalerConfig config) {
         this.config = config;
     }
 
