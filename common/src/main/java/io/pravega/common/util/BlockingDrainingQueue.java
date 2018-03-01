@@ -13,10 +13,10 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -47,6 +47,17 @@ public class BlockingDrainingQueue<T> {
         this.contents = new ArrayDeque<>();
     }
 
+    /**
+     * Creates a new instance of the BlockingDrainingQueue class with a maximum size.
+     *
+     * @param maxCount The maximum number of elements in the queue. Calls to add() will block synchronously if the current
+     *                 size exceeds maxCount until more space becomes available.
+     * @param <T>      The type of the items in the queue.
+     */
+    public static <T> BlockingDrainingQueue<T> withMaxCount(int maxCount) {
+        return new BlockingDrainingQueue.WithMaxCount<>(maxCount);
+    }
+
     //endregion
 
     //region Operations
@@ -54,12 +65,12 @@ public class BlockingDrainingQueue<T> {
     /**
      * Closes the queue and prevents any other access to it. Any blocked call to takeAllItems() will fail with InterruptedException.
      *
-     * @return If the queue has any more items in it, these will be returned here. The items are guaranteed not to be
-     * returned both here and via takeAllItems().
+     * @return If the queue has any more items in it, these will be returned here in the order in which they were inserted.
+     * The items are guaranteed not to be returned both here and via take()/poll().
      */
-    public Collection<T> close() {
+    public Queue<T> close() {
         CompletableFuture<Queue<T>> pending = null;
-        Collection<T> result = null;
+        Queue<T> result = null;
         synchronized (this.contents) {
             if (!this.closed) {
                 this.closed = true;
@@ -74,7 +85,7 @@ public class BlockingDrainingQueue<T> {
             pending.cancel(true);
         }
 
-        return result != null ? result : Collections.emptyList();
+        return result != null ? result : new LinkedList<>();
     }
 
     /**
@@ -169,7 +180,7 @@ public class BlockingDrainingQueue<T> {
     }
 
     @GuardedBy("contents")
-    private Queue<T> fetch(int maxCount) {
+    protected Queue<T> fetch(int maxCount) {
         int count = Math.min(maxCount, this.contents.size());
         ArrayDeque<T> result = new ArrayDeque<>(count);
         while (result.size() < count) {
@@ -180,4 +191,39 @@ public class BlockingDrainingQueue<T> {
     }
 
     // endregion
+
+    //region WithMaxCount
+
+    /**
+     * BlockingDrainingQueue implementation that imposes a maximum number of elements in the queue.
+     */
+    private static class WithMaxCount<T> extends BlockingDrainingQueue<T> {
+        private final Semaphore notFull;
+
+        WithMaxCount(int maxCount) {
+            Preconditions.checkArgument(maxCount > 0, "maxCount must be a positive integer.");
+            this.notFull = new Semaphore(maxCount, true);
+        }
+
+        @Override
+        public void add(T item) {
+            Exceptions.<RuntimeException>handleInterrupted(this.notFull::acquire);
+            try {
+                super.add(item);
+            } catch (Throwable ex) {
+                // Unable to add; revert our add.
+                this.notFull.release();
+                throw ex;
+            }
+        }
+
+        @Override
+        protected Queue<T> fetch(int maxCount) {
+            Queue<T> result = super.fetch(maxCount);
+            this.notFull.release(result.size());
+            return result;
+        }
+    }
+
+    //endregion
 }

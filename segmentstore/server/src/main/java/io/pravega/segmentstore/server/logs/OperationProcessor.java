@@ -57,6 +57,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
     private static final int MAX_DELAY_MILLIS = 50;
+    private static final int MAX_COMMIT_QUEUE_SIZE = 50;
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryStateUpdater stateUpdater;
@@ -93,7 +94,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
-        this.commitQueue = new BlockingDrainingQueue<>();
+        this.commitQueue = BlockingDrainingQueue.withMaxCount(MAX_COMMIT_QUEUE_SIZE);
         this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
@@ -527,7 +528,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         return;
                     }
 
-                    // Commit any changes to the metadata.
+                    // Collect operations to commit.
                     Timer memoryCommitTimer = new Timer();
                     boolean checkpointExists = false;
                     while (!this.metadataTransactions.isEmpty() && this.metadataTransactions.peekFirst().getMetadataTransactionId() <= transactionId) {
@@ -537,9 +538,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         this.pendingOperationCount -= t.getOperations().size();
                     }
 
+                    // Commit metadata updates.
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
                     int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(transactionId);
-                    toAck.forEach(commitQueue::add);
+
+                    // Commit operations to memory. Note that this will block synchronously if the Commit Queue is full (until it clears up).
+                    toAck.forEach(OperationProcessor.this.commitQueue::add);
 
                     this.highestCommittedDataFrame = addressSequence;
                     metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
