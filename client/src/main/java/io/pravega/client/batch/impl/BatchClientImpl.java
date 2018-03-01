@@ -25,7 +25,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import java.util.Date;
 import java.util.Iterator;
@@ -49,7 +49,7 @@ public class BatchClientImpl implements BatchClient {
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
-    
+
     private StreamInfo getStreamInfo(Stream stream) {
         // TODO: Implement this method and make it public
         // Name from stream
@@ -72,7 +72,7 @@ public class BatchClientImpl implements BatchClient {
                                                              RuntimeException::new);
         SortedSet<Segment> result = new TreeSet<>();
         result.addAll(segments.keySet());
-        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
+        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCutImpl(stream, segments)),
                                              RuntimeException::new));
         return Iterators.transform(result.iterator(), s -> segmentToInfo(s));
     }
