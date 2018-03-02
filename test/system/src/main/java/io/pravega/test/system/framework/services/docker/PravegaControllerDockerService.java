@@ -70,6 +70,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
         stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
         stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
+        stringBuilderMap.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
@@ -83,7 +84,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
@@ -95,7 +96,6 @@ public class PravegaControllerDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                         .ports(Arrays.asList(PortConfig.builder()
                                         .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),

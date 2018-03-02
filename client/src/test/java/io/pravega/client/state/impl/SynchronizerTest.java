@@ -214,6 +214,7 @@ public class SynchronizerTest {
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
                                                                                        SynchronizerConfig.builder().build());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
         AtomicInteger callCount = new AtomicInteger(0);
         sync.initialize(new RegularUpdate());
         sync.updateState(state -> {
@@ -221,26 +222,32 @@ public class SynchronizerTest {
             return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(1, callCount.get());
+        long size = sync.bytesWrittenSinceCompaction();
+        assertTrue(size > 0);
         sync.updateState(state -> {
             callCount.incrementAndGet();
             return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(2, callCount.get());
+        assertTrue(sync.bytesWrittenSinceCompaction() > size);
         sync.compact(state -> {
             callCount.incrementAndGet();
             return new RegularUpdate();
         });
         assertEquals(3, callCount.get());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
         sync.updateState(s -> {
             callCount.incrementAndGet();
             return Collections.singletonList(new RegularUpdate());
         });
         assertEquals(5, callCount.get());
+        assertEquals(size, sync.bytesWrittenSinceCompaction());
         sync.compact(state -> {
             callCount.incrementAndGet();
             return new RegularUpdate();
         });
         assertEquals(6, callCount.get());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
     }
     
     @Test(timeout = 20000)

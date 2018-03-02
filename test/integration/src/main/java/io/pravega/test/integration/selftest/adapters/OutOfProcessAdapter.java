@@ -215,6 +215,10 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerUrl())
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("segmentStore", segmentStoreId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))));
+        if (this.testConfig.getBookieCount() > 0) {
+            ps = ps.sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.DATALOG_IMPLEMENTATION), ServiceConfig.DataLogType.BOOKKEEPER);
+        }
+
         if (this.testConfig.isMetricsEnabled()) {
             ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_STATISTICS), true);
             ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_CSV_REPORTER), true);

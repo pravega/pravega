@@ -19,8 +19,12 @@ buildscript {
     dependencies {
         classpath group: 'com.google.protobuf', name:'protobuf-gradle-plugin', version: protobufGradlePlugin
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
+        classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
+        classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
     }
 }
+
+apply from: "$rootDir/gradle/mkdocs.gradle"
 
 allprojects {
     apply plugin: 'idea'
@@ -28,7 +32,6 @@ allprojects {
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
     }
-
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
     apply from: "$rootDir/gradle/checkstyle.gradle"
@@ -63,7 +66,6 @@ allprojects {
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
         }
     }
-
 }
 
 project('common') {
@@ -272,6 +274,13 @@ project('segmentstore:server:host') {
         outputDir = startScripts.outputDir
     }
 
+    task admin(type: JavaExec) {
+        main = "io.pravega.segmentstore.server.host.admin.AdminRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+    }
+
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
@@ -368,6 +377,7 @@ project('test:integration') {
     task selftest(type: JavaExec) {
         main = "io.pravega.test.integration.selftest.SelfTestRunner"
         classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
         systemProperties System.getProperties()
     }
 }
@@ -551,7 +561,7 @@ project('test:system') {
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
-        testClassesDir = sourceSets.test.output.classesDir
+        testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
@@ -584,19 +594,56 @@ project('test:system') {
     }
 
     task execShellScript(type: Exec) {
-        commandLine "./preTestScript.sh"
-        args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+
+        ext.awsExecution = project.hasProperty('awsExecution') ? project.awsExecution : 'false'
+
+        if(ext.getProperty('awsExecution').toString().equals("true")) {
+            commandLine './aws/preTestScript.sh'
+            args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
+        } else {
+            commandLine "./preTestScript.sh"
+            args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+        }
     }
+
+    String variable
+
+    task setAwsMasterIp(type: Exec) {
+
+        commandLine 'echo', 'setting master ip for system tests execution on AWS'
+
+        doLast {
+            def masterIpStdOut = new ByteArrayOutputStream()
+            exec {
+                workingDir "$rootDir/test/system/aws"
+                executable = "terraform"
+                args "output", "ip"
+                standardOutput = masterIpStdOut
+            }
+
+            variable = masterIpStdOut.toString()
+        }
+    }
+
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
 
         dependsOn 'testJarForDocker', 'execShellScript'
 
+        if (System.getProperty("awsExec").equals("true")) {
+            setAwsMasterIp.outputs.upToDateWhen { false }
+            dependsOn 'setAwsMasterIp'
+        }
+
+        doFirst {
+                systemProperty "awsMasterIP", variable
+        }
+
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 
         description 'Used to invoke docker based system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
-        testClassesDir = sourceSets.test.output.classesDir
+        testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         systemProperty "execType", System.getProperty("execType")
@@ -604,6 +651,7 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+        systemProperty "awsExec", System.getProperty("awsExec")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "DOCKER"
@@ -618,10 +666,12 @@ project('test:system') {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "false"
         }
+        if (System.getProperty("awsExec") == null) {
+            systemProperty "awsExec", "false"
+        }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
 
-        onlyIf { dockerRegistryUrl }
     }
 }
 

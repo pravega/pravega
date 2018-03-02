@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.StreamingException;
+import lombok.Getter;
 
 /**
  * Exception that is thrown whenever we detect an unrecoverable data corruption.
@@ -17,19 +18,40 @@ import io.pravega.segmentstore.contracts.StreamingException;
  */
 public class DataCorruptionException extends StreamingException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
-    public DataCorruptionException(String message) {
-        super(message);
+    /**
+     * Gets an array of objects that may contain additional context-related information.
+     */
+    @Getter
+    private final Object[] additionalData;
+
+    /**
+     * Creates a new instance of the DataCorruptionException class.
+     *
+     * @param message        The message for the exception.
+     * @param additionalData An array of objects that contain additional debugging information.
+     */
+    public DataCorruptionException(String message, Object... additionalData) {
+        this(message, null, additionalData);
     }
 
-    public DataCorruptionException(String message, Throwable cause) {
+    /**
+     * Creates a new instance of the DataCorruptionException class.
+     *
+     * @param message        The message for the exception.
+     * @param cause          The causing exception.
+     * @param additionalData An array of objects that contain additional debugging information.
+     */
+    public DataCorruptionException(String message, Throwable cause, Object... additionalData) {
         super(message, cause);
+        this.additionalData = additionalData;
     }
 
     public DataCorruptionException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
+        this.additionalData = null;
     }
 }

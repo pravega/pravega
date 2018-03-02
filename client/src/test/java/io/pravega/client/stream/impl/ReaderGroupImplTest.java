@@ -18,6 +18,7 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -114,7 +115,7 @@ public class ReaderGroupImplTest {
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
-        return new StreamCut(createStream(streamName), positions);
+        return new StreamCutImpl(createStream(streamName), positions);
     }
 
     private Stream createStream(String streamName) {

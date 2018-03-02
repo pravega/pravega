@@ -125,7 +125,7 @@ public class DataFrame {
      * When reading frames from a source (read mode), this value may be less than the size of the source.
      * This value is serialized with the frame.
      */
-    int getLength() {
+    public int getLength() {
         return this.header.getSerializationLength() + this.header.getContentLength();
     }
 
@@ -559,7 +559,7 @@ public class DataFrame {
     /**
      * Represents an Entry in the DataFrame.
      */
-    static class DataFrameEntry {
+    public static class DataFrameEntry {
         /**
          * whether this is the first entry for a record.
          */
