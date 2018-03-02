@@ -215,7 +215,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return totalLength;
     }
 
-    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCutInternal position) {
+    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
         CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
         for (Segment s : Futures.getAndHandleExceptions(unread, RuntimeException::new)) {
@@ -223,7 +223,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
             totalLength += metadataClient.fetchCurrentSegmentLength();
         }
-        for (long bytesRead : position.getPositions().values()) {
+        for (long bytesRead : position.asImpl().getPositions().values()) {
             totalLength -= bytesRead;
         }
         log.debug("Remaining bytes after position: {} is {}", position, totalLength);

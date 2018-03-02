@@ -26,7 +26,7 @@ import lombok.val;
  * Metadata for a Ledger-based log.
  */
 @NotThreadSafe
-class LogMetadata {
+class LogMetadata implements ReadOnlyLogMetadata {
     //region Members
 
     /**
@@ -219,7 +219,8 @@ class LogMetadata {
      *
      * @return The current version.
      */
-    int getUpdateVersion() {
+    @Override
+    public int getUpdateVersion() {
         return this.updateVersion.get();
     }
 

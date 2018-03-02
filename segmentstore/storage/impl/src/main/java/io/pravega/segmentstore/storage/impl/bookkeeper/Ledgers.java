@@ -127,7 +127,7 @@ final class Ledgers {
         try {
             Exceptions.handleInterrupted(handle::close);
         } catch (BKException bkEx) {
-            throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", handle.getId()), bkEx);
+            throw new DurableDataLogException(String.format("Unable to close ledger %d.", handle.getId()), bkEx);
         }
     }
 
