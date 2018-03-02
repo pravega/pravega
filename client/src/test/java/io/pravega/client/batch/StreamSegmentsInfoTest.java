@@ -12,7 +12,8 @@ package io.pravega.client.batch;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.batch.impl.StreamSegmentsInfoImpl;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -52,6 +53,6 @@ public class StreamSegmentsInfoTest {
         ImmutableMap.Builder<Segment, Long> segmentMap = ImmutableMap.builder();
         Arrays.stream(segmentNumbers).forEach(
                 seg -> segmentMap.put(new Segment(SCOPE, STREAM_NAME, seg), offset));
-        return new StreamCut(new StreamImpl(SCOPE, STREAM_NAME), segmentMap.build());
+        return new StreamCutImpl(new StreamImpl(SCOPE, STREAM_NAME), segmentMap.build());
     }
 }

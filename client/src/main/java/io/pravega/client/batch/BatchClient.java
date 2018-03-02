@@ -13,7 +13,7 @@ import com.google.common.annotations.Beta;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.StreamCut;
 
 /**
  * Please note this is an experimental API.

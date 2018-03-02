@@ -19,6 +19,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -1121,7 +1122,7 @@ public class ControllerImplTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 4L);
         segments.put(new Segment(scope, stream, 1), 6L);
-        StreamCut cut = new StreamCut(s, segments);
+        StreamCut cut = new StreamCutImpl(s, segments);
         Set<Segment> successors = controllerClient.getSuccessors(cut).get();
         assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
                                      new Segment(scope, stream, 2), new Segment(scope, stream, 3),
@@ -1139,12 +1140,12 @@ public class ControllerImplTest {
         Map<Segment, Long> startSegments = new HashMap<>();
         startSegments.put(new Segment(scope, stream, 0), 4L);
         startSegments.put(new Segment(scope, stream, 1), 6L);
-        StreamCut cut = new StreamCut(s, startSegments);
+        StreamCut cut = new StreamCutImpl(s, startSegments);
 
         Map<Segment, Long> endSegments = new HashMap<>();
         endSegments.put(new Segment(scope, stream, 6), 10L);
         endSegments.put(new Segment(scope, stream, 7), 10L);
-        StreamCut endSC = new StreamCut(s, endSegments);
+        StreamCut endSC = new StreamCutImpl(s, endSegments);
 
         Set<Segment> result = controllerClient.getSegments(cut, endSC).get();
         assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),

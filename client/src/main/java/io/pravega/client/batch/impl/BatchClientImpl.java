@@ -28,7 +28,8 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import java.util.Date;
 import java.util.Iterator;
@@ -82,8 +83,8 @@ public class BatchClientImpl implements BatchClient {
     private StreamSegmentsInfo listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
                                             final Optional<StreamCut> endStreamCut) {
         //Validate that the stream cuts are for the requested stream.
-        startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
-        endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.getStream())));
+        startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
+        endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
 
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
@@ -100,7 +101,7 @@ public class BatchClientImpl implements BatchClient {
 
     private CompletableFuture<StreamCut> fetchStreamCut(final Stream stream, final Date from) {
         return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), from.getTime())
-                         .thenApply(segmentLongMap -> new StreamCut(stream, segmentLongMap));
+                         .thenApply(segmentLongMap -> new StreamCutImpl(stream, segmentLongMap));
     }
 
     private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
@@ -109,7 +110,7 @@ public class BatchClientImpl implements BatchClient {
                              Map<Segment, Long> pos =
                                      s.getSegments().stream().map(this::getSegmentInfo)
                                       .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
-                             return new StreamCut(stream, pos);
+                             return new StreamCutImpl(stream, pos);
                          });
     }
 
@@ -144,15 +145,15 @@ public class BatchClientImpl implements BatchClient {
                                               final StreamCut endStreamCut) {
         SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder()
                                                                                             .segment(segment);
-        if (startStreamCut.getPositions().containsKey(segment) && endStreamCut.getPositions().containsKey(segment)) {
+        if (startStreamCut.asImpl().getPositions().containsKey(segment) && endStreamCut.asImpl().getPositions().containsKey(segment)) {
             //use the meta data present in startStreamCut and endStreamCuts.
-            segmentRangeBuilder.startOffset(startStreamCut.getPositions().get(segment))
-                           .endOffset(endStreamCut.getPositions().get(segment));
+            segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().get(segment))
+                           .endOffset(endStreamCut.asImpl().getPositions().get(segment));
         } else {
             //use segment meta data client to fetch the segment offsets.
             SegmentInfo r = getSegmentInfo(segment);
-            segmentRangeBuilder.startOffset(startStreamCut.getPositions().getOrDefault(segment, r.getStartingOffset()))
-                           .endOffset(endStreamCut.getPositions().getOrDefault(segment, r.getWriteOffset()));
+            segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().getOrDefault(segment, r.getStartingOffset()))
+                           .endOffset(endStreamCut.asImpl().getPositions().getOrDefault(segment, r.getWriteOffset()));
         }
         return segmentRangeBuilder.build();
     }

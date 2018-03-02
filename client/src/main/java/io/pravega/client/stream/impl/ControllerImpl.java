@@ -23,6 +23,7 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
@@ -303,7 +304,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        return truncateStream(scope, stream, streamCut.getPositions().entrySet()
+        return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
     }
 
@@ -603,11 +604,11 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(final StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Stream stream = from.getStream();
+        Stream stream = from.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
                                                      RuntimeException::new).getSegments();
-        final Set<Segment> unread = getSegmentsInclusive(from, currentSegments);
+        final Set<Segment> unread = getSegmentsInclusive(from.asImpl(), currentSegments);
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(unread);
     }
@@ -617,22 +618,22 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
         Preconditions.checkNotNull(toStreamCut, "toStreamCut");
-        Preconditions.checkArgument(fromStreamCut.getStream().equals(toStreamCut.getStream()),
+        Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
                 "Ensure streamCuts for the same stream is passed");
 
-        final Stream stream = fromStreamCut.getStream();
+        final Stream stream = fromStreamCut.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        final Set<Segment> segments = getSegmentsInclusive(fromStreamCut, toStreamCut.getPositions().keySet());
+        final Set<Segment> segments = getSegmentsInclusive(fromStreamCut, toStreamCut.asImpl().getPositions().keySet());
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(segments);
     }
 
     private Set<Segment> getSegmentsInclusive(StreamCut fromStreamCut, Collection<Segment> currentSegments) {
-        final HashSet<Segment> unread = new HashSet<>(fromStreamCut.getPositions().keySet());
+        final HashSet<Segment> unread = new HashSet<>(fromStreamCut.asImpl().getPositions().keySet());
         unread.addAll(currentSegments);
         unread.addAll(computeKnownUnreadSegments(currentSegments, fromStreamCut));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : fromStreamCut.getPositions().keySet()) {
+        for (Segment toFetch : fromStreamCut.asImpl().getPositions().keySet()) {
             if (!unread.contains(toFetch)) {
                 toFetchSuccessors.add(toFetch);
             }
@@ -652,14 +653,14 @@ public class ControllerImpl implements Controller {
     }
 
     private List<Segment> computeKnownUnreadSegments(final Collection<Segment> currentSegments, final StreamCut from) {
-        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int highestCut = from.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }
         List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
         for (int num = highestCut + 1; num < lowestCurrent; num++) {
-            result.add(new Segment(from.getStream().getScope(), from.getStream().getStreamName(), num));
+            result.add(new Segment(from.asImpl().getStream().getScope(), from.asImpl().getStream().getStreamName(), num));
         }
         return result;
     }
