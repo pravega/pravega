@@ -538,7 +538,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class ConditionalAppend implements WireCommand {
+    public static final class ConditionalAppend implements WireCommand, Request {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
         final UUID writerId;
         final long eventNumber;
@@ -573,6 +573,17 @@ public final class WireCommands {
                 data = new byte[0];
             }
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, wrappedBuffer(data));
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
         }
     }
 
