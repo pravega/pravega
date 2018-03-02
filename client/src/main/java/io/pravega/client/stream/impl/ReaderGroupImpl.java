@@ -209,7 +209,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         log.debug("Compute unread bytes from position {}", positions);
         long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCutInternal position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
+            StreamCut position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
             totalLength += getRemainingBytes(metaFactory, position);
         }
         return totalLength;

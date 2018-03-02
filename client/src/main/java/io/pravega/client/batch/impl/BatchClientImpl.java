@@ -46,6 +46,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Beta
+@Slf4j
 public class BatchClientImpl implements BatchClient {
 
     private final Controller controller;
