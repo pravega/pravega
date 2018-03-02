@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 /**
@@ -99,6 +100,33 @@ public interface RevisionDataInput extends DataInput {
      * @throws IOException If an IO Exception occurred.
      */
     <T, C extends Collection<T>> C readCollection(ElementDeserializer<T> elementDeserializer, Supplier<C> newCollection) throws IOException;
+
+    /**
+     * Decodes a specific array that has been serialized using RevisionDataOutput.writeArray(T[], ElementSerializer).
+     *
+     * This method has undefined behavior if the data starting at the current position was not encoded using
+     * RevisionDataOutput.writeArray(T[], ElementSerializer).
+     *
+     * @param elementDeserializer A Function that will decode a single element of the Collection from the given RevisionDataInput.
+     * @param newArray            A Function that will create a new instance of the array type desired, with the specified length.
+     * @param <T>                 Type of the elements in the array.
+     * @return A new array. If the original array passed to RevisionDataOutput.writeArray() was null, this
+     * will return an empty array.
+     * @throws IOException If an IO Exception occurred.
+     */
+    <T> T[] readArray(ElementDeserializer<T> elementDeserializer, IntFunction<T[]> newArray) throws IOException;
+
+    /**
+     * Decodes a byte array that has been serialized using RevisionDataOutput.writeArray(byte[]).
+     *
+     * This method has undefined behavior if the data starting at the current position was not encoded using
+     * RevisionDataOutput.writeArray(byte[]).
+     *
+     * @return A new byte array. If the original array passed to RevisionDataOutput.writeArray(byte[]) was null, this
+     * will return an empty array.
+     * @throws IOException If an IO Exception occurred.
+     */
+    byte[] readArray() throws IOException;
 
     /**
      * Decodes a generic Map that has been serialized using RevisionDataOutput.writeMap(). The underlying type of the map
