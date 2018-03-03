@@ -57,7 +57,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
         protected abstract OperationBuilder<T> newBuilder();
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 
@@ -76,16 +76,12 @@ abstract class CheckpointOperationBase extends MetadataOperation {
             ByteArraySegment c = o.getContents();
             target.length(Long.BYTES + target.getCompactIntLength(c.getLength()) + c.getLength());
             target.writeLong(o.getSequenceNumber());
-            target.writeCompactInt(c.getLength());
-            target.write(c.array(), c.arrayOffset(), c.getLength());
+            target.writeArray(c.array(), c.arrayOffset(), c.getLength());
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<T> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
-            int contentsLength = source.readCompactInt();
-            byte[] c = new byte[contentsLength];
-            source.readFully(c);
-            b.instance.setContents(new ByteArraySegment(c));
+            b.instance.setContents(new ByteArraySegment(source.readArray()));
         }
     }
 }

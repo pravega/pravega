@@ -72,7 +72,7 @@ class SegmentState {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

@@ -74,7 +74,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Segm
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

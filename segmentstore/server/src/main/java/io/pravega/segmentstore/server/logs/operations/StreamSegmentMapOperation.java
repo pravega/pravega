@@ -119,7 +119,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

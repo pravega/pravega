@@ -134,7 +134,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

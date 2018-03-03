@@ -87,7 +87,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

@@ -135,7 +135,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 
@@ -156,8 +156,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
             target.writeLong(o.streamSegmentOffset);
-            target.writeCompactInt(o.data.length);
-            target.write(o.data, 0, o.data.length);
+            target.writeArray(o.data);
             target.writeCollection(o.attributeUpdates, this::writeAttributeUpdate00);
         }
 
@@ -165,9 +164,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.setStreamSegmentId(source.readLong());
             b.instance.streamSegmentOffset = source.readLong();
-            int dataLength = source.readCompactInt();
-            b.instance.data = new byte[dataLength];
-            source.readFully(b.instance.data);
+            b.instance.data = source.readArray();
             b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
         }
 

@@ -77,7 +77,7 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

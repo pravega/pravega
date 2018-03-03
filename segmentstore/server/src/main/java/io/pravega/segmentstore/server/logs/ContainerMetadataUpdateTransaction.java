@@ -647,7 +647,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     private static class StorageCheckpointSerializer extends VersionedSerializer.Direct<ContainerMetadataUpdateTransaction> {
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 
@@ -691,7 +691,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     private static class MetadataCheckpointSerializer extends VersionedSerializer.Direct<ContainerMetadataUpdateTransaction> {
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

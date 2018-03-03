@@ -348,7 +348,7 @@ class LogMetadata implements ReadOnlyLogMetadata {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 
