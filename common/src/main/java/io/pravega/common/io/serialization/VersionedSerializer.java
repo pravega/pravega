@@ -45,7 +45,7 @@ import lombok.val;
  * * To introduce a new Version B = A + 1, its format needs to be established and published with the code. While doing so,
  * the code must still write version A (since during an upgrade not all existing code will immediately know how to handle
  * Version B). Only after all existing deployed code knows about Version B, can we have the code serialize in Version B.
- * ** This can be achieved by declaring the serialization version using the writeVersion() method.
+ * ** This can be achieved by declaring the serialization version using the getWriteVersion() method.
  *
  * Revisions
  * * Are incremental on top of the previous ones, can be added on the fly, and can be used to make format changes
@@ -264,14 +264,14 @@ public abstract class VersionedSerializer<T> {
         SingleType() {
             this.versions = (FormatVersion<TargetType, ReaderType>[]) new FormatVersion[Byte.MAX_VALUE];
             declareVersions();
-            Preconditions.checkArgument(this.versions[writeVersion()] != null, "Write version %s is not defined.", writeVersion());
+            Preconditions.checkArgument(this.versions[getWriteVersion()] != null, "Write version %s is not defined.", getWriteVersion());
         }
 
         /**
          * Gets a value indicating the Version to use for serializing. This will be invoked once during the Constructor (for
          * validation purposes) and once per invocation of serialize().
          */
-        protected abstract byte writeVersion();
+        protected abstract byte getWriteVersion();
 
         /**
          * When implemented in a derived class, this method will declare the FormatVersions that are supported for reading and
@@ -323,7 +323,7 @@ public abstract class VersionedSerializer<T> {
         void serializeContents(OutputStream stream, TargetType o) throws IOException {
             DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
 
-            val writeVersion = this.versions[writeVersion()];
+            val writeVersion = this.versions[getWriteVersion()];
             dataOutput.writeByte(writeVersion.getVersion());
             dataOutput.writeByte(writeVersion.getRevisions().size());
 
@@ -424,7 +424,7 @@ public abstract class VersionedSerializer<T> {
      *    // we cannot write into Version 1 until we know that all deployed code knows how to read it. In order to guarantee
      *    // a successful upgrade when changing Versions, all existing code needs to know how to read the new version.
      *    @Override
-     *    protected byte writeVersion() { return 0; }
+     *    protected byte getWriteVersion() { return 0; }
      *
      *    @Override
      *    protected void declareVersions() {
@@ -485,7 +485,7 @@ public abstract class VersionedSerializer<T> {
      *
      * class AttributeSerializer extends VersionedSerializer.WithBuilder<Attribute, Attribute.AttributeBuilder> {
      *    @Override
-     *    protected byte writeVersion() { return 0; } // Version we're serializing at.
+     *    protected byte getWriteVersion() { return 0; } // Version we're serializing at.
      *
      *    @Override
      *    protected Attribute.AttributeBuilder newBuilder() { return Attribute.builder(); }

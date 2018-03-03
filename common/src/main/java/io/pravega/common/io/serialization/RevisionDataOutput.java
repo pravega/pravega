@@ -143,7 +143,8 @@ public interface RevisionDataOutput extends DataOutput {
     void writeUUID(UUID uuid) throws IOException;
 
     /**
-     * Calculates the number of bytes required to serialize a Collection.
+     * Calculates the number of bytes required to serialize a Collection or array. This method can be used to estimate the
+     * serialization length of both writeCollection() and writeArray().
      *
      * @param elementCount  The size of the collection.
      * @param elementLength The size (in bytes) of each element's serialization.
@@ -152,14 +153,26 @@ public interface RevisionDataOutput extends DataOutput {
     int getCollectionLength(int elementCount, int elementLength);
 
     /**
-     * Calculates the number of bytes required to serialize a Collection.
+     * Calculates the number of bytes required to serialize a Collection. This method can be used to estimate the
+     * serialization length of writeCollection().
      *
      * @param collection            The Collection to measure.
      * @param elementLengthProvider A Function that, given an Element of type T, will return its serialization length.
-     * @param <T>                   Type of the Map's Keys.
+     * @param <T>                   Type of the Collection's Elements.
      * @return The number of bytes.
      */
     <T> int getCollectionLength(Collection<T> collection, ToIntFunction<T> elementLengthProvider);
+
+    /**
+     * Calculates the number of bytes required to serialize an array. This method can be used to estimate the
+     * serialization length of writeArray().
+     *
+     * @param array                 The array to measure.
+     * @param elementLengthProvider A Function that, given an Element of type T, will return its serialization length.
+     * @param <T>                   Type of the Array's Elements
+     * @return The number of bytes.
+     */
+    <T> int getCollectionLength(T[] array, ToIntFunction<T> elementLengthProvider);
 
     /**
      * Serializes the given Collection using the given ElementSerializer. It first writes a Compact Integer representing
@@ -173,6 +186,29 @@ public interface RevisionDataOutput extends DataOutput {
      * @throws IOException If an IO Exception occurred.
      */
     <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException;
+
+    /**
+     * Serializes the given array using the given ElementSerializer. It first writes a Compact Integer representing
+     * the number of elements in the array, followed by each element's serialization, in the order in which they appear in
+     * the array.
+     *
+     * @param array             The array to serialize. Can be null (in which case an Empty array will be deserialized
+     *                          by RevisionDataInput.readArray()).
+     * @param elementSerializer A Function that serializes a single element of the array to a RevisionDataOutput.
+     * @param <T>               Type of the elements in the array.
+     * @throws IOException If an IO Exception occurred.
+     */
+    <T> void writeArray(T[] array, ElementSerializer<T> elementSerializer) throws IOException;
+
+    /**
+     * Serializes the given byte array. It first writes a Compact Integer representing the length of the the array, followed
+     * by the actual array being written.
+     *
+     * @param array The array to serialize. Can be null (in which case an Empty array will be deserialized
+     *              by RevisionDataInput.readArray()).
+     * @throws IOException If an IO Exception occurred.
+     */
+    void writeArray(byte[] array) throws IOException;
 
     /**
      * Calculates the number of bytes required to serialize a Map.

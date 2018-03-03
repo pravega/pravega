@@ -218,6 +218,50 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
+     * Tests the ability to encode and decode a generic array.
+     */
+    @Test
+    public void testGenericArrays() throws Exception {
+        val numbers = getAllOneBitNumbers(Long.SIZE);
+        val toTest = Arrays.<Long[]>asList(
+                null,
+                new Long[0],
+                numbers.toArray(new Long[numbers.size()]));
+        for (Long[] value : toTest) {
+            testEncodeDecode(
+                    (os, v) -> os.writeArray(v, RevisionDataOutput::writeLong),
+                    is -> is.readArray(DataInput::readLong, Long[]::new),
+                    (s, v) -> s.getCollectionLength(v, e -> Long.BYTES),
+                    value,
+                    (s, t) -> Arrays.equals(s == null ? new Long[0] : s, t));
+        }
+    }
+
+    /**
+     * Tests the ability to encode and decode a byte array.
+     */
+    @Test
+    public void testByteArrays() throws Exception {
+        byte[] numbers = new byte[Byte.MAX_VALUE];
+        for (int i = 0; i < numbers.length; i++) {
+            numbers[i] = (byte) (i % Byte.MAX_VALUE);
+        }
+
+        val toTest = Arrays.<byte[]>asList(
+                null,
+                new byte[0],
+                numbers);
+        for (byte[] value : toTest) {
+            testEncodeDecode(
+                    RevisionDataOutput::writeArray,
+                    RevisionDataInput::readArray,
+                    (s, v) -> s.getCollectionLength(v == null ? 0 : v.length, 1),
+                    value,
+                    (s, t) -> Arrays.equals(s == null ? new byte[0] : s, t));
+        }
+    }
+
+    /**
      * Tests the ability to encode and decode a Collection.
      */
     @Test
