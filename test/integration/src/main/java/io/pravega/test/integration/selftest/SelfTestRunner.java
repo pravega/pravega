@@ -102,11 +102,11 @@ public class SelfTestRunner {
 
         // 5. Cross-apply common configuration that must be the same on all fronts.
         val testConfig = b.build().getConfig(TestConfig::builder);
-        int bkWriteQuorum = Math.min(3, testConfig.getBookieCount());
+        int bkWriteQuorum = testConfig.getBookieCount() == 0 ? 3 : Math.min(3, testConfig.getBookieCount());
         b.include(ServiceConfig.builder()
                                .with(ServiceConfig.CONTAINER_COUNT, testConfig.getContainerCount()));
         b.include(BookKeeperConfig.builder()
-                                  .with(BookKeeperConfig.ZK_ADDRESS, TestConfig.LOCALHOST + ":" + testConfig.getZkPort())
+                                  .with(BookKeeperConfig.ZK_ADDRESS, testConfig.getZkHost() + ":" + testConfig.getZkPort())
                                   .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum));
@@ -209,6 +209,10 @@ public class SelfTestRunner {
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
                     new Shortcut("reads", TestConfig.READS_ENABLED),
+                    new Shortcut("warmup", TestConfig.WARMUP_ENABLED),
+                    new Shortcut("throttle", TestConfig.THROTTLE_ENABLED),
+                    new Shortcut("ops", TestConfig.OPS_COUNT),
+                    new Shortcut("burstSeconds", TestConfig.BURST_SECONDS),
                     new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);

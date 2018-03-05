@@ -13,12 +13,16 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
+import io.github.bucket4j.Bucket4j;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,6 +47,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
     private final StoreAdapter store;
     private ServiceManager actorManager;
+    private Bucket tokenBucket;
 
     //endregion
 
@@ -67,6 +72,13 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
+        if (testConfig.isThrottle()) {
+            int opsPerSec = testConfig.getOperationsPerSecond();
+            int burstSec = testConfig.getBurstSeconds();
+            long duration = (long) (1000 * burstSec);
+            Bandwidth limit = Bandwidth.simple((long) (opsPerSec), Duration.ofMillis(duration));
+            this.tokenBucket = Bucket4j.builder().addLimit(limit).build();
+        }
     }
 
     //endregion
@@ -139,7 +151,11 @@ class SelfTest extends AbstractService implements AutoCloseable {
                             }, this.executor);
 
                             this.actorManager.startAsync();
-                            this.state.setWarmup(this.testConfig.getWarmupCount() > 0);
+
+                            if (testConfig.isWarmup()) {
+                                this.state.setWarmup(this.testConfig.getWarmupCount() > 0);
+                            }
+
                             this.reporter.startAsync();
                         },
                         this.executor)
@@ -176,7 +192,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor, tokenBucket));
         }
 
         // Create Consumers (based on the number of non-transaction Segments).

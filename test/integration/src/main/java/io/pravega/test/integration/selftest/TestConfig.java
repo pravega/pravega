@@ -45,12 +45,17 @@ public class TestConfig {
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
     static final Property<Integer> WARMUP_PERCENTAGE = Property.named("warmupPercentage", 10);
     static final Property<Boolean> READS_ENABLED = Property.named("reads", true);
+    static final Property<Boolean> WARMUP_ENABLED = Property.named("warmup", true);
+    static final Property<Boolean> THROTTLE_ENABLED = Property.named("throttle", false);
+    static final Property<Integer> OPS_COUNT = Property.named("operationsPerSecond", 100);
+    static final Property<Integer> BURST_SECONDS = Property.named("burstSeconds", 1);
     static final Property<Boolean> METRICS_ENABLED = Property.named("metrics", false);
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
     static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
     static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
+    static final Property<String> ZK_HOST = Property.named("zkHost", LOCALHOST);
     static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
@@ -99,6 +104,8 @@ public class TestConfig {
     private final int segmentStoreCount;
     private final int bkBasePort;
     @Getter
+    private final String zkHost;
+    @Getter
     private final int zkPort;
     @Getter
     private final String controllerHost;
@@ -114,6 +121,14 @@ public class TestConfig {
     private final boolean pauseBeforeExit;
     @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
+    @Getter
+    private final boolean warmup;
+    @Getter
+    private final boolean throttle;
+    @Getter
+    private final int operationsPerSecond;
+    @Getter
+    private final int burstSeconds;
 
     //endregion
 
@@ -150,6 +165,7 @@ public class TestConfig {
         this.controllerCount = properties.getInt(CONTROLLER_COUNT);
         this.segmentStoreCount = properties.getInt(SEGMENT_STORE_COUNT);
         this.bkBasePort = properties.getInt(BK_BASE_PORT);
+        this.zkHost = properties.get(ZK_HOST);
         this.zkPort = properties.getInt(ZK_PORT);
         this.controllerHost = properties.get(CONTROLLER_HOST);
         this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
@@ -157,6 +173,11 @@ public class TestConfig {
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
         this.readsEnabled = properties.getBoolean(READS_ENABLED);
         this.metricsEnabled = properties.getBoolean(METRICS_ENABLED);
+        this.warmup = properties.getBoolean(WARMUP_ENABLED);
+        this.throttle = properties.getBoolean(THROTTLE_ENABLED);
+        this.operationsPerSecond = properties.getInt(OPS_COUNT);
+        this.burstSeconds = properties.getInt(BURST_SECONDS);
+
         this.pauseBeforeExit = properties.getBoolean(PAUSE_BEFORE_EXIT);
         checkOverlappingPorts();
     }

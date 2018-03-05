@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.val;
@@ -36,6 +37,8 @@ class Reporter extends AbstractScheduledService {
     private final AtomicLong lastReportTime = new AtomicLong(-1);
     private final AtomicLong lastReportLength = new AtomicLong(-1);
     private final AtomicLong lastReportOperationCount = new AtomicLong(-1);
+    private final AtomicInteger lastGeneratedOperationCount = new AtomicInteger(0);
+    private final AtomicLong lastAcknowledgedOperationCount = new AtomicLong(0);
 
     //endregion
 
@@ -84,9 +87,12 @@ class Reporter extends AbstractScheduledService {
         val testPoolSnapshot = ExecutorServiceHelpers.getSnapshot(this.executorService);
         val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(ForkJoinPool.commonPool());
         val storePoolSnapshot = this.storePoolSnapshotProvider.get();
+        int totalGeneratedOperationCount = this.testState.getGeneratedOperationCount();
+        int currentGeneratedOperationCount = totalGeneratedOperationCount - lastGeneratedOperationCount.get();
         long time = System.nanoTime();
         long producedLength = this.testState.getProducedLength();
         long opCount = this.testState.getSuccessfulOperationCount();
+        long currentSuccessfulOperationCount = opCount- this.lastAcknowledgedOperationCount.get();
         long lastReportTime = this.lastReportTime.getAndSet(time);
         double elapsedSeconds = toSeconds(time - lastReportTime);
         double instantThroughput = lastReportTime < 0 ? 0 : (producedLength - this.lastReportLength.get()) / elapsedSeconds;
@@ -94,6 +100,8 @@ class Reporter extends AbstractScheduledService {
 
         this.lastReportLength.set(producedLength);
         this.lastReportOperationCount.set(opCount);
+        this.lastAcknowledgedOperationCount.set(opCount);
+        this.lastGeneratedOperationCount.set(totalGeneratedOperationCount);
 
         String ops = this.testState.isWarmup()
                 ? "(warmup)"
@@ -107,8 +115,14 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                "%s; request(current/total) = %d/%d; acks(current/total) = %d/%d; pending-acks = %d; " +
+                        "Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
                 ops,
+                currentGeneratedOperationCount <0 ? 0: currentGeneratedOperationCount,
+                totalGeneratedOperationCount,
+                currentSuccessfulOperationCount <0 ? 0: currentSuccessfulOperationCount,
+                opCount,
+                totalGeneratedOperationCount - opCount,
                 (int) instantOps,
                 (int) this.testState.getOperationsPerSecond(),
                 data,

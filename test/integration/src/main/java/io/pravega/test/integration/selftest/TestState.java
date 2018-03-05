@@ -109,6 +109,14 @@ public class TestState {
     }
 
     /**
+     * Gets a value indicating total no of operations that were succesfully generated
+     * @return
+     */
+    int getGeneratedOperationCount() {
+        return this.generatedOperationCount.get();
+    }
+
+    /**
      * Gets a value indicating the total number of bytes produced (that were accepted by the Store).
      */
     long getProducedLength() {
