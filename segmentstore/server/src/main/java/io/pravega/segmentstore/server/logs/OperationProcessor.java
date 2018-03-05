@@ -436,7 +436,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         private QueueProcessingState(MetadataCheckpointPolicy checkpointPolicy) {
             this.checkpointPolicy = Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
-            this.nextFrameOperations = new ArrayList<>(MAX_READ_AT_ONCE);
+            this.nextFrameOperations = new ArrayList<>();
             this.metadataTransactions = new ArrayDeque<>();
             this.highestCommittedDataFrame = -1;
             this.pendingOperationCount = 0;
@@ -486,7 +486,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             synchronized (stateLock) {
                 commitArgs.setMetadataTransactionId(OperationProcessor.this.metadataUpdater.sealTransaction());
                 commitArgs.setOperations(Collections.unmodifiableList(this.nextFrameOperations));
-                this.nextFrameOperations = new ArrayList<>(MAX_READ_AT_ONCE);
+                this.nextFrameOperations = new ArrayList<>();
                 this.metadataTransactions.addLast(commitArgs);
             }
         }
@@ -503,12 +503,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void commit(DataFrameBuilder.CommitArgs commitArgs) {
-            long transactionId = commitArgs.getMetadataTransactionId();
-            assert transactionId >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
+            assert commitArgs.getMetadataTransactionId() >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
             log.debug("{}: CommitSuccess ({}).", traceObjectId, commitArgs);
             Timer timer = new Timer();
 
-            ArrayList<List<CompletableOperation>> toAck = new ArrayList<>();
+            List<List<CompletableOperation>> toAck = null;
             try {
                 // Record the end of a frame in the DurableDataLog directly into the base metadata. No need for locking here,
                 // as the metadata has its own.
@@ -530,17 +529,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                     // Collect operations to commit.
                     Timer memoryCommitTimer = new Timer();
-                    boolean checkpointExists = false;
-                    while (!this.metadataTransactions.isEmpty() && this.metadataTransactions.peekFirst().getMetadataTransactionId() <= transactionId) {
-                        DataFrameBuilder.CommitArgs t = this.metadataTransactions.pollFirst();
-                        checkpointExists |= t.getMetadataTransactionId() == transactionId;
-                        toAck.add(t.getOperations());
-                        this.pendingOperationCount -= t.getOperations().size();
-                    }
+                    toAck = collectCompletionCandidates(commitArgs);
 
                     // Commit metadata updates.
-                    assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
-                    int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(transactionId);
+                    int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
 
                     // Commit operations to memory. Note that this will block synchronously if the Commit Queue is full (until it clears up).
                     toAck.forEach(OperationProcessor.this.commitQueue::add);
@@ -549,8 +541,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
                 }
             } finally {
-                toAck.stream().flatMap(Collection::stream).forEach(CompletableOperation::complete);
-                metrics.operationsCompleted(toAck, timer.getElapsed());
+                if (toAck != null) {
+                    toAck.stream().flatMap(Collection::stream).forEach(CompletableOperation::complete);
+                    metrics.operationsCompleted(toAck, timer.getElapsed());
+                }
                 autoCompleteIfNeeded();
                 this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
             }
@@ -569,16 +563,19 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void fail(Throwable ex, DataFrameBuilder.CommitArgs commitArgs) {
-            ArrayList<CompletableOperation> toFail = new ArrayList<>();
+            List<CompletableOperation> toFail = null;
             try {
                 synchronized (stateLock) {
-                    collectFailureCandidates(commitArgs, toFail);
+                    toFail = collectFailureCandidates(commitArgs);
                     this.pendingOperationCount -= toFail.size();
                 }
             } finally {
-                toFail.forEach(o -> failOperation(o, ex));
+                if (toFail != null) {
+                    toFail.forEach(o -> failOperation(o, ex));
+                    metrics.operationsFailed(toFail);
+                }
+
                 autoCompleteIfNeeded();
-                metrics.operationsFailed(toFail);
             }
 
             // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
@@ -605,16 +602,41 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
+         * Collects all Operations that have been successfully committed to DurableDataLog and removes the associated
+         * Metadata Update Transactions for those commits. The operations themselves are not completed (since we are
+         * holding a lock) and the Metadata is not updated while executing this method.
+         *
+         * @param commitArgs The CommitArgs that points to the DataFrame which successfully committed.
+         * @return An ordered List of ordered Lists of Operations that have been committed.
+         */
+        @GuardedBy("stateLock")
+        private List<List<CompletableOperation>> collectCompletionCandidates(DataFrameBuilder.CommitArgs commitArgs) {
+            List<List<CompletableOperation>> toAck = new ArrayList<>();
+            long transactionId = commitArgs.getMetadataTransactionId();
+            boolean checkpointExists = false;
+            while (!this.metadataTransactions.isEmpty() && this.metadataTransactions.peekFirst().getMetadataTransactionId() <= transactionId) {
+                DataFrameBuilder.CommitArgs t = this.metadataTransactions.pollFirst();
+                checkpointExists |= t.getMetadataTransactionId() == transactionId;
+                toAck.add(t.getOperations());
+                this.pendingOperationCount -= t.getOperations().size();
+            }
+
+            assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+            return toAck;
+        }
+
+        /**
          * Rolls back any metadata that is affected by a failure for the given commit args and collects all pending
          * CompletableOperations that are affected. While the metadata is rolled back, the operations themselves
          * are not failed (since this method executes while holding the lock).
          *
          * @param commitArgs The CommitArgs that points to the DataFrame which failed to commit.
-         * @param candidates A Collection where the failure candidates will be collected.
+         * @return A List where the failure candidates will be collected.
          */
         @GuardedBy("stateLock")
-        private void collectFailureCandidates(DataFrameBuilder.CommitArgs commitArgs, Collection<CompletableOperation> candidates) {
+        private List<CompletableOperation> collectFailureCandidates(DataFrameBuilder.CommitArgs commitArgs) {
             // Discard all updates to the metadata.
+            List<CompletableOperation> candidates = new ArrayList<>();
             if (commitArgs != null) {
                 // Rollback all changes to the metadata from this commit on, and fail all involved operations.
                 OperationProcessor.this.metadataUpdater.rollback(commitArgs.getMetadataTransactionId());
@@ -632,6 +654,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             candidates.addAll(this.nextFrameOperations);
             this.nextFrameOperations.clear();
+            return candidates;
         }
 
         /**

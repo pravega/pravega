@@ -1550,8 +1550,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * creates a new segment, writes 1 byte to it and issues a read (actual/future) and waits until it's completed - when
      * it is, it is guaranteed that everything prior to that has been committed.
      */
-    @SneakyThrows
-    private static void waitForOperationsInReadIndex(SegmentContainer container) {
+    private static void waitForOperationsInReadIndex(SegmentContainer container) throws Exception {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         String segmentName = "test" + System.nanoTime();
         container.createStreamSegment(segmentName, null, timer.getRemaining())
