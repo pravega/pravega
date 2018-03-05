@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 @Getter
-class LedgerMetadata {
+public class LedgerMetadata {
     /**
      * The BookKeeper-assigned Ledger Id.
      */

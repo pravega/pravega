@@ -12,7 +12,8 @@ package io.pravega.client.admin;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.StreamCut;
+
 import java.net.URI;
 
 /**
