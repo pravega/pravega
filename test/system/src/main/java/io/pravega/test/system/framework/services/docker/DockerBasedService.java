@@ -27,6 +27,7 @@ import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
 import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -42,14 +43,15 @@ import com.spotify.docker.client.messages.swarm.Task;
 public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
+    static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
+    static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(final String serviceName) {
-        this.dockerClient = DefaultDockerClient.builder().uri("http://" + System.getProperty("masterIP") + ":" + DOCKER_CLIENT_PORT).build();
+        this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();
         this.serviceName = serviceName;
     }
 
@@ -154,8 +156,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
-            String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
-            log.info("Update state {}", updateState);
 
             return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
