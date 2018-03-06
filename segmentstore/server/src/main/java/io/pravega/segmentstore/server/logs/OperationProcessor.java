@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
@@ -28,7 +27,6 @@ import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.QueueStats;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -59,15 +57,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
-    private static final int MAX_BATCHING_DELAY_MILLIS = 50;
-    private static final int MAX_THROTTLING_DELAY_MILLIS = 10000;
-    private static final double MAX_CACHE_UTILIZATION = 1.25; // 125% of the cache capacity.
 
     private final UpdateableContainerMetadata metadata;
-    private final MemoryStateUpdater stateUpdater;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
-    private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
@@ -75,6 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final DataFrameBuilder<Operation> dataFrameBuilder;
     @Getter
     private final SegmentStoreMetrics.OperationProcessor metrics;
+    private final ThrottlerCalculator throttlerCalculator;
 
     //endregion
 
@@ -92,15 +86,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
+        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.metadata = metadata;
-        this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
-        this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+        this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
+        this.throttlerCalculator = new ThrottlerCalculator(durableDataLog::getQueueStatistics, stateUpdater::getCacheUtilization);
     }
 
     //endregion
@@ -208,57 +202,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     //region Queue Processing
 
     private CompletableFuture<Void> throttle() {
-        int batchingDelayMillis = getBatchingDelayMillis();
-        int throttlingDelayMillis = getThrottlingDelayMillis();
+        int batchingDelayMillis = this.throttlerCalculator.getBatchingDelayMillis();
+        int throttlingDelayMillis = this.throttlerCalculator.getThrottlingDelayMillis();
 
         // These delays are not additive. There's no benefit to adding a batching delay on top of a throttling delay, since
         // a throttling delay will have increased batching as a side effect.
         int totalDelayMillis = Math.max(batchingDelayMillis, throttlingDelayMillis);
         this.metrics.processingDelay(totalDelayMillis);
         return Futures.delayedFuture(Duration.ofMillis(totalDelayMillis), this.executor);
-    }
-
-    /**
-     * Determines whether there is a need to introduce a throttling delay.
-     */
-    private boolean isThrottlingRequired() {
-        return this.stateUpdater.getCacheUtilization() >= 1;
-    }
-
-    /**
-     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
-     * on downstream components. This is based on ReadIndex statistics, mainly cache utilization ratio.
-     *
-     * @return The amount of time, in milliseconds.
-     */
-    private int getThrottlingDelayMillis() {
-        double cacheUtilization = this.stateUpdater.getCacheUtilization();
-        if (cacheUtilization <= 1) {
-            // Cache utilization is below 100%. No need for throttling.
-            return 0;
-        } else {
-            // We are exceeding the cache capacity. Start throttling proportionally to the amount of excess, but make sure
-            // we don't exceed the max allowed.
-            return (int) (Math.max(1.0, (cacheUtilization - 1) / (MAX_CACHE_UTILIZATION - 1)) * MAX_THROTTLING_DELAY_MILLIS);
-        }
-    }
-
-    /**
-     * Calculates the amount of time to wait before processing more operations from the queue in order to aggregate them
-     * into larger writes. This is based on statistics from the DurableDataLog.
-     *
-     * @return The amount of time, in milliseconds.
-     */
-    private int getBatchingDelayMillis() {
-        QueueStats stats = this.durableDataLog.getQueueStatistics();
-
-        // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
-        // fill ratios we don't want to wait too long.
-        double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
-
-        // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-        return Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS);
     }
 
     /**
@@ -311,7 +262,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (!isThrottlingRequired()) {
+                    if (!this.throttlerCalculator.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
