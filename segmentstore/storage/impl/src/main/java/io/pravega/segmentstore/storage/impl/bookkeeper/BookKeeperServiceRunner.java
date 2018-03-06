@@ -269,7 +269,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             b.ledgersPath(System.getProperty(PROPERTY_LEDGERS_PATH));
             b.startZk(Boolean.parseBoolean(System.getProperty(PROPERTY_START_ZK, "false")));
             b.tLSKeyStore(System.getProperty(TLS_KEY_STORE, "../../../config/bookie.keystore.jks"));
-            b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD,"../../../config/bookie.keystore.jks.passwd"));
+            b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD, "../../../config/bookie.keystore.jks.passwd"));
             b.secureBK(Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_BK, "false")));
 
         } catch (Exception ex) {
