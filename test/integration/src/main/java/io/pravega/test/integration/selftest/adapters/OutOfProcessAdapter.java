@@ -157,6 +157,9 @@ class OutOfProcessAdapter extends ExternalAdapter {
         this.bookieProcess.set(ProcessStarter
                 .forClass(BookKeeperServiceRunner.class)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.testConfig.getBkPort(0))
+                .sysProp(BookKeeperServiceRunner.PROPERTY_SECURE_BK, this.testConfig.isEnableSecurity())
+                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE, "../../config/bookie.keystore.jks")
+                .sysProp(BookKeeperServiceRunner.TLS_KEY_STORE_PASSWD, "../../config/bookie.keystore.jks.passwd")
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.testConfig.getZkPort())
                 .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
@@ -229,6 +232,8 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_ENABLED), this.testConfig.isEnableSecurity())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_CERT_FILE), "../../config/cert.pem")
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TOKEN_SIGNING_KEY), "secret")
+                .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.BK_TLS_ENABLED), this.testConfig.isEnableSecurity())
+                .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.TLS_TRUST_STORE_PATH), "../../config/bookie.truststore.jks")
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("segmentStore", segmentStoreId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))));
         if (this.testConfig.getBookieCount() > 0) {
