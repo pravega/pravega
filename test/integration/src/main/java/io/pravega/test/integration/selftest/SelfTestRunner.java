@@ -65,6 +65,10 @@ public class SelfTestRunner {
 
         // Wait for the test to finish.
         test.awaitFinished().join();
+        if (testConfig.isPauseBeforeExit()) {
+            System.out.println("Services are still running. Press any key to exit ...");
+            System.in.read();
+        }
 
         // Make sure the test is stopped.
         test.stopAsync().awaitTerminated();
@@ -204,7 +208,8 @@ public class SelfTestRunner {
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
-                    new Shortcut("reads", TestConfig.READS_ENABLED)));
+                    new Shortcut("reads", TestConfig.READS_ENABLED),
+                    new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);
         }

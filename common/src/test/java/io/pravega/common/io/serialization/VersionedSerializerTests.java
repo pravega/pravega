@@ -329,7 +329,7 @@ public class VersionedSerializerTests {
         static final byte VERSION = 0;
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return VERSION;
         }
 
@@ -435,7 +435,7 @@ public class VersionedSerializerTests {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return VERSION;
         }
 
@@ -558,7 +558,7 @@ public class VersionedSerializerTests {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return VERSION;
         }
 
@@ -590,7 +590,7 @@ public class VersionedSerializerTests {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return VERSION;
         }
 
@@ -624,7 +624,7 @@ public class VersionedSerializerTests {
         }
 
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return VERSION;
         }
 
