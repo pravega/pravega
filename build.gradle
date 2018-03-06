@@ -293,6 +293,13 @@ project('segmentstore:server:host') {
         outputDir = startScripts.outputDir
     }
 
+    task admin(type: JavaExec) {
+        main = "io.pravega.segmentstore.server.host.admin.AdminRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+    }
+
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
@@ -389,6 +396,7 @@ project('test:integration') {
     task selftest(type: JavaExec) {
         main = "io.pravega.test.integration.selftest.SelfTestRunner"
         classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
         systemProperties System.getProperties()
     }
 }

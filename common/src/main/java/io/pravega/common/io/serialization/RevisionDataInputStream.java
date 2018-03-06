@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -140,6 +141,24 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         for (int i = 0; i < count; i++) {
             result.add(elementDeserializer.apply(this));
         }
+        return result;
+    }
+
+    @Override
+    public <T> T[] readArray(ElementDeserializer<T> elementDeserializer, IntFunction<T[]> arrayCreator) throws IOException {
+        int count = readCompactInt();
+        T[] result = arrayCreator.apply(count);
+        for (int i = 0; i < count; i++) {
+            result[i] = elementDeserializer.apply(this);
+        }
+        return result;
+    }
+
+    @Override
+    public byte[] readArray() throws IOException {
+        int count = readCompactInt();
+        byte[] result = new byte[count];
+        readFully(result);
         return result;
     }
 
