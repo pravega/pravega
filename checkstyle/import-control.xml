@@ -42,5 +42,6 @@
     <allow pkg="org.jclouds" />
     <allow pkg="org.glassfish.grizzly" />
     <allow pkg="com.spotify" />
+    <allow pkg="io.github.bucket4j" />
 
 </import-control>

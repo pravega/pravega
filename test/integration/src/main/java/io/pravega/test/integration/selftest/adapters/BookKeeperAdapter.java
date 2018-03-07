@@ -72,7 +72,6 @@ class BookKeeperAdapter extends StoreAdapter {
         this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.bkConfig = Preconditions.checkNotNull(bkConfig, "bkConfig");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkArgument(testConfig.getBookieCount() > 0, "BookKeeperAdapter requires at least one Bookie.");
         this.logs = new ConcurrentHashMap<>();
         this.internalIds = new HashMap<>();
         this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
@@ -92,12 +91,14 @@ class BookKeeperAdapter extends StoreAdapter {
     @Override
     protected void startUp() throws Exception {
         // Start BookKeeper.
-        this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.testConfig, this.logId);
+        if (this.testConfig.getBookieCount() > 0) {
+            this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.testConfig, this.logId);
+        }
 
         // Create a ZK client.
         this.zkClient = CuratorFrameworkFactory
                 .builder()
-                .connectString("localhost:" + this.testConfig.getZkPort())
+                .connectString(this.testConfig.getZkHost() + ":" + this.testConfig.getZkPort())
                 .namespace("pravega")
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
                 .sessionTimeoutMs(5000)

@@ -13,10 +13,13 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import io.github.bucket4j.BlockingStrategy;
+import io.github.bucket4j.Bucket;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -36,6 +39,7 @@ class Producer extends Actor {
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
     private final int id;
+    private final Bucket tokenBucket;
 
     //endregion
 
@@ -50,13 +54,14 @@ class Producer extends Actor {
      * @param store      A StoreAdapter to execute operations on.
      * @param executor   An Executor to use for async operations.
      */
-    Producer(int id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
+    Producer(int id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor, Bucket tokenBucket) {
         super(config, dataSource, store, executor);
 
         this.id = id;
         this.logId = String.format("Producer[%s]", id);
         this.iterationCount = new AtomicInteger();
         this.canContinue = new AtomicBoolean(true);
+        this.tokenBucket = tokenBucket;
     }
 
     //endregion
@@ -92,6 +97,16 @@ class Producer extends Actor {
 
         val futures = new ArrayList<CompletableFuture<Void>>();
         for (int i = 0; i < this.config.getProducerParallelism(); i++) {
+
+            // throttle the speed if enabled
+            if (tokenBucket != null) {
+                try {
+                    tokenBucket.tryConsume(1, TimeUnit.HOURS.toNanos(1), BlockingStrategy.PARKING);
+                } catch (InterruptedException e) {
+                    throw new CompletionException(e);
+                }
+            }
+
             ProducerOperation op = this.dataSource.nextOperation();
             if (op == null) {
                 // Nothing more to do.
