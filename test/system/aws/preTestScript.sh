@@ -14,11 +14,11 @@ aws_region=${3:-null}
 aws_key_name=${4:-aws-key-pair}
 cred_path=${5:-null}
 config_path=${6:-null}
-pravega_org=${7:-pravega}
+pravega_org=${7:-pravega/pravega}
 pravega_branch=${8:-master}
 cd aws/
-terraform init
-terraform apply -auto-approve -var aws_access_key=$aws_access_key \
+TF_LOG=WARN TF_LOG_PATH=./terraform.log terraform init
+TF_LOG=WARN TF_LOG_PATH=./terraform.log terraform apply -auto-approve -var aws_access_key=$aws_access_key \
  -var aws_secret_key=$aws_secret_key \
   -var aws_region=$aws_region  \
   -var aws_key_name=$aws_key_name \
