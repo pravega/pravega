@@ -76,7 +76,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
             int opsPerSec = testConfig.getOperationsPerSecond();
             int burstSec = testConfig.getBurstSeconds();
             long duration = (long) (1000 * burstSec);
-            Bandwidth limit = Bandwidth.simple((long) (opsPerSec), Duration.ofMillis(duration));
+            Bandwidth limit = Bandwidth.simple((long) opsPerSec, Duration.ofMillis(duration));
             this.tokenBucket = Bucket4j.builder().addLimit(limit).build();
         }
     }

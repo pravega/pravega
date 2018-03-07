@@ -11,7 +11,6 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.github.bucket4j.Bucket;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;

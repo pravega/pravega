@@ -118,9 +118,9 @@ class Reporter extends AbstractScheduledService {
                 "%s; request(current/total) = %d/%d; acks(current/total) = %d/%d; pending-acks = %d; " +
                         "Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
                 ops,
-                currentGeneratedOperationCount <0 ? 0: currentGeneratedOperationCount,
+                currentGeneratedOperationCount < 0 ? 0 : currentGeneratedOperationCount,
                 totalGeneratedOperationCount,
-                currentSuccessfulOperationCount <0 ? 0: currentSuccessfulOperationCount,
+                currentSuccessfulOperationCount < 0 ? 0 : currentSuccessfulOperationCount,
                 opCount,
                 totalGeneratedOperationCount - opCount,
                 (int) instantOps,
