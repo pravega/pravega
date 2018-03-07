@@ -79,7 +79,7 @@ public class LoginClient {
     }
 
     private static String getMesosMasterIP() {
-        return getConfig("masterIP", "Invalid Master IP");
+        return  Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     }
 
     private static String getUsername() {
