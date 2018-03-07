@@ -36,7 +36,7 @@ public class StreamSegmentsTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
         
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
@@ -66,15 +66,15 @@ public class StreamSegmentsTest {
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.5, new Segment(scope, streamName, 0));
         segments.put(1.0, new Segment(scope, streamName, 1));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
         Map<SegmentWithRange, List<Integer>> newRange = new HashMap<>();
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 2), 0, 0.25), ImmutableList.of(0));
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 3), 0.25, 0.5), ImmutableList.of(0));
-        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         newRange = new HashMap<>();
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4), 0.5, 0.75), ImmutableList.of(1));
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5), 0.75, 1.0), ImmutableList.of(1));
-        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         
         int[] counts = new int[6];
         Arrays.fill(counts, 0);
@@ -98,14 +98,14 @@ public class StreamSegmentsTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
         Map<SegmentWithRange, List<Integer>> newRange = new HashMap<>();
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4), 0, 0.5), ImmutableList.of(0, 1));
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5), 0.5, 1.0), ImmutableList.of(2, 3));
-        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         newRange = new HashMap<>();
         newRange.put(new SegmentWithRange(new Segment(scope, streamName, 6), 0.0, 1.0), ImmutableList.of(4, 5));
-        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         
         int[] counts = new int[7];
         Arrays.fill(counts, 0);
@@ -130,7 +130,7 @@ public class StreamSegmentsTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
 
         int[] counts = new int[4];
         Arrays.fill(counts, 0);

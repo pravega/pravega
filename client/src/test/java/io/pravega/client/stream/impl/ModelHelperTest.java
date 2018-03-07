@@ -189,7 +189,7 @@ public class ModelHelperTest {
         Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
         inputMap.put(segmentRange, Arrays.asList(1));
 
-        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap);
+        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());
         final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
         assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());

@@ -44,11 +44,17 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_ZK_PORT = "zkPort";
     public static final String PROPERTY_LEDGERS_PATH = "ledgersPath";
     public static final String PROPERTY_START_ZK = "startZk";
+    public static final String PROPERTY_SECURE_BK = "secureBk";
+    public static final String TLS_KEY_STORE_PASSWD = "tlsKeyStorePasswd";
+    public static final String TLS_KEY_STORE = "tlsKeyStore";
+
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
     private final boolean secureBK;
+    private final String tLSKeyStore;
+    private final String tLSKeyStorePasswordPath;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -219,10 +225,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");
             conf.setTLSProviderFactoryClass("org.apache.bookkeeper.tls.TLSContextFactory");
-            conf.setTLSKeyStore("../../../config/bookie.keystore.jks");
-            conf.setTLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd");
-            conf.setTLSTrustStore("../../../config/bookie.truststore.jks");
-            conf.setTLSTrustStore("../../../config/bookie.truststore.jks.passwd");
+            conf.setTLSKeyStore(this.tLSKeyStore);
+            conf.setTLSKeyStorePasswordPath(this.tLSKeyStorePasswordPath);
         }
 
         log.info("Starting Bookie at port " + bkPort);
@@ -264,6 +268,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             b.zkPort(Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT)));
             b.ledgersPath(System.getProperty(PROPERTY_LEDGERS_PATH));
             b.startZk(Boolean.parseBoolean(System.getProperty(PROPERTY_START_ZK, "false")));
+            b.tLSKeyStore(System.getProperty(TLS_KEY_STORE, "../../../config/bookie.keystore.jks"));
+            b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD, "../../../config/bookie.keystore.jks.passwd"));
+            b.secureBK(Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_BK, "false")));
+
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int), " +
                             "%s(int), %s(int), %s(String). (%s).", PROPERTY_BASE_PORT, PROPERTY_BOOKIE_COUNT, PROPERTY_ZK_PORT,

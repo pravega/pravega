@@ -47,6 +47,7 @@ public class LocalControllerTest {
     //Ensure each test completes within 10 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    boolean authEnabled = false;
 
     private ControllerService mockControllerService;
     private LocalController testController;
@@ -55,7 +56,7 @@ public class LocalControllerTest {
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService);
+        this.testController = new LocalController(this.mockControllerService, authEnabled, "secret");
         this.executor = Executors.newSingleThreadScheduledExecutor();
     }
 

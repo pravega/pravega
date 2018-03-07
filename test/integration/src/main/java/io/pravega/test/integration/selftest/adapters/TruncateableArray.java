@@ -9,11 +9,10 @@
  */
 package io.pravega.test.integration.selftest.adapters;
 
-import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.ArrayView;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-
+import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ArrayView;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

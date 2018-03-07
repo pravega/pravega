@@ -48,17 +48,23 @@ public class ControllerResolverFactory extends NameResolver.Factory {
     // Use this scheme when client want to connect to a static set of controller servers.
     // Eg: tcp://ip1:port1,ip2:port2
     private final static String SCHEME_DIRECT = "tcp";
+    //Secure versions of the direct scheme.
+    private final static String SCHEME_DIRECT_TLS = "tls";
+    private final static String SCHEME_DIRECT_SSL = "ssl";
 
     // Use this scheme when client only knows a subset of controllers and wants other controller instances to be
     // auto discovered.
     // Eg: pravega://ip1:port1,ip2:port2
     private final static String SCHEME_DISCOVER = "pravega";
+    //Secure version of discover scheme.
+    private final static String SCHEME_DISCOVER_TLS = "pravegas";
 
     @Nullable
     @Override
     public NameResolver newNameResolver(URI targetUri, Attributes params) {
         final String scheme = targetUri.getScheme();
-        if (!SCHEME_DISCOVER.equals(scheme) && !SCHEME_DIRECT.equals(scheme)) {
+        if (!SCHEME_DISCOVER.equals(scheme) && !SCHEME_DISCOVER_TLS.equals(scheme) &&
+                !SCHEME_DIRECT.equals(scheme) && !SCHEME_DIRECT_SSL.equals(scheme) && !SCHEME_DIRECT_TLS.equals(scheme)) {
             return null;
         }
 
@@ -69,7 +75,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             return InetSocketAddress.createUnresolved(strings[0], Integer.valueOf(strings[1]));
         }).collect(Collectors.toList());
 
-        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme));
+        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme));
     }
 
     @Override
