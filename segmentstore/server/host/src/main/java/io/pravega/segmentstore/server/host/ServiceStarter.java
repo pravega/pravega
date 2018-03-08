@@ -34,8 +34,11 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -203,7 +206,17 @@ public final class ServiceStarter {
     }
 
     private String loadPasswordFrom(String zkTrustStorePasswordPath) {
-        return null;
+        byte[] pwd;
+        File passwdFile = new File(zkTrustStorePasswordPath);
+        if (passwdFile.length() == 0) {
+            return "";
+        }
+        try {
+            pwd = FileUtils.readFileToByteArray(passwdFile);
+        } catch (IOException e) {
+            return "";
+        }
+        return new String(pwd);
     }
 
     //endregion

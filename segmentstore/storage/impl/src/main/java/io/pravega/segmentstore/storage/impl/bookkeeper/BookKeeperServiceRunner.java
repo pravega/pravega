@@ -223,7 +223,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             conf.setTLSKeyStore("../../../config/bookie.keystore.jks");
             conf.setTLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd");
             conf.setTLSTrustStore("../../../config/bookie.truststore.jks");
-            conf.setTLSTrustStore("../../../config/bookie.truststore.jks.passwd");
+            conf.setTLSTrustStorePasswordPath("../../../config/bookie.truststore.jks.passwd");
         }
 
         log.info("Starting Bookie at port " + bkPort);

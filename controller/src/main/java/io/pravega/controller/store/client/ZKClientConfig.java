@@ -51,4 +51,14 @@ public interface ZKClientConfig {
      * Fetches whether the connection is secure.
      */
     boolean isSecureZK();
+
+    /**
+     * Fetches the trust store location.
+     */
+    String getTrustStorePath();
+
+    /**
+     * Fetches the trust store password path.
+     */
+    String getTrustStorePasswordPath();
 }

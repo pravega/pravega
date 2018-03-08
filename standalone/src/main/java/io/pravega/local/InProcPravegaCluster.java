@@ -196,18 +196,18 @@ public class InProcPravegaCluster implements AutoCloseable {
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
 
-        if (this.secureZK) {
-            System.setProperty("zookeeper.client.secure", "true");
-            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
-            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
-        }
         RetryPolicy rp = new ExponentialBackoffRetry(1000, 3);
         CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
                 .connectionTimeoutMs(5000)
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
+        if (secureZK) {
+            System.setProperty("zookeeper.client.secure", "true");
+            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
+            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+        }
+
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
@@ -248,6 +248,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                         .with(ServiceConfig.SECURE_ZK, this.secureZK)
+                        .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, "../config/bookie.truststore.jks")
+                        .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, "../config/bookie.truststore.jks.passwd")
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -293,6 +295,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .sessionTimeoutMs(10 * 1000)
+                .secureZK(this.secureZK)
+                .trustStorePath("../config/bookie.truststore.jks")
+                .trustStorePasswordPath("../config/bookie.truststore.jks.passwd")
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);

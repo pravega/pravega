@@ -208,7 +208,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         boolean secureZK = false;
         try {
             zkPort = Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT));
-            secureZK = Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_ZK));
+            secureZK = Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_ZK, "false"));
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int). (%s)",
                     PROPERTY_ZK_PORT, ex.getMessage()));
