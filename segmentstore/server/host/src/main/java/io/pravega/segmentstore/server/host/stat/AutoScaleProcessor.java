@@ -15,11 +15,13 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
@@ -111,7 +113,18 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
+                        ClientFactory factory = null;
+                        if (configuration.isAuthEnabled()) {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
+                                                .trustStore(configuration.getTlsCertFile())
+                                                .build());
+                        } else {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+                        }
+                        clientFactory.compareAndSet(null, factory);
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),

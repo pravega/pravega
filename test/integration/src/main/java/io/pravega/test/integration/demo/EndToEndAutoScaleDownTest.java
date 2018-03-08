@@ -9,10 +9,17 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.controller.util.Config;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -21,22 +28,15 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
@@ -55,7 +55,7 @@ public class EndToEndAutoScaleDownTest {
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -71,7 +71,7 @@ public class EndToEndAutoScaleDownTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder);
+                    statsRecorder, null, null, null);
             server.startListening();
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();

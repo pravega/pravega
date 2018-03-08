@@ -9,14 +9,20 @@
  */
 package io.pravega.test.integration.controller.server;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Position;
-import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -27,20 +33,15 @@ import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestUtils;
-import com.google.common.base.Preconditions;
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
 import lombok.Cleanup;
@@ -158,7 +159,7 @@ public class EventProcessorTest {
         }
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 

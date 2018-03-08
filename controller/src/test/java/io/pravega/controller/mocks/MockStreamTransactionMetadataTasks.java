@@ -20,16 +20,15 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Mock StreamTransactionMetadataTasks class.
@@ -44,8 +43,10 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                               final SegmentHelper segmentHelper,
                                               final ScheduledExecutorService executor,
                                               final String hostId,
-                                              final ConnectionFactory connectionFactory) {
-        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
+                                              final ConnectionFactory connectionFactory,
+                                              boolean authEnabled,
+                                              String tokenSigningKey) {
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, authEnabled, tokenSigningKey);
         this.streamMetadataStore = streamMetadataStore;
     }
 
