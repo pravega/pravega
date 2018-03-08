@@ -93,6 +93,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 public class StreamTransactionMetadataTasksTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream1";
+
+    boolean authEnabled = false;
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private ControllerService consumer;
@@ -106,7 +108,6 @@ public class StreamTransactionMetadataTasksTest {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks txnTasks;
     private ConnectionFactory connectionFactory;
-    boolean authEnabled = false;
 
     private static class SequenceAnswer<T> implements Answer<T> {
 
