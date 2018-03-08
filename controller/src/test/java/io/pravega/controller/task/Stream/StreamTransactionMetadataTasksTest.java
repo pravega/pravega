@@ -106,6 +106,7 @@ public class StreamTransactionMetadataTasksTest {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks txnTasks;
     private ConnectionFactory connectionFactory;
+    boolean authEnabled = false;
 
     private static class SequenceAnswer<T> implements Answer<T> {
 
@@ -144,7 +145,7 @@ public class StreamTransactionMetadataTasksTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  false, "");
+                executor, "host", connectionFactory,  this.authEnabled, "secret");
     }
 
     @After
@@ -425,7 +426,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory, false, "");
+                SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory, this.authEnabled, "secret");
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
 
@@ -497,4 +498,13 @@ public class StreamTransactionMetadataTasksTest {
 
         system.createEventProcessorGroup(config, CheckpointStoreFactory.createInMemoryStore());
     }
+
+    public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {
+        @Before
+        public void setup() {
+            this.authEnabled = true;
+            super.setup();
+        }
+    }
 }
+
