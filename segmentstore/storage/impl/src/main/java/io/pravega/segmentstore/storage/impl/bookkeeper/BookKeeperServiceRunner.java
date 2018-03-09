@@ -50,6 +50,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final String ledgersPath;
     private final boolean secureBK;
     private final boolean secureZK;
+    private final String tLSKeyStore;
+    private final String tLSKeyStorePasswordPath;
+    private String tlsTrustStore;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -132,7 +135,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception got thrown.
      */
     public void resumeZooKeeper() throws Exception {
-        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK);
+        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore);
         if (this.zkServer.compareAndSet(null, zk)) {
             // Initialize ZK runner (since nobody else did it for us).
             zk.initialize();
@@ -166,6 +169,14 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
     private void initializeZookeeper() throws Exception {
         log.info("Formatting ZooKeeper ...");
+
+        if (this.secureZK) {
+            System.setProperty("zookeeper.client.secure", "true");
+            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty("zookeeper.ssl.trustStore.location", this.tlsTrustStore);
+            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+        }
+
         @Cleanup
         val zkc = ZooKeeperClient.newBuilder()
                                  .connectString(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort)
@@ -220,10 +231,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");
             conf.setTLSProviderFactoryClass("org.apache.bookkeeper.tls.TLSContextFactory");
-            conf.setTLSKeyStore("../../../config/bookie.keystore.jks");
-            conf.setTLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd");
-            conf.setTLSTrustStore("../../../config/bookie.truststore.jks");
-            conf.setTLSTrustStorePasswordPath("../../../config/bookie.truststore.jks.passwd");
+            conf.setTLSKeyStore(this.tLSKeyStore);
+            conf.setTLSKeyStorePasswordPath(this.tLSKeyStorePasswordPath);
         }
 
         log.info("Starting Bookie at port " + bkPort);

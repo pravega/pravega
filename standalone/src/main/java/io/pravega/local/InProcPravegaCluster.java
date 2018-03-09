@@ -187,7 +187,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        zkService = new ZooKeeperServiceRunner(zkPort, secureZK);
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, "../config/bookie.keystore.jks");
         zkService.initialize();
         zkService.start();
     }
