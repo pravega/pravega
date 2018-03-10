@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -138,8 +139,10 @@ public class ControllerFailoverTest {
         long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
-        final Controller controller1 = new ControllerImpl(controllerURIDirect,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+        final Controller controller1 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -176,8 +179,10 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Connect to another controller instance.
-        final Controller controller2 = new ControllerImpl(controllerURIDirect,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+        final Controller controller2 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

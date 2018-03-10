@@ -9,22 +9,22 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.TestUtils;
+import java.util.concurrent.TimeUnit;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.core.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.core.Response;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -47,7 +47,8 @@ public class PingTest {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                 .build();
-        restServer = new RESTServer(mockControllerService, serverConfig);
+        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
+                new ConnectionFactoryImpl(ClientConfig.builder().build()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();

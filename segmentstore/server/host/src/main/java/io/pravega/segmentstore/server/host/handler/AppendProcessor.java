@@ -14,9 +14,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.AuthHandler;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -28,6 +30,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -85,6 +88,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final RequestProcessor nextRequestProcessor;
     private final Object lock = new Object();
     private final SegmentStatsRecorder statsRecorder;
+    private final DelegationTokenVerifier tokenVerifier;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -104,25 +108,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param store      The SegmentStore to send append requests to.
      * @param connection The ServerConnection to send responses to.
      * @param next       The RequestProcessor to invoke next.
+     * @param verifier    The token verifier.
      */
     @VisibleForTesting
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
-        this(store, connection, next, null);
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
+        this(store, connection, next, null, verifier);
     }
 
     /**
      * Creates a new instance of the AppendProcessor class.
-     *
-     * @param store         The SegmentStore to send append requests to.
+     *  @param store         The SegmentStore to send append requests to.
      * @param connection    The ServerConnection to send responses to.
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
+     * @param tokenVerifier Delegation token verifier.
      */
-    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder) {
+    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
+        this.tokenVerifier = tokenVerifier;
     }
 
     //endregion
@@ -150,6 +156,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
+                setupAppend.getDelegationToken(), AuthHandler.Permissions.READ_UPDATE)) {
+            log.warn("Delegation token verification failed");
+            handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
+                    "Update Segment Attribute", new AuthenticationException("Token verification failed"));
+            return;
+        }
+
         store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
                 .whenComplete((info, u) -> {
                     try {
@@ -333,6 +347,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof TooManyAttributesException) {
             log.warn("Attribute limit would be exceeded by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.close();
+        } else if (u instanceof AuthenticationException) {
+            log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
