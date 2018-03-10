@@ -25,9 +25,10 @@ public interface SegmentOutputStreamFactory {
      * @param txId    The transaction id.
      * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @param config  The configuration for the writer
+     * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback, EventWriterConfig config);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -37,9 +38,10 @@ public interface SegmentOutputStreamFactory {
      * in the same process space).
      *
      * @param segment The segment.
-     * @param config  The configuration for the writer
      * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
+     * @param config  The configuration for the writer
+     * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken);
 }

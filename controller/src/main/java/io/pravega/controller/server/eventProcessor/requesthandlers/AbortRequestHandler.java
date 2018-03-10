@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
@@ -19,16 +20,14 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This actor processes commit txn events.
@@ -97,7 +96,8 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                                         .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
-                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))
+                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context,
+                        this.streamMetadataTasks.retrieveDelegationToken())))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
@@ -126,6 +126,8 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                         segmentNumber,
                         txId,
                         this.hostControllerStore,
-                        this.connectionFactory), executor);
+                        this.connectionFactory,
+                        this.streamMetadataTasks.retrieveDelegationToken()),
+                        executor);
     }
 }
