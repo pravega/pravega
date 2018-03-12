@@ -218,7 +218,7 @@ public final class ServiceStarter {
         } catch (IOException e) {
             return "";
         }
-        return new String(pwd);
+        return new String(pwd).trim();
     }
 
     //endregion

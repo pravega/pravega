@@ -81,7 +81,7 @@ public class StoreClientFactory {
         } catch (IOException e) {
             return "";
         }
-        return new String(pwd);
+        return new String(pwd).trim();
     }
 
     private static class ZKClientFactory implements ZookeeperFactory {

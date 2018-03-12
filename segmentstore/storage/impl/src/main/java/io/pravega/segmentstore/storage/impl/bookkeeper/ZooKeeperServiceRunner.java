@@ -66,6 +66,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.serverCnxnFactory", "org.apache.zookeeper.server.NettyServerCnxnFactory");
 
             System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
+            //TODO: Read these from the config/parameter files..
             System.setProperty("zookeeper.ssl.keyStore.password", "1111_aaaa");
         }
     }
