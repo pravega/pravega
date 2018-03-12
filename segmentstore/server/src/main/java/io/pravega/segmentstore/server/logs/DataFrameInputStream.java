@@ -18,13 +18,8 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Singular;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -42,7 +37,7 @@ public class DataFrameInputStream extends InputStream {
     private DataFrame.DataFrameEntry currentEntry;
     private long lastReadFrameSequence;
 
-    private RecordInfo.RecordInfoBuilder currentRecordBuilder;
+    private DataFrameRecord.RecordInfo.RecordInfoBuilder currentRecordBuilder;
     @Getter
     private boolean closed;
     private boolean hasReadAnyData;
@@ -62,7 +57,7 @@ public class DataFrameInputStream extends InputStream {
         this.reader = Preconditions.checkNotNull(reader, "reader");
         this.traceObjectId = Exceptions.checkNotNullOrEmpty(traceObjectId, "traceObjectId");
         this.lastReadFrameSequence = -1;
-        this.currentRecordBuilder = RecordInfo.builder();
+        this.currentRecordBuilder = DataFrameRecord.RecordInfo.builder();
     }
 
     //endregion
@@ -159,8 +154,8 @@ public class DataFrameInputStream extends InputStream {
      * @return A RecordInfo containing metadata about the record that just ended, such as addressing information.
      * @throws IOException If an IO Exception occurred.
      */
-    RecordInfo endRecord() throws IOException {
-        RecordInfo r = this.currentRecordBuilder.build();
+    DataFrameRecord.RecordInfo endRecord() throws IOException {
+        DataFrameRecord.RecordInfo r = this.currentRecordBuilder.build();
         while (this.currentEntry != null) {
             if (this.currentEntry.isLastRecordEntry()) {
                 this.currentEntry.getData().close();
@@ -181,7 +176,7 @@ public class DataFrameInputStream extends InputStream {
     }
 
     private void resetContext() {
-        this.currentRecordBuilder = RecordInfo.builder();
+        this.currentRecordBuilder = DataFrameRecord.RecordInfo.builder();
         this.currentEntry = null;
         this.prefetchedEntry = false;
     }
@@ -227,7 +222,7 @@ public class DataFrameInputStream extends InputStream {
                 if (this.hasReadAnyData) {
                     // But this should ONLY happen at the very beginning of a read. If we encounter something like
                     // this in the middle of a log, we very likely have some sort of corruption.
-                    throw new SerializationException(String.format("Found a DataFrameEntry which is not marked as " +
+                    throw new SerializationException(String.format("Found a DataFrameRecord which is not marked as " +
                                     "'First Record Entry', but no active record is being read. DataFrameAddress = %s",
                             nextEntry.getFrameAddress()));
                 }
@@ -242,9 +237,10 @@ public class DataFrameInputStream extends InputStream {
 
     private void setCurrentFrameEntry(DataFrame.DataFrameEntry nextEntry) throws IOException {
         long dataFrameSequence = nextEntry.getFrameAddress().getSequence();
-        if (this.currentRecordBuilder.lastUsedDataFrameAddress != null && dataFrameSequence < this.currentRecordBuilder.lastUsedDataFrameAddress.getSequence()) {
+        LogAddress lastUsedAddress = this.currentRecordBuilder.getLastUsedDataFrameAddress();
+        if (lastUsedAddress != null && dataFrameSequence < lastUsedAddress.getSequence()) {
             throw new SerializationException(String.format("Invalid DataFrameSequence. Expected at least '%d', found '%d'.",
-                    this.currentRecordBuilder.lastUsedDataFrameAddress.getSequence(), dataFrameSequence));
+                    lastUsedAddress.getSequence(), dataFrameSequence));
         }
 
         if (nextEntry.isLastEntryInDataFrame()) {
@@ -259,8 +255,7 @@ public class DataFrameInputStream extends InputStream {
             this.hasReadAnyData = true;
         }
 
-        this.currentRecordBuilder.entry(new DataFrameReader.ReadResult.EntryInfo(nextEntry.getFrameAddress(),
-                nextEntry.getFrameOffset(), nextEntry.getLength(), nextEntry.isLastEntryInDataFrame()));
+        this.currentRecordBuilder.withEntry(nextEntry.getFrameAddress(), nextEntry.getFrameOffset(), nextEntry.getLength(), nextEntry.isLastEntryInDataFrame());
     }
 
     private DataFrame.DataFrameEntry getNextFrameEntry() throws DurableDataLogException, IOException {
@@ -317,40 +312,6 @@ public class DataFrameInputStream extends InputStream {
 
         this.lastReadFrameSequence = sequence;
         return frameContents;
-    }
-
-    //endregion
-
-    //region RecordInfo
-
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Builder
-    static class RecordInfo {
-        /**
-         * The Address of the Data Frame containing the last segment in this collection.
-         * The return value of this method is irrelevant if hasData() == false.
-         */
-        @Getter
-        private final LogAddress lastUsedDataFrameAddress;
-
-        /**
-         * The Address of the last Data Frame that ends with a segment in this collection.
-         * If the number of segments is 1, then getLastFullDataFrameAddress() == getLastUsedDataFrameAddress().
-         * The return value of this method is irrelevant if hasData() == false.
-         */
-        @Getter
-        private final LogAddress lastFullDataFrameAddress;
-
-        /**
-         * Indicates whether the last segment in this collection is also the last entry in its Data Frame.
-         * The return value of this method is irrelevant if hasData() == false.
-         */
-        @Getter
-        private final boolean lastFrameEntry;
-
-        @Getter
-        @Singular
-        private final List<DataFrameReader.ReadResult.EntryInfo> entries;
     }
 
     //endregion

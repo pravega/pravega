@@ -91,7 +91,7 @@ class DataFrameTestHelpers {
             boolean isLastEntryInFrame = true;
             while ((entry = reader.getNext()) != null) {
 
-                // General DataFrameEntry validation.
+                // General DataFrameRecord validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
                         "Unexpected value returned by getFrameAddress(). " + state.getPosition(),

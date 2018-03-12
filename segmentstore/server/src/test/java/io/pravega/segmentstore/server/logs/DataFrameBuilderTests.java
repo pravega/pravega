@@ -199,7 +199,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         // Read all committed items.
         val reader = new DataFrameReader<TestLogItem>(dataLog, new TestLogItemFactory(), CONTAINER_ID);
         val readItems = new ArrayList<TestLogItem>();
-        DataFrameReader.ReadResult<TestLogItem> readItem;
+        DataFrameRecord<TestLogItem> readItem;
         while ((readItem = reader.getNext()) != null) {
             readItems.add(readItem.getItem());
         }

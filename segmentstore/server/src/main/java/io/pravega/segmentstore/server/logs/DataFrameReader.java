@@ -18,12 +18,7 @@ import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
-import java.util.List;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,13 +27,12 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-public class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
+public class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameRecord<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
     private final LogItemFactory<T> logItemFactory;
     private long lastReadSequenceNumber;
-    private int readEntryCount;
     private boolean closed;
 
     //endregion
@@ -81,10 +75,10 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
     /**
      * Attempts to return the next Operation from the DataFrameLog.
      *
-     * @return A ReadResult with the requested operation. If no more Operations are available, null is returned.
+     * @return A DataFrameRecord with the requested operation. If no more Operations are available, null is returned.
      */
     @Override
-    public ReadResult<T> getNext() throws DataCorruptionException {
+    public DataFrameRecord<T> getNext() throws DataCorruptionException {
         Exceptions.checkNotClosed(this.closed, closed);
 
         try {
@@ -97,7 +91,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
 
                     // Attempt to deserialize the next record. If the serialization was bad, this will throw an exception which we'll pass along.
                     T logItem = this.logItemFactory.deserialize(this.dataFrameInputStream);
-                    DataFrameInputStream.RecordInfo recordInfo = this.dataFrameInputStream.endRecord();
+                    DataFrameRecord.RecordInfo recordInfo = this.dataFrameInputStream.endRecord();
                     long seqNo = logItem.getSequenceNumber();
                     if (seqNo <= this.lastReadSequenceNumber) {
                         throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.",
@@ -105,7 +99,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                     }
 
                     this.lastReadSequenceNumber = seqNo;
-                    return new ReadResult<>(logItem, recordInfo);
+                    return new DataFrameRecord<>(logItem, recordInfo);
                 } catch (DataFrameInputStream.RecordResetException | DataFrameInputStream.NoMoreRecordsException ex) {
                     // We partially "deserialized" a record, but realized it was garbage (a product of a failed, partial
                     // serialization). Discard whatever we have and try again.
@@ -124,90 +118,11 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
             // At this time, we close the reader for any kind of exception. In the future, we may decide to only do this
             // for critical exceptions, such as DataCorruptionException or DataLogNotAvailableException, but be able
             // to recover from other kinds of exceptions.
-            // Since there are many layers of iterators (DataFrame, DataFrameEntry, LogItems), handling an exception at
+            // Since there are many layers of iterators (DataFrame, DataFrameRecord, LogItems), handling an exception at
             // the very top level is problematic, mostly because we would have to "rewind" some of the other iterators
             // to a previous position, otherwise any retries may read the wrong data.
             close();
             throw ex;
-        }
-    }
-
-    //endregion
-
-    //region ReadResult
-
-    /**
-     * Represents a DataFrame Read Result, wrapping a LogItem.
-     */
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    public static class ReadResult<T extends LogItem> {
-        /**
-         * The wrapped Log Operation.
-         */
-        @Getter
-        private final T item;
-
-        private final DataFrameInputStream.RecordInfo recordInfo;
-
-        /**
-         * The Address of the Last Data Frame containing the LogItem. If the LogItem fits on exactly one DataFrame, this
-         * will contain the Address for that Data Frame; if it spans multiple data frames, this stores the last data frame address.
-         */
-        LogAddress getLastUsedDataFrameAddress() {
-            return this.recordInfo.getLastUsedDataFrameAddress();
-        }
-
-        /**
-         * The Address of the Last Data Frame that ends with a part of the LogItem. If
-         * the LogItem fits on exactly one DataFrame, this will return the Address for that Data Frame; if it spans
-         * multiple data frames, it returns the Address of the last Data Frame that ends with a part of the LogItem
-         * (in general, this is the Data Frame immediately preceding that returned by getLastUsedDataFrameAddress()).
-         */
-        LogAddress getLastFullDataFrameAddress() {
-            return this.recordInfo.getLastFullDataFrameAddress();
-        }
-
-        /**
-         * Whether the wrapped LogItem is the last entry in its Data Frame.
-         */
-        boolean isLastFrameEntry() {
-            return this.recordInfo.isLastFrameEntry();
-        }
-
-        /**
-         * An ordered list of EntryInfo objects representing metadata about the actual serialization of this ReadResult item.
-         */
-        public List<EntryInfo> getFrameEntries() {
-            return this.recordInfo.getEntries();
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), this.getLastUsedDataFrameAddress().getSequence(), isLastFrameEntry());
-        }
-
-        /**
-         * Metadata about a particular DataFrameEntry.
-         */
-        @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-        @Getter
-        public static class EntryInfo {
-            /**
-             * Address of the containing DataFrame.
-             */
-            private final LogAddress frameAddress;
-            /**
-             * Offset within the DataFrame.
-             */
-            private final int frameOffset;
-            /**
-             * Contents length.
-             */
-            private final int length;
-            /**
-             * Whether it is the last entry in the DataFrame.
-             */
-            private final boolean lastEntryInDataFrame;
         }
     }
 

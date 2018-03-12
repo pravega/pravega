@@ -128,39 +128,39 @@ class RecoveryProcessor {
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
         try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, this.operationFactory, this.metadata.getContainerId())) {
-            DataFrameReader.ReadResult<Operation> readResult;
+            DataFrameRecord<Operation> dataFrameRecord;
 
             // We can only recover starting from a MetadataCheckpointOperation; find the first one.
             while (true) {
                 // Fetch the next operation.
-                readResult = reader.getNext();
-                if (readResult == null) {
+                dataFrameRecord = reader.getNext();
+                if (dataFrameRecord == null) {
                     // We have reached the end and have not found any MetadataCheckpointOperations.
                     log.warn("{}: Reached the end of the DataFrameLog and could not find any MetadataCheckpointOperations after reading {} Operations and {} Data Frames.",
                             this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
                     break;
-                } else if (readResult.getItem() instanceof MetadataCheckpointOperation) {
+                } else if (dataFrameRecord.getItem() instanceof MetadataCheckpointOperation) {
                     // We found a checkpoint. Start recovering from here.
                     log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data Frames).",
-                            this.traceObjectId, readResult.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
+                            this.traceObjectId, dataFrameRecord.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
                     break;
-                } else if (readResult.isLastFrameEntry()) {
+                } else if (dataFrameRecord.isLastFrameEntry()) {
                     skippedDataFramesCount++;
                 }
 
                 skippedOperationCount++;
                 log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far ({}).",
-                        this.traceObjectId, readResult.getItem());
+                        this.traceObjectId, dataFrameRecord.getItem());
             }
 
             // Now continue with the recovery from here.
-            while (readResult != null) {
-                recordTruncationMarker(readResult);
-                recoverOperation(readResult, metadataUpdater);
+            while (dataFrameRecord != null) {
+                recordTruncationMarker(dataFrameRecord);
+                recoverOperation(dataFrameRecord, metadataUpdater);
                 recoveredItemCount++;
 
                 // Fetch the next operation.
-                readResult = reader.getNext();
+                dataFrameRecord = reader.getNext();
             }
         }
 
@@ -171,9 +171,9 @@ class RecoveryProcessor {
         return recoveredItemCount;
     }
 
-    protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
         // Update Metadata Sequence Number.
-        Operation operation = readResult.getItem();
+        Operation operation = dataFrameRecord.getItem();
         metadataUpdater.setOperationSequenceNumber(operation.getSequenceNumber());
 
         // Update the metadata with the information from the Operation.
@@ -190,20 +190,20 @@ class RecoveryProcessor {
         this.stateUpdater.process(operation);
     }
 
-    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult) {
+    private void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
         // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
         // to do this.
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
         // or it's the last entry in a DataFrame.
-        LogAddress lastFullAddress = readResult.getLastFullDataFrameAddress();
-        LogAddress lastUsedAddress = readResult.getLastUsedDataFrameAddress();
+        LogAddress lastFullAddress = dataFrameRecord.getLastFullDataFrameAddress();
+        LogAddress lastUsedAddress = dataFrameRecord.getLastUsedDataFrameAddress();
         if (lastFullAddress != null && lastFullAddress.getSequence() != lastUsedAddress.getSequence()) {
             // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
             // that ends with a part of it.
-            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
-        } else if (readResult.isLastFrameEntry()) {
+            this.metadata.recordTruncationMarker(dataFrameRecord.getItem().getSequenceNumber(), lastFullAddress);
+        } else if (dataFrameRecord.isLastFrameEntry()) {
             // The operation was the last one in the frame. This is a Truncation Marker.
-            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
+            this.metadata.recordTruncationMarker(dataFrameRecord.getItem().getSequenceNumber(), lastUsedAddress);
         }
     }
 

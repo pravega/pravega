@@ -13,7 +13,7 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.DataFrame;
-import io.pravega.segmentstore.server.logs.DataFrameReader;
+import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -94,8 +94,8 @@ public class ContainerRecoverCommand extends ContainerCommand {
             for (Object o : items) {
                 outputDebugObject(o, indent + 1);
             }
-        } else if (c instanceof DataFrameReader.ReadResult.EntryInfo) {
-            val dfe = (DataFrameReader.ReadResult.EntryInfo) c;
+        } else if (c instanceof DataFrameRecord.EntryInfo) {
+            val dfe = (DataFrameRecord.EntryInfo) c;
             output("%s: Address={%s}, Length=%s, LastInDF=%s, DF.Offset/Length=%d/%d.",
                     prefix, dfe.getFrameAddress(), dfe.isLastEntryInDataFrame(), dfe.getFrameOffset(), dfe.getLength());
         } else if (c instanceof DataFrame) {
@@ -123,9 +123,9 @@ public class ContainerRecoverCommand extends ContainerCommand {
         private int operationCount = 0;
         private int currentFrameUsedLength = 0;
 
-        private void newOperation(Operation op, List<DataFrameReader.ReadResult.EntryInfo> frameEntries) {
+        private void newOperation(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
             for (int i = 0; i < frameEntries.size(); i++) {
-                DataFrameReader.ReadResult.EntryInfo e = frameEntries.get(i);
+                DataFrameRecord.EntryInfo e = frameEntries.get(i);
                 if (this.currentFrameUsedLength == 0) {
                     output("Begin DataFrame: %s.", e.getFrameAddress());
                     this.dataFrameCount++;
