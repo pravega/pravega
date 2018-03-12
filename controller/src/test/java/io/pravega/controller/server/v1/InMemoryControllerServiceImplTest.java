@@ -9,12 +9,13 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -35,6 +36,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -64,9 +66,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory);
+                executorService, "host", connectionFactory,  false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
@@ -77,7 +81,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
@@ -85,7 +89,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      new SegmentHelper(), executorService, mockCluster));
+                                      new SegmentHelper(), executorService, mockCluster), "secret", false);
     }
 
     @Override

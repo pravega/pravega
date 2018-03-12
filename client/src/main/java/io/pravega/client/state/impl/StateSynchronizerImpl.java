@@ -25,8 +25,8 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 @Slf4j
 @ToString(of = { "segment", "currentState" })
