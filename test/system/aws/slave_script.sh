@@ -23,4 +23,5 @@ cd /tmp && git clone https://github.com/$pravegaOrg.git && cd pravega/
 git checkout $branch
 sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk
 sudo chmod 777 /var/run/docker.sock
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && sudo ./gradlew clean --quiet buildPravegaImage -PpravegaBaseTag=nautilus/pravega -PpravegaVersion=$branch  && sudo ./gradlew clean --quiet buildBookkeeperImage -PbookkeeperBaseTag=nautilus/bookkeeper -PpravegaVersion=$branch
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && sudo ./gradlew --warn buildPravegaImage -PpravegaBaseTag=nautilus/pravega -PpravegaVersion=$branch  && sudo ./gradlew --warn buildBookkeeperImage -PbookkeeperBaseTag=nautilus/bookkeeper -PpravegaVersion=$branch
+sudo apt -y install awscli
