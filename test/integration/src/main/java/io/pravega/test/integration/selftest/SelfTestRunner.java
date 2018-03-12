@@ -129,7 +129,9 @@ public class SelfTestRunner {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30))
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30)
+                                      .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
+                                      .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)

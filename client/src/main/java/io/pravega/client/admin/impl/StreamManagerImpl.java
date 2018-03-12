@@ -11,19 +11,18 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import lombok.extern.slf4j.Slf4j;
-
-import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -35,9 +34,10 @@ public class StreamManagerImpl implements StreamManager {
 
     private final ScheduledExecutorService executor; 
     
-    public StreamManagerImpl(URI controllerUri) {
+    public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
+
     }
 
     @VisibleForTesting

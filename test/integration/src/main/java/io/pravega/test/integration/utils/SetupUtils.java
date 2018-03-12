@@ -9,15 +9,11 @@
  */
 package io.pravega.test.integration.utils;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.controller.util.Config;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -25,19 +21,23 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.util.Config;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import com.google.common.base.Preconditions;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-
-import javax.annotation.concurrent.NotThreadSafe;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
 
 /**
  * Utility functions for creating the test setup.
@@ -134,7 +134,7 @@ public final class SetupUtils {
         Preconditions.checkArgument(numSegments > 0);
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(this.controllerUri);
+        StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(this.controllerUri).build());
         streamManager.createScope(this.scope);
         streamManager.createStream(this.scope, streamName,
                 StreamConfiguration.builder()
@@ -156,7 +156,7 @@ public final class SetupUtils {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, this.controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         return clientFactory.createEventWriter(
                 streamName,
                 new IntegerSerializer(),
@@ -174,14 +174,15 @@ public final class SetupUtils {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope, this.controllerUri);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(this.scope,
+                ClientConfig.builder().controllerURI(controllerUri).build());
         final String readerGroup = "testReaderGroup" + this.scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
                 ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(streamName));
 
-        ClientFactory clientFactory = ClientFactory.withScope(this.scope, this.controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(
                 readerGroupId,
