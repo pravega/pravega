@@ -9,12 +9,12 @@
  */
 package io.pravega.client.segment.impl;
 
-import java.util.concurrent.ExecutionException;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import com.google.common.annotations.VisibleForTesting;
-
+import io.pravega.common.concurrent.Futures;
+import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,7 +33,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
-    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment);
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
+    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {

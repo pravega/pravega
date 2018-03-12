@@ -17,13 +17,12 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.SealStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -76,8 +75,9 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments) {
         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                 collect(Collectors.toList());
-        log.info("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
-        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed)
+        log.debug("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
+        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed,
+                this.streamMetadataTasks.retrieveDelegationToken())
                 .thenCompose(v -> setSealed(scope, stream, context));
     }
 

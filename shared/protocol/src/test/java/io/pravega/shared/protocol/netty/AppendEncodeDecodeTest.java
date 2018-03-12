@@ -9,14 +9,21 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-
+import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,16 +32,6 @@ import static io.pravega.shared.protocol.netty.WireCommandType.EVENT;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.ResourceLeakDetector;
-import io.netty.util.ResourceLeakDetector.Level;
-import lombok.Cleanup;
-import lombok.RequiredArgsConstructor;
 
 public class AppendEncodeDecodeTest {
 
@@ -110,7 +107,7 @@ public class AppendEncodeDecodeTest {
         ByteBuf buffer = Unpooled.wrappedBuffer(content);
         Append msg = new Append("segment", writerId, 1, buffer, null);
         CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
-        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment");
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
         
@@ -263,7 +260,7 @@ public class AppendEncodeDecodeTest {
     }
 
     private ArrayList<Object> setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {
-        SetupAppend setupAppend = new SetupAppend(1, writerId, testStream);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, testStream, "");
         encoder.encode(null, setupAppend, fakeNetwork);
         ArrayList<Object> received = new ArrayList<>();
         WireCommand command = CommandDecoder.parseCommand(fakeNetwork);

@@ -95,6 +95,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .secureBK(isSecure())
+                                            .tLSKeyStore("../../../config/bookie.keystore.jks")
+                                            .tLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd")
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();

@@ -9,23 +9,23 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.net.URI;
 
 /**
  * Tests for validating controller fail over behaviour.
@@ -95,7 +95,7 @@ public class ControllerFailoverTest {
         controllerWrapper.awaitRunning();
 
         URI controllerURI = URI.create("tcp://localhost:" + controllerPort);
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        StreamManager streamManager = StreamManager.create( ClientConfig.builder().controllerURI(controllerURI).build());
 
         // Create scope
         streamManager.createScope(SCOPE);

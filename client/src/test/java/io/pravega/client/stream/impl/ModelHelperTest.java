@@ -10,21 +10,19 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.client.stream.RetentionPolicy;
-
-import java.util.Arrays;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -189,7 +187,7 @@ public class ModelHelperTest {
         Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
         inputMap.put(segmentRange, Arrays.asList(1));
 
-        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap);
+        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());
         final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
         assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
