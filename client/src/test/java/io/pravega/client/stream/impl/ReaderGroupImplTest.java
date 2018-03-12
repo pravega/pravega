@@ -119,6 +119,6 @@ public class ReaderGroupImplTest {
     }
 
     private Stream createStream(String streamName) {
-        return new StreamImpl(SCOPE, streamName);
+        return Stream.of(SCOPE, streamName);
     }
 }

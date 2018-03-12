@@ -25,7 +25,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -176,7 +175,7 @@ public class StreamSeekTest {
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
-        Stream stream = new StreamImpl(SCOPE, streamName);
+        Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
         assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
     }
