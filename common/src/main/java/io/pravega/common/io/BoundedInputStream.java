@@ -13,11 +13,13 @@ import com.google.common.base.Preconditions;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
 /**
  * A wrapper for an InputStream that allows reading up to a specified number of bytes.
  */
+@NotThreadSafe
 public class BoundedInputStream extends FilterInputStream {
     //region Members
 
