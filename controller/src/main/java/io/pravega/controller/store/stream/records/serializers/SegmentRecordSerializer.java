@@ -18,7 +18,7 @@ import java.io.IOException;
 
 public class SegmentRecordSerializer extends VersionedSerializer.WithBuilder<SegmentRecord, SegmentRecord.SegmentRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

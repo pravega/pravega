@@ -9,18 +9,9 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.controller.util.Config;
-import io.pravega.common.util.Retry;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.NameUtils;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -29,15 +20,24 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.common.util.Retry;
+import io.pravega.controller.util.Config;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
@@ -55,7 +55,7 @@ public class EndToEndAutoScaleUpTest {
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
 
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -69,7 +69,7 @@ public class EndToEndAutoScaleUpTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder);
+                    statsRecorder, null, null, null);
             server.startListening();
 
             controllerWrapper.awaitRunning();

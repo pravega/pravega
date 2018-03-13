@@ -17,13 +17,12 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing truncation operations received from requeststream.
@@ -54,44 +53,40 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String stream = request.getStream();
 
         return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
-                .thenCompose(property -> streamMetadataStore.getState(scope,  stream, true, context, executor)
+                .thenCompose(property -> streamMetadataStore.getState(scope, stream, true, context, executor)
                     .thenCompose(state -> {
                         if (!property.isUpdating()) {
-                            if (state == State.TRUNCATING) {
-                                log.debug("Truncate task already complete for stream {}/{}. Resetting state back to ACTIVE.", scope, stream);
-                                return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor));
-                            } else {
-                                throw new TaskExceptions.StartException("Truncate Stream not started yet.");
-                            }
+                            throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                         } else {
-                            return processTruncate(scope, stream, property, context);
+                            return processTruncate(scope, stream, property, context,
+                                    this.streamMetadataTasks.retrieveDelegationToken());
                         }
-                }));
+                    }));
     }
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
-                                                    OperationContext context) {
+                                                    OperationContext context, String delegationToken) {
         log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
-                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut()))
-                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete()))
+                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken))
+                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
                  .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, context, executor))
                  .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete) {
-        log.info("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete, String delegationToken) {
+        log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
-                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
+                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken))
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut) {
-        log.info("{}/{} truncating segments", scope, stream);
+    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut, String delegationToken) {
+        log.debug("{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()
-                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut))
+                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut, delegationToken))
                 .collect(Collectors.toList()));
     }
 

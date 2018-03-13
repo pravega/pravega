@@ -23,7 +23,7 @@ import java.io.IOException;
 public class StreamTruncationRecordSerializer
         extends VersionedSerializer.WithBuilder<StreamTruncationRecord, StreamTruncationRecord.StreamTruncationRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

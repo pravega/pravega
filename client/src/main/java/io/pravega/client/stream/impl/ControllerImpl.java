@@ -11,18 +11,23 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
+import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import io.grpc.auth.MoreCallCredentials;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
@@ -56,10 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
-import java.net.URI;
+import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,10 +74,14 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLException;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -98,37 +104,31 @@ public class ControllerImpl implements Controller {
     // Flag to indicate if the client is closed.
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    // The gRPC client for the Controller Service.
-    private final ControllerServiceGrpc.ControllerServiceStub client;
-
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
+
+    // The gRPC client for the Controller Service.
+    private final ControllerServiceGrpc.ControllerServiceStub client;
 
     /**
      * Creates a new instance of the Controller client class.
      *
-     * @param controllerURI The controller rpc URI. This can be of 2 types
-     *                      1. tcp://ip1:port1,ip2:port2,...
-     *                          This is used if the controller endpoints are static and can be directly accessed.
-     *                      2. pravega://ip1:port1,ip2:port2,...
-     *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      * @param config        The configuration for this client implementation.
      * @param executor      The executor service to be used for handling retries.
      */
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
+    public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(NettyChannelBuilder.forTarget(controllerURI.toString())
-                .nameResolverFactory(new ControllerResolverFactory())
-                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true), config, executor);
-        log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
+        this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
+                                .nameResolverFactory(new ControllerResolverFactory())
+                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
+                config, executor);
+        log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
     }
 
     /**
      * Creates a new instance of the Controller client class.
-     *
-     * @param channelBuilder The channel builder to connect to the service instance.
+     *  @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
      */
@@ -139,12 +139,34 @@ public class ControllerImpl implements Controller {
         this.executor = executor;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
-                .retryingOn(StatusRuntimeException.class)
-                .throwingOn(Exception.class);
+                                .retryingOn(StatusRuntimeException.class)
+                                .throwingOn(Exception.class);
 
+        if (config.getClientConfig().isEnableTls()) {
+            SslContextBuilder sslContextBuilder = null;
+            String trustStore = config.getClientConfig().getTrustStore();
+            sslContextBuilder = GrpcSslContexts.forClient();
+            if (!Strings.isNullOrEmpty(trustStore)) {
+                sslContextBuilder = sslContextBuilder.trustManager(new File(trustStore));
+            }
+            try {
+                channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
+                                                                       .negotiationType(NegotiationType.TLS);
+            } catch (SSLException e) {
+                throw new CompletionException(e);
+            }
+        } else {
+            channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
+        }
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        this.client = ControllerServiceGrpc.newStub(this.channel);
+        ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
+        Credentials credentials = config.getClientConfig().getCredentials();
+        if (credentials != null) {
+            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
+            client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
+        }
+        this.client = client;
     }
 
     @Override
@@ -302,7 +324,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        return truncateStream(scope, stream, streamCut.getPositions().entrySet()
+        return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
     }
 
@@ -590,7 +612,7 @@ public class ControllerImpl implements Controller {
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                 result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
-            return new StreamSegmentsWithPredecessors(result);
+            return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {
             if (e != null) {
                 log.warn("getSuccessors failed: ", e);
@@ -598,18 +620,20 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
     }
-    
+
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Stream stream = from.getStream();
+        Stream stream = from.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
+        HashSet<Segment> unread = new HashSet<>(from.asImpl().getPositions().keySet());
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
-                                                     RuntimeException::new);
-        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
+                RuntimeException::new);
+
+        String delegationToken = currentSegments.getDelegationToken();
+        unread.addAll(computeKnownUnreadSegments(currentSegments, from));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : from.getPositions().keySet()) {
+        for (Segment toFetch : from.asImpl().getPositions().keySet()) {
             if (!unread.contains(toFetch)) {
                 toFetchSuccessors.add(toFetch);
             }
@@ -627,18 +651,18 @@ public class ControllerImpl implements Controller {
             }
         }
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
-        return CompletableFuture.completedFuture(unread);
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(unread, delegationToken));
     }
-    
+
     private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
-        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int highestCut = from.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }
         List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
         for (int num = highestCut + 1; num < lowestCurrent; num++) {
-            result.add(new Segment(from.getStream().getScope(), from.getStream().getStreamName(), num));
+            result.add(new Segment(from.asImpl().getStream().getScope(), from.asImpl().getStream().getStreamName(), num));
         }
         return result;
     }
@@ -656,19 +680,18 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ranges -> {
-                    log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges.getSegmentRangesList()) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                }).thenApply(StreamSegments::new)
-                .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("getCurrentSegments failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-                });
+            log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
+            NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+            for (SegmentRange r : ranges.getSegmentRangesList()) {
+                rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            }
+            return new StreamSegments(rangeMap, ranges.getDelegationToken());
+        }).whenComplete((x, e) -> {
+                         if (e != null) {
+                             log.warn("getCurrentSegments failed: ", e);
+                         }
+                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+                     });
     }
 
     @Override
@@ -749,7 +772,7 @@ public class ControllerImpl implements Controller {
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap);
+        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
@@ -863,6 +886,28 @@ public class ControllerImpl implements Controller {
         if (!closed.getAndSet(true)) {
             this.channel.shutdownNow(); // Initiates a shutdown of channel.
         }
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(streamName, "stream");
+        long traceId = LoggerHelpers.traceEnter(log, "getOrRefreshDelegationTokenFor", scope, streamName);
+
+        final CompletableFuture<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> callback = new RPCAsyncCallback<>();
+            client.getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
+            return callback.getFuture();
+        }, this.executor);
+
+        return result.thenApply( token -> token.getDelegationToken())
+        .whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getCurrentSegments failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+        });
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

@@ -19,7 +19,7 @@ import java.io.IOException;
 
 public class StateRecordSerializer extends VersionedSerializer.WithBuilder<StateRecord, StateRecord.StateRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

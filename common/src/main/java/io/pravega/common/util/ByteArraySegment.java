@@ -9,10 +9,10 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

@@ -21,7 +21,7 @@ import java.io.IOException;
 public class StreamCutRecordSerializer
         extends VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecord.StreamCutRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

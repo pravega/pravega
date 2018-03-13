@@ -13,14 +13,13 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import org.apache.commons.lang3.NotImplementedException;
 
 /**
  * Mock EventStreamWriter.
@@ -52,7 +51,7 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
 
     @Override
     public EventWriterConfig getConfig() {
-        throw new NotImplementedException("getConfig");
+        throw new NotImplementedException("getClientConfig");
     }
 
     @Override

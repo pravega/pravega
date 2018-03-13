@@ -21,7 +21,7 @@ import java.util.ArrayList;
 
 public class HistoryRecordSerializer extends VersionedSerializer.WithBuilder<HistoryRecord, HistoryRecord.HistoryRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

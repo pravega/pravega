@@ -21,7 +21,7 @@ import java.util.ArrayList;
 public class RetentionRecordSerializer
         extends VersionedSerializer.WithBuilder<RetentionRecord, RetentionRecord.RetentionRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

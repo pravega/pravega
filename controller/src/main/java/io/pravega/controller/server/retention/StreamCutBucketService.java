@@ -20,8 +20,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
@@ -34,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class StreamCutBucketService extends AbstractService implements BucketChangeListener {
@@ -130,7 +129,8 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
-                        config.getRetentionPolicy(), System.currentTimeMillis(), context))
+                        config.getRetentionPolicy(), System.currentTimeMillis(), context,
+                        this.streamMetadataTasks.retrieveDelegationToken()))
                 .exceptionally(e -> {
                     log.warn("Exception thrown while performing auto retention for stream {} ", stream, e);
                     throw new CompletionException(e);

@@ -20,7 +20,7 @@ import java.io.IOException;
 public class ActiveTxnRecordSerializer
         extends VersionedSerializer.WithBuilder<ActiveTxnRecord, ActiveTxnRecord.ActiveTxnRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 

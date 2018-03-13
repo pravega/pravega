@@ -30,7 +30,7 @@ public class StreamConfigurationRecordSerializer
         extends VersionedSerializer.WithBuilder<StreamConfigurationRecord,
         StreamConfigurationRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 
@@ -74,7 +74,7 @@ public class StreamConfigurationRecordSerializer
             VersionedSerializer.WithBuilder<ScalingPolicyRecord,
                     ScalingPolicyRecordBuilder> {
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 
@@ -121,7 +121,7 @@ public class StreamConfigurationRecordSerializer
     public static class RetentionPolicyRecordSerializer extends
             VersionedSerializer.WithBuilder<RetentionPolicyRecord, RetentionPolicyRecordBuilder> {
         @Override
-        protected byte writeVersion() {
+        protected byte getWriteVersion() {
             return 0;
         }
 

@@ -28,7 +28,7 @@ import java.util.Optional;
 public class EpochTransitionRecordSerializer
         extends VersionedSerializer.WithBuilder<EpochTransitionRecord, EpochTransitionRecord.EpochTransitionRecordBuilder> {
     @Override
-    protected byte writeVersion() {
+    protected byte getWriteVersion() {
         return 0;
     }
 
