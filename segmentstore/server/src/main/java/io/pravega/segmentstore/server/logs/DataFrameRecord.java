@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.segmentstore.server.LogItem;
+import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.List;
 import lombok.AccessLevel;
@@ -22,7 +22,7 @@ import lombok.Singular;
  * Represents a DataFrame Read Result, wrapping a LogItem.
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-public class DataFrameRecord<T extends LogItem> {
+public class DataFrameRecord<T extends SequencedItemList.Element> {
     /**
      * The wrapped Log Operation.
      */

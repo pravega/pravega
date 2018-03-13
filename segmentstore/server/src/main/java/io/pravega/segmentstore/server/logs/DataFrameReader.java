@@ -26,10 +26,11 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-class DataFrameReader<T extends SequencedItemList.Element> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
+class DataFrameReader<T extends SequencedItemList.Element> implements CloseableIterator<DataFrameRecord<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
+    private final Serializer<T> serializer;
     private long lastReadSequenceNumber;
     private boolean closed;
 
@@ -50,6 +51,7 @@ class DataFrameReader<T extends SequencedItemList.Element> implements CloseableI
         Preconditions.checkNotNull(log, "log");
         Preconditions.checkNotNull(serializer, "serializer");
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+        this.dataFrameInputStream = new DataFrameInputStream(log.getReader(), String.format("DataFrameReader[%d]", containerId));
         this.serializer = serializer;
     }
 
@@ -87,7 +89,7 @@ class DataFrameReader<T extends SequencedItemList.Element> implements CloseableI
                     }
 
                     // Attempt to deserialize the next record. If the serialization was bad, this will throw an exception which we'll pass along.
-                    T logItem = this.logItemFactory.deserialize(this.dataFrameInputStream);
+                    T logItem = this.serializer.deserialize(this.dataFrameInputStream);
                     DataFrameRecord.RecordInfo recordInfo = this.dataFrameInputStream.endRecord();
                     long seqNo = logItem.getSequenceNumber();
                     if (seqNo <= this.lastReadSequenceNumber) {
