@@ -139,7 +139,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception got thrown.
      */
     public void resumeZooKeeper() throws Exception {
-        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore);
+        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore, this.tLSKeyStorePasswordPath);
         if (this.zkServer.compareAndSet(null, zk)) {
             // Initialize ZK runner (since nobody else did it for us).
             zk.initialize();
@@ -179,7 +179,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
             System.setProperty("zookeeper.ssl.trustStore.location", this.tlsTrustStore);
             //TODO: Read from a config parameter
-            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(this.tLSKeyStorePasswordPath));
         }
 
         @Cleanup
@@ -201,6 +201,20 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         znodePath.append("available");
         zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+    }
+
+    private String loadPasswdFromFile(String tLSKeyStorePasswordPath) {
+            byte[] pwd;
+            File passwdFile = new File(tLSKeyStorePasswordPath);
+            if (passwdFile.length() == 0) {
+                return "";
+            }
+            try {
+                pwd = FileUtils.readFileToByteArray(passwdFile);
+            } catch (IOException e) {
+                return "";
+            }
+            return new String(pwd).trim();
     }
 
     private void runBookies() throws Exception {

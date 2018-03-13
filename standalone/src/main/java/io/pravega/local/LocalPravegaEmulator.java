@@ -26,7 +26,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
                 .isInProcZK(true)
-                //TODO: Look for having a different flag for enabling just ZK.
                 .secureZK(enableTls)
                 .zkUrl("localhost:" + zkPort)
                 .zkPort(zkPort)

@@ -194,8 +194,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        //TODO: Read these from the config/parameter files..
-        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, "../config/bookie.keystore.jks");
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, "../config/bookie.keystore.jks", "../config/bookie.keystore.jks.passwd");
         zkService.initialize();
         zkService.start();
     }
@@ -306,7 +305,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private ControllerServiceMain startLocalController(int controllerId) {
-        //TODO: Read these from the config/parameter files..
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                 .connectionString(zkUrl)
                 .namespace("pravega/" + clusterName)

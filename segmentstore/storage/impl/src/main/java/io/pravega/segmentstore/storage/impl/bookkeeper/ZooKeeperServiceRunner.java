@@ -32,6 +32,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_ZK_PORT = "zkPort";
     private static final String PROPERTY_SECURE_ZK = "secureZK";
     private static final String PROPERTY_ZK_KEY_STORE = "zkKeyStore";
+    private static final String PROPERTY_ZK_KEY_STORE_PASSWD = "zkKeyStorePasswd";
 
     //  private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
@@ -39,6 +40,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     private final int zkPort;
     private final boolean secureZK;
     private final String keyStore;
+    private final String keyStorePasswd;
     private final AtomicReference<File> tmpDir = new AtomicReference<>();
 
     @Override
@@ -67,8 +69,22 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
 
             System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
             //TODO: Read these from the config/parameter files..
-            System.setProperty("zookeeper.ssl.keyStore.password", "1111_aaaa");
+            System.setProperty("zookeeper.ssl.keyStore.password", loadPasswdFromFile(this.keyStorePasswd));
         }
+    }
+
+    private String loadPasswdFromFile(String keyStorePasswd) {
+        byte[] pwd;
+        File passwdFile = new File(keyStorePasswd);
+        if (passwdFile.length() == 0) {
+            return "";
+        }
+        try {
+            pwd = FileUtils.readFileToByteArray(passwdFile);
+        } catch (IOException e) {
+            return "";
+        }
+        return new String(pwd).trim();
     }
 
     /**
@@ -202,10 +218,12 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         int zkPort;
         boolean secureZK = false;
         String zkKeyStore;
+        String zkKeyStorePasswd = null;
         try {
             zkPort = Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT));
             secureZK = Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_ZK, "false"));
             zkKeyStore = System.getProperty(PROPERTY_ZK_KEY_STORE);
+            zkKeyStorePasswd = System.getProperty(PROPERTY_ZK_KEY_STORE_PASSWD);
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int). (%s)",
                     PROPERTY_ZK_PORT, ex.getMessage()));
@@ -213,7 +231,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             return;
         }
 
-        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort, secureZK, zkKeyStore);
+        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort, secureZK, zkKeyStore, zkKeyStorePasswd);
         runner.initialize();
         runner.start();
         Thread.sleep(Long.MAX_VALUE);
