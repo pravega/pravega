@@ -10,6 +10,7 @@
 package io.pravega.test.integration.endtoendtest;
 
 import com.google.common.collect.Lists;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -35,18 +36,18 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -107,7 +108,9 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup

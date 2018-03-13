@@ -49,7 +49,7 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
         ClientConnection c = mock(ClientConnection.class);
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
@@ -62,6 +62,12 @@ public class AsyncSegmentInputStreamTest {
                 return null;            
             }
         }).doAnswer(new Answer<Void>() {
+        @Override
+        public Void answer(InvocationOnMock invocation) throws Throwable {
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100));
+            return null;
+        }
+        }).doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 connectionFactory.getProcessor(endpoint).segmentRead(segmentRead);
@@ -72,9 +78,11 @@ public class AsyncSegmentInputStreamTest {
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
+        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""));
         inOrder.verify(c).close();
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
+        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""));
+        inOrder.verify(c).close();
+        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,   5678, ""));
         verifyNoMoreInteractions(c);
     }
     
@@ -85,7 +93,7 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         in.getConnection().get(); // Make sure connection is established.
@@ -104,7 +112,7 @@ public class AsyncSegmentInputStreamTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
 
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         
@@ -114,7 +122,7 @@ public class AsyncSegmentInputStreamTest {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentRead(segmentRead);            
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
+        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""));
         assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(segmentRead, readFuture.join());
         verifyNoMoreInteractions(c);
@@ -129,7 +137,7 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment, "");
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
@@ -138,7 +146,7 @@ public class AsyncSegmentInputStreamTest {
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad)));            
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good)));         
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
+        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""));
         assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(ByteBuffer.wrap(good), readFuture.join().getData());
         verifyNoMoreInteractions(c);
