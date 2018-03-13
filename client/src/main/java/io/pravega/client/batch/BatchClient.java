@@ -31,15 +31,9 @@ public interface BatchClient {
 
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
-     * i) If only fromStreamCut is provided then
-     *      - All segments up to the tail of the stream are returned.
-     *      - StreamSegmentsInfo.endStreamCut is populated with the effective end point of the stream.
-     * ii) If only toStreamCut is provided then
-     *      - All segments from the start of the stream to toStreamCut are returned.
-     *      - StreamSegmentsInfo.startStreamCut is populated with the stream cut which points to start of the stream.
-     * iii) If neither fromStreamCut nor toStreamCut are specified
-     *      - then all segments from the start of the stream upto the current tail of the stream are returned.
-
+     * Passing null to fromStreamCut and toStreamCut will result in using the start of stream and the current end of
+     * stream respectively.
+     *
      * @param stream the stream.
      * @param fromStreamCut starting stream cut.
      * @param toStreamCut end stream cut.

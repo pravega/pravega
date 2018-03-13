@@ -66,16 +66,10 @@ public class SegmentRangeImpl implements SegmentRange {
         return this;
     }
 
-    public static SegmentRangeImpl.SegmentRangeImplBuilder builder() {
-        return new SegmentRangeBuilderWithValidation();
-    }
-
-    private static class SegmentRangeBuilderWithValidation extends SegmentRangeImplBuilder {
-        @Override
+    public static final class SegmentRangeImplBuilder {
         public SegmentRangeImpl build() {
-            Preconditions.checkState(super.startOffset <= super.endOffset,
-                    "Start offset should be less than end offset.");
-            return super.build();
+            Preconditions.checkState(startOffset <= endOffset, "Start offset should be less than end offset.");
+            return new SegmentRangeImpl(segment, startOffset, endOffset);
         }
     }
 }

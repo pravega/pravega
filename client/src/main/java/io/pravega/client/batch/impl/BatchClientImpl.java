@@ -101,7 +101,7 @@ public class BatchClientImpl implements BatchClient {
                 CompletableFuture.completedFuture(endStreamCut.get()) : fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
-        CompletableFuture<StreamSegmentsInfoImpl> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
+        CompletableFuture<StreamSegmentsInfo> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
                 (startSC, endSC) -> getStreamSegmentInfo(startSC, endSC));
         return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
     }
@@ -121,7 +121,7 @@ public class BatchClientImpl implements BatchClient {
                          });
     }
 
-    private StreamSegmentsInfoImpl getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+    private StreamSegmentsInfo getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
         log.debug("Start stream cut: {}, End stream cut: {}", startStreamCut, endStreamCut);
         StreamSegmentsInfoImpl.validateStreamCuts(startStreamCut, endStreamCut);
 

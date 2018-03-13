@@ -36,10 +36,6 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
     @NonNull
     private final Iterator<SegmentRange> segmentRangeIterator;
 
-    public static StreamSegmentsInfoImplBuilder builder() {
-        return new StreamSegmentsImplValidator();
-    }
-
     @Override
     public Iterator<SegmentRange> getSegmentRangeIterator() {
         return segmentRangeIterator;
@@ -50,11 +46,10 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
         return this;
     }
 
-    private static class StreamSegmentsImplValidator extends StreamSegmentsInfoImplBuilder {
-        @Override
+    public static final class StreamSegmentsInfoImplBuilder {
         public StreamSegmentsInfoImpl build() {
-            validateStreamCuts(super.startStreamCut, super.endStreamCut);
-            return super.build();
+            validateStreamCuts(startStreamCut, endStreamCut);
+            return new StreamSegmentsInfoImpl(startStreamCut, endStreamCut, segmentRangeIterator);
         }
     }
 
