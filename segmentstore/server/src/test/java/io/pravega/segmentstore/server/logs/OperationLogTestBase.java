@@ -38,9 +38,9 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -414,20 +414,14 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     //region FailedStreamSegmentAppendOperation
 
     static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
-        private final boolean failAtBeginning;
 
-        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
+        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base) {
             super(base.getStreamSegmentId(), base.getData(), base.getAttributeUpdates());
-            this.failAtBeginning = failAtBeginning;
         }
 
         @Override
-        protected void serializeContent(DataOutputStream target) throws IOException {
-            if (!this.failAtBeginning) {
-                super.serializeContent(target);
-            }
-
-            throw new IOException("intentional failure");
+        public long getStreamSegmentId() {
+            throw new IntentionalException("intentional failure");
         }
     }
 

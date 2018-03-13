@@ -54,6 +54,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -295,7 +296,7 @@ public class DurableLogTests extends OperationLogTestBase {
         for (int i = 0; i < operations.size(); i++) {
             if (operations.get(i) instanceof StreamSegmentAppendOperation) {
                 if ((appendCount++) % failAppendFrequency == 0) {
-                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i), i % 2 == 0));
+                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i)));
                     failedOperationIndices.add(i);
                 }
             }
@@ -308,7 +309,7 @@ public class DurableLogTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
+                ex -> ex instanceof IntentionalException);
 
         // Verify that the "right" operations failed, while the others succeeded.
         for (int i = 0; i < completionFutures.size(); i++) {
@@ -317,7 +318,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();

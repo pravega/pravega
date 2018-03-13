@@ -9,35 +9,31 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.util.Config;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-
+import io.pravega.controller.util.Config;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
@@ -49,6 +45,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
@@ -83,6 +83,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
+    private final boolean authorizationEnabled;
+    private final String tokenSigningKey;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -98,13 +100,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -115,7 +121,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory, boolean authorizationEnabled, String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -123,6 +129,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -131,9 +139,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory);
+                TimeoutServiceConfig.defaultConfig(), connectionFactory, authorizationEnabled, tokenSigningKey);
     }
 
     protected void setReady() {
@@ -626,7 +636,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory), executor);
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -641,6 +651,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final String stream,
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+    }
+
+    public String retrieveDelegationToken() {
+        if (authorizationEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
     }
 
     @Override

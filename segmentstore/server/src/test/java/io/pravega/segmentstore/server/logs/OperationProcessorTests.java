@@ -27,7 +27,7 @@ import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -45,6 +45,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -226,7 +227,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         for (int i = 0; i < operations.size(); i++) {
             if (operations.get(i) instanceof StreamSegmentAppendOperation) {
                 if ((appendCount++) % failAppendFrequency == 0) {
-                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i), i % 2 == 0));
+                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i)));
                     failedOperationIndices.add(i);
                 }
             }
@@ -248,7 +249,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
+                ex -> ex instanceof IntentionalException);
 
         // Verify that the "right" operations failed, while the others succeeded.
         for (int i = 0; i < completionFutures.size(); i++) {
@@ -257,7 +258,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();
@@ -541,7 +542,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                                       .collect(Collectors.toList());
 
         @Cleanup
-        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
+        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
         if (successfulOps.size() > 0) {
             // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.

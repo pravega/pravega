@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.segmentstore.server.LogItem;
-import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
+import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.SortedIndex;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
@@ -37,11 +37,12 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @NotThreadSafe
-class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
+class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoCloseable {
     //region Members
 
     private final DataFrameOutputStream outputStream;
     private final DurableDataLog targetLog;
+    private final Serializer<T> serializer;
     private final Args args;
     private final AtomicBoolean closed;
     private long lastSerializedSequenceNumber;
@@ -57,11 +58,13 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *
      * @param targetLog     A Function that, given a DataFrame, commits that DataFrame to a DurableDataLog and returns
      *                      a Future that indicates when the operation completes or errors out.
+     * @param serializer    Log Item Serializer to use.
      * @param args          Arguments for the Builder.
      * @throws NullPointerException If any of the arguments are null.
      */
-    DataFrameBuilder(DurableDataLog targetLog, Args args) {
+    DataFrameBuilder(DurableDataLog targetLog, Serializer<T> serializer, Args args) {
         this.targetLog = Preconditions.checkNotNull(targetLog, "targetLog");
+        this.serializer = Preconditions.checkNotNull(serializer, "serializer");
         this.args = Preconditions.checkNotNull(args, "args");
         Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
         Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
@@ -137,7 +140,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
             // Completely serialize the entry. Note that this may span more than one Data Frame.
             this.lastStartedSequenceNumber = seqNo;
-            logItem.serialize(this.outputStream);
+            this.serializer.serialize(this.outputStream, logItem);
 
             // Indicate to the output stream that have finished writing the record.
             this.outputStream.endRecord();

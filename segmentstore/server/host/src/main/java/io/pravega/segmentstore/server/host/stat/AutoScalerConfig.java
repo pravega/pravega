@@ -13,11 +13,10 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
-import lombok.Data;
-import lombok.Getter;
-
 import java.net.URI;
 import java.time.Duration;
+import lombok.Data;
+import lombok.Getter;
 
 @Data
 public class AutoScalerConfig {
@@ -27,6 +26,12 @@ public class AutoScalerConfig {
     public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cacheCleanUpInSeconds", 5 * 60);
     public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cacheExpiryInSeconds", 20 * 60);
     public static final Property<String> CONTROLLER_URI = Property.named("controllerUri", "tcp://localhost:9090");
+    public static final Property<Boolean> TLS_ENABLED = Property.named("tlsEnabled", false);
+    public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
+    public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
+    public static final Property<String> AUTH_USERNAME = Property.named("authUsername", "");
+    public static final Property<String> AUTH_PASSWORD = Property.named("authPassword", "");
+    public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -69,6 +74,40 @@ public class AutoScalerConfig {
     @Getter
     private final Duration cacheCleanup;
 
+    /**
+     * Flag to represent the case where interactions with controller are encrypted with TLS.
+     */
+    @Getter
+    private final boolean tlsEnabled;
+
+    /**
+     * The X.509 certificate file used for TLS connection to controller.
+     */
+    @Getter
+    private final String tlsCertFile;
+
+    /**
+     * Flag to represent the case where controller expects authorization details.
+     */
+    @Getter
+    private final boolean authEnabled;
+
+    /**
+     * Password for connection to Controller.
+     */
+    @Getter
+    private final String authPassword;
+    /**
+     * Username for connection to Controller.
+     */
+    @Getter
+    private final String authUsername;
+    /**
+     *
+     */
+    @Getter
+    private final String tokenSigningKey;
+
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
         this.cooldownDuration = Duration.ofSeconds(properties.getInt(COOLDOWN_IN_SECONDS));
@@ -76,6 +115,12 @@ public class AutoScalerConfig {
         this.cacheCleanup = Duration.ofSeconds(properties.getInt(CACHE_CLEANUP_IN_SECONDS));
         this.cacheExpiry = Duration.ofSeconds(properties.getInt(CACHE_EXPIRY_IN_SECONDS));
         this.controllerUri = URI.create(properties.get(CONTROLLER_URI));
+        this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
+        this.authEnabled = properties.getBoolean(AUTH_ENABLED);
+        this.authUsername = properties.get(AUTH_USERNAME);
+        this.authPassword = properties.get(AUTH_PASSWORD);
+        this.tlsCertFile = properties.get(TLS_CERT_FILE);
+        this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {

@@ -25,10 +25,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+
 import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.REST_PORT;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {

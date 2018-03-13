@@ -9,12 +9,16 @@
  */
 package io.pravega.controller.server.rpc.grpc;
 
-import io.pravega.common.LoggerHelpers;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import java.io.File;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -26,6 +30,8 @@ public class GRPCServer extends AbstractIdleService {
     private final String objectId;
     private final Server server;
     private final GRPCServerConfig config;
+    @Getter
+    private final PravegaAuthManager pravegaAuthManager;
 
     /**
      * Create gRPC server on the specified port.
@@ -36,10 +42,21 @@ public class GRPCServer extends AbstractIdleService {
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
-        this.server = ServerBuilder
+        ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
-                .addService(new ControllerServiceImpl(controllerService))
-                .build();
+                .addService(new ControllerServiceImpl(controllerService, serverConfig.getTokenSigningKey(), serverConfig.isAuthorizationEnabled()));
+        if (serverConfig.isAuthorizationEnabled()) {
+            this.pravegaAuthManager = new PravegaAuthManager(serverConfig);
+            this.pravegaAuthManager.registerInterceptors(builder);
+        } else {
+            this.pravegaAuthManager = null;
+        }
+
+        if (serverConfig.isTlsEnabled() && !Strings.isNullOrEmpty(serverConfig.getTlsCertFile())) {
+            builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
+                    new File(serverConfig.getTlsKeyFile()));
+        }
+        this.server = builder.build();
     }
 
     /**

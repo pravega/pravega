@@ -24,6 +24,7 @@ import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.QueueStats;
@@ -97,7 +98,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.commitQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
-        this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+        this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
     }
 

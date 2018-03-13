@@ -16,7 +16,7 @@ RUN apt-get update \
 &&  mkdir -p /opt \
 &&  cd /opt
 
-ENV BOOKKEEPER_VERSION=4.5.0 \
+ENV BOOKKEEPER_VERSION=4.6.1 \
     ZOOKEEPER_VERSION=3.5.3-beta
 
 RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \

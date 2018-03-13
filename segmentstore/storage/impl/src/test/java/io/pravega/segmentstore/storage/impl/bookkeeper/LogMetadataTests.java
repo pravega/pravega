@@ -189,7 +189,7 @@ public class LogMetadataTests {
      * Tests serialization/deserialization.
      */
     @Test(timeout = 5000)
-    public void testSerialization() {
+    public void testSerialization() throws Exception {
         Supplier<Long> nextLedgerId = new AtomicLong()::incrementAndGet;
         LogMetadata m1 = null;
         val lacs = new HashMap<Long, Long>();
@@ -208,8 +208,8 @@ public class LogMetadataTests {
         }
 
         m1 = m1.updateLedgerStatus(lacs);
-        val serialization = m1.serialize();
-        val m2 = LogMetadata.deserialize(serialization);
+        val serialization = LogMetadata.SERIALIZER.serialize(m1);
+        val m2 = LogMetadata.SERIALIZER.deserialize(serialization);
 
         Assert.assertEquals("Unexpected epoch.", m1.getEpoch(), m2.getEpoch());
         Assert.assertEquals("Unexpected TruncationAddress.", m1.getTruncationAddress().getSequence(), m2.getTruncationAddress().getSequence());

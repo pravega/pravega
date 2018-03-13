@@ -10,11 +10,10 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +24,6 @@ import java.util.UUID;
 public class TransactionMapOperation extends MetadataOperation implements StreamSegmentMapping {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     private long parentStreamSegmentId;
     private long streamSegmentId;
     private String streamSegmentName;
@@ -54,8 +52,10 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         this.attributes = transSegmentInfo.getAttributes();
     }
 
-    protected TransactionMapOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private TransactionMapOperation() {
     }
 
     //endregion
@@ -111,38 +111,6 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
         return this.attributes;
     }
 
-    //endregion
-
-    //region Operation Implementation
-
-    @Override
-    protected OperationType getOperationType() {
-        return OperationType.TransactionMap;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "TransactionStreamSegment Id has not been assigned for this entry.");
-        target.writeByte(CURRENT_VERSION);
-        target.writeLong(this.parentStreamSegmentId);
-        target.writeLong(this.streamSegmentId);
-        target.writeUTF(this.streamSegmentName);
-        target.writeLong(this.length);
-        target.writeBoolean(this.sealed);
-        AttributeSerializer.serialize(this.attributes, target);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        this.parentStreamSegmentId = source.readLong();
-        this.streamSegmentId = source.readLong();
-        this.streamSegmentName = source.readUTF();
-        this.length = source.readLong();
-        this.sealed = source.readBoolean();
-        this.attributes = AttributeSerializer.deserialize(source);
-    }
-
     @Override
     public String toString() {
         return String.format(
@@ -156,4 +124,52 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     }
 
     //endregion
+
+    static class Serializer extends OperationSerializer<TransactionMapOperation> {
+        private static final int STATIC_LENGTH = 4 * Long.BYTES + Byte.BYTES;
+
+        @Override
+        protected OperationBuilder<TransactionMapOperation> newBuilder() {
+            return new OperationBuilder<>(new TransactionMapOperation());
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        @Override
+        protected void beforeSerialization(TransactionMapOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    "TransactionStreamSegment Id has not been assigned.");
+        }
+
+        private void write00(TransactionMapOperation o, RevisionDataOutput target) throws IOException {
+            target.length(STATIC_LENGTH + target.getUTFLength(o.streamSegmentName)
+                    + target.getMapLength(o.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.parentStreamSegmentId);
+            target.writeLong(o.streamSegmentId);
+            target.writeUTF(o.streamSegmentName);
+            target.writeLong(o.length);
+            target.writeBoolean(o.sealed);
+            target.writeMap(o.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<TransactionMapOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.parentStreamSegmentId = source.readLong();
+            b.instance.streamSegmentId = source.readLong();
+            b.instance.streamSegmentName = source.readUTF();
+            b.instance.length = source.readLong();
+            b.instance.sealed = source.readBoolean();
+            b.instance.attributes = source.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
+        }
+    }
 }

@@ -17,6 +17,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -26,6 +27,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -79,7 +81,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
-    
+    private final String delegationToken;
+
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -412,6 +415,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void processingFailure(Exception error) {
             failConnection(error);
         }
+
+        @Override
+        public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+            log.warn("Auth failed {}", authTokenCheckFailed);
+            failConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+        }
     }
 
     /**
@@ -529,7 +538,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName, delegationToken);
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {

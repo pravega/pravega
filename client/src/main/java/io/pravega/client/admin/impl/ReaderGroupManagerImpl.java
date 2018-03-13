@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -27,7 +28,6 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Set;
 import lombok.Lombok;
@@ -47,10 +47,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
-    public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
+
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }

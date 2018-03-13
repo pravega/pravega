@@ -9,9 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-
 /**
  * No-op operation that can be used as an "operation barrier". This can be added to the Log and when it completes, the
  * caller knows that all operations up to, and including it, have been completed (successfully or not). This operation
@@ -27,20 +24,5 @@ public class ProbeOperation extends Operation {
         // We cannot (and should not) process this operation in the log. It serves no real purpose except as a control
         // op (see class-level doc).
         return false;
-    }
-
-    @Override
-    protected OperationType getOperationType() {
-        return OperationType.Probe;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized.");
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be deserialized.");
     }
 }
