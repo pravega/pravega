@@ -10,20 +10,24 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.io.SerializationException;
-import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.test.common.ErrorInjector;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
- * LogItemFactory for TestLogItem.
+ * Serializer for TestLogItem.
  */
-class TestLogItemFactory implements LogItemFactory<TestLogItem> {
+class TestSerializer implements Serializer<TestLogItem> {
     private ErrorInjector<SerializationException> deserializationErrorInjector;
 
     void setDeserializationErrorInjector(ErrorInjector<SerializationException> injector) {
         this.deserializationErrorInjector = injector;
+    }
+
+    @Override
+    public void serialize(OutputStream output, TestLogItem item) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override

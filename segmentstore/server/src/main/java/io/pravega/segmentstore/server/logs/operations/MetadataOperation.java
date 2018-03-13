@@ -9,26 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-
 /**
  * Log Operation that deals with Metadata Operations. This is generally an internal-only operation and is not necessarily
  * the direct outcome of an external call.
  */
 public abstract class MetadataOperation extends Operation {
-    //region Constructor
 
-    /**
-     * Creates a new instance of the MetadataOperation class.
-     */
-    MetadataOperation() {
-        super();
-    }
-
-    MetadataOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
-    }
-
-    //endregion
 }
