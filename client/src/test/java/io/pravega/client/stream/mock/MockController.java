@@ -443,10 +443,10 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.asImpl().getPositions().keySet())
                                                                .addAll(toStreamCut.asImpl().getPositions().keySet()).build();
-        return CompletableFuture.completedFuture(segments);
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, ""));
     }
 
     @Override

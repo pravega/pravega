@@ -347,7 +347,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         throw new NotImplementedException("getSegments");
     }
 
