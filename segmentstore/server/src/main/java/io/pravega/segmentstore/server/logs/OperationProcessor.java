@@ -94,7 +94,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
-        this.commitQueue = BlockingDrainingQueue.withMaxCount(MAX_COMMIT_QUEUE_SIZE);
+        this.commitQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
@@ -127,7 +127,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
                 .loop(() -> isRunning() || this.commitQueue.size() > 0,
-                        () -> this.commitQueue.take(MAX_READ_AT_ONCE)
+                        () -> this.commitQueue.take(MAX_COMMIT_QUEUE_SIZE)
                                 .thenAcceptAsync(this::processCommits, this.executor),
                         this.executor)
                 .whenComplete((r, ex) -> {
@@ -399,7 +399,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         try {
             do {
                 this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator());
-                items = this.commitQueue.poll(MAX_READ_AT_ONCE);
+                items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
             } while (!items.isEmpty());
         } catch (Throwable ex) {
             // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
@@ -617,8 +617,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             while (!this.metadataTransactions.isEmpty() && this.metadataTransactions.peekFirst().getMetadataTransactionId() <= transactionId) {
                 DataFrameBuilder.CommitArgs t = this.metadataTransactions.pollFirst();
                 checkpointExists |= t.getMetadataTransactionId() == transactionId;
-                toAck.add(t.getOperations());
-                this.pendingOperationCount -= t.getOperations().size();
+                if (t.getOperations().size() > 0) {
+                    toAck.add(t.getOperations());
+                    this.pendingOperationCount -= t.getOperations().size();
+                }
             }
 
             assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;

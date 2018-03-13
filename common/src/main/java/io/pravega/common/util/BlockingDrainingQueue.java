@@ -16,7 +16,6 @@ import java.util.ArrayDeque;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -45,17 +44,6 @@ public class BlockingDrainingQueue<T> {
      */
     public BlockingDrainingQueue() {
         this.contents = new ArrayDeque<>();
-    }
-
-    /**
-     * Creates a new instance of the BlockingDrainingQueue class with a maximum size.
-     *
-     * @param maxCount The maximum number of elements in the queue. Calls to add() will block synchronously if the current
-     *                 size exceeds maxCount until more space becomes available.
-     * @param <T>      The type of the items in the queue.
-     */
-    public static <T> BlockingDrainingQueue<T> withMaxCount(int maxCount) {
-        return new BlockingDrainingQueue.WithMaxCount<>(maxCount);
     }
 
     //endregion
@@ -180,7 +168,7 @@ public class BlockingDrainingQueue<T> {
     }
 
     @GuardedBy("contents")
-    protected Queue<T> fetch(int maxCount) {
+    private Queue<T> fetch(int maxCount) {
         int count = Math.min(maxCount, this.contents.size());
         ArrayDeque<T> result = new ArrayDeque<>(count);
         while (result.size() < count) {
@@ -191,39 +179,4 @@ public class BlockingDrainingQueue<T> {
     }
 
     // endregion
-
-    //region WithMaxCount
-
-    /**
-     * BlockingDrainingQueue implementation that imposes a maximum number of elements in the queue.
-     */
-    private static class WithMaxCount<T> extends BlockingDrainingQueue<T> {
-        private final Semaphore notFull;
-
-        WithMaxCount(int maxCount) {
-            Preconditions.checkArgument(maxCount > 0, "maxCount must be a positive integer.");
-            this.notFull = new Semaphore(maxCount, true);
-        }
-
-        @Override
-        public void add(T item) {
-            Exceptions.<RuntimeException>handleInterrupted(this.notFull::acquire);
-            try {
-                super.add(item);
-            } catch (Throwable ex) {
-                // Unable to add; revert our add.
-                this.notFull.release();
-                throw ex;
-            }
-        }
-
-        @Override
-        protected Queue<T> fetch(int maxCount) {
-            Queue<T> result = super.fetch(maxCount);
-            this.notFull.release(result.size());
-            return result;
-        }
-    }
-
-    //endregion
 }
