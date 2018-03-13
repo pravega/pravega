@@ -139,7 +139,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception got thrown.
      */
     public void resumeZooKeeper() throws Exception {
-        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore, this.tLSKeyStorePasswordPath);
+        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore, this.tLSKeyStorePasswordPath, this.tlsTrustStore);
         if (this.zkServer.compareAndSet(null, zk)) {
             // Initialize ZK runner (since nobody else did it for us).
             zk.initialize();
