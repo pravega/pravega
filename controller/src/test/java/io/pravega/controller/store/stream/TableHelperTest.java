@@ -613,7 +613,7 @@ public class TableHelperTest {
         final List<Integer> startSegments = Lists.newArrayList(0, 1);
 
         int epoch = 0;
-        // epoch 0
+        // epoch 0 -> 0, 1
         long timestamp = System.currentTimeMillis();
         Pair<byte[], byte[]> segmentTableAndIndex = createSegmentTableAndIndex(2, timestamp);
         byte[] segmentTable = segmentTableAndIndex.getKey();
@@ -624,7 +624,7 @@ public class TableHelperTest {
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, startSegments);
 
-        // epoch 1
+        // epoch 1 -> 0, 2, 3
         epoch++;
         List<Integer> newSegments1 = Lists.newArrayList(0, 2, 3);
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
@@ -639,7 +639,7 @@ public class TableHelperTest {
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 1);
 
-        // epoch 2
+        // epoch 2 -> 0, 2, 4, 5
         epoch++;
         List<Integer> newSegments2 = Lists.newArrayList(0, 2, 4, 5);
         newRanges = new ArrayList<>();
@@ -654,7 +654,7 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 2);
 
-        // epoch 3
+        // epoch 3 -> 0, 4, 5, 6, 7
         epoch++;
         List<Integer> newSegments3 = Lists.newArrayList(0, 4, 5, 6, 7);
         newRanges = new ArrayList<>();
@@ -669,7 +669,7 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 3);
 
-        // epoch 4
+        // epoch 4 -> 4, 5, 6, 7, 8, 9
         epoch++;
         List<Integer> newSegments4 = Lists.newArrayList(4, 5, 6, 7, 8, 9);
         newRanges = new ArrayList<>();

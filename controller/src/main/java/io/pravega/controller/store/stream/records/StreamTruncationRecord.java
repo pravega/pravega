@@ -30,7 +30,6 @@ import java.util.Set;
  * Data class for storing information about stream's truncation point.
  */
 @Data
-@Builder
 @Slf4j
 public class StreamTruncationRecord  {
     public static final VersionedSerializer.WithBuilder<StreamTruncationRecord,
@@ -73,6 +72,7 @@ public class StreamTruncationRecord  {
 
     private final boolean updating;
 
+    @Builder
     public StreamTruncationRecord(Map<Integer, Long> streamCut,
                                   Map<Integer, Integer> cutEpochMap,
                                   Set<Integer> deletedSegments,

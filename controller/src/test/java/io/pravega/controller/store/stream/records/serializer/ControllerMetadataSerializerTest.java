@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -90,12 +91,12 @@ public class ControllerMetadataSerializerTest {
         streamCut.put(2, 1L);
         streamCut.put(3, 1L);
 
-        ImmutableMap<Integer, Integer> epochMap = null;
-        ImmutableSet<Integer> deleted = null;
+        ImmutableMap<Integer, Integer> epochMap = ImmutableMap.copyOf(new HashMap<>());
+        ImmutableSet<Integer> deleted = ImmutableSet.copyOf(new HashSet<>());
         StreamTruncationRecord record = StreamTruncationRecord.builder().cutEpochMap(epochMap)
                 .streamCut(ImmutableMap.copyOf(streamCut))
                 .deletedSegments(deleted)
-                .toDelete(null)
+                .toDelete(ImmutableSet.copyOf(new HashSet<>()))
                 .updating(true).build();
 
         byte[] serialized = StreamTruncationRecord.SERIALIZER.serialize(record).array();
@@ -113,7 +114,7 @@ public class ControllerMetadataSerializerTest {
                 .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
 
         StreamConfigurationRecord record = StreamConfigurationRecord.builder().streamConfiguration(withScalingAndRetention)
-            .updating(true).build();
+                .updating(true).build();
         byte[] serialized = StreamConfigurationRecord.SERIALIZER.serialize(record).array();
         StreamConfigurationRecord deserialized = StreamConfigurationRecord.SERIALIZER.deserialize(serialized);
         assertEquals(record, deserialized);
