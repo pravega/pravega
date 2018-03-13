@@ -9,11 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import io.pravega.common.io.SerializationException;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,14 +31,14 @@ public class ProbeOperationTests {
         op.setSequenceNumber(1);
         AssertExtensions.assertThrows(
                 "serialize() did not fail with the expected exception.",
-                () -> op.serialize(new DataOutputStream(new ByteArrayOutputStream())),
-                ex -> ex instanceof UnsupportedOperationException);
+                () -> OperationSerializer.DEFAULT.serialize(new ByteArrayOutputStream(), op),
+                ex -> ex instanceof SerializationException);
 
         // Even though there is no deserialization constructor, we need to ensure that the deserializeContent method
         // does not work.
         AssertExtensions.assertThrows(
                 "deserializeContent() did not fail with the expected exception.",
-                () -> op.deserializeContent(new DataInputStream(new ByteArrayInputStream(new byte[100]))),
-                ex -> ex instanceof UnsupportedOperationException);
+                () -> OperationSerializer.DEFAULT.deserialize(new ByteArrayInputStream(new byte[100])),
+                ex -> ex instanceof SerializationException);
     }
 }

@@ -9,8 +9,9 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import java.io.IOException;
 
 /**
@@ -19,7 +20,6 @@ import java.io.IOException;
 public class MergeTransactionOperation extends StorageOperation {
     //region Members
 
-    private static final byte VERSION = 0;
     private long streamSegmentOffset;
     private long length;
     private long transactionSegmentId;
@@ -41,8 +41,10 @@ public class MergeTransactionOperation extends StorageOperation {
         this.streamSegmentOffset = -1;
     }
 
-    protected MergeTransactionOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private MergeTransactionOperation() {
     }
 
     //endregion
@@ -103,32 +105,6 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     @Override
-    protected OperationType getOperationType() {
-        return OperationType.Merge;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.length >= 0, "Transaction StreamSegment Length has not been assigned for this entry.");
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
-
-        target.writeByte(VERSION);
-        target.writeLong(getStreamSegmentId());
-        target.writeLong(this.transactionSegmentId);
-        target.writeLong(this.length);
-        target.writeLong(this.streamSegmentOffset);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, VERSION);
-        setStreamSegmentId(source.readLong());
-        this.transactionSegmentId = source.readLong();
-        this.length = source.readLong();
-        this.streamSegmentOffset = source.readLong();
-    }
-
-    @Override
     public String toString() {
         return String.format(
                 "%s, TransactionSegmentId = %d, Length = %s, ParentOffset = %s",
@@ -139,4 +115,47 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     //endregion
+
+    static class Serializer extends OperationSerializer<MergeTransactionOperation> {
+        private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
+
+        @Override
+        protected OperationBuilder<MergeTransactionOperation> newBuilder() {
+            return new OperationBuilder<>(new MergeTransactionOperation());
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        @Override
+        protected void beforeSerialization(MergeTransactionOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.length >= 0, "Transaction StreamSegment Length has not been assigned.");
+            Preconditions.checkState(o.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned.");
+        }
+
+        private void write00(MergeTransactionOperation o, RevisionDataOutput target) throws IOException {
+            target.length(SERIALIZATION_LENGTH);
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.getStreamSegmentId());
+            target.writeLong(o.transactionSegmentId);
+            target.writeLong(o.length);
+            target.writeLong(o.streamSegmentOffset);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<MergeTransactionOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.setStreamSegmentId(source.readLong());
+            b.instance.transactionSegmentId = source.readLong();
+            b.instance.length = source.readLong();
+            b.instance.streamSegmentOffset = source.readLong();
+        }
+    }
 }
