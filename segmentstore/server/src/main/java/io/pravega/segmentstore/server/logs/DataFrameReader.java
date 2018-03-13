@@ -14,9 +14,8 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.LogItem;
-import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -36,11 +35,11 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
+class DataFrameReader<T extends SequencedItemList.Element> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
-    private final LogItemFactory<T> logItemFactory;
+    private final Serializer<T> serializer;
     private long lastReadSequenceNumber;
     private int readEntryCount;
     private boolean closed;
@@ -53,17 +52,17 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
      * Creates a new instance of the DataFrameReader class.
      *
      * @param log            The DataFrameLog to read data frames from.
-     * @param logItemFactory A LogItemFactory to create LogItems upon deserialization.
+     * @param serializer A Serializer to create LogItems upon deserialization.
      * @param containerId    The Container Id for the DataFrameReader (used primarily for logging).
      * @throws NullPointerException    If any of the arguments are null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, int containerId) throws DurableDataLogException {
+    DataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId) throws DurableDataLogException {
         Preconditions.checkNotNull(log, "log");
-        Preconditions.checkNotNull(logItemFactory, "logItemFactory");
+        Preconditions.checkNotNull(serializer, "serializer");
         this.frameContentsEnumerator = new FrameEntryEnumerator(log, String.format("DataFrameReader[%d]", containerId));
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        this.logItemFactory = logItemFactory;
+        this.serializer = serializer;
     }
 
     //endregion
@@ -104,7 +103,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                 try {
                     // Attempt to deserialize the entry. If the serialization was bad, this will throw an exception which we'll pass along.
                     // In case of such failure, we still advance, because the serialization exception is not our issue to handle.
-                    T logItem = this.logItemFactory.deserialize(source);
+                    T logItem = this.serializer.deserialize(source);
                     long seqNo = logItem.getSequenceNumber();
                     if (seqNo <= this.lastReadSequenceNumber) {
                         throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.", this.lastReadSequenceNumber, seqNo));
@@ -188,7 +187,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     /**
      * Represents a DataFrame Read Result, wrapping a LogItem.
      */
-    public static class ReadResult<T extends LogItem> {
+    public static class ReadResult<T extends SequencedItemList.Element> {
         /**
          * The wrapped Log Operation.
          */

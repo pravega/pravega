@@ -11,17 +11,15 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.SerializationException;
-import io.pravega.segmentstore.server.LogItem;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.SequencedItemList;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Base class for a Log Operation.
  */
-public abstract class Operation implements LogItem {
+public abstract class Operation implements SequencedItemList.Element {
     //region Members
 
     public static final long NO_SEQUENCE_NUMBER = Long.MIN_VALUE;
@@ -36,18 +34,6 @@ public abstract class Operation implements LogItem {
      */
     public Operation() {
         this.sequenceNumber = NO_SEQUENCE_NUMBER;
-    }
-
-    /**
-     * Creates a new instance of the Operation class using the given header and source.
-     *
-     * @param header The Operation header to use.
-     * @param source A DataInputStream to deserialize from.
-     * @throws IOException If the deserialization failed or another IOException happened
-     */
-    protected Operation(OperationHeader header, DataInputStream source) throws IOException {
-        this.sequenceNumber = header.sequenceNumber;
-        deserialize(header, source);
     }
 
     //endregion
@@ -89,11 +75,6 @@ public abstract class Operation implements LogItem {
         return true;
     }
 
-    /**
-     * Gets an internal unique number representing the type of this operation.
-     */
-    protected abstract OperationType getOperationType();
-
     @Override
     public String toString() {
         return String.format("%s: SequenceNumber = %d", this.getClass().getSimpleName(), getSequenceNumber());
@@ -114,144 +95,30 @@ public abstract class Operation implements LogItem {
     //region Serialization
 
     /**
-     * Serializes this Operation to the given OutputStream.
-     *
-     * @param output The OutputStream to serialize to.
-     * @throws IOException           If the given OutputStream threw one.
-     * @throws IllegalStateException If the serialization conditions are not met.
+     * Base class for any Operation Serializer.
+     * @param <T> Operation Type.
      */
-    @Override
-    public void serialize(OutputStream output) throws IOException {
-        ensureSerializationCondition(this.sequenceNumber >= 0, "Sequence Number has not been assigned for this entry.");
-
-        DataOutputStream target = new DataOutputStream(output);
-        OperationHeader header = new OperationHeader(getOperationType().getType(), this.sequenceNumber);
-        header.serialize(target);
-        serializeContent(target);
-    }
-
-    /**
-     * Deserializes the Operation.
-     *
-     * @param header The OperationHeader to use.
-     * @param source The input stream to read from.
-     * @throws IOException If the deserialization failed.
-     */
-    private void deserialize(OperationHeader header, DataInputStream source) throws IOException {
-        byte expectedOperationType = getOperationType().type;
-        if (header.operationType != expectedOperationType) {
-            throw new SerializationException(String.format("Invalid Operation Type. Expected %d, Found %d.", expectedOperationType, header.operationType));
-        }
-
-        deserializeContent(source);
-    }
-
-    /**
-     * Reads a version byte from the given input stream and compares it to the given expected version.
-     *
-     * @param source          The input stream to read from.
-     * @param expectedVersion The expected version to compare to.
-     * @throws IOException            If the input stream threw one.
-     * @throws SerializationException If the versions mismatched.
-     */
-    void readVersion(DataInputStream source, byte expectedVersion) throws IOException {
-        byte version = source.readByte();
-        if (version != expectedVersion) {
-            throw new SerializationException(String.format("Unsupported version: %d.", version));
+    protected static abstract class OperationSerializer<T extends Operation> extends VersionedSerializer.WithBuilder<T, OperationBuilder<T>> {
+        @Override
+        protected void beforeSerialization(T operation) {
+            Preconditions.checkState(operation.getSequenceNumber() >= 0, "Sequence Number has not been assigned.");
         }
     }
 
     /**
-     * If the given condition is false, throws an exception with the given message.
-     *
-     * @param isTrue  Whether the condition is true or false.
-     * @param message The message to include in the exception.
-     * @throws IllegalStateException The exception that is thrown.
+     * ObjectBuilder that pre-instantiates the instance to use. This is so that we don't use a shadow object every time
+     * we need to deserialize a new operation.
+     * @param <T> Type of the object.
      */
-    void ensureSerializationCondition(boolean isTrue, String message) {
-        Preconditions.checkState(isTrue, "Unable to serialize Operation: %s", message);
-    }
-
-    /**
-     * Serializes the content of this Operation.
-     *
-     * @param target The DataOutputStream to serialize to.
-     * @throws IOException If the DataOutputStream threw one.
-     */
-    protected abstract void serializeContent(DataOutputStream target) throws IOException;
-
-    /**
-     * Deserializes the content of this Operation.
-     *
-     * @param source The DataInputStream to read from.
-     * @throws IOException            If the DataInputStream threw one, or there was a problem deserializing the content.
-     */
-    protected abstract void deserializeContent(DataInputStream source) throws IOException;
-
-    // endregion
-
-    //region OperationHeader
-
-    /**
-     * Header for a serialized Operation.
-     */
-    protected static class OperationHeader {
-        private static final byte HEADER_VERSION = 0;
-
-        /**
-         * The type of the operation.
-         */
-        final byte operationType;
-
-        /**
-         * The sequence number for the operation.
-         */
-        final long sequenceNumber;
-
-        /**
-         * Creates a new instance of the OperationHeader class.
-         *
-         * @param operationType  The type of the operation.
-         * @param sequenceNumber The sequence number for the operation.
-         */
-        OperationHeader(byte operationType, long sequenceNumber) {
-            this.operationType = operationType;
-            this.sequenceNumber = sequenceNumber;
-        }
-
-        /**
-         * Creates a new instance of the OperationHeader class.
-         *
-         * @param source The DataInputStream to deserialize from.
-         * @throws SerializationException If deserialization failed.
-         */
-        OperationHeader(DataInputStream source) throws IOException {
-            byte headerVersion = source.readByte();
-            if (headerVersion == HEADER_VERSION) {
-                this.operationType = source.readByte();
-                this.sequenceNumber = source.readLong();
-            } else {
-                throw new SerializationException(String.format("Unsupported version: %d.", headerVersion));
-            }
-        }
-
-        /**
-         * Serializes this OperationHeader to the given target.
-         *
-         * @param target The DataOutputStream to serialize to.
-         * @throws IOException If the DataOutputStream threw one.
-         */
-        void serialize(DataOutputStream target) throws IOException {
-            target.writeByte(HEADER_VERSION);
-            target.writeByte(this.operationType);
-            target.writeLong(this.sequenceNumber);
-        }
+    @RequiredArgsConstructor
+    protected static class OperationBuilder<T extends Operation> implements ObjectBuilder<T> {
+        protected final T instance;
 
         @Override
-        public String toString() {
-            return String.format("SequenceNumber = %d, EntryType = %d", this.sequenceNumber, this.operationType);
+        public T build() {
+            return this.instance;
         }
     }
 
-    //endregion
+    // endregion
 }

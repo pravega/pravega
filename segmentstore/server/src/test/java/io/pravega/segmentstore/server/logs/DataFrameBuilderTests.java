@@ -53,6 +53,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
     private static final int FRAME_SIZE = 512;
     private static final int APPEND_DELAY_MILLIS = 1;
     private static final int RECORD_COUNT = 200;
+    private static final TestLogItem.TestLogItemSerializer SERIALIZER = new TestLogItem.TestLogItemSerializer();
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -107,7 +108,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
                         b.append(records.get(i));
@@ -176,7 +177,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         };
 
         val args = new DataFrameBuilder.Args(ca -> attemptCount.incrementAndGet(), successCommits::add, errorCallback, executorService());
-        try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
+        try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args)) {
             builderRef.set(b);
             try {
                 for (val r : records) {
@@ -196,7 +197,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         await(() -> successCommits.size() >= attemptCount.get(), 20);
 
         // Read all committed items.
-        val reader = new DataFrameReader<TestLogItem>(dataLog, new TestLogItemFactory(), CONTAINER_ID);
+        val reader = new DataFrameReader<TestLogItem>(dataLog, new TestSerializer(), CONTAINER_ID);
         val readItems = new ArrayList<TestLogItem>();
         DataFrameReader.ReadResult<TestLogItem> readItem;
         while ((readItem = reader.getNext()) != null) {
@@ -237,7 +238,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             val args = new DataFrameBuilder.Args(Callbacks::doNothing, commitFrames::add, errorCallback, executorService());
 
             @Cleanup
-            DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args);
+            DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args);
             for (TestLogItem item : records) {
                 b.append(item);
             }
@@ -274,7 +275,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) ->
                     Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             val args = new DataFrameBuilder.Args(DataFrameTestHelpers.appendOrder(order), commitFrames::add, errorCallback, executorService());
-            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, SERIALIZER, args)) {
                 for (TestLogItem item : records) {
                     b.append(item);
                 }

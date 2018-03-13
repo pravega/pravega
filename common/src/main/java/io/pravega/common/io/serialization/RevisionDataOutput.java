@@ -201,14 +201,27 @@ public interface RevisionDataOutput extends DataOutput {
     <T> void writeArray(T[] array, ElementSerializer<T> elementSerializer) throws IOException;
 
     /**
-     * Serializes the given byte array. It first writes a Compact Integer representing the length of the the array, followed
-     * by the actual array being written.
+     * Serializes the given byte array. Equivalent to calling writeArray(array, 0, array.length).
      *
      * @param array The array to serialize. Can be null (in which case an Empty array will be deserialized
      *              by RevisionDataInput.readArray()).
      * @throws IOException If an IO Exception occurred.
      */
-    void writeArray(byte[] array) throws IOException;
+    default void writeArray(byte[] array) throws IOException {
+        writeArray(array, 0, array == null ? 0 : array.length);
+    }
+
+    /**
+     * Serializes the given byte array. It first writes a Compact Integer representing the length to serialize, followed
+     * by the actual array elements being written.
+     *
+     * @param array  The array to serialize. Can be null (in which case an Empty array will be deserialized
+     *               by RevisionDataInput.readArray()).
+     * @param offset The offset within the array to begin serializing at. This is ignored if array == null.
+     * @param length The number of elements to serialize. This is ignored if array == null.
+     * @throws IOException If an IO Exception occurred.
+     */
+    void writeArray(byte[] array, int offset, int length) throws IOException;
 
     /**
      * Calculates the number of bytes required to serialize a Map.
