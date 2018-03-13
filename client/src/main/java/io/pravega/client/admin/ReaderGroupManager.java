@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -23,7 +24,7 @@ import java.util.Set;
  * Used to create and manage reader groups.
  */
 public interface ReaderGroupManager extends AutoCloseable {
-    
+
     /**
      * Creates a new instance of ReaderGroupManager.
      *
@@ -32,9 +33,20 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl(false));
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
-    
+
+    /**
+     * Creates a new instance of ReaderGroupManager.
+     *
+     * @param scope The Scope string.
+     * @param clientConfig Configuration for the client.
+     * @return Instance of Stream Manager implementation.
+     */
+    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
+        return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
+    }
+
     /**
      * Creates a new ReaderGroup
      * 

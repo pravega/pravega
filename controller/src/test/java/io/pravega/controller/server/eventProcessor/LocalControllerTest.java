@@ -14,14 +14,6 @@ import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
@@ -29,6 +21,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +46,7 @@ public class LocalControllerTest {
     //Ensure each test completes within 10 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    boolean authEnabled = false;
 
     private ControllerService mockControllerService;
     private LocalController testController;
@@ -55,7 +55,7 @@ public class LocalControllerTest {
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService);
+        this.testController = new LocalController(this.mockControllerService, authEnabled, "secret");
         this.executor = Executors.newSingleThreadScheduledExecutor();
     }
 

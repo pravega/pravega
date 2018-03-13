@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -37,6 +38,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -100,18 +102,19 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "MultiReaderWriterWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect,
-                ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+        controller = new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
 
         testState = new TestState(false);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl(controllerURIDirect);
+        streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
+        readerGroupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerURIDirect).build());
 
     }
 

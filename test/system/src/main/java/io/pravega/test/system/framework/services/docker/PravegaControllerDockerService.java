@@ -25,10 +25,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+
 import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.REST_PORT;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
@@ -84,7 +85,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
@@ -96,7 +97,6 @@ public class PravegaControllerDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                         .ports(Arrays.asList(PortConfig.builder()
                                         .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),

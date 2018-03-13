@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
@@ -101,8 +102,9 @@ public final class ServiceStarter {
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, statsRecorder);
+        TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
+                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

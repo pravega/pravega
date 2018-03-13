@@ -25,8 +25,8 @@ import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 @Slf4j
 @ToString(of = { "segment", "currentState" })
@@ -158,6 +158,15 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             updateCurrentState(initial.create(segment.getScopedStreamName(), result));
         }
     }
+    
+    @Override
+    public long bytesWrittenSinceCompaction() {
+        Revision mark = client.getMark();
+        StateT state = getState();
+        long compaction = (mark == null) ? 0 : mark.asImpl().getOffsetInSegment();
+        long current = (state == null) ? 0 : state.getRevision().asImpl().getOffsetInSegment();
+        return Math.max(0, current - compaction);
+    }
 
     @Override
     public void compact(Function<StateT, InitialUpdate<StateT>> compactor) {
@@ -228,5 +237,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         log.info("Closing stateSynchronizer ", this);
         client.close();
     }
+
 
 }

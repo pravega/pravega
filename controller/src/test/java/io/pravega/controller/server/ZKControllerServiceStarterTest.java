@@ -9,17 +9,16 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
+import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
-
-import java.io.IOException;
-import java.util.UUID;
 
 /**
  * ControllerServiceStarter backed by ZK store tests.
@@ -29,7 +28,7 @@ public class ZKControllerServiceStarterTest extends ControllerServiceStarterTest
     private TestingServer zkServer;
 
     public ZKControllerServiceStarterTest() {
-        super(true);
+        super(true, false);
     }
 
     @Override

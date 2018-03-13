@@ -19,7 +19,6 @@ import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
-
 import java.net.URI;
 
 /**
@@ -92,6 +91,12 @@ public class Utils {
     public static boolean isDockerExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
         return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
+
+    }
+
+    public static boolean isAwsExecution() {
+        String dockerConfig = getConfig("awsExec", "false");
+        return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
 
     }
 }

@@ -1,0 +1,190 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.segmentstore.server.logs;
+
+import com.google.common.base.Preconditions;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.containers.ContainerConfig;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
+import io.pravega.segmentstore.server.reading.ReadIndexConfig;
+import io.pravega.segmentstore.storage.Cache;
+import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Recovery Processor used for Debugging purposes.
+ * NOTE: this class is not meant to be used for regular, production code. It exposes operations that should only be executed
+ * from the admin tools.
+ */
+public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoCloseable {
+    //region Members
+
+    private final OperationCallbacks callbacks;
+    private final ReadIndexFactory readIndexFactory;
+    private final Storage storage;
+
+    //endregion
+
+    //region Constructor
+
+    private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
+                                   Storage storage, OperationCallbacks callbacks) {
+        super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage)));
+        this.readIndexFactory = readIndexFactory;
+        this.storage = storage;
+        this.callbacks = callbacks;
+    }
+
+    @Override
+    public void close() {
+        this.readIndexFactory.close();
+        this.storage.close();
+    }
+
+    /**
+     * Creates a new instance of the DebugRecoveryProcessor class with the given arguments.
+     *
+     * @param containerId     The Id of the Container to recover.
+     * @param durableDataLog  A DurableDataLog to recover from.
+     * @param config          A ContainerConfig to use during recovery.
+     * @param readIndexConfig A ReadIndexConfig to use during recovery.
+     * @param executor        An Executor to use for background tasks.
+     * @param callbacks       Callbacks to invoke during recovery.
+     * @return A new instance of the DebugRecoveryProcessor.
+     */
+    public static DebugRecoveryProcessor create(int containerId, DurableDataLog durableDataLog, ContainerConfig config, ReadIndexConfig readIndexConfig,
+                                                ScheduledExecutorService executor, OperationCallbacks callbacks) {
+        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(readIndexConfig, "readIndexConfig");
+        Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(callbacks, callbacks);
+
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
+        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), executor);
+        Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
+        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, callbacks);
+    }
+
+    //endregion
+
+    //region RecoveryProcessor Overrides
+
+    @Override
+    protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+        if (this.callbacks.beginRecoverOperation != null) {
+            Callbacks.invokeSafely(this.callbacks.beginRecoverOperation, readResult.getItem(), readResult.getFrameEntries(), null);
+        }
+
+        try {
+            super.recoverOperation(readResult, metadataUpdater);
+        } catch (Throwable ex) {
+            if (this.callbacks.operationFailed != null) {
+                Callbacks.invokeSafely(this.callbacks.operationFailed, readResult.getItem(), ex, null);
+            }
+
+            throw ex;
+        }
+
+        if (this.callbacks.operationSuccess != null) {
+            Callbacks.invokeSafely(this.callbacks.operationSuccess, readResult.getItem(), null);
+        }
+    }
+
+    //endregion
+
+    //region OperationCallbacks
+
+    /**
+     * Callbacks to pass in to the DebugRecoveryProcessor that will be invoked during recovery.
+     */
+    @RequiredArgsConstructor
+    public static class OperationCallbacks {
+        /**
+         * Invoked before attempting to recover an operation. Args: Operation, DataFrameEntries making up that operation.
+         */
+        private final BiConsumer<Operation, List<DataFrame.DataFrameEntry>> beginRecoverOperation;
+
+        /**
+         * Invoked when an operation was successfully recovered.
+         */
+        private final Consumer<Operation> operationSuccess;
+
+        /**
+         * Invoked when an operation failed to recover.
+         */
+        private final BiConsumer<Operation, Throwable> operationFailed;
+    }
+
+    //endregion
+
+    //region NoOpCache
+
+    private static class NoOpCacheFactory implements CacheFactory {
+        @Override
+        public Cache getCache(String id) {
+            return new NoOpCache();
+        }
+
+        @Override
+        public void close() {
+            // Nothing to do.
+        }
+    }
+
+    private static class NoOpCache implements Cache {
+        @Override
+        public String getId() {
+            return null;
+        }
+
+        @Override
+        public void insert(Key key, byte[] data) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void insert(Key key, ByteArraySegment data) {
+            // Nothing to do.
+        }
+
+        @Override
+        public byte[] get(Key key) {
+            // This should not be invoked from within a DebugRecoveryProcessor.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void remove(Key key) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void close() {
+            // Nothing to do.
+        }
+    }
+
+    //endregion
+}
