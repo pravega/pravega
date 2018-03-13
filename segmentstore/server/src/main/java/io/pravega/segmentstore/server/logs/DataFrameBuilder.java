@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.SequencedItemList;
-import io.pravega.common.util.SortedIndex;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
