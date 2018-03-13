@@ -19,6 +19,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryRecord;
 import io.pravega.controller.store.stream.records.SegmentRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
@@ -29,10 +30,12 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 
@@ -146,6 +149,24 @@ public class ControllerMetadataSerializerTest {
         HistoryRecord record = HistoryRecord.builder().epoch(0).scaleTime(System.currentTimeMillis()).segments(segments).build();
         byte[] serialized = HistoryRecord.SERIALIZER.serialize(record).array();
         HistoryRecord deserialized = HistoryRecord.SERIALIZER.deserialize(serialized);
+        assertEquals(record, deserialized);
+    }
+
+    @Test
+    public void epochTransitionRecordTest() throws IOException {
+        Map<Integer, AbstractMap.SimpleEntry<Double, Double>> map = new HashMap<>();
+        map.put(0, new AbstractMap.SimpleEntry<>(0.2, 1.0));
+        map.put(1, new AbstractMap.SimpleEntry<>(0.3, 3.0));
+        map.put(2, new AbstractMap.SimpleEntry<>(0.4, 1.0));
+        map.put(3, new AbstractMap.SimpleEntry<>(0.1, 2.0));
+        Set<Integer> set = new HashSet<>();
+        set.add(0);
+        set.add(1);
+        set.add(2);
+        EpochTransitionRecord record = EpochTransitionRecord.builder().activeEpoch(0).newEpoch(1).time(1L)
+                .newSegmentsWithRange(ImmutableMap.copyOf(map)).segmentsToSeal(ImmutableSet.copyOf(set)).build();
+        byte[] serialized = EpochTransitionRecord.SERIALIZER.serialize(record).array();
+        EpochTransitionRecord deserialized = EpochTransitionRecord.SERIALIZER.deserialize(serialized);
         assertEquals(record, deserialized);
     }
 }
