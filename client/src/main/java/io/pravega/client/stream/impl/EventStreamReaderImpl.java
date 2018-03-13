@@ -222,7 +222,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId);
         try {
-            long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
+            long startingOffset = metadataClient.getSegmentInfo(groupState.getLatestDelegationToken()).getStartingOffset();
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader);

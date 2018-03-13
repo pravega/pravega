@@ -12,9 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.CloseableIterator;
+import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.LogItem;
-import io.pravega.segmentstore.server.LogItemFactory;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -27,11 +26,10 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-public class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameRecord<T>, Exception> {
+class DataFrameReader<T extends SequencedItemList.Element> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
-    private final LogItemFactory<T> logItemFactory;
     private long lastReadSequenceNumber;
     private boolean closed;
 
@@ -43,17 +41,16 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
      * Creates a new instance of the DataFrameReader class.
      *
      * @param log            The DataFrameLog to read data frames from.
-     * @param logItemFactory A LogItemFactory to create LogItems upon deserialization.
+     * @param serializer A Serializer to create LogItems upon deserialization.
      * @param containerId    The Container Id for the DataFrameReader (used primarily for logging).
      * @throws NullPointerException    If any of the arguments are null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, int containerId) throws DurableDataLogException {
+    DataFrameReader(DurableDataLog log, Serializer<T> serializer, int containerId) throws DurableDataLogException {
         Preconditions.checkNotNull(log, "log");
-        Preconditions.checkNotNull(logItemFactory, "logItemFactory");
-        this.dataFrameInputStream = new DataFrameInputStream(log.getReader(), String.format("DataFrameReader[%d]", containerId));
+        Preconditions.checkNotNull(serializer, "serializer");
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        this.logItemFactory = logItemFactory;
+        this.serializer = serializer;
     }
 
     //endregion

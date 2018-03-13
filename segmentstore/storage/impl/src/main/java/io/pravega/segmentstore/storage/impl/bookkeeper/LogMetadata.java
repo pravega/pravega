@@ -10,8 +10,12 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.CollectionHelpers;
-import java.nio.ByteBuffer;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.val;
 
@@ -29,16 +34,7 @@ import lombok.val;
 class LogMetadata implements ReadOnlyLogMetadata {
     //region Members
 
-    /**
-     * Version 0: Base.
-     * Version 1: Added LedgerMetadata.Status and Flags.
-     */
-    private static final byte SERIALIZATION_VERSION = 1;
-
-    /**
-     * Bit mask to store the Enabled flag into an Integer value.
-     */
-    private static final int ENABLED_MASK = 1;
+    static final VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> SERIALIZER = new Serializer();
 
     /**
      * The initial epoch to use for the Log.
@@ -111,6 +107,7 @@ class LogMetadata implements ReadOnlyLogMetadata {
      *                          truncated out of the log.
      * @param updateVersion     The Update version to set on this instance.
      */
+    @Builder
     private LogMetadata(long epoch, boolean enabled, List<LedgerMetadata> ledgers, LedgerAddress truncationAddress, int updateVersion) {
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number");
         this.epoch = epoch;
@@ -333,86 +330,63 @@ class LogMetadata implements ReadOnlyLogMetadata {
 
     //endregion
 
-    //region Serialization
-
-    /**
-     * Serializes this LogMetadata object into a byte array.
-     *
-     * @return A new byte array with the serialized contents of this object.
-     */
-    byte[] serialize() {
-        // Serialization version (Byte), Flags(Int), Epoch (Long), TruncationAddress (3*Long), Ledger Length (Int), Ledgers.
-        val length = Byte.BYTES + Integer.BYTES + Long.BYTES + Long.BYTES * 3 + Integer.BYTES +
-                (Long.BYTES + Integer.BYTES + Byte.BYTES) * this.ledgers.size();
-        ByteBuffer bb = ByteBuffer.allocate(length);
-        bb.put(SERIALIZATION_VERSION);
-        bb.putInt(getFlags());
-        bb.putLong(this.epoch);
-
-        // Truncation Address.
-        bb.putLong(this.truncationAddress.getSequence());
-        bb.putLong(this.truncationAddress.getLedgerId());
-
-        // Ledgers.
-        bb.putInt(this.ledgers.size());
-        this.ledgers.forEach(lm -> {
-            bb.putLong(lm.getLedgerId());
-            bb.putInt(lm.getSequence());
-            bb.put(lm.getStatus().getValue());
-        });
-        return bb.array();
-    }
-
-    /**
-     * Attempts to deserialize the given byte array into a LogMetadata object.
-     *
-     * @param serialization The byte array to deserialize.
-     * @return A new instance of the LogMetadata class with the contents of the given byte array.
-     */
-    static LogMetadata deserialize(byte[] serialization) {
-        ByteBuffer bb = ByteBuffer.wrap(serialization);
-        byte version = bb.get(); // We skip version for now because we only have one.
-        boolean enabled = true;
-        if (version >= 1) {
-            int flags = bb.getInt();
-            enabled = (flags & ENABLED_MASK) == ENABLED_MASK;
-        }
-
-        long epoch = bb.getLong();
-
-        // Truncation Address.
-        long truncationSeqNo = bb.getLong();
-        long truncationLedgerId = bb.getLong();
-
-        // Ledgers
-        int ledgerCount = bb.getInt();
-        List<LedgerMetadata> ledgers = new ArrayList<>(ledgerCount);
-        for (int i = 0; i < ledgerCount; i++) {
-            long ledgerId = bb.getLong();
-            int seq = bb.getInt();
-            LedgerMetadata.Status empty = LedgerMetadata.Status.Unknown;
-            if (version >= 1) {
-                // Status was added in Version 1.
-                empty = LedgerMetadata.Status.valueOf(bb.get());
-            }
-
-            ledgers.add(new LedgerMetadata(ledgerId, seq, empty));
-        }
-
-        return new LogMetadata(epoch, enabled, Collections.unmodifiableList(ledgers), new LedgerAddress(truncationSeqNo, truncationLedgerId), INITIAL_VERSION);
-    }
-
-    private int getFlags() {
-        int result = 0;
-        result |= this.enabled ? ENABLED_MASK : 0;
-        return result;
-    }
-
-    //endregion
-
     @Override
     public String toString() {
         return String.format("Version = %d, Epoch = %d, LedgerCount = %d, Truncate = (%d-%d)",
                 this.updateVersion.get(), this.epoch, this.ledgers.size(), this.truncationAddress.getLedgerId(), this.truncationAddress.getEntryId());
     }
+
+    //region Serialization
+
+    static class LogMetadataBuilder implements ObjectBuilder<LogMetadata> {
+    }
+
+    private static class Serializer extends VersionedSerializer.WithBuilder<LogMetadata, LogMetadataBuilder> {
+        @Override
+        protected LogMetadataBuilder newBuilder() {
+            return LogMetadata.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(LogMetadata m, RevisionDataOutput output) throws IOException {
+            output.writeBoolean(m.isEnabled());
+            output.writeCompactLong(m.getEpoch());
+            output.writeCompactLong(m.truncationAddress.getSequence());
+            output.writeCompactLong(m.truncationAddress.getLedgerId());
+            output.writeCollection(m.ledgers, this::writeLedger00);
+        }
+
+        private void read00(RevisionDataInput input, LogMetadata.LogMetadataBuilder builder) throws IOException {
+            builder.enabled(input.readBoolean());
+            builder.epoch(input.readCompactLong());
+            builder.truncationAddress(new LedgerAddress(input.readCompactLong(), input.readCompactLong()));
+            List<LedgerMetadata> ledgers = input.readCollection(this::readLedger00, ArrayList::new);
+            builder.ledgers(Collections.unmodifiableList(ledgers));
+            builder.updateVersion(INITIAL_VERSION);
+        }
+
+        private void writeLedger00(RevisionDataOutput output, LedgerMetadata m) throws IOException {
+            output.writeCompactLong(m.getLedgerId());
+            output.writeCompactInt(m.getSequence());
+            output.writeByte(m.getStatus().getValue());
+        }
+
+        private LedgerMetadata readLedger00(RevisionDataInput input) throws IOException {
+            long ledgerId = input.readCompactLong();
+            int seq = input.readCompactInt();
+            LedgerMetadata.Status empty = LedgerMetadata.Status.valueOf(input.readByte());
+            return new LedgerMetadata(ledgerId, seq, empty);
+        }
+    }
+
+    //endregion
 }
