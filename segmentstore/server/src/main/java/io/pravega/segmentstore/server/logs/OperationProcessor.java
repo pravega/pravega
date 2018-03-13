@@ -39,6 +39,7 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -94,7 +95,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
-        this.throttlerCalculator = new ThrottlerCalculator(durableDataLog::getQueueStatistics, stateUpdater::getCacheUtilization);
+        this.throttlerCalculator = ThrottlerCalculator.builder()
+                                                      .cacheThrottler(stateUpdater::getCacheUtilization)
+                                                      .batchingThrottler(durableDataLog::getQueueStatistics)
+                                                      .build();
     }
 
     //endregion
@@ -202,14 +206,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     //region Queue Processing
 
     private CompletableFuture<Void> throttle() {
-        int batchingDelayMillis = this.throttlerCalculator.getBatchingDelayMillis();
-        int throttlingDelayMillis = this.throttlerCalculator.getThrottlingDelayMillis();
+        val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
+        if (!delay.get().isMaximum()) {
+            // We are not delaying the maximum amount. We only need to do this once.
+            return throttleOnce(delay.get().getDurationMillis());
+        } else {
+            // The initial delay calculation indicated that we need to throttle to the maximum, which means there's
+            // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
+            // as needed until the pressure is relieved.
+            return Futures.loop(
+                    () -> !delay.get().isMaximum(),
+                    () -> throttleOnce(delay.get().getDurationMillis())
+                            .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
+                    this.executor);
+        }
+    }
 
-        // These delays are not additive. There's no benefit to adding a batching delay on top of a throttling delay, since
-        // a throttling delay will have increased batching as a side effect.
-        int totalDelayMillis = Math.max(batchingDelayMillis, throttlingDelayMillis);
-        this.metrics.processingDelay(totalDelayMillis);
-        return Futures.delayedFuture(Duration.ofMillis(totalDelayMillis), this.executor);
+    private CompletableFuture<Void> throttleOnce(int millis) {
+        this.metrics.processingDelay(millis);
+        log.debug("{}: Processing delay = {}ms.", this.traceObjectId, millis);
+        return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
     /**
