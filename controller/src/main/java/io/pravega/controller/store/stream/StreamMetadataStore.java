@@ -13,9 +13,10 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -207,10 +208,10 @@ public interface StreamMetadataStore {
      * @param executor     callers executor
      * @return current stream configuration.
      */
-    CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope, final String name,
-                                                                                    final boolean ignoreCached,
-                                                                                    final OperationContext context,
-                                                                                    final Executor executor);
+    CompletableFuture<StreamConfigurationRecord> getConfigurationRecord(final String scope, final String name,
+                                                                        final boolean ignoreCached,
+                                                                        final OperationContext context,
+                                                                        final Executor executor);
 
     /**
      * Start new stream truncation.
@@ -245,19 +246,6 @@ public interface StreamMetadataStore {
     /**
      * Fetches the current stream cut.
      *
-     * @param scope    stream scope
-     * @param name     stream name.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return current truncation record.
-     */
-    CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope, final String name,
-                                                                  final OperationContext context,
-                                                                  final Executor executor);
-
-    /**
-     * Fetches the current stream cut.
-     *
      * @param scope        stream scope
      * @param name         stream name.
      * @param ignoreCached ignore cached value.
@@ -265,10 +253,10 @@ public interface StreamMetadataStore {
      * @param executor     callers executor
      * @return current truncation property.
      */
-    CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope, final String name,
-                                                                                final boolean ignoreCached,
-                                                                                final OperationContext context,
-                                                                                final Executor executor);
+    CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope, final String name,
+                                                                  final boolean ignoreCached,
+                                                                  final OperationContext context,
+                                                                  final Executor executor);
 
     /**
      * Set the stream state to sealed.
@@ -406,24 +394,30 @@ public interface StreamMetadataStore {
                                                             final Executor executor);
 
     /**
+     * Method to create new segments in stream metadata.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return future
+     */
+    CompletableFuture<Void> scaleCreateNewSegments(final String scope,
+                                                    final String name,
+                                                    final OperationContext context,
+                                                    final Executor executor);
+
+    /**
      * Called after new segments are created in SSS.
      *
      * @param scope          stream scope
      * @param name           stream name.
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments that were created as part of startScale
-     * @param activeEpoch    scale epoch
-     * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
                                                     final String name,
-                                                    final List<Integer> sealedSegments,
-                                                    final List<Segment> newSegments,
-                                                    final int activeEpoch,
-                                                    final long scaleTimestamp,
                                                     final OperationContext context,
                                                     final Executor executor);
 
@@ -432,19 +426,13 @@ public interface StreamMetadataStore {
      *
      * @param scope          stream scope
      * @param name           stream name.
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments that were created as part of startScale
-     * @param activeEpoch    scale epoch
-     * @param scaleTimestamp timestamp at which scale was requested
+     * @param sealedSegmentSizes sealed segments with size at the time of sealing
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
-                                                final Map<Integer, Long> sealedSegments,
-                                                final List<Segment> newSegments,
-                                                final int activeEpoch,
-                                                final long scaleTimestamp,
+                                                final Map<Integer, Long> sealedSegmentSizes,
                                                 final OperationContext context,
                                                 final Executor executor);
 

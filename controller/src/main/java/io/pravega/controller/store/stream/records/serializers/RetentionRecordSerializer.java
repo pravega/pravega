@@ -7,18 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables.serializers;
+package io.pravega.controller.store.stream.records.serializers;
 
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.stream.StreamCutRecord;
-import io.pravega.controller.store.stream.tables.RetentionRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.RetentionRecord;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class RetentionRecordSerializerV1 extends VersionedSerializer.WithBuilder<RetentionRecord, RetentionRecord.RetentionRecordBuilder> {
+public class RetentionRecordSerializer
+        extends VersionedSerializer.WithBuilder<RetentionRecord, RetentionRecord.RetentionRecordBuilder> {
     @Override
     protected byte writeVersion() {
         return 0;
@@ -29,12 +30,14 @@ public class RetentionRecordSerializerV1 extends VersionedSerializer.WithBuilder
         version(0).revision(0, this::write00, this::read00);
     }
 
-    private void read00(RevisionDataInput revisionDataInput, RetentionRecord.RetentionRecordBuilder retentionRecordBuilder) throws IOException {
-        retentionRecordBuilder.streamCuts(revisionDataInput.readCollection(StreamCutRecord.SERIALIZER_V1::deserialize, ArrayList::new));
+    private void read00(RevisionDataInput revisionDataInput, RetentionRecord.RetentionRecordBuilder retentionRecordBuilder)
+            throws IOException {
+        retentionRecordBuilder.streamCuts(revisionDataInput.readCollection(StreamCutRecord.SERIALIZER::deserialize,
+                ArrayList::new));
     }
 
     private void write00(RetentionRecord retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-        revisionDataOutput.writeCollection(retentionRecord.getStreamCuts(), StreamCutRecord.SERIALIZER_V1::serialize);
+        revisionDataOutput.writeCollection(retentionRecord.getStreamCuts(), StreamCutRecord.SERIALIZER::serialize);
     }
 
     @Override

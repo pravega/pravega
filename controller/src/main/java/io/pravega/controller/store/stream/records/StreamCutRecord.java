@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store.stream.records;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.stream.tables.serializers.StreamCutRecordSerializerV1;
+import io.pravega.controller.store.stream.records.serializers.StreamCutRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +26,8 @@ import java.util.Map;
 @Builder
 @AllArgsConstructor
 public class StreamCutRecord {
-    public static final VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> SERIALIZER_V1 = new StreamCutRecordSerializerV1();
+    public static final VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> SERIALIZER
+            = new StreamCutRecordSerializer();
 
     /**
      * Time when this stream cut was recorded.

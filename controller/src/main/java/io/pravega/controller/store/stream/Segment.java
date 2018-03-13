@@ -21,10 +21,11 @@ import java.util.AbstractMap;
 @ToString(includeFieldNames = true)
 public class Segment {
 
-    protected final int number;
-    protected final long start;
-    protected final double keyStart;
-    protected final double keyEnd;
+    private final int number;
+    private final long start;
+    private final int epoch;
+    private final double keyStart;
+    private final double keyEnd;
 
     public boolean overlaps(final Segment segment) {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;

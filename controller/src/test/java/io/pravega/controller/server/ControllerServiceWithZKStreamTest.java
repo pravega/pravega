@@ -141,6 +141,7 @@ public class ControllerServiceWithZKStreamTest {
         keyRanges.put(0.75, 1.0);
 
         assertFalse(consumer.checkScale(SCOPE, STREAM, 0).get().getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS));
+
         Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, Arrays.asList(1), keyRanges, start + 20)
                 .get();
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.STARTED, scaleStatus.getStatus());

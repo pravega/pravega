@@ -12,8 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.store.stream.tables.Data;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -94,7 +93,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamProperty.complete(streamConfig1)).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1)).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -174,8 +173,8 @@ public class StreamTest {
         zkStream.updateState(State.SCALING).join();
 
         List<Integer> newSegmentInt = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
-        zkStream.scaleNewSegmentsCreated(sealedSegments, newSegmentInt,
-                response.getActiveEpoch(), scale).get();
+        zkStream.scaleCreateNewSegments().get();
+        zkStream.scaleNewSegmentsCreated().get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
 
@@ -208,7 +207,7 @@ public class StreamTest {
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), newSegmentInt, response.getActiveEpoch(), scale).get();
+        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L))).get();
         // scale is completed, history table also has completed record now.
         final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
         final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();

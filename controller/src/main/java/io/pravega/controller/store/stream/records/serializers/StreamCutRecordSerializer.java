@@ -7,18 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables.serializers;
+package io.pravega.controller.store.stream.records.serializers;
 
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.stream.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-public class StreamCutRecordSerializerV1 extends VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecord.StreamCutRecordBuilder> {
+public class StreamCutRecordSerializer
+        extends VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecord.StreamCutRecordBuilder> {
     @Override
     protected byte writeVersion() {
         return 0;
@@ -29,7 +30,8 @@ public class StreamCutRecordSerializerV1 extends VersionedSerializer.WithBuilder
         version(0).revision(0, this::write00, this::read00);
     }
 
-    private void read00(RevisionDataInput revisionDataInput, StreamCutRecord.StreamCutRecordBuilder streamCutRecordBuilder) throws IOException {
+    private void read00(RevisionDataInput revisionDataInput, StreamCutRecord.StreamCutRecordBuilder streamCutRecordBuilder)
+            throws IOException {
         streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
                 .recordingSize(revisionDataInput.readLong())
                 .streamCut(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong));
