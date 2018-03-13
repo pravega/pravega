@@ -631,7 +631,7 @@ public class TableHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.5, 0.75));
         newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.75, 1.0));
 
-        segmentTableAndIndex = updateSegmentTableAndIndex(3, epoch, segmentIndex, segmentTable, newRanges, timestamp + 1);
+        segmentTableAndIndex = updateSegmentTableAndIndex(2, epoch, segmentIndex, segmentTable, newRanges, timestamp + 1);
         segmentIndex = segmentTableAndIndex.getValue();
         segmentTable = segmentTableAndIndex.getKey();
         historyIndex = TableHelper.updateHistoryIndex(historyIndex, timestamp + 1, historyTable.length);
@@ -676,7 +676,7 @@ public class TableHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.0, (0.0 + 0.5) / 2));
         newRanges.add(new AbstractMap.SimpleEntry<Double, Double>((0.0 + 0.5) / 2, 0.5));
 
-        segmentTableAndIndex = updateSegmentTableAndIndex(6, epoch, segmentIndex, segmentTable, newRanges, timestamp + 4);
+        segmentTableAndIndex = updateSegmentTableAndIndex(8, epoch, segmentIndex, segmentTable, newRanges, timestamp + 4);
         segmentIndex = segmentTableAndIndex.getValue();
         segmentTable = segmentTableAndIndex.getKey();
         historyIndex = TableHelper.updateHistoryIndex(historyIndex, timestamp + 4, historyTable.length);

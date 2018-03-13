@@ -525,6 +525,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                         return createEpochTransitionNode(epochTransition.toByteArray())
                                 .thenApply(x -> {
+                                    log.info("scale for stream {}/{} accepted. Segments to seal = {}", scope, name,
+                                            epochTransition.getSegmentsToSeal());
                                     return epochTransition;
                                 });
                     }
@@ -599,7 +601,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return updateSegmentIndex(updatedIndex)
                 .thenCompose(v -> updateSegmentTable(updatedTable))
-                .thenAccept(v -> log.debug("scale {}/{} new segments created successfully", scope, name));
+                .thenAccept(v -> log.info("scale {}/{} new segments created successfully", scope, name));
     }
 
     private CompletableFuture<EpochTransitionRecord> getEpochTransition() {
