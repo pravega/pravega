@@ -56,7 +56,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
-    private static final int MAX_DELAY_MILLIS = 50;
     private static final int MAX_COMMIT_QUEUE_SIZE = 50;
 
     private final UpdateableContainerMetadata metadata;
