@@ -92,23 +92,23 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     //region RecoveryProcessor Overrides
 
     @Override
-    protected void recoverOperation(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
         if (this.callbacks.beginRecoverOperation != null) {
-            Callbacks.invokeSafely(this.callbacks.beginRecoverOperation, readResult.getItem(), readResult.getFrameEntries(), null);
+            Callbacks.invokeSafely(this.callbacks.beginRecoverOperation, dataFrameRecord.getItem(), dataFrameRecord.getFrameEntries(), null);
         }
 
         try {
-            super.recoverOperation(readResult, metadataUpdater);
+            super.recoverOperation(dataFrameRecord, metadataUpdater);
         } catch (Throwable ex) {
             if (this.callbacks.operationFailed != null) {
-                Callbacks.invokeSafely(this.callbacks.operationFailed, readResult.getItem(), ex, null);
+                Callbacks.invokeSafely(this.callbacks.operationFailed, dataFrameRecord.getItem(), ex, null);
             }
 
             throw ex;
         }
 
         if (this.callbacks.operationSuccess != null) {
-            Callbacks.invokeSafely(this.callbacks.operationSuccess, readResult.getItem(), null);
+            Callbacks.invokeSafely(this.callbacks.operationSuccess, dataFrameRecord.getItem(), null);
         }
     }
 
@@ -124,7 +124,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         /**
          * Invoked before attempting to recover an operation. Args: Operation, DataFrameEntries making up that operation.
          */
-        private final BiConsumer<Operation, List<DataFrame.DataFrameEntry>> beginRecoverOperation;
+        private final BiConsumer<Operation, List<DataFrameRecord.EntryInfo>> beginRecoverOperation;
 
         /**
          * Invoked when an operation was successfully recovered.
