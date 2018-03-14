@@ -86,6 +86,10 @@ public final class MetricsNames {
     public static final String SEGMENTS_SPLITS = "controller.segment_splits"; // Dynamic Counter
     public static final String SEGMENTS_MERGES = "controller.segment_merges"; // Dynamic Counter
 
+    // Stream retention operations (Dynamic)
+    public static final String RETENTION_FREQUENCY = "controller.retention_frequency";   // Dynamic Counter
+    public static final String TRUNCATED_SIZE = "controller.transactions_committed"; // Dynamic Counter
+
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
