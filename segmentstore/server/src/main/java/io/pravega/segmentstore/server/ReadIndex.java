@@ -19,7 +19,7 @@ import java.util.Iterator;
 /**
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
  */
-public interface ReadIndex extends AutoCloseable {
+public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *

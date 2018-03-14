@@ -315,6 +315,11 @@ public class ContainerReadIndex implements ReadIndex {
         log.info("{} Exit RecoveryMode.", this.traceObjectId);
     }
 
+    @Override
+    public double getCacheUtilization() {
+        return this.cacheManager.getCacheUtilization();
+    }
+
     //endregion
 
     //region Helpers

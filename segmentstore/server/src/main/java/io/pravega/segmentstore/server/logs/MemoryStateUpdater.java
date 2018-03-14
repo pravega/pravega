@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -34,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @ThreadSafe
 @Slf4j
-class MemoryStateUpdater {
+class MemoryStateUpdater implements CacheUtilizationProvider {
     //region Private
 
     private final ReadIndex readIndex;
@@ -64,6 +65,11 @@ class MemoryStateUpdater {
     //endregion
 
     //region Operations
+
+    @Override
+    public double getCacheUtilization() {
+        return this.readIndex.getCacheUtilization();
+    }
 
     /**
      * Puts the Log Updater in Recovery Mode, using the given Metadata Source as interim.

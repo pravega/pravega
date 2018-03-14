@@ -264,6 +264,11 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
             this.closed = true;
         }
 
+        @Override
+        public double getCacheUtilization() {
+            throw new IllegalStateException("Not Implemented");
+        }
+
         private void invoke(MethodInvocation methodInvocation) {
             Exceptions.checkNotClosed(this.closed, this);
             if (this.methodInvokeCallback != null) {
