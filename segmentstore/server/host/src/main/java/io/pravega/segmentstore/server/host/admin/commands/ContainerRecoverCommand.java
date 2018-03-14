@@ -11,9 +11,9 @@ package io.pravega.segmentstore.server.host.admin.commands;
 
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.DataFrame;
+import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -94,11 +94,10 @@ public class ContainerRecoverCommand extends ContainerCommand {
             for (Object o : items) {
                 outputDebugObject(o, indent + 1);
             }
-        } else if (c instanceof DataFrame.DataFrameEntry) {
-            val dfe = (DataFrame.DataFrameEntry) c;
-            output("%s: Address={%s}, First/LastRecordEntry=%s/%s, LastInDF=%s, DF.Offset/Length=%d/%d.",
-                    prefix, dfe.getFrameAddress(), dfe.isFirstRecordEntry(), dfe.isLastRecordEntry(),
-                    dfe.isLastEntryInDataFrame(), dfe.getData().arrayOffset(), dfe.getData().getLength());
+        } else if (c instanceof DataFrameRecord.EntryInfo) {
+            val dfe = (DataFrameRecord.EntryInfo) c;
+            output("%s: Address={%s}, Length=%s, LastInDF=%s, DF.Offset/Length=%d/%d.",
+                    prefix, dfe.getFrameAddress(), dfe.isLastEntryInDataFrame(), dfe.getFrameOffset(), dfe.getLength());
         } else if (c instanceof DataFrame) {
             val df = (DataFrame) c;
             output("%s: Address={%s}, Length=%s.", prefix, df.getAddress(), df.getLength());
@@ -124,21 +123,20 @@ public class ContainerRecoverCommand extends ContainerCommand {
         private int operationCount = 0;
         private int currentFrameUsedLength = 0;
 
-        private void newOperation(Operation op, List<DataFrame.DataFrameEntry> frameEntries) {
+        private void newOperation(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
             for (int i = 0; i < frameEntries.size(); i++) {
-                DataFrame.DataFrameEntry e = frameEntries.get(i);
+                DataFrameRecord.EntryInfo e = frameEntries.get(i);
                 if (this.currentFrameUsedLength == 0) {
                     output("Begin DataFrame: %s.", e.getFrameAddress());
                     this.dataFrameCount++;
                 }
 
-                ByteArraySegment data = e.getData();
-                this.currentFrameUsedLength += data.getLength();
+                this.currentFrameUsedLength += e.getLength();
                 String split = frameEntries.size() <= 1 ? "" : String.format(",#%d/%d", i + 1, frameEntries.size());
-                output("\t@[%s,%s%s]: %s.", data.arrayOffset(), data.getLength(), split, op);
+                output("\t@[%s,%s%s]: %s.", e.getFrameOffset(), e.getLength(), split, op);
 
                 if (e.isLastEntryInDataFrame()) {
-                    int totalLength = data.arrayOffset() + data.getLength();
+                    int totalLength = e.getFrameOffset() + e.getLength();
                     output("End DataFrame: Length=%d/%d.\n", this.currentFrameUsedLength, totalLength);
                     this.currentFrameUsedLength = 0;
                 }

@@ -209,10 +209,10 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
         try (DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, serializer, CONTAINER_ID)) {
             boolean encounteredException = false;
             while (true) {
-                DataFrameReader.ReadResult<TestLogItem> readResult;
+                DataFrameRecord<TestLogItem> dataFrameRecord;
 
                 try {
-                    readResult = reader.getNext();
+                    dataFrameRecord = reader.getNext();
 
                     // We are expecting an exception at all times (the catch block will verify the correctness of the exception thrown).
                     Assert.fail("Expected an exception but none got thrown.");
@@ -233,7 +233,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
                     }
                 }
 
-                if (readResult == null) {
+                if (dataFrameRecord == null) {
                     Assert.fail("Reached the end of the log and no exceptions were detected.");
                     break;
                 }
@@ -264,26 +264,26 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
         boolean expectDifferentDataFrameSequence = true;
         while (true) {
             // Fetch the next operation.
-            DataFrameReader.ReadResult<TestLogItem> readResult = reader.getNext();
-            if (readResult == null) {
+            DataFrameRecord<TestLogItem> dataFrameRecord = reader.getNext();
+            if (dataFrameRecord == null) {
                 // We have reached the end.
                 break;
             }
 
-            // Check the monotonicity of the DataFrameSequence. If we encountered a ReadResult with the flag isLastFrameEntry,
+            // Check the monotonicity of the DataFrameSequence. If we encountered a DataFrameRecord with the flag isLastFrameEntry,
             // then we must ensure the DataFrameSequence changes (increases).
             if (expectDifferentDataFrameSequence) {
-                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameAddress().getSequence());
+                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, dataFrameRecord.getLastUsedDataFrameAddress().getSequence());
                 expectDifferentDataFrameSequence = false;
             } else {
-                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameAddress().getSequence());
+                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, dataFrameRecord.getLastUsedDataFrameAddress().getSequence());
             }
 
-            if (readResult.isLastFrameEntry()) {
+            if (dataFrameRecord.isLastFrameEntry()) {
                 expectDifferentDataFrameSequence = true;
             }
 
-            result.add(readResult.getItem());
+            result.add(dataFrameRecord.getItem());
         }
 
         return result;
