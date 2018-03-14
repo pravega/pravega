@@ -25,8 +25,20 @@ public interface StreamSegmentsInfo {
     Iterator<SegmentRange> getSegmentRangeIterator();
 
     /**
+     * This returns the start {@link StreamCut} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * @return Start {@link StreamCut}
+     */
+    StreamCut getStartStreamCut();
+
+    /**
+     * This returns the end {@link StreamCut} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * @return End {@link StreamCut}
+     */
+    StreamCut getEndStreamCut();
+
+    /**
      * For internal use. Do not call.
-     * @return This
+     * @return Implementation of StreamSegmentsInfo interface.
      */
     StreamSegmentsInfoImpl asImpl();
 }

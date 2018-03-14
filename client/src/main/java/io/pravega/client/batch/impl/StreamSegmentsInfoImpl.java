@@ -42,6 +42,16 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
     }
 
     @Override
+    public StreamCut getStartStreamCut() {
+        return startStreamCut;
+    }
+
+    @Override
+    public StreamCut getEndStreamCut() {
+        return endStreamCut;
+    }
+
+    @Override
     public StreamSegmentsInfoImpl asImpl() {
         return this;
     }

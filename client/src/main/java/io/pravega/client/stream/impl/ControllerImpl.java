@@ -85,6 +85,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static java.util.stream.Collectors.summarizingInt;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -646,17 +647,25 @@ public class ControllerImpl implements Controller {
                 "Ensure streamCuts for the same stream is passed");
 
         final Stream stream = fromStreamCut.asImpl().getStream();
-        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
         CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
         final Set<Segment> segments = getSegmentsInRange(fromStreamCut, toStreamCut.asImpl().getPositions().keySet());
-        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        LoggerHelpers.traceLeave(log, "getSegments", traceId);
         return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments,
                 getAndHandleExceptions(token, RuntimeException::new)));
     }
 
     private Set<Segment> getSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
-        final HashSet<Segment> segments = new HashSet<>(lowerBound.asImpl().getPositions().keySet());
-        segments.addAll(upperBound);
+        //input validation.
+        val fromSCSummary = lowerBound.asImpl().getPositions().keySet()
+                                      .stream().collect(summarizingInt(Segment::getSegmentNumber));
+        val toSCSummary = upperBound.stream().collect(summarizingInt(Segment::getSegmentNumber));
+        Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
+                "Overlapping StreamCuts cannot be provided");
+        Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
+                "Overlapping StreamCuts cannot be provided");
+
+        final HashSet<Segment> segments = new HashSet<>(upperBound);
         segments.addAll(getKnownSegmentsInRange(lowerBound, upperBound));
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
         for (Segment toFetch : lowerBound.asImpl().getPositions().keySet()) {
@@ -664,11 +673,15 @@ public class ControllerImpl implements Controller {
                 toFetchSuccessors.add(toFetch);
             }
         }
+        segments.addAll(lowerBound.asImpl().getPositions().keySet());
         while (!toFetchSuccessors.isEmpty()) {
             Segment segment = toFetchSuccessors.remove();
             Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new)
                     .getSegmentToPredecessor().keySet();
             for (Segment successor : successors) {
+                //Successor segment number can never be larger than the highest segment number in upperBound.
+                Preconditions.checkArgument(successor.getSegmentNumber() <= toSCSummary.getMax(),
+                        "Overlapping streamCuts, lowerBound streamCut should be strictly lower than the upperBound StreamCut.");
                 if (!segments.contains(successor)) {
                     segments.add(successor);
                     toFetchSuccessors.add(successor);
@@ -680,7 +693,7 @@ public class ControllerImpl implements Controller {
 
     /*
      * This method fetches the segments of a stream which definitely reside between the segments represented by
-     * fromStreamCut and the currentSegments using the invariant that segment numbers monotonically increase.
+     * lowerBound and the upperBound using the invariant that segment numbers monotonically increase.
      *
      * @param lowerBound StreamCut representing the segments of the starting point.
      * @param upperBound Segments representing the ending point.
