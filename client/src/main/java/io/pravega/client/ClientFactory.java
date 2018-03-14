@@ -10,6 +10,7 @@
 package io.pravega.client;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.auth.CredentialsHelper;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
@@ -73,6 +74,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, ClientConfig config) {
+        CredentialsHelper.extractCredentials(config);
         val connectionFactory = new ConnectionFactoryImpl(config);
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);
