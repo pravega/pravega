@@ -72,12 +72,11 @@ public class RetentionRecord {
     public static byte[] toByteArray(RetentionRecord record) {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(record).array();
+            array = SERIALIZER.serialize(record).getCopy();
         } catch (IOException e) {
             log.error("Exception while serializing retention record {}", e);
             throw Lombok.sneakyThrow(e);
         }
         return array;
     }
-
 }

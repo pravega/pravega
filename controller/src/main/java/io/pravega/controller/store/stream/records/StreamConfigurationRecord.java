@@ -63,7 +63,7 @@ public class StreamConfigurationRecord {
     public byte[] toByteArray() {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(this).array();
+            array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             log.error("error serializing configuration record {}", e);
             throw Lombok.sneakyThrow(e);
@@ -100,7 +100,7 @@ public class StreamConfigurationRecord {
         public byte[] toByteArray() {
             byte[] array;
             try {
-                array = SERIALIZER.serialize(this).array();
+                array = SERIALIZER.serialize(this).getCopy();
             } catch (IOException e) {
                 log.error("error serializing configuration's scaling policy record {}", e);
                 throw Lombok.sneakyThrow(e);
@@ -138,7 +138,7 @@ public class StreamConfigurationRecord {
         public byte[] toByteArray() {
             byte[] array;
             try {
-                array = SERIALIZER.serialize(this).array();
+                array = SERIALIZER.serialize(this).getCopy();
             } catch (IOException e) {
                 log.error("error serializing configuration's retention policy record {}", e);
                 throw Lombok.sneakyThrow(e);

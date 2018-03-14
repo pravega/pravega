@@ -141,7 +141,7 @@ public class StreamTruncationRecord  {
     public byte[] toByteArray() {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(this).array();
+            array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             log.error("error serializing stream truncation record {}", e);
             throw Lombok.sneakyThrow(e);

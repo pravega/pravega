@@ -74,7 +74,7 @@ public class EpochTransitionRecord {
     public byte[] toByteArray() {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(this).array();
+            array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             log.error("error serializing epoch transition record {}", e);
             throw Lombok.sneakyThrow(e);

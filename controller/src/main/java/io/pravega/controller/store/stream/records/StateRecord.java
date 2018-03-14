@@ -49,7 +49,7 @@ public class StateRecord {
     public byte[] toByteArray() {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(this).array();
+            array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             log.error("error serializing state record {}", e);
             throw Lombok.sneakyThrow(e);

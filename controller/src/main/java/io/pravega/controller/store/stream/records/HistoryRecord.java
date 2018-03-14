@@ -61,7 +61,7 @@ public class HistoryRecord {
 
     public byte[] toByteArray() {
         try {
-            return SERIALIZER.serialize(this).array();
+            return SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             throw Lombok.sneakyThrow(e);
         }

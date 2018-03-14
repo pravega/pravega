@@ -15,7 +15,10 @@ import io.pravega.controller.store.stream.records.serializers.StreamCutRecordSer
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -25,6 +28,7 @@ import java.util.Map;
 @Data
 @Builder
 @AllArgsConstructor
+@Slf4j
 public class StreamCutRecord {
     public static final VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> SERIALIZER
             = new StreamCutRecordSerializer();
@@ -45,4 +49,27 @@ public class StreamCutRecord {
     public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
 
     }
+
+    public static StreamCutRecord parse(byte[] data) {
+        StreamCutRecord retention;
+        try {
+            retention = SERIALIZER.deserialize(data);
+        } catch (IOException e) {
+            log.error("Exception while deserializing streamcut record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return retention;
+    }
+
+    public static byte[] toByteArray(StreamCutRecord record) {
+        byte[] array;
+        try {
+            array = SERIALIZER.serialize(record).getCopy();
+        } catch (IOException e) {
+            log.error("Exception while serializing streamcut record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return array;
+    }
+
 }

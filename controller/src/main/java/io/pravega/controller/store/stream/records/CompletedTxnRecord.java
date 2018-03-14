@@ -50,7 +50,7 @@ public class CompletedTxnRecord {
     public byte[] toByteArray() {
         byte[] array;
         try {
-            array = SERIALIZER.serialize(this).array();
+            array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
             log.error("error serializing completed txn record {}", e);
             throw Lombok.sneakyThrow(e);
