@@ -100,6 +100,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
         this.throttlerCalculator = ThrottlerCalculator.builder()
                                                       .cacheThrottler(stateUpdater::getCacheUtilization)
+                                                      .commitBacklogThrottler(this.commitQueue::size)
                                                       .batchingThrottler(durableDataLog::getQueueStatistics)
                                                       .build();
     }
@@ -233,22 +234,22 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
         if (!delay.get().isMaximum()) {
             // We are not delaying the maximum amount. We only need to do this once.
-            return throttleOnce(delay.get().getDurationMillis());
+            return throttleOnce(delay.get().getDurationMillis(), delay.get().isMaximum());
         } else {
             // The initial delay calculation indicated that we need to throttle to the maximum, which means there's
             // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
             // as needed until the pressure is relieved.
             return Futures.loop(
                     () -> !delay.get().isMaximum(),
-                    () -> throttleOnce(delay.get().getDurationMillis())
+                    () -> throttleOnce(delay.get().getDurationMillis(), delay.get().isMaximum())
                             .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
                     this.executor);
         }
     }
 
-    private CompletableFuture<Void> throttleOnce(int millis) {
+    private CompletableFuture<Void> throttleOnce(int millis, boolean max) {
         this.metrics.processingDelay(millis);
-        log.debug("{}: Processing delay = {}ms.", this.traceObjectId, millis);
+        log.debug("{}: Processing delay = {}ms (max={}).", this.traceObjectId, millis, max);
         return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
