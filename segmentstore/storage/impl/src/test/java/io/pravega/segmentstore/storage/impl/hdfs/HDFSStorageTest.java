@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -78,7 +79,6 @@ public class HDFSStorageTest extends StorageTestBase {
     }
 
     //region Fencing tests
-
     /**
      * A special case Fencing test that verifies the HDFSStorage fencing mechanism when the "fenced-out" instance keeps
      * trying to write continuously. This verifies that any ongoing writes are properly handled upon fencing.
@@ -102,8 +102,8 @@ public class HDFSStorageTest extends StorageTestBase {
         // Create the Segment and open it for the first time.
         val currentHandle = new AtomicReference<SegmentHandle>(
                 currentStorage.get().create(segmentName, TIMEOUT)
-                        .thenCompose(v -> currentStorage.get().openWrite(segmentName))
-                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+                              .thenCompose(v -> currentStorage.get().openWrite(segmentName))
+                              .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
         // Run a number of epochs.
         while (currentEpoch <= epochCount) {
@@ -115,7 +115,7 @@ public class HDFSStorageTest extends StorageTestBase {
                     () -> {
                         rnd.nextBytes(writeBuffer);
                         return oldStorage.write(handle, writtenData.size(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT)
-                                .thenRun(() -> writtenData.write(writeBuffer));
+                                         .thenRun(() -> writtenData.write(writeBuffer));
                     },
                     executorService());
 
@@ -135,7 +135,8 @@ public class HDFSStorageTest extends StorageTestBase {
                 Assert.fail("Continuous appends on older epoch Adapter did not fail.");
             } catch (Exception ex) {
                 val cause = Exceptions.unwrap(ex);
-                if (!(cause instanceof StorageNotPrimaryException || cause instanceof StreamSegmentSealedException)) {
+                if (!(cause instanceof StorageNotPrimaryException || cause instanceof StreamSegmentSealedException
+                || cause instanceof StreamSegmentNotExistsException)) {
                     // We only expect the appends to fail because they were fenced out or the Segment was sealed.
                     Assert.fail("Unexpected exception " + cause);
                 }
@@ -169,7 +170,7 @@ public class HDFSStorageTest extends StorageTestBase {
      */
     @Test
     @Override
-    public void testFencing() throws Exception {
+    public void testFencing() {
         final long epoch1 = 1;
         final long epoch2 = 2;
         final String segmentName = "segment";
@@ -296,11 +297,6 @@ public class HDFSStorageTest extends StorageTestBase {
             }
 
             super.concat(targetPath, sourcePaths);
-        }
-
-        @Override
-        public boolean rename(final Path source, final Path target) throws IOException {
-            throw new UnsupportedOperationException("Rename operation disallowed.");
         }
     }
 
