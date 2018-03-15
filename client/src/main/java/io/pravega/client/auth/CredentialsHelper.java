@@ -10,6 +10,9 @@
 package io.pravega.client.auth;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.stream.impl.Credentials;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Helper class to extract credentials.
@@ -28,7 +31,53 @@ public class CredentialsHelper {
         if (config.getCredentials() != null) {
             return config;
         }
+
+        Credentials credentials = extractCredentialsFromProperties();
+        if ( credentials == null) {
+           credentials = extractCredentialsFromEnv();
+        }
+
+        if ( credentials != null) {
+            return ClientConfig.builder()
+                               .credentials(credentials)
+                               .trustStore(config.getTrustStore())
+                               .validateHostName(config.isValidateHostName())
+                               .controllerURI(config.getControllerURI())
+                               .build();
+
+        }
+
         return config;
 
+    }
+
+    private static Credentials extractCredentialsFromProperties() {
+        Map<String, String> retVal = System.getProperties().entrySet()
+                                           .stream()
+                                           .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
+                                           .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+        return credentialFromMap(retVal);
+    }
+
+    private static Credentials extractCredentialsFromEnv() {
+        Map<String, String> retVal = System.getenv().entrySet()
+                                           .stream()
+                                           .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
+                                           .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+        return credentialFromMap(retVal);
+    }
+
+    private static Credentials credentialFromMap(Map<String, String> retVal) {
+        return new Credentials() {
+            @Override
+            public String getAuthenticationType() {
+             return retVal.get("pravega.client.auth.method");
+            }
+
+            @Override
+            public Map<String, String> getAuthParameters() {
+                return retVal;
+            }
+        };
     }
 }
