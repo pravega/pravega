@@ -146,11 +146,11 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             //run the failover test before scaling
             performFailoverForTestsInvolvingTxns();
 
-        //bring the instances back to 3 before performing failover during scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            //bring the instances back to 3 before performing failover during scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
 
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //scale manually
             log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, stream)
@@ -186,10 +186,10 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, stream)
                     .get().getSegments().size());
 
-        //bring the instances back to 3 before performing failover after scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //bring the instances back to 3 before performing failover after scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
             performFailoverForTestsInvolvingTxns();

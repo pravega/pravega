@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import java.io.IOException;
 import lombok.Getter;
 
@@ -21,7 +21,6 @@ import lombok.Getter;
 public class StreamSegmentTruncateOperation extends StorageOperation implements SegmentOperation {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     @Getter
     private long streamSegmentId;
     /**
@@ -47,8 +46,10 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
         this.streamSegmentOffset = offset;
     }
 
-    protected StreamSegmentTruncateOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private StreamSegmentTruncateOperation() {
     }
 
     @Override
@@ -61,28 +62,41 @@ public class StreamSegmentTruncateOperation extends StorageOperation implements 
     //region Operation Implementation
 
     @Override
-    protected OperationType getOperationType() {
-        return OperationType.Truncate;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        target.writeByte(CURRENT_VERSION);
-        target.writeLong(getStreamSegmentId());
-        target.writeLong(this.streamSegmentOffset);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        this.streamSegmentId = source.readLong();
-        this.streamSegmentOffset = source.readLong();
-    }
-
-    @Override
     public String toString() {
         return String.format("%s, Offset = %s", super.toString(), this.streamSegmentOffset);
     }
 
     //endregion
+
+    static class Serializer extends OperationSerializer<StreamSegmentTruncateOperation> {
+        private static final int SERIALIZATION_LENGTH = 3 * Long.BYTES;
+
+        @Override
+        protected OperationBuilder<StreamSegmentTruncateOperation> newBuilder() {
+            return new OperationBuilder<>(new StreamSegmentTruncateOperation());
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(StreamSegmentTruncateOperation o, RevisionDataOutput target) throws IOException {
+            target.length(SERIALIZATION_LENGTH);
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.streamSegmentId);
+            target.writeLong(o.streamSegmentOffset);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentTruncateOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.streamSegmentId = source.readLong();
+            b.instance.streamSegmentOffset = source.readLong();
+        }
+    }
 }

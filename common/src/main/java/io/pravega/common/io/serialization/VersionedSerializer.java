@@ -136,19 +136,7 @@ public abstract class VersionedSerializer<T> {
      * @param object The object to serialize.
      * @throws IOException If an IO Exception occurred.
      */
-    public void serialize(OutputStream stream, T object) throws IOException {
-        stream.write(SERIALIZER_VERSION);
-        serializeContents(stream, object);
-    }
-
-    /**
-     * When implemented in a derived class, this method will write the serialization contents, excluding the Header.
-     * Refer to the format above for contents.
-     * @param baseStream The OutputStream to write to.
-     * @param object     The object to serialize.
-     * @throws IOException If an IO Exception occurred.
-     */
-    abstract void serializeContents(OutputStream baseStream, T object) throws IOException;
+    public abstract void serialize(OutputStream stream, T object) throws IOException;
 
     /**
      * Reads a single unsigned byte from the given InputStream and interprets it as a Serializer Format Version, after
@@ -308,6 +296,30 @@ public abstract class VersionedSerializer<T> {
         }
 
         @Override
+        public void serialize(OutputStream stream, TargetType object) throws IOException {
+            beforeSerialization(object);
+            stream.write(SERIALIZER_VERSION);
+            serializeContents(stream, object);
+        }
+
+        /**
+         * This method is invoked before any attempt at serializing an object. When implemented in a derived class, it can
+         * be used to validate the state of the object and ensure it is ready for serialization.
+         *
+         * @param object The object that is about to be serialized.
+         * @throws IllegalStateException If the given object cannot be serialized at this time.
+         */
+        protected void beforeSerialization(TargetType object) {
+            // This method intentionally left blank in the base class.
+        }
+
+        /**
+         * Writes the serialization contents, excluding the Header. Refer to the format above for contents.
+         *
+         * @param stream The OutputStream to write to.
+         * @param o      The object to serialize.
+         * @throws IOException If an IO Exception occurred.
+         */
         void serializeContents(OutputStream stream, TargetType o) throws IOException {
             DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
 
@@ -635,10 +647,16 @@ public abstract class VersionedSerializer<T> {
 
         @Override
         @SuppressWarnings("unchecked")
-        public void serializeContents(OutputStream stream, BaseType o) throws IOException {
+        public void serialize(OutputStream stream, BaseType o) throws IOException {
+            // We need to invoke the beforeSerialization of the target serializer before we actually write anything to
+            // the output stream.
             Class c = o.getClass();
             val si = this.serializersByType.get(c);
             ensureCondition(si != null, "No serializer found for %s.", c.getName());
+            si.serializer.beforeSerialization(o);
+
+            // Encode the Serialization Format Version.
+            stream.write(SERIALIZER_VERSION);
 
             // Encode the Object type; this will be used upon deserialization.
             stream.write(si.id);
@@ -695,7 +713,7 @@ public abstract class VersionedSerializer<T> {
              * @param <ReaderType>        A type implementing ObjectBuilder(of TargetType) that can be used to create new objects.
              * @return This instance.
              */
-            protected <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
+            public <TargetType extends BaseType, ReaderType extends ObjectBuilder<TargetType>> MultiType<BaseType>.Builder serializer(
                     Class<TargetType> type, int serializationTypeId, VersionedSerializer.WithBuilder<TargetType, ReaderType> serializer) {
                 Preconditions.checkArgument(serializationTypeId >= 0 && serializationTypeId <= Byte.MAX_VALUE,
                         "SerializationTypeId must be a value between 0 and ", Byte.MAX_VALUE);
