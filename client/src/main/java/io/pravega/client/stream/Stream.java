@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import java.io.Serializable;
 
 /**
@@ -41,5 +43,18 @@ public interface Stream extends Serializable {
      * @return String a fully scoped stream name
      */
     String getScopedName();
+
+    /**
+     * Helper utility to create a Stream object.
+     *
+     * @param scope Scope of the stream.
+     * @param streamName Name of the stream.
+     * @return Stream.
+     */
+    static Stream of(String scope, String streamName) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        return new StreamImpl(scope, streamName);
+    }
 
 }

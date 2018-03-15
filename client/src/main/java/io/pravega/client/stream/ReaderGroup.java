@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
@@ -55,7 +56,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * indication to them that they should persist their state. Once all of the readers have
      * received the notification, a {@link Checkpoint} object will be returned. This can be used to
      * reset the group to this point in the stream by calling
-     * {@link #resetReadersToCheckpoint(Checkpoint)} if the checkpoint fails or the result cannot be
+     * {@link #resetReaders(Checkpoint)} if the checkpoint fails or the result cannot be
      * obtained an exception will be set on the future.
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in
@@ -80,7 +81,18 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * 
      * @param checkpoint The checkpoint to restore to.
      */
-    void resetReadersToCheckpoint(Checkpoint checkpoint);
+    void resetReaders(Checkpoint checkpoint);
+
+    /**
+     * Restore the reader group to the provided stream cuts. All readers in the group will encounter
+     * a {@link ReinitializationRequiredException} and when they rejoin the group they will resume from the position
+     * provided by the stream cuts. The {@link StreamCut StreamCut(s)} of all the streams managed by the reader group
+     * should be passed.
+     *
+     * @param streamCuts Map of streams that this group is reading from to the corresponding {@link StreamCut StreamCut(s)}
+     */
+    @Beta
+    void resetReaders(Map<Stream, StreamCut> streamCuts);
     
     /**
      * Updates a reader group. All existing readers will have to call
