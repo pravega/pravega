@@ -149,7 +149,7 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset to check point 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaders(checkPoint100);
         readEventsAndVerify(100, endExclusive);
 
         //initiate checkpoint200
@@ -163,11 +163,11 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset back to checkpoint 200
-        readerGroup.resetReadersToCheckpoint(checkPoint200);
+        readerGroup.resetReaders(checkPoint200);
         readEventsAndVerify(200, endExclusive);
 
         //reset back to checkpoint 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaders(checkPoint100);
         readEventsAndVerify(100, endExclusive);
 
         readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up

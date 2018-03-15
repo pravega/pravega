@@ -132,7 +132,7 @@ public class CheckpointTest {
         assertFalse(read.isCheckpoint());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReadersToCheckpoint(cpResult);
+        readerGroup.resetReaders(cpResult);
         try {
             reader.readNextEvent(60000);
             fail();
