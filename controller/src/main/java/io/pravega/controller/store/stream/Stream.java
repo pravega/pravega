@@ -10,9 +10,10 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
@@ -89,7 +90,7 @@ interface Stream {
      *
      * @return current stream configuration.
      */
-    CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached);
+    CompletableFuture<StreamConfigurationRecord> getConfigurationRecord(boolean ignoreCached);
 
     /**
      * Starts truncating an existing stream.
@@ -109,18 +110,11 @@ interface Stream {
     /**
      * Fetches the current stream cut.
      *
-     * @return current stream cut.
-     */
-    CompletableFuture<StreamTruncationRecord> getTruncationRecord();
-
-    /**
-     * Fetches the current stream cut.
-     *
      * @param ignoreCached ignore cached
      *
      * @return current stream cut.
      */
-    CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached);
+    CompletableFuture<StreamTruncationRecord> getTruncationRecord(boolean ignoreCached);
 
     /**
      * Update the state of the stream.
@@ -213,29 +207,22 @@ interface Stream {
     CompletableFuture<Boolean> scaleTryDeleteEpoch(final int epoch);
 
     /**
-     * Called after new segment creation is complete and previous epoch is successfully deleted.
-     *
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments created
-     * @param epoch
-     *@param scaleTimestamp scaling timestamp  @return future
+     * Called after epochTransition entry is created. Implementation of this method should create new segments that are
+     * specified in epochTransition in stream metadata tables.
      */
-    CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
-                                                    final List<Integer> newSegments,
-                                                    final int epoch,
-                                                    final long scaleTimestamp);
+    CompletableFuture<Void> scaleCreateNewSegments();
+
+    /**
+     * Called after new segment creation is complete.
+     */
+    CompletableFuture<Void> scaleNewSegmentsCreated();
 
     /**
      * Called after sealing old segments is complete.
      *
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments created
-     * @param activeEpoch    activeEpoch
-     *@param scaleTimestamp scaling timestamp  @return future
+     * @param sealedSegmentSizes sealed segments with absolute sizes
      */
-    CompletableFuture<Void> scaleOldSegmentsSealed(final Map<Integer, Long> sealedSegments,
-                                                   final List<Integer> newSegments,
-                                                   int activeEpoch, final long scaleTimestamp);
+    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Integer, Long> sealedSegmentSizes);
 
     /**
      * Returns the latest sets of segments created and removed by doing a diff of last two epochs.

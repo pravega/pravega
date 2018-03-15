@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.curator.framework.CuratorFramework;
@@ -224,9 +223,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 scaleTimestamp, false, null, executor).join();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         store.setState(scope, stream, State.SCALING, null, executor).join();
-        store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
-                scaleTimestamp, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), segmentsCreated, response.getActiveEpoch(),
-                scaleTimestamp, null, executor).join();
+        store.scaleCreateNewSegments(scope, stream, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), null, executor).join();
     }
 }

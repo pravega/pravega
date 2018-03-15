@@ -7,19 +7,29 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
+package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.Lists;
-import io.pravega.controller.store.stream.StreamCutRecord;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.controller.store.stream.records.serializers.RetentionRecordSerializer;
+import lombok.Builder;
 import lombok.Data;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.Serializable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Data
-public class RetentionRecord implements Serializable {
+@Builder
+public class RetentionRecord {
+    public static final VersionedSerializer.WithBuilder<RetentionRecord, RetentionRecord.RetentionRecordBuilder> SERIALIZER =
+            new RetentionRecordSerializer();
+
     private final List<StreamCutRecord> streamCuts;
 
     public RetentionRecord(List<StreamCutRecord> streamCuts) {
@@ -43,5 +53,30 @@ public class RetentionRecord implements Serializable {
         // remove all stream cuts with recordingTime before supplied cut
         return new RetentionRecord(list.stream().filter(x -> x.getRecordingTime() > cut.getRecordingTime())
                 .collect(Collectors.toList()));
+    }
+
+    public static class RetentionRecordBuilder implements ObjectBuilder<RetentionRecord> {
+    }
+
+    public static RetentionRecord parse(byte[] data) {
+        RetentionRecord retention;
+        try {
+            retention = SERIALIZER.deserialize(data);
+        } catch (IOException e) {
+            log.error("Exception while deserializing retention record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return retention;
+    }
+
+    public static byte[] toByteArray(RetentionRecord record) {
+        byte[] array;
+        try {
+            array = SERIALIZER.serialize(record).getCopy();
+        } catch (IOException e) {
+            log.error("Exception while serializing retention record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return array;
     }
 }

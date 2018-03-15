@@ -13,8 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -58,15 +58,16 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
 
-        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
-                .thenCompose(property -> {
-                    if (!property.isUpdating()) {
-                        throw new TaskExceptions.StartException("Truncate Stream not started yet.");
-                    } else {
-                        return processTruncate(scope, stream, property.getProperty(), context,
-                                this.streamMetadataTasks.retrieveDelegationToken());
-                    }
-                });
+        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
+                .thenCompose(property -> streamMetadataStore.getState(scope, stream, true, context, executor)
+                    .thenCompose(state -> {
+                        if (!property.isUpdating()) {
+                            throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                        } else {
+                            return processTruncate(scope, stream, property, context,
+                                    this.streamMetadataTasks.retrieveDelegationToken());
+                        }
+                    }));
     }
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,

@@ -16,7 +16,6 @@ import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
-import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.Config;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
