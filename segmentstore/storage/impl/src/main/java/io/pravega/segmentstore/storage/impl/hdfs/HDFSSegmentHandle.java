@@ -9,13 +9,12 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.List;
 import lombok.Getter;
-import org.apache.commons.lang.StringUtils;
 import org.apache.http.annotation.GuardedBy;
 import org.apache.http.annotation.ThreadSafe;
 
@@ -48,7 +47,7 @@ class HDFSSegmentHandle implements SegmentHandle {
     private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileDescriptor> files) {
         this.segmentName = Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         this.readOnly = readOnly;
-        this.files = Exceptions.checkNotNullOrEmpty(files, "files");
+        this.files = files;
     }
 
     /**
@@ -134,12 +133,7 @@ class HDFSSegmentHandle implements SegmentHandle {
 
     @Override
     public String toString() {
-        String fileNames;
-        synchronized (this.files) {
-            fileNames = StringUtils.join(this.files, ", ");
-        }
-
-        return String.format("[%s] %s (Files: %s)", this.readOnly ? "R" : "RW", this.segmentName, fileNames);
+        return String.format("[%s] %s", this.readOnly ? "R" : "RW", this.segmentName);
     }
 
     //endregion
