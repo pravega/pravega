@@ -43,7 +43,7 @@ jobs:
                -Pconfig_path=/home/travis/build/pravega/pravega/test/system/aws -Pcred_path=/home/travis/build/pravega/pravega/aws-key-pair.pem
                -Ppravega_org="$TRAVIS_REPO_SLUG" -Ppravega_branch="$TRAVIS_BRANCH"  -DimageVersion="$TRAVIS_BRANCH"
                -DawsExec=true
-         - ./gradlew --info collectLogsPostTest -Paws_access_key="$AWS_ACCESS_KEY" -Paws_secret_key="$AWS_SECRET_KEY"
+         - ./gradlew --info collectSystemTestLogsFromAWS -Paws_access_key="$AWS_ACCESS_KEY" -Paws_secret_key="$AWS_SECRET_KEY"
                -Paws_region=us-east-2 -Paws_key_name=aws-key-pair
                -Pcred_path=/home/travis/build/pravega/pravega/aws-key-pair.pem -Ppravega_org="$TRAVIS_REPO_SLUG"
                -Ppravega_branch="$TRAVIS_BRANCH" -Ptravis_commit="$TRAVIS_COMMIT"
