@@ -63,7 +63,7 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
         }
     }
 
-    public static void validateStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+    static void validateStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
         //Validate that startStreamCut and endStreamCut are for the same stream.
         Preconditions.checkArgument(startStreamCut.asImpl().getStream().equals(endStreamCut.asImpl().getStream()),
                 "startStreamCut and endStreamCut should be for the same stream.");
