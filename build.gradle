@@ -735,6 +735,11 @@ project('test:system') {
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
 
     }
+
+    task collectSystemTestLogsFromAWS(type: Exec) {
+        commandLine './aws/postTestScript.sh'
+        args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
+    }
 }
 
 subprojects {
