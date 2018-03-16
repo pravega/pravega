@@ -10,35 +10,37 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Singular;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Data
 @Builder
 public class ReaderGroupConfig implements Serializable {
 
-   private final Sequence startingPosition;
    private final long groupRefreshTimeMillis;
    @Getter
-   private final long automaticCheckpointIntervalMillis;   
+   private final long automaticCheckpointIntervalMillis;
 
-   public static final class ReaderGroupConfigBuilder {
+   @Singular("stream")
+   private final Map<String, StreamCut> startingStreamCuts;
+
+
+   public static ReaderGroupConfigBuilder builder() {
+              return new ReaderGroupConfigBuilderWithValidation();
+   }
+
+   public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000;
        private long automaticCheckpointIntervalMillis = 120000;
-
-       /**
-         * Returns a config builder that started at a given time.
-         *
-         * @param time A time to create sequence at.
-         * @return Reader group config builder.
-         */
-       public ReaderGroupConfigBuilder startingTime(long time) {
-           startingPosition = Sequence.create(time, 0);
-           return this;
-       }
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -53,5 +55,43 @@ public class ReaderGroupConfig implements Serializable {
            this.automaticCheckpointIntervalMillis = -1;
            return this;
        }
+
+
+       public ReaderGroupConfigBuilder startFromStreamCut(final Map<Stream, StreamCut> streamCuts) {
+           this.startingStreamCuts(streamCuts.entrySet().stream()
+                                             .collect(Collectors.toMap(e -> e.getKey().getStreamName(), Map.Entry::getValue)));
+           return this;
+       }
+
+       public ReaderGroupConfigBuilder startFromCheckpoint(final Checkpoint checkpoint) {
+           this.startingStreamCuts(checkpoint.asImpl().getPositions().entrySet().stream()
+                                             .collect(Collectors.toMap(e -> e.getKey().getStreamName(), Map.Entry::getValue)));
+           return this;
+       }
+
+   }
+
+   private static final class ReaderGroupConfigBuilderWithValidation extends ReaderGroupConfigBuilder {
+       @Override
+       public ReaderGroupConfig build() {
+           checkArgument(super.startingStreamCuts$key != null && super.startingStreamCuts$key.size() > 0,
+                   "Stream names that the reader group can read from cannot be empty");
+
+           IntStream.range(0, super.startingStreamCuts$key.size())
+                    .forEach(index ->
+                            checkArgument(super.startingStreamCuts$key.get(index).equals(
+                                    super.startingStreamCuts$value.get(index).asImpl().getStream().getStreamName())));
+           return super.build();
+       }
+
+   }
+
+   public void checkArguments() {
+       checkArgument(startingStreamCuts.size() > 0,
+               "Stream names that the reader group can read from cannot be empty");
+
+       startingStreamCuts.entrySet().forEach(e ->
+               checkArgument(e.getKey().equals(e.getValue().asImpl().getStream().getStreamName()),
+                       "Cannot have StreamCuts of a different Stream"));
    }
 }

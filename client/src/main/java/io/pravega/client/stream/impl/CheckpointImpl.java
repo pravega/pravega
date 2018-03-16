@@ -28,7 +28,7 @@ public class CheckpointImpl implements Checkpoint {
     private static final long serialVersionUID = 1L;
     @Getter
     private final String name;
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final Map<Stream, StreamCut> positions;
     
     CheckpointImpl(String name, Map<Segment, Long> segmentPositions) {
