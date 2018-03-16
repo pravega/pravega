@@ -91,12 +91,25 @@ public class ReaderGroupConfigTest {
         assertEquals(getStartStreamCut("s2"), cfg.getStartingStreamCuts().get("s2"));
     }
 
+    @Test
+    public void testValidConfig5() {
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
+                                                 .disableAutomaticCheckpoints()
+                                                 .stream("s1")
+                                                 .stream("s2", getStartStreamCut("s2"))
+                                                 .build();
+
+        assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
+        assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("s1"));
+        assertEquals(getStartStreamCut("s2"), cfg.getStartingStreamCuts().get("s2"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testMissingStreamNames() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
                                                  .build();
-//        cfg.checkArguments();
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -106,7 +119,6 @@ public class ReaderGroupConfigTest {
                                                  .stream("s1", getStartStreamCut("s2"))
                                                  .stream("s2", getStartStreamCut("s1"))
                                                  .build();
-//        cfg.checkArguments();
     }
     private StreamCut getStartStreamCut(String streamName) {
         ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(SCOPE,

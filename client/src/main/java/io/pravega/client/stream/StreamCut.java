@@ -11,6 +11,7 @@ package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
 import java.io.Serializable;
+import java.util.function.Function;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -19,6 +20,12 @@ import java.io.Serializable;
  * included.)
  */
 public interface StreamCut extends Serializable {
+
+    /**
+     * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
+     * of the stream or the current TAIL of the stream.
+     */
+    StreamCut UNBOUNDED = () -> null;
 
     /**
      * Used internally. Do not call.
