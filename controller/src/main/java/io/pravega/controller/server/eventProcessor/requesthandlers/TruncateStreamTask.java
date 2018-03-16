@@ -55,7 +55,10 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
                 .thenCompose(property -> {
                     if (!property.isUpdating()) {
-                        throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                        return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
+                                .thenAccept(v -> {
+                                    throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                                });
                     } else {
                         return processTruncate(scope, stream, property.getProperty(), context,
                                 this.streamMetadataTasks.retrieveDelegationToken());

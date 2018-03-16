@@ -593,21 +593,23 @@ public class StreamMetadataTasks extends TaskBase {
                 runOnlyIfStarted,
                 context,
                 executor), executor)
-                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
-                        .thenApply(updated -> response))
-                .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context, delegationToken)
-                        .thenCompose(x -> {
-                            assert !response.getSegmentsCreated().isEmpty();
+                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(),
+                        State.SCALING, context, executor)
+                        .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scaleInput.getScope(),
+                                scaleInput.getStream(), context, executor))
+                        .thenCompose(v -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(),
+                                response.getSegmentsCreated(), context, delegationToken)
 
-                            long scaleTs = response.getSegmentsCreated().get(0).getStart();
+                                .thenCompose(x -> {
+                                    assert !response.getSegmentsCreated().isEmpty();
 
-                            return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
-                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
-                                    scaleTs, context, executor), executor);
-                        })
-                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context, delegationToken))
-                        .thenApply(y -> response.getSegmentsCreated()));
+                                    return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(),
+                                            scaleInput.getStream(), context, executor), executor);
+                                })
+                                .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context, delegationToken))
+                                .thenApply(y -> response.getSegmentsCreated())));
     }
+
 
     /**
      * Helper method to complete scale operation. It tries to optimistically complete the scale operation if no transaction is running
@@ -629,12 +631,11 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     assert !response.getSegmentsCreated().isEmpty() && !response.getSegmentsSealed().isEmpty();
 
-                    long scaleTs = response.getSegmentsCreated().get(0).getStart();
                     return notifySealedSegments(scope, stream, response.getSegmentsSealed(), delegationToken)
                             .thenCompose(x -> getSealedSegmentsSize(scope, stream, response.getSegmentsSealed(), delegationToken))
                             .thenCompose(map ->
-                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map,
-                                            response.getSegmentsCreated(), epoch, scaleTs, context, executor), executor)
+                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, context,
+                                            executor), executor)
                                     .thenApply(z -> {
                                         log.info("scale processing for {}/{} epoch {} completed.", scope, stream, epoch);
                                         return true;
