@@ -120,6 +120,7 @@ public class ReaderGroupConfigTest {
                                                  .stream("s2", getStartStreamCut("s1"))
                                                  .build();
     }
+
     private StreamCut getStartStreamCut(String streamName) {
         ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(SCOPE,
                 streamName, 0), 10L).build();

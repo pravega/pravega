@@ -39,8 +39,6 @@ import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.integration.utils.SetupUtils;
 import java.net.URI;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -260,10 +258,10 @@ public class ControllerRestApiTest {
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
-            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
-                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
-            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),
-                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
+            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().stream(testStream1)
+                                                                                    .stream(testStream2).build());
+            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().stream(testStream1)
+                                                                                    .stream(testStream2).build());
             clientFactory.createReader(reader1, readerGroupName1, new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             clientFactory.createReader(reader2, readerGroupName1, new JavaSerializer<Long>(),

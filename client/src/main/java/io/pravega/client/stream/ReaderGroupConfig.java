@@ -84,7 +84,7 @@ public class ReaderGroupConfig implements Serializable {
        }
 
        /**
-        * Ensure the readers of the ReaderGroup start from the provided {@link Checkpoint}
+        * Ensure the readers of the ReaderGroup start from the provided {@link Checkpoint}.
         * @param checkpoint {@link Checkpoint}.
         * @return Reader group config builder.
         */

@@ -33,7 +33,7 @@ public class StartReader {
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
-                                        ReaderGroupConfig.builder().startingTime(0).build(),
+                                        ReaderGroupConfig.builder().build(),
                                         Collections.singleton(StartLocalService.STREAM_NAME));
         EventStreamReader<String> reader = streamManager.getClientFactory().createReader(UUID.randomUUID().toString(),
                                                                                          READER_GROUP,

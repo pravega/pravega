@@ -11,7 +11,6 @@ package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
 import java.io.Serializable;
-import java.util.function.Function;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the

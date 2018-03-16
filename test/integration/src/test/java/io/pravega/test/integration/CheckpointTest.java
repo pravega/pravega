@@ -23,7 +23,6 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -80,8 +79,7 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
-                                                                    .disableAutomaticCheckpoints().build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)
@@ -132,7 +130,7 @@ public class CheckpointTest {
         assertFalse(read.isCheckpoint());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaders(cpResult);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(cpResult).build());
         try {
             reader.readNextEvent(60000);
             fail();
@@ -168,7 +166,7 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)

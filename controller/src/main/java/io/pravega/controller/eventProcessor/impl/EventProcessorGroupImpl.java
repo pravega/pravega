@@ -23,7 +23,6 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.Sequence;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
@@ -97,12 +96,13 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         readerGroup = createIfNotExists(
                 actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
-                ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingPosition(Sequence.MIN_VALUE).build(),
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints().build(),
                 Collections.singleton(eventProcessorConfig.getConfig().getStreamName()));
 
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount() - eventProcessorMap.values().size());
     }
 
+    @SuppressWarnings( "deprecation" )
     private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
                                           final String groupName,
                                           final ReaderGroupConfig groupConfig,

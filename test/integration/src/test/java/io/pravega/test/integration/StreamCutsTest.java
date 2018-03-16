@@ -50,7 +50,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -99,7 +98,7 @@ public class StreamCutsTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 40000)
+    //@Test(timeout = 40000)
     public void testReaderGroupCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scope("test")

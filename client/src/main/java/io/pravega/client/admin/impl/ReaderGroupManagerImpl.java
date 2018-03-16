@@ -72,7 +72,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
-    
+
+    @SuppressWarnings( "deprecation" )
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
         log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName, Arrays.toString(streams.toArray()), config);
@@ -86,6 +87,23 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
                                                      new JavaSerializer<>(), clientFactory, controller, connectionFactory);
         result.initializeGroup(config, streams);
+        return result;
+    }
+
+    @Override
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config) {
+        log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
+                Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
+        NameUtils.validateReaderGroupName(groupName);
+        createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
+                                                                                  .scope(scope)
+                                                                                  .streamName(getStreamForReaderGroup(groupName))
+                                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                                  .build());
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
+        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
+                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
+        result.initializeGroup(config);
         return result;
     }
 

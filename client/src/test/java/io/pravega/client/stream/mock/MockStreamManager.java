@@ -142,6 +142,21 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         return result;
     }
 
+    @Override
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config) {
+        NameUtils.validateReaderGroupName(groupName);
+        createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
+                StreamConfiguration.builder()
+                                   .scope(scope)
+                                   .streamName(NameUtils.getStreamForReaderGroup(groupName))
+                                   .scalingPolicy(ScalingPolicy.fixed(1)).build());
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
+        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
+                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
+        result.initializeGroup(config);
+        return result;
+    }
+
     public Position getInitialPosition(String stream) {
         return new PositionImpl(controller.getSegmentsForStream(new StreamImpl(scope, stream))
                                           .stream()

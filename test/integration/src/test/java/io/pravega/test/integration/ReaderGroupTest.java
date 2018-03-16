@@ -20,7 +20,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -91,7 +90,6 @@ public class ReaderGroupTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(-1)
                                                          .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
@@ -138,7 +136,6 @@ public class ReaderGroupTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(-1)
                                                          .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));

@@ -98,6 +98,7 @@ public class MultiReadersEndToEndTest {
         runTestUsingMock(testStreams, 2, 2);
     }
 
+    @SuppressWarnings( "deprecation" )
     private void runTest(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         @Cleanup
@@ -135,7 +136,7 @@ public class MultiReadersEndToEndTest {
                                     ClientConfig.builder()
                                                 .controllerURI(SETUP_UTILS.getControllerUri()).build());
         readerGroupManager.createReaderGroup(readerGroupName,
-                                             ReaderGroupConfig.builder().startingTime(0).build(),
+                                             ReaderGroupConfig.builder().build(),
                                              streamNames);
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);
@@ -217,7 +218,7 @@ public class MultiReadersEndToEndTest {
 
         final String readerGroupName = "testReaderGroup";
         streamManager.createReaderGroup(readerGroupName,
-                                        ReaderGroupConfig.builder().startingTime(0).build(),
+                                        ReaderGroupConfig.builder().build(),
                                         streamNames);
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);

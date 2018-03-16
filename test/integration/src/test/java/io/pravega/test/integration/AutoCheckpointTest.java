@@ -16,7 +16,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
@@ -57,7 +56,6 @@ public class AutoCheckpointTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(10000)
                                                          .build();
         streamManager.createScope(scope);
@@ -108,7 +106,6 @@ public class AutoCheckpointTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(1000)
                                                          .build();
         streamManager.createScope(scope);

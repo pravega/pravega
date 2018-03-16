@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -42,7 +41,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -81,6 +79,18 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
      * @param  config The configuration for the reader group.
+     */
+    @VisibleForTesting
+    public void initializeGroup(ReaderGroupConfig config) {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        Map<Segment, Long> segments = getSegmentsForStreams(config);
+        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
+    }
+
+    /**
+     * Called by the StreamManager to provide the streams the group should start reading from.
+     * @param  config The configuration for the reader group.
      * @param streams The segments to use and where to start from.
      */
     @VisibleForTesting
@@ -90,7 +100,24 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Map<Segment, Long> segments = getSegmentsForStreams(streams);
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
-    
+
+    private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
+        Map<String, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
+        streamToStreamCuts.entrySet().forEach(e -> {
+                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                      futures.add(controller.getSegmentsAtTime(Stream.of(scope, e.getKey()), 0L));
+                  } else {
+                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+                  }
+              });
+        return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
+            return listOfMaps.stream()
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        }), InvalidStreamException::new);
+    }
+
     private Map<Segment, Long> getSegmentsForStreams(Set<String> streams) {
         List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
         for (String stream : streams) {
@@ -162,48 +189,32 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return new CheckpointImpl(checkpointName, map);
     }
 
+    @SuppressWarnings( "deprecation" )
     @Override
-    public void resetReaders(final Checkpoint checkpoint) {
-        resetReaders(checkpoint.asImpl().getPositions());
-    }
-
-    @Override
-    public void resetReaders(final Map<Stream, StreamCut> streamCuts) {
+    public void resetReadersToCheckpoint(Checkpoint checkpoint) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        synchronizer.fetchUpdates();
-
-        //ensure that streamCut for all the streams managed by the ReaderGroup are present.
-        Preconditions.checkArgument(validateStreamCuts(streamCuts.values(), synchronizer.getState().getStreamNames()),
-                "StreamCuts for streams managed by the ReaderGroup need to be provided");
-
-        //reset the Readers to the StreamCut.
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
             Map<Segment, Long> positions = new HashMap<>();
-            for (StreamCut cut : streamCuts.values()) {
+            for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
                 positions.putAll(cut.asImpl().getPositions());
             }
             return Collections.singletonList(new ReaderGroupStateInit(config, positions));
         });
     }
 
-    /*
-     * Validate the following
-     *      - provided stream cuts are unique and has no duplicates.
-     *      - stream cuts for all the streams managed by the reader group are present.
-     */
-    private boolean validateStreamCuts(final Collection<StreamCut> streamCuts, final Set<String> readerGroupStreams) {
-        return streamCuts.stream().map(sc ->
-                sc.asImpl().getStream().getStreamName()).collect(Collectors.toSet()).equals(readerGroupStreams);
+    @Override
+    public void resetReaderGroup(ReaderGroupConfig config) {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        Map<Segment, Long> segments = getSegmentsForStreams(config);
+        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
     }
 
     @Override
-    public void updateConfig(ReaderGroupConfig config, Set<String> streamNames) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
+    public void updateConfig(ReaderGroupConfig config) {
+      resetReaderGroup(config);
     }
 
     @Override
