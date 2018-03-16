@@ -265,8 +265,6 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
 
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
-
-
     }
 
     @Test(timeout = 30000)
