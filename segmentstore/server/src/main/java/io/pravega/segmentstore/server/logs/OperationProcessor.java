@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
@@ -26,9 +25,9 @@ import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.QueueStats;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -41,6 +40,7 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -59,12 +59,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
-    private static final int MAX_DELAY_MILLIS = 50;
 
     private final UpdateableContainerMetadata metadata;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
-    private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
@@ -72,6 +70,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final DataFrameBuilder<Operation> dataFrameBuilder;
     @Getter
     private final SegmentStoreMetrics.OperationProcessor metrics;
+    private final ThrottlerCalculator throttlerCalculator;
 
     //endregion
 
@@ -89,14 +88,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy, ScheduledExecutorService executor) {
         super(String.format("OperationProcessor[%d]", metadata.getContainerId()), executor);
+        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.metadata = metadata;
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
-        this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+        this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
+        this.throttlerCalculator = ThrottlerCalculator.builder()
+                                                      .cacheThrottler(stateUpdater::getCacheUtilization)
+                                                      .batchingThrottler(durableDataLog::getQueueStatistics)
+                                                      .build();
     }
 
     //endregion
@@ -112,7 +115,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected CompletableFuture<Void> doRun() {
         return Futures
                 .loop(this::isRunning,
-                        () -> delayIfNecessary()
+                        () -> throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor)
@@ -203,18 +206,27 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     //region Queue Processing
 
-    private CompletableFuture<Void> delayIfNecessary() {
-        QueueStats stats = this.durableDataLog.getQueueStatistics();
+    private CompletableFuture<Void> throttle() {
+        val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
+        if (!delay.get().isMaximum()) {
+            // We are not delaying the maximum amount. We only need to do this once.
+            return throttleOnce(delay.get().getDurationMillis());
+        } else {
+            // The initial delay calculation indicated that we need to throttle to the maximum, which means there's
+            // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
+            // as needed until the pressure is relieved.
+            return Futures.loop(
+                    () -> !delay.get().isMaximum(),
+                    () -> throttleOnce(delay.get().getDurationMillis())
+                            .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
+                    this.executor);
+        }
+    }
 
-        // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
-        // fill ratios we don't want to wait too long.
-        double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
-
-        // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-        delayMillis = Math.min(delayMillis, MAX_DELAY_MILLIS);
-        this.metrics.processingDelay(delayMillis);
-        return Futures.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
+    private CompletableFuture<Void> throttleOnce(int millis) {
+        this.metrics.processingDelay(millis);
+        log.debug("{}: Processing delay = {}ms.", this.traceObjectId, millis);
+        return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
     /**
@@ -267,7 +279,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
+                    if (!this.throttlerCalculator.isThrottlingRequired()) {
+                        // Only pull in new operations if we do not require throttling. If we do, we need to go back to
+                        // the main OperationProcessor loop and delay processing the next batch of operations.
+                        operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
+                    }
+
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
                         synchronized (this.stateLock) {

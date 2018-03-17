@@ -51,9 +51,11 @@ public class TestConfig {
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
     static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
     static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
+    static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
+    private static final Property<Boolean> ENABLE_SECURITY = Property.named("enableSecurity", false);
     private static final String TEST_OUTPUT_PATH = "/tmp/pravega";
     private static final String LOG_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.%s.log";
     private static final String METRICS_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.metrics.%s";
@@ -110,6 +112,10 @@ public class TestConfig {
     @Getter
     private final boolean metricsEnabled;
     @Getter
+    private final boolean pauseBeforeExit;
+    @Getter
+    private final boolean enableSecurity;
+    @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
 
     //endregion
@@ -154,6 +160,8 @@ public class TestConfig {
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
         this.readsEnabled = properties.getBoolean(READS_ENABLED);
         this.metricsEnabled = properties.getBoolean(METRICS_ENABLED);
+        this.pauseBeforeExit = properties.getBoolean(PAUSE_BEFORE_EXIT);
+        this.enableSecurity = properties.getBoolean(ENABLE_SECURITY);
         checkOverlappingPorts();
     }
 

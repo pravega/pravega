@@ -9,6 +9,12 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -30,14 +36,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.test.common.AssertExtensions;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Assert;
@@ -45,11 +48,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 
@@ -306,6 +304,38 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void truncateStreamTests() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
+                                   .build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        createStreamStatus = result2.get();
+        assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        //Truncate the stream
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                                                                  .setStreamInfo(StreamInfo.newBuilder()
+                                                                                           .setScope(SCOPE1)
+                                                                                           .setStream(STREAM1)
+                                                                                           .build())
+                .putCut(0, 0).build(), result3);
+        UpdateStreamStatus truncateStreamStatus = result3.get();
+    }
+
+        @Test
     public void sealStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;

@@ -38,7 +38,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
-    private long readOffset = 0; 
+    private long readOffset = 0;
     @GuardedBy("$lock")
     private int eventsWritten = 0;
     @GuardedBy("$lock")
@@ -175,5 +175,4 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             startingOffset = offset;
         }
     }
-
 }

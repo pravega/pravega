@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -27,6 +26,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupMetrics;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
@@ -167,7 +167,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             ReaderGroupConfig config = state.getConfig();
             Map<Segment, Long> positions = new HashMap<>();
             for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
-                positions.putAll(cut.getPositions());
+                positions.putAll(cut.asImpl().getPositions());
             }
             return Collections.singletonList(new ReaderGroupStateInit(config, positions));
         });
@@ -208,7 +208,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         log.debug("Compute unread bytes from position {}", positions);
         long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            StreamCut position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
             totalLength += getRemainingBytes(metaFactory, position);
         }
         return totalLength;
@@ -216,13 +216,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
-        CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
-        for (Segment s : Futures.getAndHandleExceptions(unread, RuntimeException::new)) {
+        CompletableFuture<StreamSegmentSuccessors> unread = controller.getSuccessors(position);
+        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
+        for (Segment s : unreadVal.getSegments()) {
             @Cleanup
-            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
+            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
             totalLength += metadataClient.fetchCurrentSegmentLength();
         }
-        for (long bytesRead : position.getPositions().values()) {
+        for (long bytesRead : position.asImpl().getPositions().values()) {
             totalLength -= bytesRead;
         }
         log.debug("Remaining bytes after position: {} is {}", position, totalLength);
@@ -251,7 +252,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         HashMap<Stream, StreamCut> cuts = new HashMap<>();
 
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            StreamCut position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
             cuts.put(streamPosition.getKey(), position);
         }
 

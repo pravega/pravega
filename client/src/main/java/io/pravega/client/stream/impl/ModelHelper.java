@@ -26,7 +26,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -339,7 +338,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final SuccessorResponse createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
+    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(
@@ -348,7 +347,6 @@ public final class ModelHelper {
                                         .setSegment(segmentRangeListEntry.getKey())
                                         .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
-                                .collect(Collectors.toList()))
-                .build();
+                                .collect(Collectors.toList()));
     }
 }

@@ -10,11 +10,10 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.server.AttributeSerializer;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
 import java.util.Collection;
 
@@ -26,7 +25,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
     private static final long NO_OFFSET = -1;
-    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
     private Collection<AttributeUpdate> attributeUpdates;
@@ -63,8 +61,10 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.attributeUpdates = attributeUpdates;
     }
 
-    protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private StreamSegmentAppendOperation() {
     }
 
     //endregion
@@ -114,35 +114,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     @Override
-    protected OperationType getOperationType() {
-        return OperationType.Append;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
-
-        target.writeByte(CURRENT_VERSION);
-        target.writeLong(getStreamSegmentId());
-        target.writeLong(this.streamSegmentOffset);
-        target.writeInt(data.length);
-        target.write(data, 0, data.length);
-        AttributeSerializer.serializeUpdates(this.attributeUpdates, target);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        setStreamSegmentId(source.readLong());
-        this.streamSegmentOffset = source.readLong();
-        int dataLength = source.readInt();
-        this.data = new byte[dataLength];
-        int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
-        assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
-        this.attributeUpdates = AttributeSerializer.deserializeUpdates(source);
-    }
-
-    @Override
     public String toString() {
         return String.format(
                 "%s, Offset = %s, Length = %d, Attributes = %d",
@@ -153,4 +124,63 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     }
 
     //endregion
+
+    static class Serializer extends OperationSerializer<StreamSegmentAppendOperation> {
+        private static final int STATIC_LENGTH = 3 * Long.BYTES;
+        private static final int ATTRIBUTE_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
+
+        @Override
+        protected OperationBuilder<StreamSegmentAppendOperation> newBuilder() {
+            return new OperationBuilder<>(new StreamSegmentAppendOperation());
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        @Override
+        protected void beforeSerialization(StreamSegmentAppendOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned.");
+        }
+
+        private void write00(StreamSegmentAppendOperation o, RevisionDataOutput target) throws IOException {
+            int attributesLength = o.attributeUpdates == null ? target.getCompactIntLength(0) : target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UPDATE_LENGTH);
+            target.length(STATIC_LENGTH + target.getCompactIntLength(o.data.length) + o.data.length + attributesLength);
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.getStreamSegmentId());
+            target.writeLong(o.streamSegmentOffset);
+            target.writeArray(o.data);
+            target.writeCollection(o.attributeUpdates, this::writeAttributeUpdate00);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentAppendOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.setStreamSegmentId(source.readLong());
+            b.instance.streamSegmentOffset = source.readLong();
+            b.instance.data = source.readArray();
+            b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
+        }
+
+        private void writeAttributeUpdate00(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+            target.writeUUID(au.getAttributeId());
+            target.writeByte(au.getUpdateType().getTypeId());
+            target.writeLong(au.getValue());
+            target.writeLong(au.getComparisonValue());
+        }
+
+        private AttributeUpdate readAttributeUpdate00(RevisionDataInput source) throws IOException {
+            return new AttributeUpdate(
+                    source.readUUID(),
+                    AttributeUpdateType.get(source.readByte()),
+                    source.readLong(),
+                    source.readLong());
+        }
+    }
 }

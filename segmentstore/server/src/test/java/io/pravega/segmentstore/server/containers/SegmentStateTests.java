@@ -9,14 +9,11 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.util.HashMap;
 import java.util.UUID;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,13 +29,9 @@ public class SegmentStateTests {
         final int maxAttributeCount = 10;
         for (int attributeCount = 0; attributeCount < maxAttributeCount; attributeCount++) {
             SegmentState original = create(attributeCount);
-            EnhancedByteArrayOutputStream innerStream = new EnhancedByteArrayOutputStream();
-            DataOutputStream stream = new DataOutputStream(innerStream);
-            original.serialize(stream);
-            stream.flush();
+            val s = SegmentState.SERIALIZER.serialize(original);
 
-            ByteArraySegment serialization = innerStream.getData();
-            SegmentState deserialized = SegmentState.deserialize(new DataInputStream(serialization.getReader()));
+            SegmentState deserialized = SegmentState.SERIALIZER.deserialize(s);
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
             Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());

@@ -28,7 +28,7 @@ import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -46,6 +46,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -230,7 +231,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         for (int i = 0; i < operations.size(); i++) {
             if (operations.get(i) instanceof StreamSegmentAppendOperation) {
                 if ((appendCount++) % failAppendFrequency == 0) {
-                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i), i % 2 == 0));
+                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i)));
                     failedOperationIndices.add(i);
                 }
             }
@@ -252,7 +253,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
+                ex -> ex instanceof IntentionalException);
 
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
@@ -264,7 +265,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();
@@ -556,7 +557,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
         // Log Operation based checks
         @Cleanup
-        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
+        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true);
@@ -583,24 +584,24 @@ public class OperationProcessorTests extends OperationLogTestBase {
             memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next());
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
-            DataFrameReader.ReadResult<Operation> readResult = dataFrameReader.getNext();
-            Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, readResult);
+            DataFrameRecord<Operation> dataFrameRecord = dataFrameReader.getNext();
+            Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, dataFrameRecord);
 
             // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
-            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem());
+            OperationComparer.DEFAULT.assertEquals(expectedOp, dataFrameRecord.getItem());
 
             // Check truncation markers if this is the last Operation to be written.
             LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameAddress() != null
-                    && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
+            if (dataFrameRecord.getLastFullDataFrameAddress() != null
+                    && dataFrameRecord.getLastFullDataFrameAddress().getSequence() != dataFrameRecord.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
-                        readResult.getLastFullDataFrameAddress(), dataFrameAddress);
-            } else if (readResult.isLastFrameEntry()) {
+                        dataFrameRecord.getLastFullDataFrameAddress(), dataFrameAddress);
+            } else if (dataFrameRecord.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
-                        readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
+                        dataFrameRecord.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the

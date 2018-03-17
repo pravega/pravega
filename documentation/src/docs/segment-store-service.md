@@ -14,6 +14,7 @@ The Pravega Segment Store Service is a subsystem that lies at the heart of the e
 The basic idea behind the Segment Store Service is that it buffers incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Segment into a fewer (but larger) ones.
 
 The Pravega Segment Store Service can provide the following guarantees:
+
 - Stream Segments that are unlimited in length, with append-only semantics, yet supporting arbitrary-offset reads.
 - No throughput degradation when performing small appends, regardless of the performance of the underlying Tier-2 storage system.
 - Multiple concurrent writers to the same Segment.
@@ -22,6 +23,7 @@ The Pravega Segment Store Service can provide the following guarantees:
 
 # Terminology
 Throughout the rest of this document, we will use the following terminology:
+
 - _Stream Segment_ or _Segment_: A contiguous sequence of bytes. Similar to a file with no size limit. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
 - _Tier-2 storage_ or _Permanent Storage_: The final resting place of the data.
 - _Tier-1 storage_: Fast append storage, used for durably buffering incoming appends before distribution to Tier-2 Storage.
@@ -32,6 +34,7 @@ Throughout the rest of this document, we will use the following terminology:
 
 # Architecture
 The _Segment Store_ is made up of the following components:
+
 - _Pravega Node_: a host running a Pravega Process.
 - _Stream Segment Container_ (or _Segment Container_): A logical grouping of Stream Segments. The mapping of Segments to Containers is deterministic and does not require any persistent store; Segments are mapped to Containers via a hash function (based on the Segment's name).
 - _Durable Data Log Adapter_ (or _DurableDataLog_): an abstraction layer for Tier-1 Storage.
@@ -56,6 +59,7 @@ More detailed diagrams can be found under the **Data Flow** section (below).
 
 ## Segment Containers
 Segment Containers are a logical grouping of Segments, and are responsible for all operations on those Segments within their span. A Segment Container is made of multiple sub-components:
+
 - _Segment Container Metadata_: A collection of Segment-specific metadata that describe the current state of each Segment (how much data in Tier-2, how much in Tier-1, whether it is sealed, etc.), as well as other misc info about each Container.
 - _Durable Log_: The Container writes every operation it receives to this log and acks back only when the log says it has been accepted and durably persisted..
 - _Read Index_: An in-memory index of where data can be read from. The Container delegates all read requests to it, and it is responsible for fetching the data from wherever it is currently located (Cache, Tier-1 Storage or Tier-2 Storage).
@@ -102,6 +106,7 @@ Every Log Operation has the following elements:
 - `SequenceNumber`: the unique sequence number assigned to this entry (see more under _Container Metadata_).
 
 These are the various types of Log Operations: 
+
 - _Storage Operations_ represent operations that need to be applied to the underlying Tier-2 Storage:
     - `StreamSegmentAppendOperation`: Represents an Append to a particular Segment.
     - `CachedStreamSegmentAppendOperation`: Same as `StreamSegmentAppendOperation`, but this is for internal use (instead of having an actual data payload, it points to a location in the cache from where the data can be retrieved).
@@ -162,6 +167,7 @@ At the heart of the _Segment Read Index_ lies a sorted index of entries (indexed
 The _Cache_ is a component where all data (whether from new appends or that was pulled from Tier-2 storage) is stored. It is a key-value store entirely managed by the Read Index. 
 
 The Cache is defined as an abstraction layer, and there are two implementations of it:
+
 - In-memory implementation (via a `HashMap`). This is currently only used for unit tests.
 - Memory-disk hybrid, powered by **RocksDB**. This is the preferred (and default) implementation, since it is not limited by available heap space or machine RAM. Performance is comparable to the in-memory implementation.
 
@@ -177,6 +183,7 @@ Actual methods for how Segment Containers are mapped to hosts and what rules are
 
 ## Segment Container Manager
 Each instance of a Segment Store Service needs a _Segment Container Manager_. The role of this component is to manage the lifecycle of the Segment Containers that are assigned to that node (service). It performs the following duties:
+
 - Connects to the Controller Service-Side Client (i.e., a client that deals only with Segment Container events, and not with the management of Streams and listens to all changes that pertain to Containers that pertain to its own instance.
 - When it receives a notification that it needs to start a Segment Container for a particular Container Id, it initiates the process of bootstrapping such an object. It does not notify the requesting client of success until the operation completes without error.
 - When it receives a notification that it needs to stop a Segment Container for a particular Container Id, it initiates the process of shutting it down. It does not notify the requesting client of success until the operation completes without error.
@@ -186,6 +193,7 @@ Each instance of a Segment Store Service needs a _Segment Container Manager_. Th
 The Segment Store was not designed with particular implementations for Tier-1 or Tier-2 in mind. Instead, all these components have been abstracted out in simple, well-defined interfaces, which can be implemented against any standard file system (Tier-2) or append-only log system (Tier-1). 
 
 Possible candidates for Tier-1 storage:
+
 - **Apache BookKeeper** (preferred, adapter is fully implemented as part of Pravega)
 - Non-durable, non-replicated solutions:
     - In-Memory (Single node deployment only - Pravega becomes a volatile buffer for Tier-2 storage; data loss is unavoidable and unrecoverable from in the case of process crash or system restart).
@@ -193,6 +201,7 @@ Possible candidates for Tier-1 storage:
     - Local File System (Single node deployment only - Pravega becomes a semi-durable buffer for Tier-2 storage; data loss is unavoidable and unrecoverable from in the case of complete node failure)
  
 Possible candidates for Tier-2 storage:
+
 - **HDFS** (implementation available)
 - **Extended S3** (implementation available)
 - **NFS** (general **FileSystem**) (implementation available)
@@ -200,6 +209,7 @@ Possible candidates for Tier-2 storage:
     - This is used for unit test only.
 
 A note about **Tier-2 Truncation**:
+
 - The Segment Store supports Segment truncation at a particular offset, which means that, once that request is complete, no offset below that one will be available for reading.
 - This above is only a metadata update operation, however this also needs to be supported by Tier-2 so that the truncated data is physically deleted from it.
 - If a Tier-2 implementation does not natively support truncation from the beginning of a file with offset preservation (i.e., a Segment of length 100 is truncated at offset 50, then offsets 0..49 are deleted, but offsets 50-99 are available and are not shifted down), then the **Segment Store** provides a wrapper on top of a generic Tier-2 implementation that can do that
@@ -223,12 +233,12 @@ The diagram above depicts these steps (note the step numbers may not match, but 
     1. Puts it in its Operation Queue.
     2. Operation Processor pulls all operations off the Queue.
     3. Operation Processor uses the Data Frame Builder to construct Data Frames with the operations it has.
-    4. Data Frame Builder writes the Data Frame to the **Durable Data Log**
-    5. Metadata is updated and the Operation is added to the **Memory Operation Log**.
-    6. The above process is asynchronous, which means the Operation Processor will have multiple Data Frames in flight (not illustrated). 
-4. Upon completion:
-    1. **Success**: Append Operation is added to the **Read Index** and any Future Reads for the Segment are activated, if they meet the trigger criteria.
-    2. **Failure**: The call is failed with an appropriate error code.
+    4. Data Frame Builder asynchronously writes the Data Frame to the **Durable Data Log**.
+    5. Upon completion, the following are done in parallel:
+         - Metadata is updated.
+         - The Operation is added to the **Memory Operation Log** and **Read Index**.
+         - An call that triggered the Operation is ack-ed.
+    6. The above process is asynchronous, which means the Operation Processor will have multiple Data Frames in flight (not illustrated). It will keep track of each one's changes and apply or roll them back as needed. 
 
 This process applies for every single operation that the **Segment Store** supports. All _modify_ operations go through the Operation Processor and have a similar path.
 
@@ -237,6 +247,7 @@ This process applies for every single operation that the **Segment Store** suppo
 ![Segment Store Reads](img/Segment.Store.Reads.png)
 
 The diagram above depicts these steps (note the step numbers may not match, but the order is the same):
+
 0. **Segment Store** receives read request with params: Segment Name, Read Offset, Max-Length.
     1. **Segment Store** determines the ContainerId for the given Segment and verifies if it is Leader for given **Segment Container**. If not, it returns an appropriate error code.
     2. **Segment Store** delegates request to the **Segment Container** instance.

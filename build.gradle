@@ -91,6 +91,20 @@ project('common') {
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
+project('authplugin') {
+    dependencies {
+    }
+
+    javadoc {
+        title = "Pravega Auth API"
+        failOnError = false
+
+        source {
+            sourceSets.main.java
+        }
+    }
+}
+
 project ('shared') {
     dependencies {
         compile project(':common')
@@ -145,7 +159,9 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+
         compile project(':common')
+   //     compile project(':authplugin')/
         compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
@@ -160,6 +176,7 @@ project('client') {
         exclude "**/impl/**";
     }
 }
+
 project('test:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
@@ -245,6 +262,7 @@ project('segmentstore:server:host') {
 
     dependencies {
         compile project(':common')
+        compile project(":authplugin")
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
@@ -257,6 +275,7 @@ project('segmentstore:server:host') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        compile 'io.jsonwebtoken:jjwt:0.9.0'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -272,6 +291,13 @@ project('segmentstore:server:host') {
                           "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml"]
         classpath = startScripts.classpath
         outputDir = startScripts.outputDir
+    }
+
+    task admin(type: JavaExec) {
+        main = "io.pravega.segmentstore.server.host.admin.AdminRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
     }
 
     applicationDistribution.into("bin") {
@@ -370,6 +396,7 @@ project('test:integration') {
     task selftest(type: JavaExec) {
         main = "io.pravega.test.integration.selftest.SelfTestRunner"
         classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
         systemProperties System.getProperties()
     }
 }
@@ -383,6 +410,13 @@ project('shared:controller-api') {
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+
+        compile "io.grpc:grpc-netty:" + grpcVersion
+        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-protobuf:" + grpcVersion
+        compile "io.grpc:grpc-stub:" + grpcVersion
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
     }
 
     javadoc {
@@ -403,15 +437,31 @@ project('controller') {
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=controller"]
-
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+        }
+    }
     applicationDistribution.from('src/conf') {
         into "conf"
         rename "application.conf", "controller.conf"
     }
 
+    applicationDistribution.into('') {
+        def pluginDirBase = new File('/tmp/dummy-dir')
+        pluginDirBase.mkdirs()
+        def logDir = new File(pluginDirBase.absolutePath + '/pluginlib')
+        logDir.mkdirs()
+
+        from {pluginDirBase}
+    }
+
     dependencies {
         compile project(':common')
         compile project(":shared:controller-api")
+        compile project(":authplugin")
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -430,6 +480,10 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        compile 'io.jsonwebtoken:jjwt:0.9.0'
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -459,7 +513,16 @@ project('standalone') {
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=pravega"]
+                                 "-Dlog.name=pravega",
+                                 "-Xdebug",
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+    startScripts {
+        classpath += files('./pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+        }
+    }
 
     dependencies {
         compile project(':common')
@@ -479,6 +542,8 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
+        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
@@ -496,6 +561,11 @@ project('standalone') {
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
+
+        if (systemProperties.get("extDirs") != null) {
+            classpath += files(systemProperties.get("extDirs"))
+        }
+
         jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
     }
 }
@@ -672,6 +742,7 @@ subprojects {
 }
 
 task publishAllJars() {
+    dependsOn ':authplugin:publish'
     dependsOn ':client:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
@@ -743,6 +814,8 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
+            from { project(":authplugin").configurations.runtime }
+            from { project(":authplugin").configurations.runtime.allArtifacts.files }
             from { project(":client").configurations.runtime }
             from { project(":client").configurations.runtime.allArtifacts.files }
         }

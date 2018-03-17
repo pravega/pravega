@@ -37,7 +37,7 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, "");
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
@@ -61,7 +61,7 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, "");
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
@@ -88,7 +88,7 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, "");
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
@@ -108,7 +108,7 @@ public class SegmentIteratorTest {
         assertEquals("3", iter2.next());
         assertFalse(iter.hasNext());
     }
-    
+
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(new PendingEvent("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
     }

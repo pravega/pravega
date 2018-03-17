@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -29,7 +30,7 @@ import javax.annotation.concurrent.ThreadSafe;
  * Helper class that allows appending Log Operations to available InMemory Structures.
  */
 @ThreadSafe
-class MemoryStateUpdater {
+class MemoryStateUpdater implements CacheUtilizationProvider {
     //region Private
 
     private final ReadIndex readIndex;
@@ -72,6 +73,11 @@ class MemoryStateUpdater {
     //endregion
 
     //region Operations
+
+    @Override
+    public double getCacheUtilization() {
+        return this.readIndex.getCacheUtilization();
+    }
 
     /**
      * Puts the Log Updater in Recovery Mode, using the given Metadata Source as interim.

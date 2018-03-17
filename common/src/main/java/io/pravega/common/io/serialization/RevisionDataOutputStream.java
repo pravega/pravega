@@ -14,6 +14,7 @@ import io.pravega.common.util.BitConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
@@ -184,19 +185,15 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         return getCompactIntLength(collection.size()) + collection.stream().mapToInt(elementLengthProvider).sum();
     }
 
-    /**
-     * {@inheritDoc}
-     * Encodes the given Collection using the following scheme:
-     * * A Compact Int representing the collection size (0 if null).
-     * * Each element in the Collection is serialized in turn using elementSerializer (this portion is skipped if the
-     * Collection is null.
-     *
-     * @param collection        The Collection to serialize. Can be null (in which case an Empty Collection will be deserialized
-     *                          by RevisionDataInput.readCollection()).
-     * @param elementSerializer A Function that serializes a single element of the collection to a RevisionDataOutput.
-     * @param <T>               Type of elements in the collection.
-     * @throws IOException If an IO Exception occurred.
-     */
+    @Override
+    public <T> int getCollectionLength(T[] array, ToIntFunction<T> elementLengthProvider) {
+        if (array == null) {
+            return getCompactIntLength(0);
+        }
+
+        return getCompactIntLength(array.length) + Arrays.stream(array).mapToInt(elementLengthProvider).sum();
+    }
+
     @Override
     public <T> void writeCollection(Collection<T> collection, ElementSerializer<T> elementSerializer) throws IOException {
         if (collection == null) {
@@ -208,6 +205,33 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         for (T e : collection) {
             elementSerializer.accept(this, e);
         }
+    }
+
+    @Override
+    public <T> void writeArray(T[] array, ElementSerializer<T> elementSerializer) throws IOException {
+        if (array == null) {
+            writeCompactInt(0);
+            return;
+        }
+
+        writeCompactInt(array.length);
+        for (T e : array) {
+            elementSerializer.accept(this, e);
+        }
+    }
+
+    @Override
+    public void writeArray(byte[] array, int offset, int length) throws IOException {
+        if (array == null) {
+            // We ignore offset and length in this case, as per the method's contract.
+            writeCompactInt(0);
+            return;
+        } else if (offset < 0 || offset > array.length || length < 0 || offset + length > array.length) {
+            throw new ArrayIndexOutOfBoundsException("offset and length must refer to a range within the given array.");
+        }
+
+        writeCompactInt(length);
+        write(array, offset, length);
     }
 
     @Override
@@ -227,21 +251,6 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
                      .sum();
     }
 
-    /**
-     * {@inheritDoc}
-     * Encodes the given map using the following scheme:
-     * * A Compact Int representing the Map size (0 if null).
-     * * Each Map.Entry is serialized in turn, first the Key (using keySerializer) then the Value (using valueSerializer). This
-     * portion is skipped if the Map is null.
-     *
-     * @param map             The Map to serialize. Can be null (in which case an Empty Map will be deserialized
-     *                        by RevisionDataInput.readMap()).
-     * @param keySerializer   A Function that serializes a single Key of the Map to a RevisionDataOutput.
-     * @param valueSerializer A Function that serializes a single Value of the Map to a RevisionDataOutput.
-     * @param <K>             Type of the Keys.
-     * @param <V>             Type of the Values.
-     * @throws IOException If an IO Exception occurred.
-     */
     @Override
     public <K, V> void writeMap(Map<K, V> map, ElementSerializer<K> keySerializer, ElementSerializer<V> valueSerializer) throws IOException {
         if (map == null) {

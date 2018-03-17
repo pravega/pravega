@@ -28,9 +28,8 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
-import java.net.URI;
-
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import java.net.URI;
 import lombok.val;
 
 /**
@@ -46,7 +45,7 @@ import lombok.val;
  * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
  * ordered (i.e. They must go the the same reader or its replacement). However because
  * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
- * 
+ *
  * <p>
  * A note on scaling: Because a stream can grow in its event rate, streams are divided into
  * Segments. For the most part this is an implementation detail. However its worth understanding
@@ -63,8 +62,19 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
-        val connectionFactory = new ConnectionFactoryImpl(false);
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
+    }
+
+    /**
+     * Creates a new instance of Client Factory.
+     *
+     * @param scope The scope string.
+     * @param config Configuration for the client.
+     * @return Instance of ClientFactory implementation.
+     */
+    static ClientFactory withScope(String scope, ClientConfig config) {
+        val connectionFactory = new ConnectionFactoryImpl(config);
+        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);
     }
 
@@ -91,7 +101,7 @@ public interface ClientFactory extends AutoCloseable {
      * <p>
      * Note that calling reader offline while the reader is still online may result in multiple
      * reader within the group receiving the same events.
-     * 
+     *
      * @param readerId A unique name (within the group) for this readers.
      * @param readerGroup The name of the group to join.
      * @param s The serializer for events.
@@ -103,7 +113,7 @@ public interface ClientFactory extends AutoCloseable {
 
     /**
      * Creates a new RevisionedStreamClient that will work with the specified stream.
-     * 
+     *
      * @param streamName The name of the stream for the synchronizer
      * @param serializer The serializer for updates.
      * @param config The client configuration
@@ -112,12 +122,12 @@ public interface ClientFactory extends AutoCloseable {
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
-    
+
     /**
      * Creates a new StateSynchronizer that will work on the specified stream.
-     * 
+     *
      * @param <StateT> The type of the state being synchronized.
-     * @param <UpdateT> The type of the updates being written. 
+     * @param <UpdateT> The type of the updates being written.
      * @param <InitT> The type of the initial update used.
      * @param streamName The name of the stream for the synchronizer
      * @param updateSerializer The serializer for updates.
@@ -130,18 +140,18 @@ public interface ClientFactory extends AutoCloseable {
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
-    
+
     /**
      * Create a new batch client. A batch client can be used to perform bulk unordered reads without
      * the need to create a reader group.
-     * 
+     *
      * Please note this is an experimental API.
-     * 
+     *
      * @return A batch client
      */
     @Beta
     BatchClient createBatchClient();
-    
+
     /**
      * Closes the client factory. This will close any connections created through it.
      * @see java.lang.AutoCloseable#close()

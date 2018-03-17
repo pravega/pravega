@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableMap.Builder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -41,7 +42,7 @@ public class CheckpointImpl implements Checkpoint {
         ImmutableMap.Builder<Stream, StreamCut> positionBuilder = ImmutableMap.builder();
         for (Entry<Stream, Builder<Segment, Long>> streamPosition : streamPositions.entrySet()) {
             positionBuilder.put(streamPosition.getKey(),
-                                new StreamCut(streamPosition.getKey(), streamPosition.getValue().build()));
+                                new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue().build()));
         }
         this.positions = positionBuilder.build();
     }

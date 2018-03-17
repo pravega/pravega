@@ -25,6 +25,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -137,7 +138,7 @@ public class ReaderGroupStateManagerTest {
                 connectionFactory,
                 new StreamSegmentsWithPredecessors(
                         ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
@@ -177,7 +178,7 @@ public class ReaderGroupStateManagerTest {
         Segment successor = new Segment(scope, stream, 2);
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
                 connectionFactory, new StreamSegmentsWithPredecessors(
-                        Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1))));
+                        Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
@@ -280,7 +281,8 @@ public class ReaderGroupStateManagerTest {
                 controller,
                 clock::get);
         readerState2.initializeReader(0);
-
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        assertNotNull(readerState1.findSegmentToReleaseIfRequired());
         boolean released = readerState1.releaseSegment(new Segment(scope, stream, 0), 789L, 0L);
         assertTrue(released);
         newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
@@ -298,6 +300,62 @@ public class ReaderGroupStateManagerTest {
 
         AssertExtensions.assertThrows(ReinitializationRequiredException.class,
                 () -> readerState2.acquireNewSegmentsIfNeeded(0L));
+    }
+    
+    @Test(timeout = 5000)
+    public void testReleaseAndAcquireTimes() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state = clientFactory.createStateSynchronizer(stream,
+                                                                                          new JavaSerializer<>(),
+                                                                                          new JavaSerializer<>(),
+                                                                                          config);
+        AtomicLong clock = new AtomicLong();
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(new Segment(scope, stream, 0), 0L);
+        segments.put(new Segment(scope, stream, 1), 1L);
+        segments.put(new Segment(scope, stream, 2), 2L);
+        segments.put(new Segment(scope, stream, 3), 3L);
+        ReaderGroupStateManager.initializeReaderGroup(state, ReaderGroupConfig.builder().build(), segments);
+
+        ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", state, controller, clock::get);
+        reader1.initializeReader(0);
+
+        ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", state, controller, clock::get);
+        reader2.initializeReader(0);
+        
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        Map<Segment, Long> newSegments = reader1.acquireNewSegmentsIfNeeded(123);
+        assertEquals(2, newSegments.size());
+        
+        Duration r1aqt = ReaderGroupStateManager.calculateAcquireTime("reader1", state.getState());
+        Duration r2aqt = ReaderGroupStateManager.calculateAcquireTime("reader2", state.getState());
+        assertTrue(r1aqt.toMillis() > r2aqt.toMillis());
+        
+        Duration r1rlt = ReaderGroupStateManager.calculateReleaseTime("reader1", state.getState());
+        Duration r2rlt = ReaderGroupStateManager.calculateReleaseTime("reader2", state.getState());
+        assertTrue(r1rlt.toMillis() < r2rlt.toMillis());
+        
+        reader1.releaseSegment(newSegments.keySet().iterator().next(), 0, 123);
+        newSegments = reader2.acquireNewSegmentsIfNeeded(123);
+        assertEquals(2, newSegments.size());
+        
+        r1aqt = ReaderGroupStateManager.calculateAcquireTime("reader1", state.getState());
+        r2aqt = ReaderGroupStateManager.calculateAcquireTime("reader2", state.getState());
+        assertTrue(r1aqt.toMillis() < r2aqt.toMillis());
+        
+        r1rlt = ReaderGroupStateManager.calculateReleaseTime("reader1", state.getState());
+        r2rlt = ReaderGroupStateManager.calculateReleaseTime("reader2", state.getState());
+        assertTrue(r1rlt.toMillis() > r2rlt.toMillis());
     }
 
     @Test(timeout = 10000)
@@ -373,7 +431,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(segments2, segments1);
     }
 
-    @Test(timeout = 20000)
+    @Test//(timeout = 20000)
     public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";
@@ -436,7 +494,8 @@ public class ReaderGroupStateManagerTest {
 
         Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertEquals(3, segments2.size());
-
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        
         ReaderGroupStateManager reader3 = new ReaderGroupStateManager("reader3", stateSynchronizer, controller,
                 clock::get);
         reader3.initializeReader(0);
@@ -474,7 +533,7 @@ public class ReaderGroupStateManagerTest {
                 connectionFactory,
                 new StreamSegmentsWithPredecessors(
                         ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
@@ -514,7 +573,7 @@ public class ReaderGroupStateManagerTest {
         Segment segment1 = new Segment(scope, stream, 1);
         Segment segment2 = new Segment(scope, stream, 2);
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
-                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of()));
+                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
@@ -552,7 +611,7 @@ public class ReaderGroupStateManagerTest {
         Segment segment1 = new Segment(scope, stream, 1);
         Segment segment2 = new Segment(scope, stream, 2);
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
-                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of()));
+                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
