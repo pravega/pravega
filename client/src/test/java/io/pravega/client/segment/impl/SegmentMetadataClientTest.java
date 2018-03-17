@@ -34,6 +34,8 @@ import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
 public class SegmentMetadataClientTest {
@@ -55,7 +57,7 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.streamSegmentInfo(new StreamSegmentInfo(1, segment.getScopedName(), true, false, false, 0,
+                processor.process(new StreamSegmentInfo(1, segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));
                 return null;
             }
@@ -82,7 +84,7 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.segmentTruncated(new SegmentTruncated(1, segment.getScopedName()));
+                processor.process(new SegmentTruncated(1, segment.getScopedName()));
                 return null;
             }
         }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L));
@@ -109,7 +111,7 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.segmentAttribute(new WireCommands.SegmentAttribute(1, 123));
+                processor.process(new WireCommands.SegmentAttribute(1, 123));
                 return null;
             }
         }).when(connection).send(new WireCommands.GetSegmentAttribute(1, segment.getScopedName(), attributeId));
@@ -132,7 +134,7 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.segmentAttributeUpdated(new SegmentAttributeUpdated(1, true));
+                processor.process(new SegmentAttributeUpdated(1, true));
                 return null;
             }
         }).when(connection).send(new WireCommands.UpdateSegmentAttribute(1, segment.getScopedName(), attributeId, 1234,
@@ -154,11 +156,11 @@ public class SegmentMetadataClientTest {
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         client.getConnection();
-        ReplyProcessor processor = cf.getProcessor(endpoint);
         WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
+                ReplyProcessor processor = cf.getProcessor(endpoint);
                 processor.connectionDropped();
                 return null;
             }
@@ -167,17 +169,19 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.streamSegmentInfo(new StreamSegmentInfo(2, segment.getScopedName(), true, false, false, 0,
+                ReplyProcessor processor = cf.getProcessor(endpoint);
+                processor.process(new StreamSegmentInfo(2, segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));
                 return null;
             }
         }).when(connection).send(getSegmentInfo2);
         long length = client.fetchCurrentSegmentLength();
         InOrder order = Mockito.inOrder(connection, cf);
-        order.verify(cf).establishConnection(endpoint, processor);
+        order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).send(getSegmentInfo1);
-        order.verify(cf).establishConnection(endpoint, processor);
+        order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).send(getSegmentInfo2);
+        order.verify(cf).getProcessor(eq(endpoint));
         order.verifyNoMoreInteractions();
         assertEquals(123, length);
     }
@@ -212,7 +216,7 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.get().streamSegmentInfo(new StreamSegmentInfo(3, segment.getScopedName(), true, false, false, 0,
+                processor.get().process(new StreamSegmentInfo(3, segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));
                 return null;
             }

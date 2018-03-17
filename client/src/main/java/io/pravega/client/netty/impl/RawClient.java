@@ -9,7 +9,9 @@
  */
 package io.pravega.client.netty.impl;
 
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -23,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,7 +39,7 @@ public class RawClient implements AutoCloseable {
     @GuardedBy("lock")
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
-    
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final class ResponseProcessor extends FailingReplyProcessor {
         
         @Override
@@ -64,8 +68,13 @@ public class RawClient implements AutoCloseable {
         }
     }
     
-    public RawClient(ConnectionFactory connectionFactory, PravegaNodeUri endpoint) {
-        connection = connectionFactory.establishConnection(endpoint, responseProcessor);
+    public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
+        connection = controller.getEndpointForSegment(segmentId.getScopedName())
+                               .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+        connection.exceptionally(e -> {
+            closeConnection(e);
+            throw new CompletionException(e);
+        });
     }
 
     private void reply(Reply reply) {
@@ -87,18 +96,14 @@ public class RawClient implements AutoCloseable {
                 log.warn("Exception tearing down connection: ", e);
             }
         });
-        failAllInflight(exceptionToInflightRequests);
-    }
-    
-    private void failAllInflight(Throwable e) {
-        log.info("SegmentMetadata connection failed due to a {}.", e.getMessage());
+        closed.set(true);
         List<CompletableFuture<Reply>> requestsToFail;
         synchronized (lock) {
             requestsToFail = new ArrayList<>(requests.values());
             requests.clear();
         }
         for (CompletableFuture<Reply> request : requestsToFail) {
-            request.completeExceptionally(e);
+            request.completeExceptionally(exceptionToInflightRequests);
         }
     }
     
@@ -112,9 +117,13 @@ public class RawClient implements AutoCloseable {
         try {
             c.send(request);
         } catch (ConnectionFailedException e) {
-            reply.completeExceptionally(e);
+            closeConnection(e);
         }
         return reply;
+    }
+    
+    public boolean isClosed() {
+        return closed.get();
     }
     
     @Override
