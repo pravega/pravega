@@ -9,7 +9,9 @@
 package io.pravega.client.netty.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
@@ -35,25 +37,29 @@ public class RawClientTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
-        RawClient rawClient = new RawClient(connectionFactory, endpoint);
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
         Mockito.verify(connection).send(new WireCommands.Hello(0, 0));
         rawClient.close();
         Mockito.verify(connection).close();
     }
-    
+
     @Test
     public void testRequestReply() throws ConnectionFailedException, InterruptedException, ExecutionException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         @Cleanup
-        RawClient rawClient = new RawClient(connectionFactory, endpoint);
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, Unpooled.EMPTY_BUFFER);
