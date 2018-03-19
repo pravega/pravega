@@ -26,7 +26,7 @@ public class CredentialsHelperTest {
         ClientConfig config = ClientConfig.builder().build();
         config = CredentialsHelper.extractCredentials(config);
         assertEquals("Empty list should return null",
-                config.getCredentials().getAuthenticationType(), null);
+                config.getCredentials(), null);
 
         //Test custom creds
         System.setProperty("pravega.client.auth.method", "temp");

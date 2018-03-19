@@ -33,21 +33,16 @@ public class CredentialsHelper {
         }
 
         Credentials credentials = extractCredentialsFromProperties();
-        if ( credentials == null) {
-           credentials = extractCredentialsFromEnv();
+        if (credentials == null) {
+            credentials = extractCredentialsFromEnv();
         }
 
-        if ( credentials != null) {
-            return ClientConfig.builder()
-                               .credentials(credentials)
-                               .trustStore(config.getTrustStore())
-                               .validateHostName(config.isValidateHostName())
-                               .controllerURI(config.getControllerURI())
-                               .build();
-
-        }
-
-        return config;
+        return ClientConfig.builder()
+                           .credentials(credentials)
+                           .trustStore(config.getTrustStore())
+                           .validateHostName(config.isValidateHostName())
+                           .controllerURI(config.getControllerURI())
+                           .build();
 
     }
 
@@ -56,7 +51,11 @@ public class CredentialsHelper {
                                            .stream()
                                            .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-        return credentialFromMap(retVal);
+        if (retVal.containsKey("pravega.client.auth.method")) {
+            return credentialFromMap(retVal);
+        } else {
+            return null;
+        }
     }
 
     private static Credentials extractCredentialsFromEnv() {
@@ -64,7 +63,11 @@ public class CredentialsHelper {
                                            .stream()
                                            .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-        return credentialFromMap(retVal);
+        if (retVal.containsKey("pravega.client.auth.method")) {
+            return credentialFromMap(retVal);
+        } else {
+            return null;
+        }
     }
 
     private static Credentials credentialFromMap(Map<String, String> retVal) {
