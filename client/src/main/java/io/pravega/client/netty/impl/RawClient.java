@@ -13,6 +13,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.auth.AuthenticationException;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -26,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
@@ -78,10 +78,7 @@ public class RawClient implements AutoCloseable {
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         connection = controller.getEndpointForSegment(segmentId.getScopedName())
                                .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
-        connection.exceptionally(e -> {
-            closeConnection(e);
-            throw new CompletionException(e);
-        });
+        Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
     private void reply(Reply reply) {
@@ -96,14 +93,15 @@ public class RawClient implements AutoCloseable {
     
     private void closeConnection(Throwable exceptionToInflightRequests) {
         log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
-        connection.thenAccept(c -> {
-            try {
-                c.close();
-            } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
-            }
-        });
-        closed.set(true);
+        if (closed.compareAndSet(false, true)) {
+            connection.thenAccept(c -> {
+                try {
+                    c.close();
+                } catch (Exception e) {
+                    log.warn("Exception tearing down connection: ", e);
+                }
+            });
+        }
         List<CompletableFuture<Reply>> requestsToFail;
         synchronized (lock) {
             requestsToFail = new ArrayList<>(requests.values());
