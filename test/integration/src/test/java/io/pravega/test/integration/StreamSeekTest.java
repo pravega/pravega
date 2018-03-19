@@ -190,7 +190,11 @@ public class StreamSeekTest {
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {
         ArrayList<String> results = new ArrayList<>(index.length);
         for (int i = 0; i < index.length; i++) {
-            results.add(reader.readNextEvent(15000).getEvent());
+            String event = reader.readNextEvent(15000).getEvent();
+            while (event == null) { //try until a non null event is read.
+                event = reader.readNextEvent(15000).getEvent();
+            }
+            results.add(event);
         }
         Arrays.stream(index).forEach(i -> assertTrue(results.contains(getEventData.apply(i))));
     }
