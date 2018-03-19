@@ -219,7 +219,7 @@ public class StreamTransactionMetadataTasksTest {
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
-    //@Test
+    @Test
     public void failOverTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
@@ -337,7 +337,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
     }
 
-    //@Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void idempotentOperationsTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
