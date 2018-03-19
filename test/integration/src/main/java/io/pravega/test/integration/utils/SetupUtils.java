@@ -20,6 +20,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -178,7 +179,7 @@ public final class SetupUtils {
         final String readerGroup = "testReaderGroup" + this.scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
-                ReaderGroupConfig.builder().stream(streamName).build());
+                ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
 
         ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         final String readerGroupId = UUID.randomUUID().toString();

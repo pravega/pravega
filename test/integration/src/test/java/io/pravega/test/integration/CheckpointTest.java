@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.stream.Stream;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -31,7 +32,6 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -79,15 +79,16 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints().build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         .stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)
                                                                          .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
-        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig,
-                                                                  Collections.singleton(streamName));
+        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
@@ -166,15 +167,14 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)
                                                                          .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
-        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig,
-                                                                  Collections.singleton(streamName));
+        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());

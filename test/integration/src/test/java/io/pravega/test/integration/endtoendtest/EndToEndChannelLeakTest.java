@@ -119,7 +119,7 @@ public class EndToEndChannelLeakTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
-                build(), Collections.singleton(STREAM_NAME));
+                stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
@@ -187,8 +187,8 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
-        ReaderGroup readerGroup = groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
-                build(), Collections.singleton(STREAM_NAME));
+        ReaderGroup readerGroup = groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         //create a reader.
         @Cleanup

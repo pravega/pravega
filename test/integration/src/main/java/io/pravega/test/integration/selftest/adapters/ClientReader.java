@@ -20,6 +20,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
@@ -154,7 +155,9 @@ class ClientReader implements StoreReader, AutoCloseable {
                             .trustStore("../../config/cert.pem")
                             .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                             .validateHostName(false).build())) {
-                readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder().stream(streamName).build());
+                readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
+                                                                                        .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
+                                                                                        .build());
             }
 
             this.closed = false;

@@ -17,6 +17,7 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
@@ -258,10 +259,14 @@ public class ControllerRestApiTest {
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
-            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().stream(testStream1)
-                                                                                    .stream(testStream2).build());
-            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().stream(testStream1)
-                                                                                    .stream(testStream2).build());
+            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()
+                                                                                    .stream(Stream.of(testScope, testStream1))
+                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .build());
+            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder()
+                                                                                    .stream(Stream.of(testScope, testStream1))
+                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .build());
             clientFactory.createReader(reader1, readerGroupName1, new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             clientFactory.createReader(reader2, readerGroupName1, new JavaSerializer<Long>(),

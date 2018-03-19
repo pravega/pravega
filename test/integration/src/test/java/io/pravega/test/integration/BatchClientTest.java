@@ -121,8 +121,7 @@ public class BatchClientTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton(STREAM));
+                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                 EventWriterConfig.builder().build());
