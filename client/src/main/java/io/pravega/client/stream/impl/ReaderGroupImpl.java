@@ -102,11 +102,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
-        Map<String, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
         streamToStreamCuts.entrySet().forEach(e -> {
                   if (e.getValue().equals(StreamCut.UNBOUNDED)) {
-                      futures.add(controller.getSegmentsAtTime(Stream.of(scope, e.getKey()), 0L));
+                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
                   } else {
                       futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
                   }
@@ -210,11 +210,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
-    }
-
-    @Override
-    public void updateConfig(ReaderGroupConfig config) {
-      resetReaderGroup(config);
     }
 
     @Override

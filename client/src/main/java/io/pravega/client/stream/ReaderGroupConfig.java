@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
-import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -29,7 +28,7 @@ public class ReaderGroupConfig implements Serializable {
    @Getter
    private final long automaticCheckpointIntervalMillis;
 
-   private final Map<String, StreamCut> startingStreamCuts;
+   private final Map<Stream, StreamCut> startingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -50,26 +49,50 @@ public class ReaderGroupConfig implements Serializable {
 
        /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
-        * @param streamName Stream name.
+        * @param scopedStreamName Scoped Name of the Stream.
         * @param startStreamCut Start {@link StreamCut}
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String streamName, final StreamCut startStreamCut) {
+       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut) {
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(streamName, startStreamCut);
+           this.startingStreamCuts.put(Stream.of(scopedStreamName), startStreamCut);
            return this;
        }
 
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
-        * @param streamName Stream name.
+        * @param scopedStreamName Stream name.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String streamName) {
-           return stream(streamName, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder stream(final String scopedStreamName) {
+           return stream(scopedStreamName, StreamCut.UNBOUNDED);
+       }
+
+       /**
+        * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        * @param stream Stream.
+        * @param startStreamCut Start {@link StreamCut}
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut) {
+           if (startingStreamCuts == null) {
+               startingStreamCuts = new HashMap<>();
+           }
+           this.startingStreamCuts.put(stream, startStreamCut);
+           return this;
+       }
+
+       /**
+        * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
+        * will be used as the starting StreamCut.
+        * @param stream Stream.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final Stream stream) {
+           return stream(stream, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -77,9 +100,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param streamCuts Map of {@link Stream} and its corresponding {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder startFromStreamCut(final Map<Stream, StreamCut> streamCuts) {
-           this.startingStreamCuts(streamCuts.entrySet().stream()
-                                             .collect(Collectors.toMap(e -> e.getKey().getStreamName(), Map.Entry::getValue)));
+       public ReaderGroupConfigBuilder startFromStreamCuts(final Map<Stream, StreamCut> streamCuts) {
+           this.startingStreamCuts(streamCuts);
            return this;
        }
 
@@ -89,8 +111,7 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder startFromCheckpoint(final Checkpoint checkpoint) {
-           this.startingStreamCuts(checkpoint.asImpl().getPositions().entrySet().stream()
-                                             .collect(Collectors.toMap(e -> e.getKey().getStreamName(), Map.Entry::getValue)));
+           this.startingStreamCuts(checkpoint.asImpl().getPositions());
            return this;
        }
 
@@ -100,7 +121,7 @@ public class ReaderGroupConfig implements Serializable {
 
            startingStreamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
-                   checkArgument(s.equals(streamCut.asImpl().getStream().getStreamName()));
+                   checkArgument(s.equals(streamCut.asImpl().getStream()));
                }
            });
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis, startingStreamCuts);

@@ -69,7 +69,7 @@ public class ReaderGroupImplTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamCutDuplicateStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s1", 3)).build())
         .build());
@@ -77,13 +77,13 @@ public class ReaderGroupImplTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void resetReadersToStreamMissingStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCut(ImmutableMap.<Stream, StreamCut>builder()
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s2", 2)).build()).build());
     }
 
     @Test
     public void resetReadersToStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCut(ImmutableMap.<Stream,
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())

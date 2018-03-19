@@ -95,7 +95,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * <p>- To reset a reader group to a given checkpoint use
      * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromCheckpoint(Checkpoint)} api.</p>
      * <p>- To reset a reader group to a given StreamCut use
-     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromStreamCut(Map)}.</p>
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromStreamCuts(Map)}.</p>
      *
      * All existing readers will have to call {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
      * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
@@ -103,18 +103,6 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * @param config The new configuration for the ReaderGroup.
      */
     void resetReaderGroup(ReaderGroupConfig config);
-    
-    /**
-     * Updates a reader group. All existing readers will have to call
-     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} . If they continue to read
-     * events they will eventually encounter an {@link ReinitializationRequiredException}.
-     * 
-     * Readers connecting to the group will start from the point defined in the config, exactly as though it
-     * were a new reader group.
-     * 
-     * @param config The configuration for the new ReaderGroup.
-     */
-    void updateConfig(ReaderGroupConfig config);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
