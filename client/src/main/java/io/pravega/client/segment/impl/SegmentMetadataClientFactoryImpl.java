@@ -20,8 +20,8 @@ public class SegmentMetadataClientFactoryImpl implements SegmentMetadataClientFa
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment) {
-        return new SegmentMetadataClientImpl(segment, controller, cf);
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
+        return new SegmentMetadataClientImpl(segment, controller, cf, delegationToken);
     }
 
 }

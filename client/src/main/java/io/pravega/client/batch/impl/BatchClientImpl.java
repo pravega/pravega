@@ -115,7 +115,7 @@ public class BatchClientImpl implements BatchClient {
         return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
                          .thenApply(s -> {
                              Map<Segment, Long> pos =
-                                     s.getSegments().stream().map(this::getSegmentInfo)
+                                     s.getSegments().stream().map(this::segmentToInfo)
                                       .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
                              return new StreamCutImpl(stream, pos);
                          });
@@ -141,14 +141,14 @@ public class BatchClientImpl implements BatchClient {
                                      .endStreamCut(endStreamCut).build();
     }
 
-    private SegmentInfo getSegmentInfo(final Segment s) {
-        @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
+    private SegmentInfo segmentToInfo(Segment s) {
         String delegationToken;
         synchronized (this) {
             delegationToken = latestDelegationToken.get();
         }
-        return client.getSegmentInfo(delegationToken);
+        @Cleanup
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationToken);
+        return client.getSegmentInfo();
     }
 
     /*
@@ -166,7 +166,7 @@ public class BatchClientImpl implements BatchClient {
                                .endOffset(endStreamCut.asImpl().getPositions().get(segment));
         } else {
             //use segment meta data client to fetch the segment offsets.
-            SegmentInfo r = getSegmentInfo(segment);
+            SegmentInfo r = segmentToInfo(segment);
             segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().getOrDefault(segment, r.getStartingOffset()))
                                .endOffset(endStreamCut.asImpl().getPositions().getOrDefault(segment, r.getWriteOffset()));
         }

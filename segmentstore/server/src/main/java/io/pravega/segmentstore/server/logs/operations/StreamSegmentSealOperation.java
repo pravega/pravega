@@ -9,9 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import java.io.IOException;
 
 /**
@@ -20,7 +21,6 @@ import java.io.IOException;
 public class StreamSegmentSealOperation extends StorageOperation {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
 
     //endregion
@@ -37,8 +37,10 @@ public class StreamSegmentSealOperation extends StorageOperation {
         this.streamSegmentOffset = -1;
     }
 
-    protected StreamSegmentSealOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    private StreamSegmentSealOperation() {
     }
 
     //endregion
@@ -70,29 +72,47 @@ public class StreamSegmentSealOperation extends StorageOperation {
     }
 
     @Override
-    protected OperationType getOperationType() {
-        return OperationType.Seal;
-    }
-
-    @Override
-    protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
-        target.writeByte(CURRENT_VERSION);
-        target.writeLong(getStreamSegmentId());
-        target.writeLong(this.streamSegmentOffset);
-    }
-
-    @Override
-    protected void deserializeContent(DataInputStream source) throws IOException {
-        readVersion(source, CURRENT_VERSION);
-        setStreamSegmentId(source.readLong());
-        this.streamSegmentOffset = source.readLong();
-    }
-
-    @Override
     public String toString() {
         return String.format("%s, Length = %s", super.toString(), toString(this.streamSegmentOffset, -1));
     }
 
     //endregion
+
+    static class Serializer extends OperationSerializer<StreamSegmentSealOperation> {
+        private static final int SERIALIZATION_LENGTH = 3 * Long.BYTES;
+
+        @Override
+        protected OperationBuilder<StreamSegmentSealOperation> newBuilder() {
+            return new OperationBuilder<>(new StreamSegmentSealOperation());
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        @Override
+        protected void beforeSerialization(StreamSegmentSealOperation o) {
+            super.beforeSerialization(o);
+            Preconditions.checkState(o.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned.");
+        }
+
+        private void write00(StreamSegmentSealOperation o, RevisionDataOutput target) throws IOException {
+            target.length(SERIALIZATION_LENGTH);
+            target.writeLong(o.getSequenceNumber());
+            target.writeLong(o.getStreamSegmentId());
+            target.writeLong(o.streamSegmentOffset);
+        }
+
+        private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentSealOperation> b) throws IOException {
+            b.instance.setSequenceNumber(source.readLong());
+            b.instance.setStreamSegmentId(source.readLong());
+            b.instance.streamSegmentOffset = source.readLong();
+        }
+    }
 }

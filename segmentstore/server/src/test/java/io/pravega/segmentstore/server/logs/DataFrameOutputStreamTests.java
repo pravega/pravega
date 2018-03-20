@@ -14,12 +14,16 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -80,7 +84,7 @@ public class DataFrameOutputStreamTests {
 
         Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame);
         Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
-        DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+        DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
     }
 
     /**
@@ -170,7 +174,7 @@ public class DataFrameOutputStreamTests {
 
         // Verify that the output frame only has record 2.
         records.remove(0);
-        DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+        DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
     }
 
     /**
@@ -199,7 +203,8 @@ public class DataFrameOutputStreamTests {
         }
 
         AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
-        DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
+        val readFrames = writtenFrames.stream().map(this::readFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, records, ByteArraySegment::new);
     }
 
     /**
@@ -225,7 +230,8 @@ public class DataFrameOutputStreamTests {
         }
 
         AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
-        DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
+        val readFrames = writtenFrames.stream().map(this::readFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, records, ByteArraySegment::new);
     }
 
     /**
@@ -277,7 +283,7 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData1.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
 
         // Test #2: startNewRecord()
@@ -305,7 +311,7 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData2.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
 
         // Test #3: write(byte[])
@@ -331,7 +337,13 @@ public class DataFrameOutputStreamTests {
             Assert.assertNotNull("No frame has been created when a frame was filled.", writtenFrame.get());
             ArrayList<byte[]> records = new ArrayList<>();
             records.add(writtenData2.toByteArray());
-            DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
+            DataFrameTestHelpers.checkReadRecords(readFrame(writtenFrame.get()), records, ByteArraySegment::new);
         }
     }
+
+    @SneakyThrows(IOException.class)
+    private DataFrame.DataFrameEntryIterator readFrame(DataFrame dataFrame) {
+        return DataFrame.read(dataFrame.getData().getReader(), dataFrame.getLength(), dataFrame.getAddress());
+    }
+
 }

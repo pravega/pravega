@@ -19,6 +19,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -215,9 +216,9 @@ public final class SegmentStoreMetrics {
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
         }
 
-        public void operationsCompleted(Collection<CompletableOperation> operations, Duration commitElapsed) {
+        public void operationsCompleted(Collection<List<CompletableOperation>> operations, Duration commitElapsed) {
             operationsCompleted(operations.size(), commitElapsed);
-            operations.forEach(o -> {
+            operations.stream().flatMap(List::stream).forEach(o -> {
                 long millis = o.getTimer().getElapsedMillis();
                 this.operationLatency.reportSuccessValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportSuccessValue(millis);

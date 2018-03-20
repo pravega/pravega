@@ -96,6 +96,11 @@ public final class WireCommands {
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
         }
+        
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
     }
 
     @Data
@@ -123,6 +128,11 @@ public final class WireCommands {
             String correctHost = in.readUTF();
             return new WrongHost(requestId, segment, correctHost);
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -146,6 +156,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentIsSealed(requestId, segment);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -173,6 +188,11 @@ public final class WireCommands {
             String segment = in.readUTF();
             long startOffset = in.readLong();
             return new SegmentIsTruncated(requestId, segment, startOffset);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -203,6 +223,11 @@ public final class WireCommands {
         public String toString() {
             return "Segment already exists: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -232,6 +257,11 @@ public final class WireCommands {
         public String toString() {
             return "No such segment: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -260,6 +290,11 @@ public final class WireCommands {
         @Override
         public String toString() {
             return "No such transaction: " + txn;
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -291,6 +326,16 @@ public final class WireCommands {
         public String toString() {
             return "Invalid event number: " + eventNumber +" for writer: "+ writerId;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
     }
 
     @Data
@@ -314,6 +359,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String operationName = in.readUTF();
             return new OperationUnsupported(requestId, operationName);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -491,7 +541,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class ConditionalAppend implements WireCommand {
+    public static final class ConditionalAppend implements WireCommand, Request {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
         final UUID writerId;
         final long eventNumber;
@@ -526,6 +576,17 @@ public final class WireCommands {
                 data = new byte[0];
             }
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, wrappedBuffer(data));
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -590,6 +651,11 @@ public final class WireCommands {
 
             return new DataAppended(writerId, offset, previousEventNumber);
         }
+        
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
     }
 
     @Data
@@ -614,6 +680,11 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             return new ConditionalCheckFailed(writerId, offset);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
         }
     }
 
@@ -644,6 +715,11 @@ public final class WireCommands {
             int suggestedLength = in.readInt();
             String delegationToken = in.readUTF();
             return new ReadSegment(segment, offset, suggestedLength, delegationToken);
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -684,6 +760,11 @@ public final class WireCommands {
             byte[] data = new byte[dataLength];
             in.readFully(data);
             return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data));
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -1427,6 +1508,11 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) {
             return new KeepAlive();
+        }
+
+        @Override
+        public long getRequestId() {
+            return -1;
         }
     }
 

@@ -45,7 +45,7 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 CreateSegment request = (CreateSegment) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                                 .segmentCreated(new SegmentCreated(request.getRequestId(), request.getSegment()));
+                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
         }).when(connection).send(Mockito.any(CreateSegment.class));
@@ -54,9 +54,8 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                                 .streamSegmentInfo(new StreamSegmentInfo(request.getRequestId(),
-                                                                          request.getSegmentName(), true, false, false,
-                                                                          0, 0, 0));
+                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
