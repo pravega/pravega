@@ -44,7 +44,19 @@ class ThrottlerCalculator {
      * Amount of time (millis) to increase throttling by for each percentage point increase in the cache utilization (above 100%).
      */
     @VisibleForTesting
-    static final double THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT = 100;
+    static final int THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT = 100;
+
+    /**
+     * Number of items in the Commit Backlog above which throttling will apply.
+     */
+    @VisibleForTesting
+    static final int COMMIT_BACKLOG_COUNT_THRESHOLD = 300;
+
+    /**
+     * Amount of time (millis) to increase throttling by for each incremental increase of the Commit Queue, over the threshold.
+     */
+    @VisibleForTesting
+    static final int THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT = 4;
 
     @Singular
     private final List<Throttler> throttlers;
@@ -82,9 +94,15 @@ class ThrottlerCalculator {
         int maxDelay = 0;
         boolean maximum = false;
         for (Throttler t : this.throttlers) {
-            DelayResult r = t.getDelay();
-            maxDelay = Math.max(maxDelay, r.durationMillis);
-            maximum |= r.maximum;
+            int delay = t.getDelayMillis();
+            if (delay >= MAX_DELAY_MILLIS) {
+                // This throttler introduced the maximum delay. No need to search more.
+                maxDelay = MAX_DELAY_MILLIS;
+                maximum = true;
+                break;
+            }
+
+            maxDelay = Math.max(maxDelay, delay);
         }
 
         return new DelayResult(maxDelay, maximum);
@@ -106,7 +124,7 @@ class ThrottlerCalculator {
         /**
          * Calculates a throttling delay based on information available at the moment.
          */
-        abstract DelayResult getDelay();
+        abstract int getDelayMillis();
     }
 
     /**
@@ -123,11 +141,32 @@ class ThrottlerCalculator {
         }
 
         @Override
-        DelayResult getDelay() {
+        int getDelayMillis() {
             // We only throttle if we exceed the cache capacity. We increase the throttling amount in a linear fashion.
             double cacheUtilization = this.getCacheUtilization.get();
-            int delay = (int) MathHelpers.minMax((cacheUtilization - 1.0) * 100 * THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT, 0, MAX_DELAY_MILLIS);
-            return new DelayResult(delay, delay >= MAX_DELAY_MILLIS);
+            return (int) Math.max((cacheUtilization - 1.0) * 100 * THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT, 0);
+        }
+    }
+
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
+     * from the commit backlog queue. This is based on the OperationProcessor's Commit Queue size.
+     */
+    @RequiredArgsConstructor
+    private static class CommitBacklogThrottler extends Throttler {
+        private final Supplier<Integer> getCommitBacklogCount;
+
+
+        @Override
+        boolean isThrottlingRequired() {
+            return this.getCommitBacklogCount.get() > COMMIT_BACKLOG_COUNT_THRESHOLD;
+        }
+
+        @Override
+        int getDelayMillis() {
+            // We only throttle if we exceed the threshold. We increase the throttling amount in a linear fashion.
+            long count = this.getCommitBacklogCount.get();
+            return (int) MathHelpers.minMax((count - COMMIT_BACKLOG_COUNT_THRESHOLD) * THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT, 0, Integer.MAX_VALUE);
         }
     }
 
@@ -146,7 +185,7 @@ class ThrottlerCalculator {
         }
 
         @Override
-        DelayResult getDelay() {
+        int getDelayMillis() {
             QueueStats stats = this.getQueueStats.get();
 
             // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
@@ -155,7 +194,7 @@ class ThrottlerCalculator {
 
             // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
             int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-            return new DelayResult(Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS), false);
+            return Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS);
         }
     }
 
@@ -188,6 +227,17 @@ class ThrottlerCalculator {
          */
         ThrottlerCalculatorBuilder batchingThrottler(Supplier<QueueStats> getQueueStats) {
             return throttler(new BatchingThrottler(Preconditions.checkNotNull(getQueueStats, "getQueueStats")));
+        }
+
+        /**
+         * Includes a Commit Backlog Throttler.
+         *
+         * @param getCommitBacklogCount A Supplier that, when invoked, returns an Integer representing the most recent size
+         *                              of the Commit Backlog Queue.
+         * @return This builder.
+         */
+        ThrottlerCalculatorBuilder commitBacklogThrottler(Supplier<Integer> getCommitBacklogCount) {
+            return throttler(new CommitBacklogThrottler(Preconditions.checkNotNull(getCommitBacklogCount, "getCommitBacklogCount")));
         }
     }
 
