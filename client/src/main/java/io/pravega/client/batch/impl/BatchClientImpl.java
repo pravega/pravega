@@ -90,29 +90,28 @@ public class BatchClientImpl implements BatchClient {
     }
 
     private SegmentInfo segmentToInfo(Segment s) {
-        @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
-
         String delegationToken;
         synchronized (this) {
             delegationToken = latestDelegationToken.get();
         }
-        return client.getSegmentInfo(delegationToken);
+        @Cleanup
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationToken);
+        return client.getSegmentInfo();
     }
 
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer) {
         @Cleanup
-        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        SegmentInfo segmentInfo = metadataClient.getSegmentInfo(latestDelegationToken.get());
+        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment, latestDelegationToken.get());
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
         return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, segmentInfo.getStartingOffset(), segmentInfo.getWriteOffset());
     }
 
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset) {
         @Cleanup
-        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        SegmentInfo segmentInfo = metadataClient.getSegmentInfo(latestDelegationToken.get());
+        SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment, latestDelegationToken.get());
+        SegmentInfo segmentInfo = metadataClient.getSegmentInfo();
         return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, segmentInfo.getWriteOffset());
     }
 

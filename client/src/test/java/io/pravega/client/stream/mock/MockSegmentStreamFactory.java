@@ -55,7 +55,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment) {
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
         return getMockStream(segment);
     }
 }

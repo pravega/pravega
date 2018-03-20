@@ -21,8 +21,9 @@ public interface SegmentMetadataClientFactory {
      * process space).
      *
      * @param segment The segment to create a metadata client for.
+     * @param delegationToken token to be passed on to segmentstore for validation.
      * @return New instance of SegmentMetadataClient for the provided segment.
      */
-    SegmentMetadataClient createSegmentMetadataClient(Segment segment);
+    SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken);
 
 }
