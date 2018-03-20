@@ -25,8 +25,7 @@ public class CredentialsHelperTest {
         //No creds defined
         ClientConfig config = ClientConfig.builder().build();
         config = CredentialsHelper.extractCredentials(config);
-        assertEquals("Empty list should return null",
-                config.getCredentials(), null);
+        assertEquals("Empty list should return null", config.getCredentials(), null);
 
         //Test custom creds
         System.setProperty("pravega.client.auth.method", "temp");
@@ -62,5 +61,10 @@ public class CredentialsHelperTest {
 
     assertNotEquals("Credentials should not be overridden",
             config.getCredentials().getAuthenticationType(), "temp");
+
+        //Test custom creds
+        System.clearProperty("pravega.client.auth.method");
+        System.clearProperty("pravega.client.auth.prop1");
+        System.clearProperty("pravega.client.auth.prop2");
     }
 }

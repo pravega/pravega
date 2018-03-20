@@ -18,6 +18,10 @@ import java.util.stream.Collectors;
  * Helper class to extract credentials.
  */
 public class CredentialsHelper {
+    private static final String AUTH_PROPS_START = "pravega.client.auth.";
+    private static final String AUTH_METHOD = AUTH_PROPS_START + "method";
+    private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+
     /**
      * Function to extract the credentials object in the given client config.
      * Here is the order of preference in descending order:
@@ -49,9 +53,11 @@ public class CredentialsHelper {
     private static Credentials extractCredentialsFromProperties() {
         Map<String, String> retVal = System.getProperties().entrySet()
                                            .stream()
-                                           .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
-                                           .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-        if (retVal.containsKey("pravega.client.auth.method")) {
+                                           .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
+                                           .collect(Collectors.toMap(entry ->
+                                                   entry.getKey().toString().replace("_", "."),
+                                                   value -> (String) value.getValue()));
+        if (retVal.containsKey(AUTH_METHOD)) {
             return credentialFromMap(retVal);
         } else {
             return null;
@@ -61,9 +67,9 @@ public class CredentialsHelper {
     private static Credentials extractCredentialsFromEnv() {
         Map<String, String> retVal = System.getenv().entrySet()
                                            .stream()
-                                           .filter(entry -> entry.getKey().toString().startsWith("pravega.client.auth."))
+                                           .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-        if (retVal.containsKey("pravega.client.auth.method")) {
+        if (retVal.containsKey(AUTH_METHOD)) {
             return credentialFromMap(retVal);
         } else {
             return null;
@@ -74,7 +80,7 @@ public class CredentialsHelper {
         return new Credentials() {
             @Override
             public String getAuthenticationType() {
-             return retVal.get("pravega.client.auth.method");
+             return retVal.get(AUTH_METHOD);
             }
 
             @Override
