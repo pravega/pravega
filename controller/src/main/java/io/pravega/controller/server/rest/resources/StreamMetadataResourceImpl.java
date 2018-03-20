@@ -47,7 +47,6 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -525,11 +524,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
 
             if (referenceEvent != null) {
-                finalScaleMetadataList.add(referenceEvent);
+                finalScaleMetadataList.add(0, referenceEvent);
             }
 
-            // Sort all the entries according to timestamp such that reference event is right in front.
-            finalScaleMetadataList.sort(Comparator.comparingLong(ScaleMetadata::getTimestamp));
             log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
             return Response.status(Status.OK).entity(finalScaleMetadataList).build();
         }).exceptionally(exception -> {

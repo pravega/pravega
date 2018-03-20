@@ -39,7 +39,6 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -318,7 +317,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private List<ScaleMetadata> mapToScaleMetadata(List<ImmutablePair<Long, List<Segment>>> scalePair) {
         final AtomicReference<List<Segment>> previous = new AtomicReference<>();
-        return scalePair.stream().sorted(Comparator.comparingLong(ImmutablePair::getLeft))
+        return scalePair.stream()
                 .map(pair -> {
                     long splits = 0;
                     long merges = 0;
