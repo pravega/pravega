@@ -29,7 +29,6 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
 import java.util.Arrays;
-import java.util.Set;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 
@@ -71,23 +70,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                                                           .build()),
                                RuntimeException::new);
         return new StreamImpl(scope, streamName);
-    }
-
-    @SuppressWarnings( "deprecation" )
-    @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
-        log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName, Arrays.toString(streams.toArray()), config);
-        NameUtils.validateReaderGroupName(groupName);
-        createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(getStreamForReaderGroup(groupName))
-                                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
-                                                                                  .build());
-        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                                                     new JavaSerializer<>(), clientFactory, controller, connectionFactory);
-        result.initializeGroup(config, streams);
-        return result;
     }
 
     @Override

@@ -18,7 +18,6 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import java.net.URI;
-import java.util.Set;
 
 /**
  * Used to create and manage reader groups.
@@ -46,27 +45,6 @@ public interface ReaderGroupManager extends AutoCloseable {
     public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
         return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
     }
-
-    /**
-     * Creates a new ReaderGroup
-     * 
-     * Readers will be able to join the group by calling
-     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
-     * . Once this is done they will start receiving events from the point defined in the config
-     * passed here.
-     * <p>
-     * Note: This method is idempotent assuming called with the same name and config. This method
-     * may block.
-     *
-     * @deprecated Stream Names are part of the ReaderGroupConfig.
-     * 
-     * @param groupName The name of the group to be created.
-     * @param config The configuration for the new ReaderGroup.
-     * @param streamNames The name of the streams the reader will read from.
-     * @return Newly created ReaderGroup object
-     */
-    @Deprecated
-    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames);
 
     /**
      * Creates a new ReaderGroup.

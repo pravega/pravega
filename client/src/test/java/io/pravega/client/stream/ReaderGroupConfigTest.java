@@ -133,5 +133,4 @@ public class ReaderGroupConfigTest {
         return new StreamCutImpl(Stream.of(SCOPE, streamName), positions);
 
     }
-
 }

@@ -88,19 +88,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
 
-    /**
-     * Called by the StreamManager to provide the streams the group should start reading from.
-     * @param  config The configuration for the reader group.
-     * @param streams The segments to use and where to start from.
-     */
-    @VisibleForTesting
-    public void initializeGroup(ReaderGroupConfig config, Set<String> streams) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        Map<Segment, Long> segments = getSegmentsForStreams(streams);
-        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
-    }
-
     private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
         Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
@@ -111,18 +98,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                       futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
                   }
               });
-        return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
-            return listOfMaps.stream()
-                             .flatMap(map -> map.entrySet().stream())
-                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        }), InvalidStreamException::new);
-    }
-
-    private Map<Segment, Long> getSegmentsForStreams(Set<String> streams) {
-        List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
-        for (String stream : streams) {
-            futures.add(controller.getSegmentsAtTime(new StreamImpl(scope, stream), 0L));
-        }
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())

@@ -64,7 +64,6 @@ public class ReaderGroupImplTest {
                 updateSerializer, clientFactory, controller, connectionFactory);
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
-        //when(synchronizer.getState()).thenReturn(state);
     }
 
     @Test(expected = IllegalArgumentException.class)
