@@ -152,7 +152,7 @@ public class BatchClientTest {
         BatchClient batchClient = clientFactory.createBatchClient();
 
         //List out all the segments in the stream.
-        ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(stream, null, null).getSegmentRangeIterator());
+        ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(stream, null, null).getIterator());
         assertEquals("Expected number of segments", 6, segments.size());
 
         //Batch read all events from stream.

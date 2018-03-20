@@ -37,6 +37,18 @@ public interface SegmentRange {
     String getScopeName();
 
     /**
+     * Returns the start offset of the segment.
+     * @return The start offset.
+     */
+    long getStartOffset();
+
+    /**
+     * Returns the end offset of the segment.
+     * @return The end offset.
+     */
+    long getEndOffset();
+
+    /**
      * For internal use. Do not call.
      * @return This
      */

@@ -11,7 +11,7 @@ package io.pravega.client.batch.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamSegmentsInfo;
+import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.StreamCut;
 import java.util.Iterator;
@@ -25,7 +25,7 @@ import lombok.ToString;
  */
 @ToString
 @Builder
-public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
+public class StreamSegmentsInfoImpl implements StreamSegmentsIterator {
 
     @NonNull
     private final StreamCut startStreamCut;
@@ -37,7 +37,7 @@ public class StreamSegmentsInfoImpl implements StreamSegmentsInfo {
     private final Iterator<SegmentRange> segmentRangeIterator;
 
     @Override
-    public Iterator<SegmentRange> getSegmentRangeIterator() {
+    public Iterator<SegmentRange> getIterator() {
         return segmentRangeIterator;
     }
 

@@ -16,7 +16,7 @@ import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamInfo;
-import io.pravega.client.batch.StreamSegmentsInfo;
+import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
@@ -76,7 +76,7 @@ public class BatchClientImpl implements BatchClient {
     }
 
     @Override
-    public StreamSegmentsInfo getSegments(final Stream stream, final StreamCut fromStreamCut, final StreamCut toStreamCut) {
+    public StreamSegmentsIterator getSegments(final Stream stream, final StreamCut fromStreamCut, final StreamCut toStreamCut) {
         Preconditions.checkNotNull(stream, "stream");
         return listSegments(stream, Optional.ofNullable(fromStreamCut), Optional.ofNullable(toStreamCut));
     }
@@ -87,8 +87,8 @@ public class BatchClientImpl implements BatchClient {
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());
     }
 
-    private StreamSegmentsInfo listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
-                                            final Optional<StreamCut> endStreamCut) {
+    private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
+                                                final Optional<StreamCut> endStreamCut) {
         //Validate that the stream cuts are for the requested stream.
         startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
         endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
@@ -101,7 +101,7 @@ public class BatchClientImpl implements BatchClient {
                 CompletableFuture.completedFuture(endStreamCut.get()) : fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
-        CompletableFuture<StreamSegmentsInfo> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
+        CompletableFuture<StreamSegmentsIterator> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
                 (startSC, endSC) -> getStreamSegmentInfo(startSC, endSC));
         return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
     }
@@ -121,7 +121,7 @@ public class BatchClientImpl implements BatchClient {
                          });
     }
 
-    private StreamSegmentsInfo getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+    private StreamSegmentsIterator getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {
         log.debug("Start stream cut: {}, End stream cut: {}", startStreamCut, endStreamCut);
         StreamSegmentsInfoImpl.validateStreamCuts(startStreamCut, endStreamCut);
 
@@ -152,7 +152,7 @@ public class BatchClientImpl implements BatchClient {
     }
 
     /*
-     * Given a segment fetch its SegmentRange.
+     * Given a segment, fetch its SegmentRange.
      * - If segment is part of startStreamCut / endStreamCut update startOffset and endOffset accordingly.
      * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
      */
@@ -172,5 +172,4 @@ public class BatchClientImpl implements BatchClient {
         }
         return segmentRangeBuilder.build();
     }
-
 }

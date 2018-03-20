@@ -37,13 +37,13 @@ public class SegmentRangeImpl implements SegmentRange {
     /**
      * Start offset for the segment.
      */
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final long startOffset;
 
     /**
      * End offset for the segment.
      */
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final long endOffset;
 
     @Override

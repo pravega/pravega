@@ -16,13 +16,13 @@ import io.pravega.client.stream.StreamCut;
 import java.util.Iterator;
 
 @Beta
-public interface StreamSegmentsInfo {
+public interface StreamSegmentsIterator {
 
     /**
      * This returns an iterator for {@link SegmentRange} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
      * @return Iterator for {@link SegmentRange}
      */
-    Iterator<SegmentRange> getSegmentRangeIterator();
+    Iterator<SegmentRange> getIterator();
 
     /**
      * This returns the start {@link StreamCut} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.

@@ -10,6 +10,7 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -31,15 +32,20 @@ public interface BatchClient {
 
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
-     * Passing null to fromStreamCut and toStreamCut will result in using the start of stream and the current end of
-     * stream respectively.
+     * Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the
+     * current end of stream respectively.
+     *<p>
+     * Note: In case of stream truncation: <p>
+     * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>
+     * - Passing a fromStreamCut which points to the truncated stream will result in a {@link NoSuchSegmentException} while
+     * iterating over SegmentRange iterator obtained via {@link StreamSegmentsIterator#getIterator()}
      *
      * @param stream the stream.
      * @param fromStreamCut starting stream cut.
      * @param toStreamCut end stream cut.
      * @return Segment information between the two stream cuts.
      */
-    StreamSegmentsInfo getSegments(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
+    StreamSegmentsIterator getSegments(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the
