@@ -53,4 +53,9 @@ public class Append implements Request, Comparable<Append> {
     public int compareTo(Append other) {
         return Long.compare(eventNumber, other.eventNumber);
     }
+
+    @Override
+    public long getRequestId() {
+        return eventNumber;
+    }
 }
