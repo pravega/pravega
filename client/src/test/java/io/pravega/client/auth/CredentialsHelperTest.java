@@ -71,7 +71,6 @@ public class CredentialsHelperTest {
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
 
-
         //In case dynamic creds system property is true and class does not exist, the API should return null.
         System.setProperty("pravega.client.auth.loadDynamic", "true");
 
