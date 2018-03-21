@@ -21,6 +21,12 @@ import java.io.Serializable;
 public interface StreamCut extends Serializable {
 
     /**
+     * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
+     * of the stream or the current TAIL of the stream.
+     */
+    StreamCut UNBOUNDED = () -> null;
+
+    /**
      * Used internally. Do not call.
      *
      * @return Implementation of EventPointer interface

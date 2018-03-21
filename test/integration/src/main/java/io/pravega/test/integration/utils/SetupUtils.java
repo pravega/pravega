@@ -20,6 +20,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -30,7 +31,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -179,8 +179,7 @@ public final class SetupUtils {
         final String readerGroup = "testReaderGroup" + this.scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
-                ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singleton(streamName));
+                ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
 
         ClientFactory clientFactory = ClientFactory.withScope(this.scope, ClientConfig.builder().controllerURI(this.controllerUri).build());
         final String readerGroupId = UUID.randomUUID().toString();

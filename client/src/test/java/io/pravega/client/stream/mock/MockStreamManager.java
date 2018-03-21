@@ -29,7 +29,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
-import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
@@ -128,17 +127,17 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
+    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config) {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
-                           StreamConfiguration.builder()
-                                              .scope(scope)
-                                              .streamName(NameUtils.getStreamForReaderGroup(groupName))
-                                              .scalingPolicy(ScalingPolicy.fixed(1)).build());
+                StreamConfiguration.builder()
+                                   .scope(scope)
+                                   .streamName(NameUtils.getStreamForReaderGroup(groupName))
+                                   .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
                 new JavaSerializer<>(), clientFactory, controller, connectionFactory);
-        result.initializeGroup(config, streamNames);
+        result.initializeGroup(config);
         return result;
     }
 
