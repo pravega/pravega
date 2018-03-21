@@ -17,6 +17,7 @@ env:
 jobs:
   include:
     - stage: build
+      if: type IN (push, pull_request)
       install: ./gradlew assemble
       script: ./gradlew check
       after_success:
