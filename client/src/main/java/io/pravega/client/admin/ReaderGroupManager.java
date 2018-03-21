@@ -12,7 +12,7 @@ package io.pravega.client.admin;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.auth.CredentialsHelper;
+import io.pravega.client.auth.CredentialsCreator;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
@@ -45,7 +45,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
-        clientConfig = CredentialsHelper.extractCredentials(clientConfig);
+        clientConfig = new CredentialsCreator().extractCredentials(clientConfig);
         return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
     }
 

@@ -9,21 +9,35 @@
  */
 package io.pravega.client.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Credentials;
 import java.util.Map;
+import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
 /**
  * Helper class to extract credentials.
  */
-public class CredentialsHelper {
+public class CredentialsCreator {
     private static final String AUTH_PROPS_START = "pravega.client.auth.";
     private static final String AUTH_METHOD = AUTH_PROPS_START + "method";
     private static final String AUTH_METHOD_LOAD_DYNAMIC = AUTH_PROPS_START + "loadDynamic";
 
     private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+    private final Properties properties;
+    private final Map<String, String> env;
+
+    public CredentialsCreator() {
+        this(System.getProperties(), System.getenv());
+    }
+
+    @VisibleForTesting
+    CredentialsCreator(Properties properties, Map<String, String> env) {
+        this.properties = properties;
+        this.env = env;
+    }
 
     /**
      * Function to extract the credentials object in the given client config.
@@ -36,7 +50,7 @@ public class CredentialsHelper {
      *
      * @param config the config containing the credentials object.
      */
-    public static ClientConfig extractCredentials(ClientConfig config) {
+    public ClientConfig extractCredentials(ClientConfig config) {
         if (config.getCredentials() != null) {
             return config;
         }
@@ -55,8 +69,8 @@ public class CredentialsHelper {
 
     }
 
-    private static Credentials extractCredentialsFromProperties() {
-        Map<String, String> retVal = System.getProperties().entrySet()
+    private Credentials extractCredentialsFromProperties() {
+        Map<String, String> retVal = properties.entrySet()
                                            .stream()
                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
                                            .collect(Collectors.toMap(entry ->
@@ -69,8 +83,8 @@ public class CredentialsHelper {
         }
     }
 
-    private static Credentials extractCredentialsFromEnv() {
-        Map<String, String> retVal = System.getenv().entrySet()
+    private Credentials extractCredentialsFromEnv() {
+        Map<String, String> retVal = env.entrySet()
                                            .stream()
                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
@@ -81,12 +95,12 @@ public class CredentialsHelper {
         }
     }
 
-    private static Credentials credentialFromMap(Map<String, String> retVal) {
+    private Credentials credentialFromMap(Map<String, String> credsMap) {
 
-        String expectedMethod = retVal.get(AUTH_METHOD);
+        String expectedMethod = credsMap.get(AUTH_METHOD);
 
         // Load the class dynamically if the user wants it to.
-        if (retVal.containsKey(AUTH_METHOD_LOAD_DYNAMIC) && Boolean.parseBoolean(retVal.get(AUTH_METHOD_LOAD_DYNAMIC))) {
+        if (credsMap.containsKey(AUTH_METHOD_LOAD_DYNAMIC) && Boolean.parseBoolean(credsMap.get(AUTH_METHOD_LOAD_DYNAMIC))) {
             ServiceLoader<Credentials> loader = ServiceLoader.load(Credentials.class);
             for (Credentials creds : loader) {
                 if (creds.getAuthenticationType().equals(expectedMethod)) {
@@ -99,12 +113,12 @@ public class CredentialsHelper {
         return new Credentials() {
             @Override
             public String getAuthenticationType() {
-                return retVal.get(AUTH_METHOD);
+                return credsMap.get(AUTH_METHOD);
             }
 
             @Override
             public Map<String, String> getAuthParameters() {
-                return retVal;
+                return credsMap;
             }
         };
     }
