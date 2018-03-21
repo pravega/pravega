@@ -134,7 +134,7 @@ public class EventStreamReaderTest {
     private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
-        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Boolean>()));
+        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Void>()));
         return buffer;
     }
 

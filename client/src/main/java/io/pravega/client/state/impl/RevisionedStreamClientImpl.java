@@ -10,6 +10,7 @@
 package io.pravega.client.state.impl;
 
 import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
@@ -49,6 +50,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")
+    private final ConditionalOutputStream conditional;
+    @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
     private final Controller controller;
@@ -58,18 +61,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Revision writeConditionally(Revision latestRevision, T value) {
-        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        CompletableFuture<Boolean> wasWritten;
         long offset = latestRevision.asImpl().getOffsetInSegment();
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
-        try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
-            synchronized (lock) {
-                out.write(event);
-                out.flush();
-            }
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
+        synchronized (lock) {
+            wasWritten = conditional.write(serialized, offset);
         }
         if (Futures.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
             long newOffset = getNewOffset(offset, size);
@@ -87,10 +84,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public void writeUnconditionally(T value) {
-        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        CompletableFuture<Void> ack = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
+            PendingEvent event = new PendingEvent(null, serialized, ack);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
                 out.write(event);
@@ -99,7 +96,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        Futures.getAndHandleExceptions(wasWritten, RuntimeException::new);
+        Futures.getAndHandleExceptions(ack, RuntimeException::new);
     }
 
     @Override

@@ -99,15 +99,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public void write(PendingEvent event) {
-        if (event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) {
-            dataWritten.add(event.getData().slice());
-            offsetList.add(writeOffset);
-            eventsWritten++;
-            writeOffset += event.getData().remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-            event.getAckFuture().complete(true);
-        } else {
-            event.getAckFuture().complete(false);
-        }
+        dataWritten.add(event.getData().slice());
+        offsetList.add(writeOffset);
+        eventsWritten++;
+        writeOffset += event.getData().remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        event.getAckFuture().complete(null);
     }
     
     @Override

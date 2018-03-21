@@ -344,7 +344,7 @@ public class EventStreamWriterTest {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
         assertEquals(1, outputStream.getUnackedEventsOnSeal().size());
-        outputStream.getUnackedEventsOnSeal().get(0).getAckFuture().complete(true);
+        outputStream.getUnackedEventsOnSeal().get(0).getAckFuture().complete(null);
         txn.flush();
         assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
         assertTrue(outputStream.getUnackedEventsOnSeal().isEmpty());
