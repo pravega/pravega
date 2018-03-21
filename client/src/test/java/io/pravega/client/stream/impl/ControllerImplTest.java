@@ -1255,7 +1255,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetSegmentsForStream1Valid() throws Exception {
+    public void testGetSegmentsWithValidStreamCuts() throws Exception {
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
@@ -1279,7 +1279,7 @@ public class ControllerImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsWithOverlappingStreamCutsStream1() throws Exception {
+    public void testGetSegmentsWithOverlappingStreamCuts() throws Exception {
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
@@ -1299,7 +1299,7 @@ public class ControllerImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsPartialOverlapStreamCutsStream1() throws Exception {
+    public void testGetSegmentsWithPartialOverlapStreamCuts() throws Exception {
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
@@ -1336,7 +1336,7 @@ public class ControllerImplTest {
      +-------+------+--------
      */
     @Test
-    public void testgetSegmentsStream8Valid() throws Exception {
+    public void testGetSegmentsWithValidStreamCut() throws Exception {
         String scope = "scope1";
         String stream = "stream8";
         Stream s = new StreamImpl(scope, stream);
@@ -1365,7 +1365,7 @@ public class ControllerImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsPartialOverlapStream8() throws Exception {
+    public void testGetSegmentsWithPartialOverlapStreamCut() throws Exception {
         String scope = "scope1";
         String stream = "stream8";
         Stream s = new StreamImpl(scope, stream);
