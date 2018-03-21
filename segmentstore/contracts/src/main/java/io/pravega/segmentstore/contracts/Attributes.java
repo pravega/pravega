@@ -48,9 +48,19 @@ public final class Attributes {
     public static final UUID SCALE_POLICY_RATE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 3);
 
     /**
-     * Defines an attribute that is used to define the value after which a Segment needs to be rolled over in Storage.
+     * Defines an attribute that is used to set the value after which a Segment needs to be rolled over in Storage.
      */
     public static final UUID ROLLOVER_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 4);
+
+    /**
+     * Defines an attribute that is used to store the offset within the Attribute sub-segment where the last Snapshot begins.
+     */
+    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
+
+    /**
+     * Defines an attribute that is used to store the length (in bytes) of the last Attribute Snapshot.
+     */
+    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_LENGTH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.

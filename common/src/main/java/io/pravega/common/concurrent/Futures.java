@@ -270,7 +270,7 @@ public final class Futures {
      * @return A new CompletableFuture that will be completed either with the result of future (if it completed normally),
      * or with the result of handler when applied to the exception of future, should future complete exceptionally.
      */
-    public static <T> CompletableFuture<? extends T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
+    public static <T> CompletableFuture<T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<T>> handler) {
         return future.handle((r, ex) -> {
             if (ex == null) {
                 return CompletableFuture.completedFuture(r);
