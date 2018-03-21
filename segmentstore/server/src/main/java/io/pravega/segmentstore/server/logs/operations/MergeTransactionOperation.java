@@ -12,7 +12,10 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Log Operation that indicates a Transaction StreamSegment is merged into its parent StreamSegment.
@@ -23,6 +26,7 @@ public class MergeTransactionOperation extends StorageOperation {
     private long streamSegmentOffset;
     private long length;
     private long transactionSegmentId;
+    private Collection<AttributeUpdate> attributeUpdates;
 
     //endregion
 
@@ -33,10 +37,12 @@ public class MergeTransactionOperation extends StorageOperation {
      *
      * @param streamSegmentId      The Id of the Parent StreamSegment (the StreamSegment to merge into).
      * @param transactionSegmentId The Id of the Transaction StreamSegment (the StreamSegment to be merged).
+     * @param attributeUpdates     (Optional) The attributeUpdates to update on the Parent StreamSegment with this operation.
      */
-    public MergeTransactionOperation(long streamSegmentId, long transactionSegmentId) {
+    public MergeTransactionOperation(long streamSegmentId, long transactionSegmentId, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
         this.transactionSegmentId = transactionSegmentId;
+        this.attributeUpdates = attributeUpdates;
         this.length = -1;
         this.streamSegmentOffset = -1;
     }
@@ -104,6 +110,15 @@ public class MergeTransactionOperation extends StorageOperation {
         return this.length;
     }
 
+    /**
+     * Gets the Attribute updates to be applied to the Parent StreamSegment for this MergeTransactionOperation, if any.
+     *
+     * @return A Collection of Attribute updates, or null if no updates are available.
+     */
+    public Collection<AttributeUpdate> getAttributeUpdates() {
+        return this.attributeUpdates;
+    }
+
     @Override
     public String toString() {
         return String.format(
@@ -117,7 +132,8 @@ public class MergeTransactionOperation extends StorageOperation {
     //endregion
 
     static class Serializer extends OperationSerializer<MergeTransactionOperation> {
-        private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
+        private static final int STATIC_LENGTH = 5 * Long.BYTES;
+        private static final int ATTRIBUTE_UPDATE_LENGTH = RevisionDataOutput.UUID_BYTES + Byte.BYTES + 2 * Long.BYTES;
 
         @Override
         protected OperationBuilder<MergeTransactionOperation> newBuilder() {
@@ -142,12 +158,16 @@ public class MergeTransactionOperation extends StorageOperation {
         }
 
         private void write00(MergeTransactionOperation o, RevisionDataOutput target) throws IOException {
-            target.length(SERIALIZATION_LENGTH);
+            int attributesLength = o.attributeUpdates == null
+                    ? target.getCompactIntLength(0)
+                    : target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UPDATE_LENGTH);
+            target.length(STATIC_LENGTH + attributesLength);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
             target.writeLong(o.transactionSegmentId);
             target.writeLong(o.length);
             target.writeLong(o.streamSegmentOffset);
+            target.writeCollection(o.attributeUpdates, this::writeAttributeUpdate00);
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<MergeTransactionOperation> b) throws IOException {
@@ -156,6 +176,22 @@ public class MergeTransactionOperation extends StorageOperation {
             b.instance.transactionSegmentId = source.readLong();
             b.instance.length = source.readLong();
             b.instance.streamSegmentOffset = source.readLong();
+            b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
+        }
+
+        private void writeAttributeUpdate00(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+            target.writeUUID(au.getAttributeId());
+            target.writeByte(au.getUpdateType().getTypeId());
+            target.writeLong(au.getValue());
+            target.writeLong(au.getComparisonValue());
+        }
+
+        private AttributeUpdate readAttributeUpdate00(RevisionDataInput source) throws IOException {
+            return new AttributeUpdate(
+                    source.readUUID(),
+                    AttributeUpdateType.get(source.readByte()),
+                    source.readLong(),
+                    source.readLong());
         }
     }
 }

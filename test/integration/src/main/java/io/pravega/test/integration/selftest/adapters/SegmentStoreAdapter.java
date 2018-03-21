@@ -197,7 +197,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.streamSegmentStore
                 .sealStreamSegment(transactionName, timer.getRemaining())
-                .thenCompose(v -> this.streamSegmentStore.mergeTransaction(transactionName, timer.getRemaining()));
+                .thenCompose(v -> this.streamSegmentStore.mergeTransaction(transactionName, null, timer.getRemaining()));
     }
 
     @Override

@@ -515,7 +515,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return null;
                         }));
         val merge = segmentStore
-                .mergeTransaction(transactionName, TIMEOUT)
+                .mergeTransaction(transactionName, null, TIMEOUT)
                 .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())));
 
         CompletableFuture.allOf(seal, merge)

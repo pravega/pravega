@@ -422,7 +422,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
@@ -436,7 +436,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         throw new CompletionException(new StreamSegmentNotExistsException(transactionName));
                     }
 
-                    Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
+                    Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId(), attributeUpdates);
                     return this.durableLog.add(op, timer.getRemaining());
                 })
                 .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);

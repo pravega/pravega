@@ -84,8 +84,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        CompletableFuture<Void> result = impl.mergeTransaction(transactionName, timeout);
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        CompletableFuture<Void> result = impl.mergeTransaction(transactionName, attributeUpdates, timeout);
         Futures.await(result);
         return result;
     }

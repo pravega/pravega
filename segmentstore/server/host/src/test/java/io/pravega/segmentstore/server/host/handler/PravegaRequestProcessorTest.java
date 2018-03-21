@@ -56,6 +56,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -325,7 +326,7 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeTransaction(
-                anyString(), any());
+                anyString(), isNull(), any());
 
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
@@ -343,7 +344,7 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeTransaction(
-                anyString(), any());
+                anyString(), isNull(), any());
 
         processor.createTransaction(new WireCommands.CreateTransaction(3, streamSegmentName, txnid, ""));
         order.verify(connection).send(new WireCommands.TransactionCreated(3, streamSegmentName, txnid));

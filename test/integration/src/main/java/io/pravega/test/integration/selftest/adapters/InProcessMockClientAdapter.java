@@ -168,7 +168,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+        public CompletableFuture<Void> mergeTransaction(String transactionName, Collection<AttributeUpdate> attributes, Duration timeout) {
             throw new UnsupportedOperationException("updateAttributes");
         }
 

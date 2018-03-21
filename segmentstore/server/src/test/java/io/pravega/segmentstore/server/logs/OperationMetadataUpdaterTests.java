@@ -300,7 +300,7 @@ public class OperationMetadataUpdaterTests {
     private void mergeTransaction(long transactionId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata)
             throws Exception {
         long parentSegmentId = updater.getStreamSegmentMetadata(transactionId).getParentId();
-        val op = new MergeTransactionOperation(parentSegmentId, transactionId);
+        val op = new MergeTransactionOperation(parentSegmentId, transactionId, null);
         process(op, updater);
         if (referenceMetadata != null) {
             referenceMetadata.getStreamSegmentMetadata(transactionId).markMerged();

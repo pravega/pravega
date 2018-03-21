@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -338,10 +337,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentSealedException    If the parent stream is already sealed.
      * @throws StreamSegmentNotSealedException If the transaction segment is not sealed.
      * @throws MetadataUpdateException If the operation cannot be processed because of the current state of the metadata.
+     * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
+     *                                      values of the segment.
+     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
+     *                                     maximum allowed number of Attributes.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
      */
     void preProcessAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException, TooManyAttributesException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -368,6 +371,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         if (!this.recoveryMode) {
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
+
+            // Attribute validation.
+            preProcessAttributes(operation.getAttributeUpdates());
         }
     }
 
@@ -525,14 +531,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         this.sealed = true;
-
-        // Clear all dynamic attributes.
-        this.attributeValues.entrySet().forEach(e -> {
-            if (Attributes.isDynamic(e.getKey())) {
-                e.setValue(SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            }
-        });
-
         this.isChanged = true;
     }
 
@@ -571,6 +569,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         this.length += transLength;
+        acceptAttributes(operation.getAttributeUpdates());
         this.isChanged = true;
     }
 
