@@ -83,11 +83,11 @@ public class CredentialsExtractor {
                     .collect(Collectors.toMap(entry ->
                                     entry.getKey().toString().replace("_", "."),
                             value -> (String) value.getValue()));
-        }
-        if (retVal.containsKey(AUTH_METHOD)) {
-            return credentialFromMap(retVal);
-        } else {
-            return null;
+            if (retVal.containsKey(AUTH_METHOD)) {
+                return credentialFromMap(retVal);
+            } else {
+                return null;
+            }
         }
     }
 
@@ -97,11 +97,11 @@ public class CredentialsExtractor {
                     .stream()
                     .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
                     .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-        }
-        if (retVal.containsKey(AUTH_METHOD)) {
-            return credentialFromMap(retVal);
-        } else {
-            return null;
+            if (retVal.containsKey(AUTH_METHOD)) {
+                return credentialFromMap(retVal);
+            } else {
+                return null;
+            }
         }
     }
 
