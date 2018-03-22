@@ -426,8 +426,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
                 .scaleOldSegmentsSealed(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
-        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
-                new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
@@ -697,6 +695,47 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         }, executor);
 
         return result;
+    }
+
+    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
+            int size = scaleMetadataList.size();
+            long totalNumSplits = 0;
+            long totalNumMerges = 0;
+            List<Segment> segmentList1;
+            List<Segment> segmentList2;
+            boolean isDescendingOrder = (size > 1) ?
+                    (scaleMetadataList.get(0).getTimestamp() > scaleMetadataList.get(1).getTimestamp()) : true;
+
+            for (int i = 0; i < size - 1; i++) {
+                segmentList1 = scaleMetadataList.get(i).getSegments();
+                segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                if (isDescendingOrder) {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList2, segmentList1);
+                    totalNumMerges += findSegmentSplitsMerges(segmentList1, segmentList2);
+                } else {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
+                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
+                }
+            }
+            return new SimpleEntry<>(totalNumSplits, totalNumMerges);
+        });
+    }
+
+    /**
+     * Method to calculate number of splits and merges.
+     *
+     * Principle to calculate the number of splits and merges:
+     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
+     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
+     *
+     * @param referenceSegmentsList Reference segment list.
+     * @param targetSegmentsList Target segment list.
+     * @return Number of splits/merges
+     */
+    private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
+        return referenceSegmentsList.stream().filter(
+                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     abstract Stream newStream(final String scope, final String name);

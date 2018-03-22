@@ -31,23 +31,25 @@ import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.integration.utils.SetupUtils;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import lombok.Cleanup;
@@ -203,9 +205,12 @@ public class ControllerRestApiTest {
         // Test scaling event list GET /v1/scopes/scope1/streams/stream1
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1 + "/scaling-events")
                 .toString();
-        response = client.target(resourceURl).request().property("from", 0L).property("to", System.currentTimeMillis()).get();
-
-//        ScalingEventList scalingEventsList = response.readEntity(ScalingEventList.class);
+        response = client.target(resourceURl).queryParam("from", 0L).
+                queryParam("to", System.currentTimeMillis()).request().get();
+        List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
+                new GenericType<List<ScaleMetadata>>() { });
+        assertEquals(1, scaleMetadataListResponse.size());
+        assertEquals(2, scaleMetadataListResponse.get(0).getSegments().size());
 
         // Test getStream
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
