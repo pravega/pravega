@@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
@@ -147,6 +148,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
                     }
+
                     return result;
                 });
     }
@@ -699,26 +701,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
-            int size = scaleMetadataList.size();
-            long totalNumSplits = 0;
-            long totalNumMerges = 0;
-            List<Segment> segmentList1;
-            List<Segment> segmentList2;
-            boolean isDescendingOrder = (size > 1) ?
-                    (scaleMetadataList.get(0).getTimestamp() > scaleMetadataList.get(1).getTimestamp()) : true;
+            AtomicLong totalNumSplits = new AtomicLong(0L);
+            AtomicLong totalNumMerges = new AtomicLong(0L);
+            scaleMetadataList.forEach(x -> {
+                totalNumMerges.addAndGet(x.getMerges());
+                totalNumSplits.addAndGet(x.getSplits());
+            });
 
-            for (int i = 0; i < size - 1; i++) {
-                segmentList1 = scaleMetadataList.get(i).getSegments();
-                segmentList2 = scaleMetadataList.get(i+1).getSegments();
-                if (isDescendingOrder) {
-                    totalNumSplits += findSegmentSplitsMerges(segmentList2, segmentList1);
-                    totalNumMerges += findSegmentSplitsMerges(segmentList1, segmentList2);
-                } else {
-                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
-                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
-                }
-            }
-            return new SimpleEntry<>(totalNumSplits, totalNumMerges);
+            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
         });
     }
 

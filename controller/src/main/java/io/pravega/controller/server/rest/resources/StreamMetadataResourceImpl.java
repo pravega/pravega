@@ -669,7 +669,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             if (referenceEvent != null) {
                 finalScaleMetadataList.add(0, referenceEvent);
             }
-
             log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
             return Response.status(Status.OK).entity(finalScaleMetadataList).build();
         }).exceptionally(exception -> {
