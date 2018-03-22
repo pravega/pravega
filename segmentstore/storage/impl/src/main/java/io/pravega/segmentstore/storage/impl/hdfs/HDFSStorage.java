@@ -443,13 +443,6 @@ class HDFSStorage implements SyncStorage {
 
     //region Helpers
 
-    private <T> T throwException(Throwable e, FileSystemOperation<?> operation) throws StreamSegmentException {
-        String segmentName = operation.getTarget() instanceof SegmentHandle
-                ? ((SegmentHandle) operation.getTarget()).getSegmentName()
-                : operation.getTarget().toString();
-        return HDFSExceptionHelpers.throwException(segmentName, e);
-    }
-
     /**
      * Casts the given handle as a HDFSSegmentHandle that has isReadOnly == false.
      */
