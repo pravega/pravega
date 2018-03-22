@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Credentials;
 import net.jcip.annotations.GuardedBy;
-
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
