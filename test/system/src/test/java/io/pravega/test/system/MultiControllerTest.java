@@ -9,23 +9,24 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.PravegaControllerService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -36,96 +37,76 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
+
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    private Service controllerServiceInstance1 = null;
-    private Service controllerServiceInstance2 = null;
-    private Service controllerServiceInstance3 = null;
+    private Service controllerService1 = null;
+    private AtomicReference<URI> controllerURIDirect = new AtomicReference();
+    private AtomicReference<URI> controllerURIDiscover = new AtomicReference();
 
-    private URI controllerURIDirect = null;
-    private URI controllerURIDiscover = null;
-
-    /**
-     * This is used to setup the various services required by the system test framework.
-     *
-     * @throws MarathonException if error in setup
-     */
     @Environment
-    public static void initialize() throws MarathonException {
-        Service zkService = new ZookeeperService("zookeeper");
+    public static void setup() throws MarathonException, ExecutionException {
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        // Start multiple instances of the controller.
-        Service controller1 = new PravegaControllerService("multicontroller1", zkUris.get(0));
-        if (!controller1.isRunning()) {
-            controller1.start(true);
+        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
-        List<URI> conUris1 = controller1.getServiceDetails();
-        log.info("Pravega Controller service instance 1 details: {}", conUris1);
-        Service controller2 = new PravegaControllerService("multicontroller2", zkUris.get(0));
-        if (!controller2.isRunning()) {
-            controller2.start(true);
-        }
-        List<URI> conUris2 = controller2.getServiceDetails();
-        log.info("Pravega Controller service instance 2 details: {}", conUris2);
-        Service controller3 = new PravegaControllerService("multicontroller3", zkUris.get(0));
-        if (!controller3.isRunning()) {
-            controller3.start(true);
-        }
-        List<URI> conUris3 = controller3.getServiceDetails();
-        log.info("Pravega Controller service instance 3 details: {}", conUris3);
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
+
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
+        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
     }
 
     @Before
-    public void setup() {
-        Service zkService = new ZookeeperService("zookeeper");
+    public void getControllerInfo() {
+        Service zkService = Utils.createZookeeperService();
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        // Fetch the controller instances.
-        List<URI> conUris = new ArrayList<>();
-        controllerServiceInstance1 = new PravegaControllerService("multicontroller1", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance1.isRunning());
-        conUris.addAll(controllerServiceInstance1.getServiceDetails());
-        controllerServiceInstance2 = new PravegaControllerService("multicontroller2", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance2.isRunning());
-        conUris.addAll(controllerServiceInstance2.getServiceDetails());
-        controllerServiceInstance3 = new PravegaControllerService("multicontroller3", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance3.isRunning());
-        conUris.addAll(controllerServiceInstance3.getServiceDetails());
-        log.info("Pravega Controller service instance details: {}", conUris);
+        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService1.isRunning()) {
+            controllerService1.start(true);
+        }
 
+        List<URI> conUris = controllerService1.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+
+        controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
+        controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
     }
 
     @After
     public void tearDown() {
         EXECUTOR_SERVICE.shutdownNow();
-        if (controllerServiceInstance1 != null && controllerServiceInstance1.isRunning()) {
-            controllerServiceInstance1.stop();
-            controllerServiceInstance1.clean();
-        }
-        if (controllerServiceInstance2 != null && controllerServiceInstance2.isRunning()) {
-            controllerServiceInstance2.stop();
-            controllerServiceInstance2.clean();
-        }
-        if (controllerServiceInstance3 != null && controllerServiceInstance3.isRunning()) {
-            controllerServiceInstance3.stop();
-            controllerServiceInstance3.clean();
+        if (controllerService1 != null && controllerService1.isRunning()) {
+            controllerService1.stop();
+            controllerService1.clean();
         }
     }
 
@@ -137,47 +118,64 @@ public class MultiControllerTest {
      */
     @Test(timeout = 300000)
     public void multiControllerTest() throws ExecutionException, InterruptedException {
+
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with all 3 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+        withControllerURIDirect();
         log.info("Test pravega:// with all 3 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        withControllerURIDiscover();
+        Futures.getAndHandleExceptions(controllerService1.scaleService(2), ExecutionException::new);
 
-        controllerServiceInstance1.stop();
         log.info("Test tcp:// with 2 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+        withControllerURIDirect();
         log.info("Test pravega:// with 2 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        withControllerURIDiscover();
 
-        controllerServiceInstance2.stop();
+        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
+
         log.info("Test tcp:// with only 1 controller instance running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+        withControllerURIDirect();
         log.info("Test pravega:// with only 1 controller instance running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        withControllerURIDiscover();
 
         // All APIs should throw exception and fail.
-        controllerServiceInstance3.stop();
+        Futures.getAndHandleExceptions(controllerService1.scaleService(0), ExecutionException::new);
+
+        if (!controllerService1.getServiceDetails().isEmpty()) {
+            controllerURIDirect.set(controllerService1.getServiceDetails().get(0));
+            controllerURIDiscover.set(controllerService1.getServiceDetails().get(0));
+        } else {
+            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+            controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
+        }
+
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect),
+                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
                 throwable -> throwable instanceof RetriesExhaustedException);
-
-        log.info("Test pravega:// with no controller instances running");
-        AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover),
-                throwable -> throwable instanceof RetriesExhaustedException);
-
+        if (!DOCKER_BASED) {
+            log.info("Test pravega:// with no controller instances running");
+            AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
+                    createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
+                    throwable -> throwable instanceof RetriesExhaustedException);
+        }
         log.info("multiControllerTest execution completed");
     }
 
-    private CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, URI controllerURI) {
+    private void withControllerURIDirect() throws ExecutionException, InterruptedException {
+        Assert.assertTrue(createScopeWithSimpleRetry(
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
+    }
+
+    private void withControllerURIDiscover() throws ExecutionException, InterruptedException {
+        if (!DOCKER_BASED) {
+            Assert.assertTrue(createScopeWithSimpleRetry(
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()).get());
+        }
+    }
+
+    CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, URI controllerURI) {
         // Need to retry since there is a delay for the mesos DNS name to resolve correctly.
         return Retry.withExpBackoff(500, 2, 10, 5000)
                 .retryingOn(Exception.class)
@@ -185,9 +183,11 @@ public class MultiControllerTest {
                 .runAsync(() -> createScope(scopeName, controllerURI), EXECUTOR_SERVICE);
     }
 
-    private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+    CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
+        final ControllerImpl controllerClient = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURI).build())
+                                    .build(), EXECUTOR_SERVICE);
         return controllerClient.createScope(scopeName);
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -52,7 +53,6 @@ import javax.ws.rs.core.Response;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.RandomStringUtils;
-import org.glassfish.jersey.client.ClientConfig;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -81,7 +81,7 @@ public class ControllerRestApiTest {
     private String resourceURl;
 
     public ControllerRestApiTest() {
-        ClientConfig clientConfig = new ClientConfig();
+        org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         client = ClientBuilder.newClient(clientConfig);
@@ -266,7 +266,8 @@ public class ControllerRestApiTest {
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
+                     ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
                     new HashSet<>(Arrays.asList(testStream1, testStream2)));
             readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),
@@ -319,6 +320,8 @@ public class ControllerRestApiTest {
     }
 
     private Controller createController(URI controllerUri, InlineExecutor executor) {
-        return new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                                      .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
+                                                      .retryAttempts(1).build(), executor);
     }
 }

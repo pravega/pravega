@@ -65,6 +65,10 @@ public class SelfTestRunner {
 
         // Wait for the test to finish.
         test.awaitFinished().join();
+        if (testConfig.isPauseBeforeExit()) {
+            System.out.println("Services are still running. Press any key to exit ...");
+            System.in.read();
+        }
 
         // Make sure the test is stopped.
         test.stopAsync().awaitTerminated();
@@ -125,7 +129,9 @@ public class SelfTestRunner {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30))
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30)
+                                      .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
+                                      .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
@@ -204,7 +210,8 @@ public class SelfTestRunner {
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
-                    new Shortcut("reads", TestConfig.READS_ENABLED)));
+                    new Shortcut("reads", TestConfig.READS_ENABLED),
+                    new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);
         }

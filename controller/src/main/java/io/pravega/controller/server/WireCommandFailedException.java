@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.shared.protocol.netty.WireCommandType;
 
 /**
  * Wire command failed exception.
@@ -22,6 +22,7 @@ public class WireCommandFailedException extends RuntimeException implements Retr
         ConnectionFailed,
         UnknownHost,
         PreconditionFailed,
+        AuthFailed,
     }
 
     private final WireCommandType type;

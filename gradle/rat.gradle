@@ -16,6 +16,7 @@ rat {
             '**/*.iml',
             '**/*.iws',
             '**/*.ipr',
+            '**/passwd',
             '**/gradle/wrapper/**',
             '**/build/**',
             '**/out/**',
@@ -26,6 +27,7 @@ rat {
             '**/*.log',
             '**/*.lock',
             '**/*.json',
+            '**/config/*jks*',
             'CODE_OF_CONDUCT.md'
     ]
 }

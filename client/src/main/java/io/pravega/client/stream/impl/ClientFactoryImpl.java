@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
@@ -45,11 +46,11 @@ import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 @Slf4j
 public class ClientFactoryImpl implements ClientFactory {
@@ -72,7 +73,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Preconditions.checkNotNull(controller);
         this.scope = scope;
         this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
@@ -88,13 +89,13 @@ public class ClientFactoryImpl implements ClientFactory {
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-             new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
-             new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
+                new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
     }
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
+                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
@@ -107,6 +108,7 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = outFactory;
         this.metaFactory = metaFactory;
     }
+
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
@@ -149,9 +151,12 @@ public class ClientFactoryImpl implements ClientFactory {
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig());
-        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
-        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+                segment.getStreamName()), RuntimeException::new);
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
+                config.getEventWriterConfig(), delegationToken);
+        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
+        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer, controller, delegationToken);
     }
 
     @Override

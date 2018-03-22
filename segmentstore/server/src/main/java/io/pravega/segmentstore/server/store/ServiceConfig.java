@@ -40,6 +40,9 @@ public class ServiceConfig {
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.INMEMORY);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
+    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public static final Property<String> CERT_FILE = Property.named("certFile", "");
+    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -184,6 +187,23 @@ public class ServiceConfig {
     @Getter
     private final boolean readOnlySegmentStore;
 
+    /**
+     * Enables TLS support for the serer.
+     */
+    @Getter
+    private final boolean enableTls;
+
+    /**
+     * Represents the certificate file for the TLS server.
+     */
+    @Getter
+    private final String certFile;
+
+    /**
+     * Represents the private key file for the TLS server.
+     */
+    @Getter
+    private final String keyFile;
     //endregion
 
     //region Constructor
@@ -228,6 +248,9 @@ public class ServiceConfig {
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
+        this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.keyFile = properties.get(KEY_FILE);
+        this.certFile = properties.get(CERT_FILE);
     }
 
     /**

@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -249,7 +250,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         BiConsumer<Long, Long> verifyReadResult = (startOffset, endOffset) -> {
             int readLength = (int) (endOffset - startOffset);
             while (readLength > 0) {
-                InputStream actualDataStream = context.readIndex.readDirect(segmentId, startOffset, readLength);
+                InputStream actualDataStream;
+                try {
+                    actualDataStream = context.readIndex.readDirect(segmentId, startOffset, readLength);
+                } catch (StreamSegmentNotExistsException ex) {
+                    throw new CompletionException(ex);
+                }
                 Assert.assertNotNull(
                         String.format("Unexpected result when data is readily available for Offset = %s, Length = %s.", startOffset, readLength),
                         actualDataStream);
@@ -336,7 +342,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      * Tests a scenario of truncation that happens concurrently with reading (segment is truncated while reading).
      */
     @Test
-    public void testTruncateConcurrently() {
+    public void testTruncateConcurrently() throws Exception {
         @Cleanup
         TestContext context = new TestContext();
         List<Long> segmentIds = createSegments(context).subList(0, 1);
@@ -780,7 +786,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             byte[] data = new byte[appendSize];
             long offset = sm.getLength();
             sm.setLength(offset + data.length);
-            context.readIndex.append(segmentId, offset, data);
+            try {
+                context.readIndex.append(segmentId, offset, data);
+            } catch (StreamSegmentNotExistsException ex) {
+                throw new CompletionException(ex);
+            }
         };
 
         // Populate the ReadIndex with the Append entries (post-StorageOffset)
@@ -1054,11 +1064,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void appendData(Collection<Long> segmentIds, Map<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void appendData(Collection<Long> segmentIds, Map<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         appendData(segmentIds, segmentContents, context, null);
     }
 
-    private void appendData(Collection<Long> segmentIds, Map<Long, ByteArrayOutputStream> segmentContents, TestContext context, Runnable callback) {
+    private void appendData(Collection<Long> segmentIds, Map<Long, ByteArrayOutputStream> segmentContents, TestContext context, Runnable callback) throws Exception {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : segmentIds) {
@@ -1075,7 +1085,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void appendSingleWrite(long segmentId, byte[] data, TestContext context) {
+    private void appendSingleWrite(long segmentId, byte[] data, TestContext context) throws Exception {
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
 
         // Make sure we increase the Length prior to appending; the ReadIndex checks for this.
@@ -1112,7 +1122,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
-    private void completeMergeTransactions(HashMap<Long, ArrayList<Long>> transactionsBySegment, TestContext context) {
+    private void completeMergeTransactions(HashMap<Long, ArrayList<Long>> transactionsBySegment, TestContext context) throws Exception {
         for (Map.Entry<Long, ArrayList<Long>> e : transactionsBySegment.entrySet()) {
             long parentId = e.getKey();
             for (long transactionId : e.getValue()) {

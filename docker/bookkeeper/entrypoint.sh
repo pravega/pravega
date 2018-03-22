@@ -44,6 +44,17 @@ sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' 
 sed -i '/autoRecoveryDaemonEnabled/d' ${BK_HOME}/conf/bk_server.conf
 echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> ${BK_HOME}/conf/bk_server.conf
 
+echo "
+tlsProvider=OpenSSL
+# key store
+tlsKeyStoreType=JKS
+tlsKeyStore=/var/private/tls/bookie.keystore.jks
+tlsKeyStorePasswordPath=/var/private/tls/bookie.keystore.passwd
+# trust store
+tlsTrustStoreType=JKS
+tlsTrustStore=/var/private/tls/bookie.truststore.jks
+tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd" >> ${BK_HOME}/conf/bk_server.conf
+
 echo "wait for zookeeper"
 until ${ZK_HOME}/bin/zkCli.sh -server $ZK_URL ls /; do sleep 2; done
 

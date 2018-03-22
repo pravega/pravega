@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.io.InputStream;
@@ -51,8 +52,9 @@ interface WriterDataSource {
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
+     * @throws StreamSegmentNotExistsException If targetStreamSegmentId is mapped to a Segment that is marked as Deleted.
      */
-    void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
+    void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) throws StreamSegmentNotExistsException;
 
     /**
      * Gets an InputStream representing uncommitted data in a Segment.

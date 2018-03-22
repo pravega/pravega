@@ -16,8 +16,13 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
  * In-memory store based ControllerServiceStarter tests.
  */
 public class InMemoryControllerServiceStarterTest extends ControllerServiceStarterTest {
+
     public InMemoryControllerServiceStarterTest() {
-        super(true);
+        this(false);
+    }
+
+    InMemoryControllerServiceStarterTest(boolean auth) {
+        super(true, auth);
     }
 
     @Override

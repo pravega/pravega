@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -141,23 +143,53 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStart() {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
         Services.startAsync(this.durableLog, this.executor)
-                .thenRunAsync(() -> this.storage.initialize(this.metadata.getContainerEpoch()), this.executor)
-                .thenCompose(v -> CompletableFuture.allOf(
-                        Services.startAsync(this.metadataCleaner, this.executor),
-                        Services.startAsync(this.writer, this.executor)))
-                .thenRun(() -> {
-                    log.info("{}: Started.", this.traceObjectId);
-                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-                    notifyStarted();
-                })
-                .exceptionally(ex -> {
-                    doStop(ex);
-                    return null;
+                .thenRunAsync(this::startWhenDurableLogOnline, this.executor)
+                .whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
+                        // are not required for accepting new operations and can still start in the background.
+                        log.info("{}: DurableLog Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
+                        notifyStarted();
+                    } else {
+                        doStop(ex);
+                    }
                 });
+    }
+
+    private void startWhenDurableLogOnline() {
+        CompletableFuture<Void> delayedStart;
+        if (this.durableLog.isOffline()) {
+            // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
+            // completes successfully.
+            delayedStart = this.durableLog.awaitOnline()
+                                          .thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor);
+        } else {
+            // DurableLog is already online. Immediately start secondary services. In this particular case, it needs to
+            // be done synchronously since we need to initialize Storage before notifying that we are fully started.
+            delayedStart = startSecondaryServicesAsync();
+        }
+
+        // If the delayed start fails, immediately shut down the Segment Container with the appropriate exception.
+        delayedStart.whenComplete((v, ex) -> {
+            if (ex == null) {
+                // Successful start.
+                log.info("{}: Started.", this.traceObjectId);
+            } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
+                // a shutdown phase since that's most likely due to us shutting down.
+                doStop(ex);
+            }
+        });
+    }
+
+    private CompletableFuture<Void> startSecondaryServicesAsync() {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+        return CompletableFuture.allOf(
+                Services.startAsync(this.metadataCleaner, this.executor),
+                Services.startAsync(this.writer, this.executor));
     }
 
     @Override
@@ -232,6 +264,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.metadata.getContainerId();
     }
 
+    @Override
+    public boolean isOffline() {
+        return this.durableLog.isOffline();
+    }
+
     //endregion
 
     //region StreamSegmentStore Implementation
@@ -287,7 +324,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                        streamSegmentId -> CompletableFuture.completedFuture(this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining())));
+                        streamSegmentId -> {
+                            try {
+                                return CompletableFuture.completedFuture(this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                            } catch (StreamSegmentNotExistsException ex) {
+                                return Futures.failedFuture(ex);
+                            }
+                        });
     }
 
     @Override
@@ -455,6 +498,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (state() != State.RUNNING) {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
+        } else if (isOffline()) {
+            throw new ContainerOfflineException(getId());
         }
     }
 
