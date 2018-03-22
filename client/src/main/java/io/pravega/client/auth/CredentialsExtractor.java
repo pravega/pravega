@@ -12,6 +12,8 @@ package io.pravega.client.auth;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Credentials;
+import net.jcip.annotations.GuardedBy;
+
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -26,7 +28,10 @@ public class CredentialsExtractor {
     private static final String AUTH_METHOD_LOAD_DYNAMIC = AUTH_PROPS_START + "loadDynamic";
 
     private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+
+    @GuardedBy("$this")
     private final Properties properties;
+    @GuardedBy("$this")
     private final Map<String, String> env;
 
     public CredentialsExtractor() {
@@ -71,12 +76,14 @@ public class CredentialsExtractor {
     }
 
     private Credentials extractCredentialsFromProperties() {
-        Map<String, String> retVal = properties.entrySet()
-                                           .stream()
-                                           .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
-                                           .collect(Collectors.toMap(entry ->
-                                                   entry.getKey().toString().replace("_", "."),
-                                                   value -> (String) value.getValue()));
+        synchronized (this) {
+            Map<String, String> retVal = properties.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
+                    .collect(Collectors.toMap(entry ->
+                                    entry.getKey().toString().replace("_", "."),
+                            value -> (String) value.getValue()));
+        }
         if (retVal.containsKey(AUTH_METHOD)) {
             return credentialFromMap(retVal);
         } else {
@@ -85,10 +92,12 @@ public class CredentialsExtractor {
     }
 
     private Credentials extractCredentialsFromEnv() {
-        Map<String, String> retVal = env.entrySet()
-                                           .stream()
-                                           .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
-                                           .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+        synchronized (this) {
+            Map<String, String> retVal = env.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
+                    .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+        }
         if (retVal.containsKey(AUTH_METHOD)) {
             return credentialFromMap(retVal);
         } else {
