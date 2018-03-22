@@ -51,6 +51,9 @@ import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
+import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
+import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
@@ -138,6 +141,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
                         CREATE_STREAM.reportSuccessValue(1);
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                configuration.getScalingPolicy().getMinNumSegments());
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
                     }
                     return result;
                 });
@@ -154,6 +161,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     DELETE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
                     DYNAMIC_LOGGER.freezeGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_SPLITS, scope, name));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_MERGES, scope, name));
                     return result;
                 });
     }
@@ -414,8 +423,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                        final OperationContext context,
                                                        final Executor executor) {
         List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
-        return withCompletion(getStream(scope, name, context)
+        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
                 .scaleOldSegmentsSealed(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
+                new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+
+        future.thenCompose(result -> CompletableFuture.allOf(
+                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
+                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry -> {
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), simpleEntry.getKey());
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), simpleEntry.getValue());
+                })));
+
+        return future;
     }
 
     @Override

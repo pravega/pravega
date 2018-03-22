@@ -30,6 +30,7 @@ import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
@@ -198,6 +199,13 @@ public class ControllerRestApiTest {
         assertEquals("Verify updated property", 4, response.readEntity(StreamProperty.class)
                 .getScalingPolicy().getMinSegments().intValue());
         log.info("Update stream successful");
+
+        // Test scaling event list GET /v1/scopes/scope1/streams/stream1
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1 + "/scaling-events")
+                .toString();
+        response = client.target(resourceURl).request().property("from", 0L).property("to", System.currentTimeMillis()).get();
+
+//        ScalingEventList scalingEventsList = response.readEntity(ScalingEventList.class);
 
         // Test getStream
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
