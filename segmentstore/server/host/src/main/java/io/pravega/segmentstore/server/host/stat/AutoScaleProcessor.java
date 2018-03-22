@@ -117,7 +117,6 @@ public class AutoScaleProcessor {
                         if (configuration.isAuthEnabled()) {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
                                                 .trustStore(configuration.getTlsCertFile())
                                                 .build());
                         } else {
