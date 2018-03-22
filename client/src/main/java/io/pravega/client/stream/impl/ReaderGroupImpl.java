@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -69,11 +70,35 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final SynchronizerConfig synchronizerConfig;
     private final Serializer<ReaderGroupStateInit> initSerializer;
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
-    private final ClientFactory clientFactory;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final SegmentMetadataClientFactory metaFactory;
     private final NotificationSystem notificationSystem = new NotificationSystem();
-    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem, this::createSynchronizer);
+    private final StateSynchronizer<ReaderGroupState> synchronizer;
+    private final NotifierFactory notifierFactory;
+
+    
+    public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
+                           Serializer<ReaderGroupStateInit> initSerializer, Serializer<ReaderGroupStateUpdate> updateSerializer,
+                           ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(groupName);
+        Preconditions.checkNotNull(synchronizerConfig);
+        Preconditions.checkNotNull(initSerializer);
+        Preconditions.checkNotNull(updateSerializer);
+        Preconditions.checkNotNull(clientFactory);
+        Preconditions.checkNotNull(controller);
+        Preconditions.checkNotNull(connectionFactory);
+        this.scope = scope;
+        this.groupName = groupName;
+        this.synchronizerConfig = synchronizerConfig;
+        this.initSerializer = initSerializer;
+        this.updateSerializer = updateSerializer;
+        this.controller = controller;
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                                                                  updateSerializer, initSerializer, synchronizerConfig);
+        this.notifierFactory = new NotifierFactory(notificationSystem, synchronizer);
+    }
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -82,8 +107,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
      */
     @VisibleForTesting
     public void initializeGroup(ReaderGroupConfig config, Set<String> streams) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streams);
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
@@ -102,35 +125,23 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void readerOffline(String readerId, Position lastPosition) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         ReaderGroupStateManager.readerShutdown(readerId, lastPosition, synchronizer);
-    }
-
-    private StateSynchronizer<ReaderGroupState> createSynchronizer() {
-        return clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                updateSerializer, initSerializer, synchronizerConfig);
     }
 
     @Override
     public Set<String> getOnlineReaders() {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
         return synchronizer.getState().getOnlineReaders();
     }
 
     @Override
     public Set<String> getStreamNames() {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
         return synchronizer.getState().getStreamNames();
     }
 
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
@@ -144,12 +155,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                      .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
-                      .whenComplete((v, t) -> synchronizer.close());
+                      .thenApply(v -> completeCheckpoint(checkpointName));
     }
 
     @SneakyThrows(CheckpointFailedException.class)
-    private Checkpoint completeCheckpoint(String checkpointName, StateSynchronizer<ReaderGroupState> synchronizer) {
+    private Checkpoint completeCheckpoint(String checkpointName) {
         ReaderGroupState state = synchronizer.getState();
         Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
         synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
@@ -161,8 +171,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
             Map<Segment, Long> positions = new HashMap<>();
@@ -175,8 +183,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateConfig(ReaderGroupConfig config, Set<String> streamNames) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
     }
@@ -188,13 +194,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public long unreadBytes() {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
 
         Optional<Map<Stream, Map<Segment, Long>>> checkPointedPositions =
                 synchronizer.getState().getPositionsForLastCompletedCheckpoint();
-        SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        
         if (checkPointedPositions.isPresent()) {
             log.debug("Computing unread bytes based on the last checkPoint position");
             return getUnreadBytes(checkPointedPositions.get(), metaFactory);
@@ -244,8 +248,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Map<Stream, StreamCut> getStreamCuts() {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
         ReaderGroupState state = synchronizer.getState();
         Map<Stream, Map<Segment, Long>> positions = state.getPositions();
