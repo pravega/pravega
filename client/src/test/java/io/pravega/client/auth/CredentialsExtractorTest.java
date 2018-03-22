@@ -22,12 +22,12 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
-public class CredentialsCreatorTest {
+public class CredentialsExtractorTest {
     @Test
     public void testextractCredentials() {
         //No creds defined
         ClientConfig config = ClientConfig.builder().build();
-        config = new CredentialsCreator().extractCredentials(config);
+        config = new CredentialsExtractor().extract(config);
         assertEquals("Empty list should return null", config.getCredentials(), null);
 
         //Test custom creds
@@ -37,7 +37,7 @@ public class CredentialsCreatorTest {
         properties.setProperty("pravega.client.auth.prop2", "prop2");
 
         config = ClientConfig.builder().build();
-        config = new CredentialsCreator(properties, new HashMap()).extractCredentials(config);
+        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
 
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
@@ -61,7 +61,7 @@ public class CredentialsCreatorTest {
             }
         }).build();
 
-        config = new CredentialsCreator(properties, new HashMap()).extractCredentials(config);
+        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
 
         assertNotEquals("Credentials should not be overridden",
                 config.getCredentials().getAuthenticationType(), "temp");
@@ -70,7 +70,7 @@ public class CredentialsCreatorTest {
         properties.setProperty("pravega.client.auth.loadDynamic", "false");
 
         config = ClientConfig.builder().build();
-        config = new CredentialsCreator(properties, new HashMap()).extractCredentials(config);
+        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
 
@@ -78,15 +78,15 @@ public class CredentialsCreatorTest {
         properties.setProperty("pravega.client.auth.loadDynamic", "true");
 
         config = ClientConfig.builder().build();
-        config = new CredentialsCreator(properties, new HashMap()).extractCredentials(config);
+        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
         Assert.assertNull("Creds should not be picked up from properties",
                 config.getCredentials());
 
         //In case dynamic creds system property is true, the correct class should be loaded.
-        properties.setProperty("pravega.client.auth.method", "DynamicallyLoadedCreds2");
-        config = new CredentialsCreator(properties, new HashMap()).extractCredentials(config);
+        properties.setProperty("pravega.client.auth.method", "DynamicallyLoadedCredsSecond");
+        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
         Assert.assertEquals("Correct creds object should be loaded dynamically",
-                config.getCredentials().getAuthenticationType(), "DynamicallyLoadedCreds2");
+                config.getCredentials().getAuthenticationType(), "DynamicallyLoadedCredsSecond");
     }
 
     public static class DynamicallyLoadedCreds implements Credentials {
@@ -102,11 +102,11 @@ public class CredentialsCreatorTest {
         }
     }
 
-    public static class DynamicallyLoadedCreds2 implements Credentials {
+    public static class DynamicallyLoadedCredsSecond implements Credentials {
 
         @Override
         public String getAuthenticationType() {
-            return "DynamicallyLoadedCreds2";
+            return "DynamicallyLoadedCredsSecond";
         }
 
         @Override

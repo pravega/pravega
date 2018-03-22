@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Helper class to extract credentials.
  */
-public class CredentialsCreator {
+public class CredentialsExtractor {
     private static final String AUTH_PROPS_START = "pravega.client.auth.";
     private static final String AUTH_METHOD = AUTH_PROPS_START + "method";
     private static final String AUTH_METHOD_LOAD_DYNAMIC = AUTH_PROPS_START + "loadDynamic";
@@ -29,12 +29,12 @@ public class CredentialsCreator {
     private final Properties properties;
     private final Map<String, String> env;
 
-    public CredentialsCreator() {
+    public CredentialsExtractor() {
         this(System.getProperties(), System.getenv());
     }
 
     @VisibleForTesting
-    CredentialsCreator(Properties properties, Map<String, String> env) {
+    CredentialsExtractor(Properties properties, Map<String, String> env) {
         this.properties = properties;
         this.env = env;
     }
@@ -49,8 +49,9 @@ public class CredentialsCreator {
      *     setting property `pravega.client.auth.loadDynamic` to true.
      *
      * @param config the config containing the credentials object.
+     * @return Returns a new copy of credentials object. This object is created as per the steps above.
      */
-    public ClientConfig extractCredentials(ClientConfig config) {
+    public ClientConfig extract(ClientConfig config) {
         if (config.getCredentials() != null) {
             return config;
         }
