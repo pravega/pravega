@@ -712,22 +712,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-    /**
-     * Method to calculate number of splits and merges.
-     *
-     * Principle to calculate the number of splits and merges:
-     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
-     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
-     *
-     * @param referenceSegmentsList Reference segment list.
-     * @param targetSegmentsList Target segment list.
-     * @return Number of splits/merges
-     */
-    private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
-        return referenceSegmentsList.stream().filter(
-                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
-    }
-
     abstract Stream newStream(final String scope, final String name);
 
     private String getTxnResourceString(TxnResource txn) {
