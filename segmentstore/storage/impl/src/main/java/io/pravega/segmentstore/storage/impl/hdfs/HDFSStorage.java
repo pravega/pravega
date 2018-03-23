@@ -175,6 +175,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        //TODO: Try MAX_COUNT number of times
         try {
             FileStatus existingFiles = findStatusForSegment(streamSegmentName, true);
 
@@ -608,7 +609,7 @@ class HDFSStorage implements SyncStorage {
 
     private void rEad(SegmentHandle handle, AtomicInteger totalBytesRead, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
         //There is only one file per segment.
-
+        //TODO: The file may have changed ownership. Actually try MAX_ATTEMP times.
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
         try (FSDataInputStream stream = this.context.fileSystem.open(currentFile.getPath())) {
             if (offset + length > stream.available()) {
