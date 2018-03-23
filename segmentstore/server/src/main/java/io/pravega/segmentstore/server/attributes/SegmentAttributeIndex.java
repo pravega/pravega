@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
@@ -37,7 +38,6 @@ import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
@@ -53,27 +53,37 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.RequiredArgsConstructor;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Attribute Index for a single Segment.
+ */
+@Slf4j
 class SegmentAttributeIndex implements AttributeIndex {
-    private static final int MAX_ATTRIBUTE_COUNT = 100 * 1000;
-    private static final int ESTIMATED_ATTRIBUTE_SERIALIZATION_SIZE = RevisionDataOutput.UUID_BYTES + Long.BYTES;
-    private static final int SNAPSHOT_TRIGGER_SIZE = MAX_ATTRIBUTE_COUNT / 10 * ESTIMATED_ATTRIBUTE_SERIALIZATION_SIZE;
-    private static final int READ_BLOCK_SIZE = 1024 * 1024;
-    private static final SegmentRollingPolicy ATTRIBUTE_SEGMENT_ROLLING_POLICY = new SegmentRollingPolicy(SNAPSHOT_TRIGGER_SIZE);
+    //region Members
+
+    /**
+     * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
+     * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
+     */
     private static final Retry.RetryAndThrowBase<Exception> APPEND_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
             .retryWhen(ex -> Exceptions.unwrap(ex) instanceof BadOffsetException)
             .throwingOn(Exception.class);
 
+    /**
+     * Calls to get() & put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
+     * if we stumble across a segment truncation.
+     */
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
             .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentTruncatedException)
@@ -83,38 +93,68 @@ class SegmentAttributeIndex implements AttributeIndex {
     private final AtomicReference<AttributeSegment> attributeSegment;
     private final Storage storage;
     private final OperationLog operationLog;
+    private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
+    private final String traceObjectId;
 
+    //endregion
 
-    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, ScheduledExecutorService executor) {
+    //region Constructor & Initialization
+
+    /**
+     * Creates a new instance of the SegmentAttributeIndex class.
+     *
+     * @param segmentMetadata The SegmentMetadata of the Segment whose attributes we want to manage.
+     * @param storage         A Storage adapter which can be used to access the Attribute Segment.
+     * @param operationLog    An OperationLog that can be used to atomically update attributes for the main Segment.
+     * @param config          Attribute Index Configuration.
+     * @param executor        An Executor to run async tasks.
+     */
+    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, AttributeIndexConfig config, ScheduledExecutorService executor) {
         this.segmentMetadata = Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.operationLog = Preconditions.checkNotNull(operationLog, "operationLog");
+        this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.attributeSegment = new AtomicReference<>();
+        this.traceObjectId = String.format("AttributeIndex[%s]", this.segmentMetadata.getId());
     }
 
+    /**
+     * Initializes the SegmentAttributeIndex by inspecting the AttributeSegmentFile and creating it if needed.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the operation has succeeded.
+     */
     public CompletableFuture<Void> initialize(Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
         Preconditions.checkState(this.attributeSegment.get() == null, "SegmentAttributeIndex is already initialized.");
-        return Futures.exceptionallyCompose(
-                this.storage.openWrite(attributeSegmentName)
-                        .thenCompose(handle -> this.storage.getStreamSegmentInfo(attributeSegmentName, timer.getRemaining())
-                                .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength())))),
-                ex -> {
-                    if (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) {
-                        // Attribute Segment does not exist yet. Create it now.
-                        return this.storage.create(attributeSegmentName, ATTRIBUTE_SEGMENT_ROLLING_POLICY, timer.getRemaining())
-                                .thenComposeAsync(si -> this.storage.openWrite(attributeSegmentName)
-                                        .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))));
-                    }
+        return Futures
+                .exceptionallyCompose(
+                        this.storage.openWrite(attributeSegmentName)
+                                    .thenCompose(handle -> this.storage
+                                            .getStreamSegmentInfo(attributeSegmentName, timer.getRemaining())
+                                            .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength())))),
+                        ex -> {
+                            if (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) {
+                                // Attribute Segment does not exist yet. Create it now.
+                                return this.storage
+                                        .create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
+                                        .thenComposeAsync(si -> this.storage
+                                                .openWrite(attributeSegmentName)
+                                                .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))));
+                            }
 
-                    // Some other kind of exception.
-                    return Futures.failedFuture(ex);
-                });
-
+                            // Some other kind of exception.
+                            return Futures.failedFuture(ex);
+                        })
+                .thenRun(() -> log.debug("{}: Initialized (Attribute Segment Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
     }
+
+    //endregion
+
+    //region AttributeIndex implementation
 
     @Override
     public CompletableFuture<Void> put(UUID key, Long value, Duration timeout) {
@@ -133,15 +173,13 @@ class SegmentAttributeIndex implements AttributeIndex {
             if (shouldSnapshot()) {
                 // We are overdue for a snapshot. Create one while including the new values. No need to also write them
                 // separately.
-                return createSnapshot(c, timeout);
+                return createSnapshot(c, false, timeout);
             } else {
                 // Write the new values separately, as an atomic append.
                 return Futures.toVoid(appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)),
                         new TimeoutTimer(timeout)));
-
             }
         }
-
     }
 
     @Override
@@ -186,41 +224,83 @@ class SegmentAttributeIndex implements AttributeIndex {
     public CompletableFuture<Void> seal(Duration timeout) {
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return createSnapshot(AttributeCollection.EMPTY, timer.getRemaining())
-                .thenComposeAsync(v -> this.storage.seal(this.attributeSegment.get().handle, timer.getRemaining()), this.executor);
+        return createSnapshot(new AttributeCollection(), true, timer.getRemaining())
+                .thenComposeAsync(v -> this.storage.seal(this.attributeSegment.get().handle, timer.getRemaining()), this.executor)
+                .thenRun(() -> log.info("{}: Sealed (Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
     }
 
-    private boolean shouldSnapshot() {
-        long lastSnapshotEndOffset = this.segmentMetadata.getAttributes().getOrDefault(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, 0L)
-                + this.segmentMetadata.getAttributes().getOrDefault(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, 0L);
-        return this.attributeSegment.get().getLength() - lastSnapshotEndOffset >= SNAPSHOT_TRIGGER_SIZE;
+    //endregion
+
+    //region Operations
+
+    /**
+     * Determines if we should generate a Snapshot based on the current state of the Attribute Segment.
+     *
+     * @return True if we should generate a Snapshot, false otherwise.
+     */
+    @VisibleForTesting
+    boolean shouldSnapshot() {
+        long lastSnapshotEndOffset = getLastSnapshotOffset() + getLastSnapshotLength();
+        return this.attributeSegment.get().getLength() - lastSnapshotEndOffset >= this.config.getSnapshotTriggerSize();
     }
 
+    /**
+     * Reads all attributes beginning with the last recorded snapshot until the current end of the Attribute Segment.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the Attributes as they should be when reaching the
+     * end of the Attribute Segment.
+     */
     private CompletableFuture<AttributeCollection> readAllSinceLastSnapshot(Duration timeout) {
-        return READ_RETRY.runAsync(() -> {
-            // TODO: handle the case when this value is invalid (points to wrong offset, or out of segment bounds)
-            long lastSnapshotOffset = this.segmentMetadata.getAttributes().getOrDefault(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, 0L);
+        CompletableFuture<AttributeCollection> result = READ_RETRY.runAsync(() -> {
+            if (isMainSegmentDeleted()) {
+                // Verify if the main segment has been deleted and stop now if needed.
+                return handleMainSegmentDeleted(timeout);
+            }
+
+            long lastSnapshotOffset = getLastSnapshotOffset();
             int readLength = (int) Math.min(Integer.MAX_VALUE, this.attributeSegment.get().getLength() - lastSnapshotOffset);
-            CompletableFuture<AttributeCollection> result = new CompletableFuture<>();
+            CompletableFuture<AttributeCollection> r = new CompletableFuture<>();
             if (readLength == 0) {
                 // Nothing to read.
-                result.complete(AttributeCollection.EMPTY);
+                r.complete(new AttributeCollection());
             } else {
                 AsyncReadResultProcessor.process(
-                        StreamSegmentStorageReader.read(this.attributeSegment.get().handle, lastSnapshotOffset, readLength, READ_BLOCK_SIZE, this.storage),
-                        new AttributeSegmentReader(result, timeout),
+                        StreamSegmentStorageReader.read(this.attributeSegment.get().handle, lastSnapshotOffset, readLength, this.config.getReadBlockSize(), this.storage),
+                        new AttributeSegmentReader(r, timeout),
                         this.executor);
             }
-            return result;
+            return r;
         }, this.executor);
+        return Futures.exceptionallyCompose(result,
+                ex -> {
+                    ex = Exceptions.unwrap(ex);
+                    if (ex instanceof IOException || ex instanceof StreamSegmentTruncatedException) {
+                        ex = new DataCorruptionException(
+                                String.format("Unable to parse AttributeSegment. LastSnapshot = (Offset=%d, Length=%d), Known Segment Length = %d.",
+                                        getLastSnapshotOffset(), getLastSnapshotLength(), this.attributeSegment.get().getLength()), ex);
+                    }
+                    return Futures.failedFuture(ex);
+                });
     }
 
-    private CompletableFuture<Void> createSnapshot(AttributeCollection newAttributes, Duration timeout) {
-        // 1. Get Last snapshot
-        // 2. Read all updates since that and incorporate into the snapshot
-        // 3. Retry if we encounter StreamSegmentTruncatedException.
-        // 4. conditionally append new snapshot. With steps 1-3 as source.
+    /**
+     * Creates a new Snapshot, writes it to the AttributeSegment and updates the main Segment's attributes with its location.
+     *
+     * @param newAttributes Any new Attributes to include in this Snapshot that would not already be part of it.
+     * @param mustComplete  Whether the update of the main Segment's attributes must execute successfully in order for this
+     *                      operation to be considered complete. For auto-generated Snapshots, since the Snapshot itself is
+     *                      already written to the AttributeSegment, it is not mandatory for the OperationLog Add &
+     *                      Attribute Segment Truncation operations to complete, as there will be no data loss. However, for
+     *                      Snapshots generated as part of Seals, all of those must complete in order for the operation to
+     *                      be considered successful.
+     * @param timeout       Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     */
+    private CompletableFuture<Void> createSnapshot(AttributeCollection newAttributes, boolean mustComplete, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
+
+        // The serialization may be invoked multiple times, based on whether the appendConditionally() requires a retry.
         Supplier<CompletableFuture<ArrayView>> s = () ->
                 readAllSinceLastSnapshot(timer.getRemaining())
                         .thenApplyAsync(c -> {
@@ -228,57 +308,165 @@ class SegmentAttributeIndex implements AttributeIndex {
                             return serialize(c);
                         }, this.executor);
         return appendConditionally(s, timer)
-                .thenComposeAsync(w -> updateStatePostSnapshot(w, timer), this.executor);
+                .thenComposeAsync(w -> updateStatePostSnapshot(w, mustComplete, timer), this.executor);
     }
 
-    private CompletableFuture<Void> updateStatePostSnapshot(WriteInfo w, TimeoutTimer timer) {
+    /**
+     * Updates the system's state post a successful Snapshot write to the Attribute Segment.
+     *
+     * @param writeInfo    Information about the data written as part of the Snapshot.
+     * @param mustComplete Whether the operation must complete. Refer to createSnapshot's mustComplete for more details.
+     * @param timer        Timer for the operation (used for timeouts).
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     */
+    private CompletableFuture<Void> updateStatePostSnapshot(WriteInfo writeInfo, boolean mustComplete, TimeoutTimer timer) {
+        log.debug("{}: Snapshot serialized to attribute segment ({}).", this.traceObjectId, writeInfo);
         UpdateAttributesOperation op = new UpdateAttributesOperation(this.segmentMetadata.getId(), Arrays.asList(
-                new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, AttributeUpdateType.ReplaceIfGreater, w.offset),
-                new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, AttributeUpdateType.Replace, w.length)));
-        return this.operationLog.add(op, timer.getRemaining())
-                .thenComposeAsync(v -> this.storage.truncate(this.attributeSegment.get().handle, w.offset, timer.getRemaining()), this.executor);
+                new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, AttributeUpdateType.ReplaceIfGreater, writeInfo.offset),
+                new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, AttributeUpdateType.Replace, writeInfo.length)));
+        CompletableFuture<Void> result = this.operationLog
+                .add(op, timer.getRemaining())
+                .thenComposeAsync(v -> {
+                    log.debug("{}: Snapshot location updated in main segment's metadata ({}).", this.traceObjectId, writeInfo);
+                    if (isMainSegmentDeleted()) {
+                        // Verify if the main segment has been deleted and stop now if needed.
+                        return handleMainSegmentDeleted(timer.getRemaining());
+                    } else {
+                        return this.storage.truncate(this.attributeSegment.get().handle, writeInfo.offset, timer.getRemaining());
+                    }
+                }, this.executor);
+
+        if (!mustComplete) {
+            result = result.exceptionally(ex -> {
+                // Failure to update snapshot location in the main segment's metadata or to truncate the Attribute Segment
+                // is not a critical failure. The snapshot has been successfully written, and its data can be recovered.
+                // If we bubble up this exception, the caller may think the data have not been written and retry, hence
+                // unnecessarily write the data multiple times.
+                // If we do get here, we'll simply have to process more data when we read and potentially have more
+                // data than needed in the attribute segment, both of which will be fixed with the next snapshot attempt.
+                ex = Exceptions.unwrap(ex);
+                log.warn("{}: Snapshot serialized to attribute segment, but failed to update snapshot location or truncate Attribute Segment.", this.traceObjectId, ex);
+                return null;
+            });
+        }
+        return result;
     }
 
+    /**
+     * Appends the result of the given serialization function conditionally based on the current length of the Attribute Segment.
+     * This method will retry the write subject to the APPEND_RETRY policy.
+     *
+     * @param getSerialization A Supplier that, when invoked, returns a CompletableFuture whose result will be the requested
+     *                         serialization.
+     * @param timer            Timer for the operation. Used for timeouts.
+     * @return A CompletableFuture that, when completed, will contain information about the data that was just written.
+     */
     private CompletableFuture<WriteInfo> appendConditionally(Supplier<CompletableFuture<ArrayView>> getSerialization, TimeoutTimer timer) {
+        return APPEND_RETRY.runAsync(() -> appendConditionallyOnce(getSerialization, timer), this.executor);
+    }
+
+    /**
+     * Appends the result of the given serialization function conditionally based on the current length of the Attribute Segment.
+     * This method does not perform any retries.
+     *
+     * @param getSerialization A Supplier that, when invoked, returns a CompletableFuture whose result will be the requested
+     *                         serialization.
+     * @param timer            Timer for the operation. Used for timeouts.
+     * @return A CompletableFuture that, when completed, will contain information about the data that was just written.
+     */
+    private CompletableFuture<WriteInfo> appendConditionallyOnce(Supplier<CompletableFuture<ArrayView>> getSerialization, TimeoutTimer timer) {
         // We want to make sure that the serialization we generate is accurate based on the state of the Attribute Segment.
         // This is to protect against potential corruptions due to concurrency: for example we picked data for a Snapshot,
         // then merged it with some other changes, then wrote it back - we want to ensure nobody else wrote anything in the meantime.
         // As such, we need to do a conditional append keyed on the length of the Attribute Segment. Should there be
         // a concurrent change, we will need to re-generate the serialization in order to guarantee that we always write
         // the latest data.
-        AtomicBoolean canRetry = new AtomicBoolean(true);
         AttributeSegment as = this.attributeSegment.get();
-        return APPEND_RETRY.runAsync(() -> {
-                    long offset = as.getLength();
-                    return getSerialization.get().thenComposeAsync(data ->
-                            this.storage.write(as.handle, offset, data.getReader(), data.getLength(), timer.getRemaining())
-                                    .thenApply(v -> {
-                                        as.increaseLength(data.getLength());
-                                        canRetry.set(false);
-                                        return new WriteInfo(offset, data.getLength());
-                                    })
-                                    .exceptionally(ex -> {
-                                        // Check if a conditional append exception; if so, we can retry.
-                                        canRetry.set(Exceptions.unwrap(ex) instanceof BadOffsetException);
-                                        if (!canRetry.get()) {
-                                            throw new CompletionException(ex);
-                                        }
-                                        return null;
-                                    }));
-                },
-                this.executor);
+        if (isMainSegmentDeleted()) {
+            // Verify if the main segment has been deleted and stop now if needed.
+            return handleMainSegmentDeleted(timer.getRemaining());
+        }
 
+        long offset = as.getLength();
+        return getSerialization.get().thenComposeAsync(data ->
+                Futures.exceptionallyCompose(
+                        this.storage
+                                .write(as.handle, offset, data.getReader(), data.getLength(), timer.getRemaining())
+                                .thenApply(v -> {
+                                    as.increaseLength(data.getLength());
+                                    log.debug("{}: Wrote data ({}).", this.traceObjectId, data.getLength());
+                                    return new WriteInfo(offset, data.getLength());
+                                }),
+                        ex -> {
+                            if (Exceptions.unwrap(ex) instanceof BadOffsetException) {
+                                return this.storage
+                                        .getStreamSegmentInfo(this.attributeSegment.get().handle.getSegmentName(), timer.getRemaining())
+                                        .thenCompose(si -> {
+                                            as.setLength(si.getLength());
+                                            return Futures.failedFuture(ex);
+                                        });
+                            } else {
+                                return Futures.failedFuture(ex);
+                            }
+                        }));
     }
 
-    private ArrayView serialize(AttributeCollection attributes) {
-        try {
-            // TODO: split up large sets
-            // TODO: sort for snapshots
-            // TODO: compression
-            return AttributeCollection.SERIALIZER.serialize(attributes);
-        } catch (IOException ex) {
-            throw new CompletionException(ex);
-        }
+    /**
+     * Serializes the given AttributeCollection.
+     *
+     * @param attributes The AttributeCollection to serialize.
+     * @return An ArrayView representing the serialization.
+     */
+    @SneakyThrows(IOException.class)
+    @VisibleForTesting
+    ArrayView serialize(AttributeCollection attributes) {
+        // TODO: split up large sets
+        // TODO: sort for snapshots
+        // TODO: compression
+        return AttributeCollection.SERIALIZER.serialize(attributes);
+    }
+
+    /**
+     * Gets a SegmentHandle for the AttributeSegment.
+     */
+    @VisibleForTesting
+    SegmentHandle getAttributeSegmentHandle() {
+        return this.attributeSegment.get().handle;
+    }
+
+    /**
+     * Gets the Offset of the Last Snapshot, as found in the main Segment's metadata.
+     */
+    private long getLastSnapshotOffset() {
+        return this.segmentMetadata.getAttributes().getOrDefault(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, 0L);
+    }
+
+    /**
+     * Gets the Length of the Last Snapshot, as found in the main Segment's metadata.
+     */
+    private int getLastSnapshotLength() {
+        return (int) (long) this.segmentMetadata.getAttributes().getOrDefault(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, 0L);
+    }
+
+    /**
+     * Determines whether the main segment has been deleted.
+     */
+    private boolean isMainSegmentDeleted() {
+        return this.segmentMetadata.isDeleted() || this.segmentMetadata.isMerged();
+    }
+
+    /**
+     * Performs any necessary cleanup after the main segment has been determined to have been deleted. This will
+     * delete the AttributeSegment as well.
+     *
+     * @param timeout Timeout for the operation.
+     */
+    private <T> CompletableFuture<T> handleMainSegmentDeleted(Duration timeout) {
+        Preconditions.checkState(isMainSegmentDeleted(), "Main segment is not deleted.");
+        log.info("{}: Main Segment is Deleted. Attempting to delete Attribute Segment.", this.traceObjectId);
+        return Futures
+                .exceptionallyExpecting(this.storage.delete(this.attributeSegment.get().handle, timeout), StreamSegmentNotExistsException.class, null)
+                .thenCompose(v -> Futures.failedFuture(new StreamSegmentNotExistsException(this.segmentMetadata.getName())));
     }
 
     private void ensureInitialized() {
@@ -287,6 +475,9 @@ class SegmentAttributeIndex implements AttributeIndex {
 
     //region AttributeSegmentReader
 
+    /**
+     * Async reader for the Attribute Segment from Storage.
+     */
     private static class AttributeSegmentReader implements AsyncReadResultHandler {
         private final ArrayList<InputStream> inputs = new ArrayList<>();
         private final CompletableFuture<AttributeCollection> result;
@@ -343,6 +534,9 @@ class SegmentAttributeIndex implements AttributeIndex {
 
     //region AttributeSegment
 
+    /**
+     * Metadata about the Attribute Segment.
+     */
     private static class AttributeSegment {
         private final SegmentHandle handle;
         private final AtomicLong length;
@@ -356,6 +550,10 @@ class SegmentAttributeIndex implements AttributeIndex {
             return this.length.get();
         }
 
+        void setLength(long value) {
+            this.length.set(value);
+        }
+
         void increaseLength(int delta) {
             Preconditions.checkArgument(delta >= 0, "increase must be non-negative");
             this.length.addAndGet(delta);
@@ -366,17 +564,24 @@ class SegmentAttributeIndex implements AttributeIndex {
 
     //region AttributeCollection & Serializer
 
+    /**
+     * Collection of Attributes.
+     */
     @Builder
-    private static class AttributeCollection {
-        static final AttributeCollection EMPTY = new AttributeCollection(Collections.emptyMap());
+    @VisibleForTesting
+    static class AttributeCollection {
         private static final AttributeCollectionSerializer SERIALIZER = new AttributeCollectionSerializer();
         private final Map<UUID, Long> attributes;
 
-        AttributeCollection(Map<UUID, Long> attributes) {
+        private AttributeCollection() {
+            this.attributes = new HashMap<>();
+        }
+
+        private AttributeCollection(Map<UUID, Long> attributes) {
             this.attributes = attributes == null ? new HashMap<>() : attributes;
         }
 
-        void mergeWith(AttributeCollection other) {
+        private void mergeWith(AttributeCollection other) {
             other.attributes.forEach((attributeId, value) -> {
                 if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
                     this.attributes.remove(attributeId);
@@ -422,10 +627,22 @@ class SegmentAttributeIndex implements AttributeIndex {
 
     //endregion
 
-    @RequiredArgsConstructor
+    //region WriteInfo
+
+    /**
+     * Information about a write to the AttributeSegment.
+     */
+    @Data
     @VisibleForTesting
     static class WriteInfo {
         private final long offset;
         private final int length;
+
+        @Override
+        public String toString() {
+            return String.format("Offset=%d, Length=%d", this.offset, this.length);
+        }
     }
+
+    //endregion
 }
