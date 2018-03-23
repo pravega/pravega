@@ -31,6 +31,17 @@ public interface AttributeIndex extends AsyncMap<UUID, Long> {
     CompletableFuture<Void> put(Map<UUID, Long> values, Duration timeout);
 
     /**
+     * Bulk-fetches a set of Attributes. This is preferred to calling get(UUID, Duration) repeatedly over a set of Attributes
+     * as it only executes a single search for all, instead of one search for each.
+     *
+     * @param keys    A Collection of Attribute Ids whose values to fetch.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the desired result, but only for those Attribute Ids
+     * that do have values. If the operation fails, this will complete with the appropriate exception.
+     */
+    CompletableFuture<Map<UUID, Long>> get(Collection<UUID> keys, Duration timeout);
+
+    /**
      * Atomically deletes a collection of Attributes from the index (either all Attributes are deleted or none are).
      *
      * @param keys    A Collection of Attribute Ids to remove.

@@ -10,16 +10,13 @@
 package io.pravega.segmentstore.server.attributes;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
-import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.AttributeIndex;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.OperationLog;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,17 +24,20 @@ import java.util.concurrent.ScheduledExecutorService;
 public class ContainerAttributeIndex {
     //region Members
 
-    private final UpdateableContainerMetadata containerMetadata;
+    private final ContainerMetadata containerMetadata;
     private final Storage storage;
+    private final OperationLog operationLog;
     private final ScheduledExecutorService executor;
 
     //endregion
 
     //region Constructor
 
-    ContainerAttributeIndex(UpdateableContainerMetadata containerMetadata, Storage storage, ScheduledExecutorService executor) {
+    ContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage, OperationLog operationLog,
+                            ScheduledExecutorService executor) {
         this.containerMetadata = Preconditions.checkNotNull(containerMetadata, "containerMetadata");
         this.storage = Preconditions.checkNotNull(storage, "storage");
+        this.operationLog = Preconditions.checkNotNull(operationLog, "operationLog");
         this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
@@ -46,30 +46,14 @@ public class ContainerAttributeIndex {
     //region Operations
 
     CompletableFuture<AttributeIndex> forSegment(long streamSegmentId, Duration timeout) {
-        UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+        SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
         if (sm.isDeleted() || sm.isMerged()) {
             return Futures.failedFuture(new StreamSegmentNotExistsException(sm.getName()));
         }
 
-        return openAttributeSegment(sm, timeout)
-                .thenApply(handle -> new SegmentAttributeIndex(sm, handle, this.storage, this.executor));
-    }
-
-    private CompletableFuture<SegmentHandle> openAttributeSegment(UpdateableSegmentMetadata sm, Duration timeout) {
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(sm.getName());
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return Futures.exceptionallyCompose(
-                this.storage.openWrite(attributeSegmentName),
-                ex -> {
-                    if (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) {
-                        // Attribute Segment does not exist yet. Create it now.
-                        return this.storage.create(attributeSegmentName, null, timer.getRemaining())
-                                           .thenComposeAsync(sp -> this.storage.openWrite(attributeSegmentName));
-                    }
-
-                    // Some other kind of exception.
-                    return Futures.failedFuture(ex);
-                });
+        SegmentAttributeIndex index = new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.executor);
+        return index.initialize(timeout)
+                .thenApply(v -> index);
     }
 
     //endregion
