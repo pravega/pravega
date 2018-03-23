@@ -68,7 +68,7 @@ public final class Attributes {
      * @param attributeId The Attribute Id to check.
      * @return True if Core Attribute, false otherwise.
      */
-    public static boolean isCoreAttribute(UUID attributeId){
+    public static boolean isCoreAttribute(UUID attributeId) {
         return attributeId.getMostSignificantBits() == CORE_ATTRIBUTE_ID_PREFIX;
     }
 }
