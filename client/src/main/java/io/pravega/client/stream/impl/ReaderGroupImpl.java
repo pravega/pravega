@@ -220,8 +220,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
         for (Segment s : unreadVal.getSegments()) {
             @Cleanup
-            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
-            totalLength += metadataClient.fetchCurrentSegmentLength(unreadVal.getDelegationToken());
+            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
+            totalLength += metadataClient.fetchCurrentSegmentLength();
         }
         for (long bytesRead : position.asImpl().getPositions().values()) {
             totalLength -= bytesRead;

@@ -380,6 +380,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkActiveSegments(context.container, 1);
 
         // 4. Written data.
+        waitForOperationsInReadIndex(context.container);
         byte[] actualData = new byte[(int) expectedLength.get()];
         int offset = 0;
         @Cleanup
@@ -533,6 +534,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // 4. Reads (regular reads, not tail reads, and only for the sealed segments).
+        waitForOperationsInReadIndex(context.container);
         for (int i = 0; i < segmentNames.size() / 2; i++) {
             String segmentName = segmentNames.get(i);
             long segmentLength = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
@@ -1323,13 +1325,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
+    private void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
                                        TestContext context) throws Exception {
         checkReadIndex(segmentContents, lengths, Collections.emptyMap(), context);
     }
 
     private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
                                        Map<String, Long> truncationOffsets, TestContext context) throws Exception {
+        waitForOperationsInReadIndex(context.container);
         for (String segmentName : segmentContents.keySet()) {
             long segmentLength = lengths.get(segmentName);
             long startOffset = truncationOffsets.getOrDefault(segmentName, 0L);
@@ -1537,6 +1540,30 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
         return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
+    }
+
+    /**
+     * Blocks until all operations processed so far have been added to the ReadIndex and InMemoryOperationLog.
+     * This is needed to simplify test verification due to the fact that the the OperationProcessor commits operations to
+     * the ReadIndex and InMemoryOperationLog asynchronously, after those operations were ack-ed. This method makes use
+     * of the fact that the OperationProcessor/MemoryStateUpdater will still commit such operations in sequence; it
+     * creates a new segment, writes 1 byte to it and issues a read (actual/future) and waits until it's completed - when
+     * it is, it is guaranteed that everything prior to that has been committed.
+     */
+    private static void waitForOperationsInReadIndex(SegmentContainer container) throws Exception {
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        String segmentName = "test" + System.nanoTime();
+        container.createStreamSegment(segmentName, null, timer.getRemaining())
+                .thenCompose(v -> container.append(segmentName, new byte[1], null, timer.getRemaining()))
+                .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
+                .thenCompose(rr -> {
+                    ReadResultEntry rre = rr.next();
+                    rre.requestContent(TIMEOUT);
+                    return rre.getContent().thenRun(rr::close);
+                })
+                .thenCompose(v -> container.deleteStreamSegment(segmentName, timer.getRemaining()))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
     }
 
     @SneakyThrows

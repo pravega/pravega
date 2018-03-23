@@ -50,7 +50,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
     private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
                                    Storage storage, OperationCallbacks callbacks) {
-        super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage)));
+        super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage), null));
         this.readIndexFactory = readIndexFactory;
         this.storage = storage;
         this.callbacks = callbacks;
