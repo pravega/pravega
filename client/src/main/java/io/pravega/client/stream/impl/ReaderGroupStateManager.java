@@ -324,7 +324,6 @@ public class ReaderGroupStateManager {
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);
-            //List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAcquire);
             Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAcquire; i++) {
                 assert iter.hasNext();

@@ -259,7 +259,7 @@ public class SynchronizerTest {
     }
 
     @Test(timeout = 20000)
-    public void testConsistancy() throws EndOfSegmentException {
+    public void testConsistency() {
         String streamName = "streamName";
         String scope = "scope";
         

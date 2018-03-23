@@ -53,6 +53,12 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     /**
      * A function which given a state object populates a list of updates that should be applied.
      * 
+     * For example:
+     * <code>
+     * stateSynchronizer.updateState((state, updates) -> {
+     *      updates.addAll(findUpdatesForState(state));
+     * });
+     * </code>
      * @param <StateT> The type of state it generates updates for.
      */
     @FunctionalInterface
@@ -62,7 +68,16 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     
     /**
      * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
-     *
+     * For example:
+     * <code>
+     * boolean updated = stateSynchronizer.updateState((state, updates) -> {
+     *      if (!shouldUpdate(state)) {
+     *          return false;
+     *      }
+     *      updates.addAll(findUpdatesForState(state));
+     *      return true;
+     * });
+     * </code>
      * @param <StateT> The type of state it generates updates for.
      * @param <ReturnT> The type of the result returned.
      */
@@ -75,7 +90,7 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * Creates a new update for the latest state object and applies it atomically.
      * 
      * The UpdateGenerator provided will be passed the latest state object and a list which it can
-     * populate with any updates that should be applies.
+     * populate with any updates that need to be applied.
      * 
      * These updates are recorded and applied conditionally on the state object that was passed to
      * the function being up to date. If another process was applying an update in parallel, the
@@ -94,10 +109,22 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * supplied by the {@link UpdateGeneratorFunction}. This is useful if the calling code wishes to
      * do something in response to the update.
      * 
-     * @param updateGenerator A function which give the state can supply updates that should be applied.
+     * As an example suppose the update type was MyUpdate and each update and an associated key.
+     * Then it might be useful to return the updated keys:
+     * <code>
+     * List<String> updated = stateSynchronizer.updateState((state, updates) -> {
+     *      List<MyUpdate> toAdd = findUpdatesForState(state);
+     *      updates.addAll(toAdd);
+     *      return toAdd.stream().map(a -> a.getKey()).collect(Collectors.toList());
+     * });
+     * </code>
+     * 
+     * @param updateGenerator A function which give the state can supply updates that should be
+     *            applied.
      * @param <ReturnT> They type of the result returned by the updateGenerator
      * @return the result returned by the updateGenerator.
      */
+
     <ReturnT> ReturnT updateState(UpdateGeneratorFunction<StateT, ReturnT> updateGenerator);   
     
     /**
