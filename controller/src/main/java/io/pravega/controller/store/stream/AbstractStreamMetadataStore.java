@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -71,11 +72,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
+    protected final int bucketCount;
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -111,6 +114,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         this.hostIndex = hostIndex;
+        this.bucketCount = bucketCount;
     }
 
     /**
@@ -135,13 +139,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
                 .thenApply(result -> {
-                    CREATE_STREAM.reportSuccessValue(1);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                            configuration.getScalingPolicy().getMinNumSegments());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-
+                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                        CREATE_STREAM.reportSuccessValue(1);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                configuration.getScalingPolicy().getMinNumSegments());
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                    }
+                    
                     return result;
                 });
     }
@@ -412,7 +418,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final List<Integer> sealedSegments,
+                                                       final Map<Integer, Long> sealedSegments,
                                                        final List<Segment> newSegments,
                                                        final int activeEpoch,
                                                        final long scaleTimestamp,
@@ -458,6 +464,34 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 new DeleteEpochResponse(false, null, null));
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Void> addStreamCutToRetentionSet(final String scope, final String name, final StreamCutRecord streamCut,
+                                                              final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.addStreamCutToRetentionSet(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String name,
+                                                                                  final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getRetentionStreamCuts(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String name, final StreamCutRecord streamCut,
+                                                         final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Integer, Long> streamCut,
+                                                        final OperationContext context, final ScheduledExecutorService executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getSizeTillStreamCut(streamCut), executor);
     }
 
     @Override
@@ -716,6 +750,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private TxnResource getTxnResource(String str) {
         return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
+
+    int getBucket(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        return scopedStreamName.hashCode() % bucketCount;
+    }
+
+    String getScopedStreamName(String scope, String stream) {
+        return String.format("%s/%s", scope, stream);
     }
 }
 

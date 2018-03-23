@@ -35,6 +35,12 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -43,13 +49,6 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-
-import javax.annotation.concurrent.GuardedBy;
-import java.io.IOException;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Optional;
-import java.util.UUID;
 
 @Slf4j
 public class InProcPravegaCluster implements AutoCloseable {
@@ -60,6 +59,10 @@ public class InProcPravegaCluster implements AutoCloseable {
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
     private boolean enableMetrics = false;
+
+    /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
+    private boolean enableAuth = false;
+    private boolean enableTls = false;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -104,7 +107,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
-                                boolean startRestServer, int restServerPort, boolean enableMetrics) {
+                                boolean startRestServer, int restServerPort, boolean enableMetrics, boolean enableAuth,
+                                boolean enableTls) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -137,6 +141,8 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.startRestServer = startRestServer;
         this.restServerPort = restServerPort;
         this.enableMetrics = enableMetrics;
+        this.enableAuth = enableAuth;
+        this.enableTls = enableTls;
     }
 
     @Synchronized
@@ -233,40 +239,43 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
+        ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+                .builder()
+                .include(System.getProperties())
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, containerCount)
+                        .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
+                        .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                        .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
+                        .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
+                        .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.KEY_FILE, "../config/key.pem")
+                        .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
+                        .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
+                                ServiceConfig.DataLogType.INMEMORY :
+                                ServiceConfig.DataLogType.BOOKKEEPER)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
+                                ServiceConfig.StorageType.INMEMORY :
+                                ServiceConfig.StorageType.FILESYSTEM))
+                .include(DurableLogConfig.builder()
+                        .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                        .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
+                        .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
+                .include(ReadIndexConfig.builder()
+                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
+                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
+                .include(AutoScalerConfig.builder()
+                        .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
+                                         .with(AutoScalerConfig.AUTH_USERNAME, "admin")
+                                         .with(AutoScalerConfig.AUTH_PASSWORD, "1111_aaaa")
+                                         .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                                         .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
+                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, "../config/cert.pem"))
+                .include(MetricsConfig.builder()
+                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
-        try {
-                ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
-                    .builder()
-                    .include(System.getProperties())
-                    .include(ServiceConfig.builder()
-                                          .with(ServiceConfig.CONTAINER_COUNT, containerCount)
-                                          .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
-                                          .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                          .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
-                                          .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
-                                          .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                                 ServiceConfig.StorageTypes.INMEMORY.toString() :
-                                                 ServiceConfig.StorageTypes.FILESYSTEM.toString()))
-                    .include(DurableLogConfig.builder()
-                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
-                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
-                    .include(ReadIndexConfig.builder()
-                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                                          .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
-                    .include(AutoScalerConfig.builder()
-                                             .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
-                    .include(MetricsConfig.builder()
-                                            .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
-
-            ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
-                    .zkSegmentManager(true);
-
-            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(),
-                    optBuilder.bookKeeper(!isInMemStorage).build());
-        } catch (Exception e) {
-            throw e;
-        }
+        nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
     }
 
@@ -276,8 +285,8 @@ public class InProcPravegaCluster implements AutoCloseable {
         for (int i = 0; i < this.controllerCount; i++) {
             controllerServers[i] = startLocalController(i);
         }
-        controllerURI = "tcp://localhost:" + controllerPorts[0];
-        for (int i = 0; i < this.controllerCount; i++) {
+        controllerURI = (this.enableTls ? "tls" : "tcp") + "://localhost:" + controllerPorts[0];
+        for (int i = 1; i < this.controllerCount; i++) {
             controllerURI += ",localhost:" + controllerPorts[i];
         }
 
@@ -308,14 +317,22 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
+                .builder()
                 .port(this.controllerPorts[controllerId])
                 .publishedRPCHost("localhost")
                 .publishedRPCPort(this.controllerPorts[controllerId])
+                .authorizationEnabled(this.enableAuth)
+                .tlsEnabled(this.enableTls)
+                .tlsTrustStore("../config/cert.pem")
+                .tlsCertFile("../config/cert.pem")
+                .tlsKeyFile("../config/key.pem")
+                .userPasswordFile("../config/passwd")
+                .tokenSigningKey("secret")
                 .build();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
-                .host("localhost")
+                .host("0.0.0.0")
                 .port(this.restServerPort)
                 .build();
 

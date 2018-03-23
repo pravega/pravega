@@ -156,6 +156,11 @@ public class SynchronizerTest {
         @Override
         public void close() { 
         }
+
+        @Override
+        public void truncateToRevision(Revision newStart) {
+            throw new NotImplementedException("truncateToRevision");
+        }
     }
 
     @Test(timeout = 20000)
@@ -212,6 +217,7 @@ public class SynchronizerTest {
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
                                                                                        SynchronizerConfig.builder().build());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
         AtomicInteger callCount = new AtomicInteger(0);
         sync.initialize(new RegularUpdate("a"));
         sync.updateState((state, updates) -> {
@@ -220,30 +226,36 @@ public class SynchronizerTest {
         });
         assertEquals(sync.getState().getValue(), "b");
         assertEquals(1, callCount.get());
+        long size = sync.bytesWrittenSinceCompaction();
+        assertTrue(size > 0);
         sync.updateState((state, updates) -> {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("c"));
         });
         assertEquals(sync.getState().getValue(), "c");
         assertEquals(2, callCount.get());
+        assertTrue(sync.bytesWrittenSinceCompaction() > size);
         sync.compact(state -> {
             callCount.incrementAndGet();
             return new RegularUpdate("c");
         });
         assertEquals(sync.getState().getValue(), "c");
         assertEquals(3, callCount.get());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
         sync.updateState((state, updates) -> {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("e"));
         });
         assertEquals(sync.getState().getValue(), "e");
         assertEquals(5, callCount.get());
+        assertEquals(size, sync.bytesWrittenSinceCompaction());
         sync.compact(state -> {
             callCount.incrementAndGet();
             return new RegularUpdate("e");
         });
         assertEquals(sync.getState().getValue(), "e");
         assertEquals(6, callCount.get());
+        assertEquals(0, sync.bytesWrittenSinceCompaction());
     }
 
     @Test(timeout = 20000)

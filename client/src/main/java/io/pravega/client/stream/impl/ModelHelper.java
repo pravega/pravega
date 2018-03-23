@@ -26,7 +26,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -68,7 +67,7 @@ public final class ModelHelper {
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
         return ScalingPolicy.builder()
-                            .type(ScalingPolicy.Type.valueOf(policy.getType().name()))
+                            .scaleType(ScalingPolicy.ScaleType.valueOf(policy.getScaleType().name()))
                             .targetRate(policy.getTargetRate())
                             .scaleFactor(policy.getScaleFactor())
                             .minNumSegments(policy.getMinNumSegments())
@@ -84,10 +83,10 @@ public final class ModelHelper {
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         // Using default enum type of UNKNOWN(0) to detect if retention policy has been set or not.
         // This is required since proto3 does not have any other way to detect if a field has been set or not.
-        if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
+        if (policy != null && policy.getRetentionType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
-                    .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
-                    .value(policy.getValue())
+                    .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
+                    .retentionParam(policy.getRetentionParam())
                     .build();
         } else {
             return null;
@@ -228,7 +227,7 @@ public final class ModelHelper {
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
-                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getType().name()))
+                .setScaleType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScaleType().name()))
                 .setTargetRate(policyModel.getTargetRate())
                 .setScaleFactor(policyModel.getScaleFactor())
                 .setMinNumSegments(policyModel.getMinNumSegments())
@@ -244,8 +243,8 @@ public final class ModelHelper {
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
             return Controller.RetentionPolicy.newBuilder()
-                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
-                    .setValue(policyModel.getValue())
+                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                    .setRetentionParam(policyModel.getRetentionParam())
                     .build();
         } else {
             return null;
@@ -339,7 +338,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final SuccessorResponse createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
+    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(
@@ -348,7 +347,6 @@ public final class ModelHelper {
                                         .setSegment(segmentRangeListEntry.getKey())
                                         .addAllValue(segmentRangeListEntry.getValue())
                                         .build())
-                                .collect(Collectors.toList()))
-                .build();
+                                .collect(Collectors.toList()));
     }
 }

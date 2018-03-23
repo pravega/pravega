@@ -233,7 +233,7 @@ interface Stream {
      * @param activeEpoch    activeEpoch
      *@param scaleTimestamp scaling timestamp  @return future
      */
-    CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
+    CompletableFuture<Void> scaleOldSegmentsSealed(final Map<Integer, Long> sealedSegments,
                                                    final List<Integer> newSegments,
                                                    int activeEpoch, final long scaleTimestamp);
 
@@ -362,6 +362,37 @@ interface Stream {
      * @return currently active stream epoch.
      */
     CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
+
+    /**
+     * Method to get stream size till the given stream cut
+     * @param streamCut stream cut
+     * @return A CompletableFuture, that when completed, will contain size of stream till given cut.
+     */
+    CompletableFuture<Long> getSizeTillStreamCut(Map<Integer, Long> streamCut);
+
+    /**
+     *Add a new Stream cut to retention set.
+     *
+     * @param streamCut stream cut record to add
+     * @return future of operation
+     */
+    CompletableFuture<Void> addStreamCutToRetentionSet(final StreamCutRecord streamCut);
+
+    /**
+     * Get all stream cuts stored in the retention set.
+     *
+     * @return list of stream cut records
+     */
+    CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts();
+
+    /**
+     * Delete all stream cuts in the retention set that preceed the supplied stream cut.
+     * Before is determined based on "recordingTime" for the stream cut.
+     *
+     * @param streamCut stream cut
+     * @return future of operation
+     */
+    CompletableFuture<Void> deleteStreamCutBefore(final StreamCutRecord streamCut);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

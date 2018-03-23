@@ -156,6 +156,27 @@ public class BlockingDrainingQueueTests {
     }
 
     /**
+     * Tests the ability to cancel a pending take() operation.
+     */
+    @Test
+    public void testCancelPendingTake() throws Exception {
+        final int valueToQueue = 1234;
+
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        val takeResult = queue.take(MAX_READ_COUNT);
+
+        Assert.assertFalse("take() returned a completed future.", takeResult.isDone());
+        queue.cancelPendingTake();
+        Assert.assertTrue("cancelPendingTake() did not cancel a pending take() future.", takeResult.isCancelled());
+
+        val takeResult2 = queue.take(MAX_READ_COUNT);
+        queue.add(valueToQueue);
+        Assert.assertEquals("take() did not work again after being cancelled.", valueToQueue,
+                (int) takeResult2.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).poll());
+    }
+
+    /**
      * Tests the ability of the queue to cancel a take() request if it is closed.
      */
     @Test

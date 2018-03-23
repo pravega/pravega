@@ -9,7 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
@@ -26,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Stream Metadata.
@@ -61,6 +65,16 @@ public interface StreamMetadataStore {
                                             final long createTimestamp,
                                             final OperationContext context,
                                             final Executor executor);
+
+    /**
+     * Api to check if a stream exists in the store or not.
+     * @param scopeName scope name
+     * @param streamName stream name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkStreamExists(final String scopeName,
+                                                 final String streamName);
+
 
     /**
      * Api to Delete the stream related metadata.
@@ -427,7 +441,7 @@ public interface StreamMetadataStore {
      * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
-                                                final List<Integer> sealedSegments,
+                                                final Map<Integer, Long> sealedSegments,
                                                 final List<Segment> newSegments,
                                                 final int activeEpoch,
                                                 final long scaleTimestamp,
@@ -711,4 +725,124 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
 
+    /**
+     * Method to register listener for changes to bucket's ownership.
+     *
+     * @param listener listener
+     */
+    void registerBucketOwnershipListener(BucketOwnershipListener listener);
+
+    /**
+     * Unregister listeners for bucket ownership.
+     */
+    void unregisterBucketOwnershipListener();
+
+    /**
+     * Method to register listeners for changes to streams under the bucket.
+     *
+     * @param bucket   bucket
+     * @param listener listener
+     */
+    void registerBucketChangeListener(int bucket, BucketChangeListener listener);
+
+    /**
+     * Method to unregister listeners for changes to streams under the bucket.
+     *
+     * @param bucket bucket
+     */
+    void unregisterBucketListener(int bucket);
+
+    /**
+     * Method to take ownership of a bucket.
+     *
+     * @param bucket   bucket id
+     * @param processId process id
+     *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
+     */
+    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, final Executor executor);
+
+    /**
+     * Return all streams in the bucket.
+     *
+     * @param bucket   bucket id.
+     * @param executor executor
+     * @return List of scopedStreamName (scope/stream)
+     */
+    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final Executor executor);
+
+    /**
+     * Add the given stream to appropriate bucket for auto-retention.
+     *
+     * @param scope           scope
+     * @param stream          stream
+     * @param retentionPolicy retention policy
+     * @param context         operation context
+     * @param executor        executor
+     * @return future
+     */
+    CompletableFuture<Void> addUpdateStreamForAutoStreamCut(final String scope, final String stream, final RetentionPolicy retentionPolicy,
+                                                            final OperationContext context, final Executor executor);
+
+    /**
+     * Remove stream from auto retention bucket.
+     *
+     * @param scope    scope
+     * @param stream   stream
+     * @param context  context
+     * @param executor executor
+     * @return future
+     */
+    CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
+                                                          final OperationContext context, final Executor executor);
+
+    /**
+     * Add stream cut to retention set of the given stream.
+     *
+     * @param scope     scope
+     * @param stream    stream
+     * @param streamCut stream cut to add
+     * @param context   context
+     * @param executor  executor
+     * @return future
+     */
+    CompletableFuture<Void> addStreamCutToRetentionSet(final String scope, final String stream, final StreamCutRecord streamCut,
+                                                       final OperationContext context, final Executor executor);
+
+    /**
+     * Get retention set made of stream cuts for the given stream.
+     *
+     * @param scope    scope
+     * @param stream   stream
+     * @param context  context
+     * @param executor executor
+     * @return future
+     */
+    CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String stream,
+                                                                           final OperationContext context, final Executor executor);
+
+    /**
+     * Delete all stream cuts with recording time before the supplied stream cut from the retention set of the stream.
+     *
+     * @param scope     scope
+     * @param stream    stream
+     * @param streamCut stream cut to purge from
+     * @param context   context
+     * @param executor  executor
+     * @return future
+     */
+    CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String stream, final StreamCutRecord streamCut,
+                                                  final OperationContext context, final Executor executor);
+
+    /**
+     * Method to get size till the supplied stream cut map.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param streamCut stream cut to get the size till
+     * @param context operation context
+     * @param executor executor
+     * @return A CompletableFuture which, when completed, will contain size of stream till given streamCut.
+     */
+    CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Integer, Long> streamCut,
+                                                 final OperationContext context, final ScheduledExecutorService executor);
 }

@@ -24,6 +24,8 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.test.system.framework.Utils.getConfig;
+
 /**
  * SystemTestRunner this is used to execute all the systemTests.
  */
@@ -60,13 +62,13 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         } else {
             //read the type of testExecutor from system property. This is sent by the gradle task. By default
             //the tests are executed locally.
-            TestExecutorType executionType = TestExecutorType.valueOf(System.getProperty("execType", "LOCAL"));
+            TestExecutorType executionType = TestExecutorType.valueOf(getConfig("execType", "LOCAL"));
             invokeTest(notifier, executionType, method);
         }
     }
 
     private CompletableFuture<Void> execute(TestExecutorType type, Method method) throws Exception {
-        return TestExecutorFactory.getTestExecutor(type).startTestExecution(method);
+        return new TestExecutorFactory().getTestExecutor(type).startTestExecution(method);
     }
 
     private void invokeTest(RunNotifier notifier, TestExecutorType type, FrameworkMethod method) {

@@ -126,6 +126,14 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     void initialize(InitialUpdate<StateT> initial);
 
     /**
+     * Calculates the number of bytes that have been written since the state has last been compacted by calling {@link #compact(Function)}
+     * This may be useful when calculating when a compaction should occur.
+     * 
+     * @return The number of bytes written since the last call to {@link #compact(Function)}
+     */
+    long bytesWrittenSinceCompaction();
+    
+    /**
      * Provide a function that generates compacted version of localState so that we can drop some of the
      * history updates.
      * <p>

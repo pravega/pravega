@@ -16,11 +16,10 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -69,11 +68,13 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream) {
-        log.debug("{}/{} deleting segments", scope, stream);
+        log.info("{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
                 .thenComposeAsync(count ->
-                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count)
-                                .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
+                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count, streamMetadataTasks.retrieveDelegationToken())
+                            .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
+                                executor), executor)
+                            .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
                                         executor), executor));
     }
 

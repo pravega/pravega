@@ -10,8 +10,9 @@
 package io.pravega.client.stream.impl;
 
 import io.grpc.Server;
-import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -101,9 +102,9 @@ public class ControllerImplLBTest {
             }
         };
 
-        testRPCServer1 = InProcessServerBuilder.forPort(serverPort1).addService(fakeServerImpl1).build().start();
-        testRPCServer2 = InProcessServerBuilder.forPort(serverPort2).addService(fakeServerImpl2).build().start();
-        testRPCServer3 = InProcessServerBuilder.forPort(serverPort3).addService(fakeServerImpl3).build().start();
+        testRPCServer1 = NettyServerBuilder.forPort(serverPort1).addService(fakeServerImpl1).build().start();
+        testRPCServer2 = NettyServerBuilder.forPort(serverPort2).addService(fakeServerImpl2).build().start();
+        testRPCServer3 = NettyServerBuilder.forPort(serverPort3).addService(fakeServerImpl3).build().start();
     }
 
     @After
@@ -122,8 +123,9 @@ public class ControllerImplLBTest {
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2)).build())
+                                    .retryAttempts(1).build(), executor);
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -140,8 +142,9 @@ public class ControllerImplLBTest {
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(URI.create("pravega://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2)).build())
+                                    .retryAttempts(1).build(), executor);
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -159,9 +162,10 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer1.isTerminated());
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        final ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        final ControllerImpl controllerClient = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder().controllerURI(URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2)).build())
+                .retryAttempts(1).build(),
+                executor);
 
         // Verify that we can read from the 2 live servers.
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
@@ -186,9 +190,9 @@ public class ControllerImplLBTest {
         testRPCServer3.shutdownNow();
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
-        final ControllerImpl client = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        final ControllerImpl client = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder().controllerURI(URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2)).build())
+                .retryAttempts(1).build(), executor);
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
@@ -201,9 +205,9 @@ public class ControllerImplLBTest {
         // Directly use all 3 servers and verify.
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
-                + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        final ControllerImpl controllerClient = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3)).build())
+                .retryAttempts(1).build(), executor);
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -218,9 +222,9 @@ public class ControllerImplLBTest {
         String localIP = InetAddress.getLoopbackAddress().getHostAddress();
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://" + localIP + ":" + serverPort1
-                + "," + localIP + ":" + serverPort2 + "," + localIP + ":" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        final ControllerImpl controllerClient = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder().controllerURI(URI.create("tcp://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2 + "," + localIP + ":" + serverPort3)).build())
+                .retryAttempts(1).build(), executor);
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -238,9 +242,9 @@ public class ControllerImplLBTest {
 
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
-                + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        final ControllerImpl controllerClient = new ControllerImpl( ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3)).build())
+                .retryAttempts(1).build(), executor);
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));

@@ -21,7 +21,7 @@ import java.util.Collection;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import lombok.Data;
-import mesosphere.marathon.client.utils.ModelUtils;
+import mesosphere.client.common.ModelUtils;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.pravega.test.system.framework.Utils.getConfig;
@@ -79,7 +79,7 @@ public class LoginClient {
     }
 
     private static String getMesosMasterIP() {
-        return getConfig("masterIP", "Invalid Master IP");
+        return  Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     }
 
     private static String getUsername() {

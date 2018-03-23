@@ -18,11 +18,10 @@ import io.pravega.controller.store.stream.StreamProperty;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -65,14 +64,23 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     private CompletableFuture<Void> processUpdate(String scope, String stream, StreamProperty<StreamConfiguration> configProperty,
                                                   OperationContext context) {
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor)
-                                                 .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getProperty()))
-                                                 .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, context, executor))
-                                                 .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+                .thenCompose(x -> {
+                    if (configProperty.getProperty().getRetentionPolicy() != null) {
+                        return streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                configProperty.getProperty().getRetentionPolicy(), context, executor);
+                    } else {
+                        return streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context, executor);
+                    }
+                })
+                .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getProperty()))
+                .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, context, executor))
+                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
     private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream, StreamConfiguration newConfig) {
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy()))
+                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy(),
+                        this.streamMetadataTasks.retrieveDelegationToken()))
                 .handle((res, ex) -> {
                     if (ex == null) {
                         return true;

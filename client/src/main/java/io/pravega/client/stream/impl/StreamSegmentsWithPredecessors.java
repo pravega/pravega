@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /**
  * The successor segments of a given segment.
@@ -26,8 +27,10 @@ import lombok.EqualsAndHashCode;
 public class StreamSegmentsWithPredecessors {
     private final Map<Segment, List<Integer>> segmentWithPredecessors;
     private final Map<Integer, List<SegmentWithRange>> replacementRanges;
+    @Getter
+    private final String delegationToken;
 
-    public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Integer>> segments) {
+    public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Integer>> segments, String delegationToken) {
         segmentWithPredecessors = Collections.unmodifiableMap(segments.entrySet().stream().collect(
                 Collectors.toMap(entry -> entry.getKey().getSegment(), Map.Entry::getValue)));
 
@@ -43,6 +46,7 @@ public class StreamSegmentsWithPredecessors {
             }
         }
         this.replacementRanges = Collections.unmodifiableMap(replacementRanges);
+        this.delegationToken = delegationToken;
     }
 
     /**

@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -38,11 +39,8 @@ import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -57,9 +55,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -81,7 +78,7 @@ public class ControllerRestApiTest {
     private String resourceURl;
 
     public ControllerRestApiTest() {
-        ClientConfig clientConfig = new ClientConfig();
+        org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         client = ClientBuilder.newClient(clientConfig);
@@ -95,10 +92,10 @@ public class ControllerRestApiTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws MarathonException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -108,7 +105,7 @@ public class ControllerRestApiTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService =  Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -117,7 +114,7 @@ public class ControllerRestApiTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -126,7 +123,7 @@ public class ControllerRestApiTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -138,7 +135,7 @@ public class ControllerRestApiTest {
     @Test(timeout = 300000)
     public void restApiTests() {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerRESTUri = ctlURIs.get(1);
         Invocation.Builder builder;
@@ -278,7 +275,7 @@ public class ControllerRestApiTest {
         final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
         URI controllerUri = ctlURIs.get(0);
-        try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
+        try (StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerUri).build())) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -299,9 +296,12 @@ public class ControllerRestApiTest {
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
+        Controller controller = new ControllerImpl(ControllerImplConfig.builder()
+                                     .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
+                                     .build(), executor);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
+                     ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
                     new HashSet<>(Arrays.asList(testStream1, testStream2)));
             readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),

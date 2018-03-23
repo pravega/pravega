@@ -36,6 +36,7 @@ service ControllerService {
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+    rpc getDelegationToken(StreamInfo) returns (DelegationToken);
 }
 
 message ServerRequest {
@@ -144,7 +145,7 @@ message ScalingPolicy {
         BY_RATE_IN_KBYTES_PER_SEC = 1;
         BY_RATE_IN_EVENTS_PER_SEC = 2;
     }
-    ScalingPolicyType type = 1;
+    ScalingPolicyType scaleType = 1;
     int32 targetRate = 2;
     int32 scaleFactor = 3;
     int32 minNumSegments = 4;
@@ -156,8 +157,8 @@ message RetentionPolicy {
         TIME = 1;
         SIZE = 2;
     }
-    RetentionPolicyType type = 1;
-    int64 value = 2;
+    RetentionPolicyType retentionType = 1;
+    int64 retentionParam = 2;
 }
 
 message StreamConfig {
@@ -194,6 +195,7 @@ message SegmentsAtTime {
         int64 offset = 2;
     }
     repeated SegmentLocation segments = 1;
+    string delegationToken = 2;
 }
 
 message TxnId {
@@ -204,13 +206,13 @@ message TxnId {
 message CreateTxnRequest {
     StreamInfo streamInfo = 1;
     int64 lease = 2;
-    int64 maxExecutionTime = 3;
-    int64 scaleGracePeriod = 4;
+    int64 scaleGracePeriod = 3;
 }
 
 message CreateTxnResponse {
     TxnId txnId = 1;
     repeated SegmentRange activeSegments = 2;
+    string delegationToken = 3;
 }
 
 message TxnRequest {
@@ -230,6 +232,7 @@ message SuccessorResponse {
         repeated int32 value = 2;
     }
     repeated SegmentEntry segments = 1;
+    string delegationToken = 2;
 }
 
 message ScaleRequest {
@@ -272,6 +275,7 @@ message ScaleStatusResponse {
 
 message SegmentRanges {
     repeated SegmentRange segmentRanges = 1;
+    string delegationToken = 2;
 }
 
 message GetSegmentsRequest {
@@ -282,3 +286,7 @@ message GetSegmentsRequest {
 message SegmentValidityResponse {
     bool response = 1;
 }
+
+message DelegationToken {
+    string delegationToken = 1;
+ }

@@ -26,7 +26,8 @@ public class ServiceConfig {
     //region Config Names
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
-    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 50);
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 20);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
@@ -36,18 +37,54 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageTypes.INMEMORY.toString());
+    public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.INMEMORY);
+    public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
+    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public static final Property<String> CERT_FILE = Property.named("certFile", "");
+    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
 
-    public enum StorageTypes {
-        EXTENDEDS3,
-        FILESYSTEM,
-        HDFS,
+    //region Storage Types
+
+    public enum DataLogType {
+        /**
+         * DataLog is implemented by a BookKeeper Cluster.
+         */
+        BOOKKEEPER,
+
+        /**
+         * InMemory DataLog. Contents will be lost when the process exits.
+         */
         INMEMORY
     }
+
+    public enum StorageType {
+        /**
+         * Storage is implemented by a cluster exposing an ExtendedS3 API.
+         */
+        EXTENDEDS3,
+
+        /**
+         * Storage is implemented by a POSIX File System. This may be a local file system or an NFS mount.
+         */
+        FILESYSTEM,
+
+        /**
+         * Storage is implemented by a cluster exposing a HDFS API.
+         */
+        HDFS,
+
+        /**
+         * InMemory Storage. Contents will be lost when the process exits.
+         */
+        INMEMORY
+    }
+
+    //endregion
 
     //region Members
 
@@ -58,10 +95,16 @@ public class ServiceConfig {
     private final int containerCount;
 
     /**
-     * The number of threads in the common thread pool.
+     * The number of threads in the core Segment Store Thread Pool.
      */
     @Getter
-    private final int threadPoolSize;
+    private final int coreThreadPoolSize;
+
+    /**
+     * The number of threads in the Thread Pool used for accessing Storage.
+     */
+    @Getter
+    private final int storageThreadPoolSize;
 
     /**
      * The TCP Port number to listen to.
@@ -125,11 +168,42 @@ public class ServiceConfig {
     private final String clusterName;
 
     /**
-     * The Storage Implementation to use.
+     * The Type of DataLog Implementation to use.
      */
     @Getter
-    private final String storageImplementation;
+    private final DataLogType dataLogTypeImplementation;
 
+    /**
+     * The Type of Storage Implementation to use.
+     */
+    @Getter
+    private final StorageType storageImplementation;
+
+    /**
+     * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
+     * Note that if this is set to 'true', then many other settings will not apply. The most important other one to set
+     * is 'Storage Implementation'.
+     */
+    @Getter
+    private final boolean readOnlySegmentStore;
+
+    /**
+     * Enables TLS support for the serer.
+     */
+    @Getter
+    private final boolean enableTls;
+
+    /**
+     * Represents the certificate file for the TLS server.
+     */
+    @Getter
+    private final String certFile;
+
+    /**
+     * Represents the private key file for the TLS server.
+     */
+    @Getter
+    private final String keyFile;
     //endregion
 
     //region Constructor
@@ -141,7 +215,8 @@ public class ServiceConfig {
      */
     private ServiceConfig(TypedProperties properties) throws ConfigurationException {
         this.containerCount = properties.getInt(CONTAINER_COUNT);
-        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.coreThreadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        this.storageThreadPoolSize = properties.getInt(STORAGE_THREAD_POOL_SIZE);
         this.listeningPort = properties.getInt(LISTENING_PORT);
 
         int publishedPort;
@@ -170,7 +245,12 @@ public class ServiceConfig {
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
-        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
+        this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
+        this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
+        this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.keyFile = properties.get(KEY_FILE);
+        this.certFile = properties.get(CERT_FILE);
     }
 
     /**

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -20,6 +21,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
+import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -30,6 +32,7 @@ import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteTooLongException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +82,6 @@ class BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
-    private final int containerId;
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -113,19 +115,18 @@ class BookKeeperLog implements DurableDataLog {
      */
     BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
-        this.containerId = containerId;
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
-        this.logNodePath = HierarchyUtils.getPath(this.containerId, this.config.getZkHierarchyDepth());
-        this.traceObjectId = String.format("Log[%d]", this.containerId);
+        this.logNodePath = HierarchyUtils.getPath(containerId, this.config.getZkHierarchyDepth());
+        this.traceObjectId = String.format("Log[%d]", containerId);
         this.writes = new WriteQueue();
         val retry = createRetryPolicy(this.config.getMaxWriteAttempts(), this.config.getBkWriteTimeoutMillis());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, retry, this::handleWriteProcessorFailures, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, retry, this::handleRolloverFailure, this.executorService);
-        this.metrics = new BookKeeperMetrics.BookKeeperLog(this.containerId);
+        this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
@@ -199,35 +200,92 @@ class BookKeeperLog implements DurableDataLog {
      * @param timeout Timeout for the operation.
      * @throws DataLogWriterNotPrimaryException If we were fenced-out during this process.
      * @throws DataLogNotAvailableException     If BookKeeper or ZooKeeper are not available.
+     * @throws DataLogDisabledException         If the BookKeeperLog is disabled. No fencing is attempted in this case.
      * @throws DataLogInitializationException   If a general initialization error occurred.
      * @throws DurableDataLogException          If another type of exception occurred.
      */
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
+        List<Long> ledgersToDelete;
+        LogMetadata newMetadata;
         synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized.");
             assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
 
             // Get metadata about the current state of the log, if any.
-            LogMetadata metadata = loadMetadata();
+            LogMetadata oldMetadata = loadMetadata();
 
-            // Fence out ledgers.
-            if (metadata != null) {
-                Ledgers.fenceOut(metadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
+            if (oldMetadata != null) {
+                if (!oldMetadata.isEnabled()) {
+                    throw new DataLogDisabledException("BookKeeperLog is disabled. Cannot initialize.");
+                }
+
+                // Fence out ledgers.
+                val emptyLedgerIds = Ledgers.fenceOut(oldMetadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
+
+                // Update Metadata to reflect those newly found empty ledgers.
+                oldMetadata = oldMetadata.updateLedgerStatus(emptyLedgerIds);
             }
 
             // Create new ledger.
             LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
             log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
 
-            // Update node with new ledger.
-            metadata = updateMetadata(metadata, newLedger);
-            LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
+            // Update Metadata with new Ledger and persist to ZooKeeper.
+            newMetadata = updateMetadata(oldMetadata, newLedger, true);
+            LedgerMetadata ledgerMetadata = newMetadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
-            this.logMetadata = metadata;
-            log.info("{}: Initialized.", this.traceObjectId);
+            this.logMetadata = newMetadata;
+            ledgersToDelete = getLedgerIdsToDelete(oldMetadata, newMetadata);
         }
+
+        // Delete the orphaned ledgers from BookKeeper.
+        ledgersToDelete.forEach(id -> {
+            try {
+                Ledgers.delete(id, this.bookKeeper);
+                log.info("{}: Deleted orphan empty ledger {}.", this.traceObjectId, id);
+            } catch (DurableDataLogException ex) {
+                // A failure here has no effect on the initialization of BookKeeperLog. In this case, the (empty) Ledger
+                // will remain in BookKeeper until manually deleted by a cleanup tool.
+                log.warn("{}: Unable to delete orphan empty ledger {}.", this.traceObjectId, id, ex);
+            }
+        });
+        log.info("{}: Initialized (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, newMetadata.getEpoch(), newMetadata.getUpdateVersion());
+    }
+
+    @Override
+    public void enable() throws DurableDataLogException {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        synchronized (this.lock) {
+            Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized; cannot re-enable.");
+            assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
+
+            // Load existing metadata. Inexistent metadata means the BookKeeperLog has never been accessed, and therefore
+            // enabled by default.
+            LogMetadata metadata = loadMetadata();
+            Preconditions.checkState(metadata != null && !metadata.isEnabled(), "BookKeeperLog is already enabled.");
+            metadata = metadata.asEnabled();
+            persistMetadata(metadata, false);
+            log.info("{}: Enabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+    }
+
+    @Override
+    public void disable() throws DurableDataLogException {
+        // Get the current metadata, disable it, and then persist it back.
+        synchronized (this.lock) {
+            ensurePreconditions();
+            LogMetadata metadata = getLogMetadata();
+            Preconditions.checkState(metadata.isEnabled(), "BookKeeperLog is already disabled.");
+            metadata = this.logMetadata.asDisabled();
+            persistMetadata(metadata, false);
+            this.logMetadata = metadata;
+            log.info("{}: Disabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+
+        // Close this instance of the BookKeeperLog. This ensures the proper cancellation of any ongoing writes.
+        close();
     }
 
     @Override
@@ -616,11 +674,12 @@ class BookKeeperLog implements DurableDataLog {
      * @return A new LogMetadata object with the desired information, or null if no such node exists.
      * @throws DataLogInitializationException If an Exception (other than NoNodeException) occurred.
      */
-    private LogMetadata loadMetadata() throws DataLogInitializationException {
+    @VisibleForTesting
+    LogMetadata loadMetadata() throws DataLogInitializationException {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
-            LogMetadata result = LogMetadata.deserialize(serializedMetadata);
+            LogMetadata result = LogMetadata.SERIALIZER.deserialize(serializedMetadata);
             result.withUpdateVersion(storingStatIn.getVersion());
             return result;
         } catch (KeeperException.NoNodeException nne) {
@@ -637,18 +696,27 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Updates the metadata and persists it as a result of adding a new Ledger.
      *
-     * @param currentMetadata The current metadata.
-     * @param newLedger       The newly added Ledger.
+     * @param currentMetadata   The current metadata.
+     * @param newLedger         The newly added Ledger.
+     * @param clearEmptyLedgers If true, the new metadata will not not contain any pointers to empty Ledgers. Setting this
+     *                          to true will not remove a pointer to the last few ledgers in the Log (controlled by
+     *                          Ledgers.MIN_FENCE_LEDGER_COUNT), even if they are indeed empty (this is so we don't interfere
+     *                          with any ongoing fencing activities as another instance of this Log may not have yet been
+     *                          fenced out).
      * @return A new instance of the LogMetadata, which includes the new ledger.
      * @throws DurableDataLogException If an Exception occurred.
      */
-    private LogMetadata updateMetadata(LogMetadata currentMetadata, LedgerHandle newLedger) throws DurableDataLogException {
+    private LogMetadata updateMetadata(LogMetadata currentMetadata, LedgerHandle newLedger, boolean clearEmptyLedgers) throws DurableDataLogException {
         boolean create = currentMetadata == null;
         if (create) {
             // This is the first ledger ever in the metadata.
             currentMetadata = new LogMetadata(newLedger.getId());
         } else {
-            currentMetadata = currentMetadata.addLedger(newLedger.getId(), true);
+            currentMetadata = currentMetadata.addLedger(newLedger.getId());
+            if (clearEmptyLedgers) {
+                // Remove those ledgers from the metadata that are empty.
+                currentMetadata = currentMetadata.removeEmptyLedgers(Ledgers.MIN_FENCE_LEDGER_COUNT);
+            }
         }
 
         try {
@@ -660,6 +728,8 @@ class BookKeeperLog implements DurableDataLog {
                 log.warn("{}: Unable to delete newly created ledger {}.", this.traceObjectId, newLedger.getId(), deleteEx);
                 ex.addSuppressed(deleteEx);
             }
+
+            throw ex;
         }
 
         log.info("{} Metadata updated ({}).", this.traceObjectId, currentMetadata);
@@ -678,15 +748,14 @@ class BookKeeperLog implements DurableDataLog {
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
+            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             if (create) {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.create()
                              .creatingParentsIfNeeded()
                              .forPath(this.logNodePath, serializedMetadata);
                 // Set version to 0 as that will match the ZNode's version.
                 metadata.withUpdateVersion(0);
             } else {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.setData()
                              .withVersion(metadata.getUpdateVersion())
                              .forPath(this.logNodePath, serializedMetadata);
@@ -751,7 +820,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Update the metadata.
             LogMetadata metadata = getLogMetadata();
-            metadata = updateMetadata(metadata, newLedger);
+            metadata = updateMetadata(metadata, newLedger, false);
             LedgerMetadata ledgerMetadata = metadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             log.debug("{}: Rollover: updated metadata '{}.", this.traceObjectId, metadata);
@@ -781,6 +850,30 @@ class BookKeeperLog implements DurableDataLog {
             this.writeProcessor.runAsync();
             LoggerHelpers.traceLeave(log, this.traceObjectId, "rollover", traceId, true);
         }
+    }
+
+    /**
+     * Determines which Ledger Ids are safe to delete from BookKeeper.
+     *
+     * @param oldMetadata     A pointer to the previous version of the metadata, that contains all Ledgers eligible for
+     *                        deletion. Only those Ledgers that do not exist in currentMetadata will be selected.
+     * @param currentMetadata A pointer to the current version of the metadata. No Ledger that is referenced here will
+     *                        be selected.
+     * @return A List that contains Ledger Ids to remove. May be empty.
+     */
+    @GuardedBy("lock")
+    private List<Long> getLedgerIdsToDelete(LogMetadata oldMetadata, LogMetadata currentMetadata) {
+        if (oldMetadata == null) {
+            return Collections.emptyList();
+        }
+
+        val existingIds = currentMetadata.getLedgers().stream()
+                .map(LedgerMetadata::getLedgerId)
+                .collect(Collectors.toSet());
+        return oldMetadata.getLedgers().stream()
+                .map(LedgerMetadata::getLedgerId)
+                .filter(id -> !existingIds.contains(id))
+                .collect(Collectors.toList());
     }
 
     //endregion

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -32,6 +33,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -41,6 +43,7 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.ServiceListeners;
+import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -52,15 +55,19 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.reading.TestReadResultHandler;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
+import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
-import io.pravega.segmentstore.storage.mocks.ListenableStorage;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -78,14 +85,18 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -127,6 +138,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+            .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
             .build();
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
@@ -273,7 +285,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                 long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.length / 2 + 1;
                 truncationOffsets.put(segmentName, truncateOffset);
-                opFutures.add(Futures.toVoid(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT)));
+                opFutures.add(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT));
             }
         }
 
@@ -368,6 +380,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkActiveSegments(context.container, 1);
 
         // 4. Written data.
+        waitForOperationsInReadIndex(context.container);
         byte[] actualData = new byte[(int) expectedLength.get()];
         int offset = 0;
         @Cleanup
@@ -521,6 +534,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // 4. Reads (regular reads, not tail reads, and only for the sealed segments).
+        waitForOperationsInReadIndex(context.container);
         for (int i = 0; i < segmentNames.size() / 2; i++) {
             String segmentName = segmentNames.get(i);
             long segmentLength = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
@@ -911,7 +925,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
 
         // Verify the segment actually made to Storage in one piece.
-        waitForSegmentInStorage(sp, context.storage).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        waitForSegmentInStorage(sp, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val storageInfo = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected length in storage for segment.", sp.getLength(), storageInfo.getLength());
 
@@ -1111,7 +1125,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val context = new TestContext();
         val failedWriterFactory = new FailedWriterFactory();
         AtomicReference<OperationLog> log = new AtomicReference<>();
-        val watchableDurableLogFactory = new WatchableOperationlogFactory(context.operationLogFactory, log::set);
+        val watchableDurableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, log::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
                 context.readIndexFactory, failedWriterFactory, context.storageFactory, executorService());
         val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
@@ -1119,7 +1133,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Wait for the container to be shut down and verify it is failed.
         ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
-        Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
+        Assert.assertEquals("Container is not in a failed state after a failed startup.", Service.State.FAILED, container.state());
 
         Throwable actualException = Exceptions.unwrap(container.failureCause());
         boolean exceptionMatch = actualException instanceof IntentionalException;
@@ -1130,6 +1144,108 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
         ServiceListeners.awaitShutdown(log.get(), shutdownTimeout, true);
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentContainer to start in Offline mode (due to an offline DurableLog) and eventually
+     * become online when the DurableLog becomes too.
+     */
+    @Test
+    public void testStartOffline() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+
+        AtomicReference<DurableDataLog> dataLog = new AtomicReference<>();
+        @Cleanup
+        val dataLogFactory = new TestDurableDataLogFactory(context.dataLogFactory, dataLog::set);
+        AtomicReference<OperationLog> durableLog = new AtomicReference<>();
+        val durableLogFactory = new WatchableOperationLogFactory(new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService()), durableLog::set);
+        val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, durableLogFactory,
+                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+
+        // Write some data
+        ArrayList<String> segmentNames = new ArrayList<>();
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+            for (int i = 0; i < SEGMENT_COUNT; i++) {
+                String segmentName = getSegmentName(i);
+                segmentNames.add(segmentName);
+                opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+            }
+
+            for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
+                for (String segmentName : segmentNames) {
+                    byte[] appendData = getAppendData(segmentName, i);
+                    opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                    recordAppend(segmentName, appendData, segmentContents);
+                }
+            }
+
+            Futures.allOf(opFutures).join();
+
+            // Disable the DurableDataLog.
+            dataLog.get().disable();
+        }
+
+        // Start in "Offline" mode, verify operations cannot execute and then shut down - make sure we can shut down an offline container.
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            Assert.assertTrue("Expecting Segment Container to be offline.", container.isOffline());
+
+            AssertExtensions.assertThrows(
+                    "append() worked in offline mode.",
+                    () -> container.append("foo", new byte[1], null, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "getStreamSegmentInfo() worked in offline mode.",
+                    () -> container.getStreamSegmentInfo("foo", false, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+            AssertExtensions.assertThrows(
+                    "read() worked in offline mode.",
+                    () -> container.read("foo", 0, 1, TIMEOUT),
+                    ex -> ex instanceof ContainerOfflineException);
+
+            container.stopAsync().awaitTerminated();
+        }
+
+        // Start in "Offline" mode and verify we can resume a normal startup.
+        try (val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container.startAsync().awaitRunning();
+            Assert.assertTrue("Expecting Segment Container to be offline.", container.isOffline());
+            dataLog.get().enable();
+
+            // Wait for the DurableLog to become online.
+            durableLog.get().awaitOnline().get(DEFAULT_DURABLE_LOG_CONFIG.getStartRetryDelay().toMillis() * 100, TimeUnit.MILLISECONDS);
+
+            // Verify we can execute regular operations now.
+            ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+            for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
+                for (String segmentName : segmentNames) {
+                    byte[] appendData = getAppendData(segmentName, i);
+                    opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                    recordAppend(segmentName, appendData, segmentContents);
+                }
+            }
+
+            Futures.allOf(opFutures).join();
+
+            // Verify all operations arrived in Storage.
+            ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+            for (String segmentName : segmentNames) {
+                SegmentProperties sp = container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                segmentsCompletion.add(waitForSegmentInStorage(sp, context));
+            }
+
+            Futures.allOf(segmentsCompletion).join();
+
+            container.stopAsync().awaitTerminated();
+        }
+
     }
 
     /**
@@ -1209,13 +1325,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
+    private void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
                                        TestContext context) throws Exception {
         checkReadIndex(segmentContents, lengths, Collections.emptyMap(), context);
     }
 
     private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
                                        Map<String, Long> truncationOffsets, TestContext context) throws Exception {
+        waitForOperationsInReadIndex(context.container);
         for (String segmentName : segmentContents.keySet()) {
             long segmentLength = lengths.get(segmentName);
             long startOffset = truncationOffsets.getOrDefault(segmentName, 0L);
@@ -1367,22 +1484,34 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
             SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
-            segmentsCompletion.add(waitForSegmentInStorage(sp, context.storage));
+            segmentsCompletion.add(waitForSegmentInStorage(sp, context));
         }
 
         return Futures.allOf(segmentsCompletion);
     }
 
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
-        Assert.assertTrue("Unable to register triggers.", storage instanceof ListenableStorage);
-        ListenableStorage ls = (ListenableStorage) storage;
-        if (sp.isSealed()) {
-            // Sealed - add a seal trigger.
-            return ls.registerSealTrigger(sp.getName(), TIMEOUT);
-        } else {
-            // Not sealed - add a size trigger.
-            return ls.registerSizeTrigger(sp.getName(), sp.getLength(), TIMEOUT);
-        }
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties metadataProps, TestContext context) {
+        Function<SegmentProperties, Boolean> meetsConditions = storageProps ->
+                storageProps.isSealed() == metadataProps.isSealed()
+                        && storageProps.getLength() >= metadataProps.getLength()
+                        && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
+
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        return Futures.loop(
+                canContinue::get,
+                () -> context.storage.getStreamSegmentInfo(metadataProps.getName(), TIMEOUT)
+                                     .thenCompose(storageProps -> {
+                                 if (meetsConditions.apply(storageProps)) {
+                                     canContinue.set(false);
+                                     return CompletableFuture.completedFuture(null);
+                                 } else if (!timer.hasRemaining()) {
+                                     return Futures.failedFuture(new TimeoutException());
+                                 } else {
+                                     return Futures.delayedFuture(Duration.ofMillis(10), executorService());
+                                 }
+                             }).thenRun(Runnables.doNothing()),
+                executorService());
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates(UUID[] attributes) {
@@ -1413,6 +1542,30 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 
+    /**
+     * Blocks until all operations processed so far have been added to the ReadIndex and InMemoryOperationLog.
+     * This is needed to simplify test verification due to the fact that the the OperationProcessor commits operations to
+     * the ReadIndex and InMemoryOperationLog asynchronously, after those operations were ack-ed. This method makes use
+     * of the fact that the OperationProcessor/MemoryStateUpdater will still commit such operations in sequence; it
+     * creates a new segment, writes 1 byte to it and issues a read (actual/future) and waits until it's completed - when
+     * it is, it is guaranteed that everything prior to that has been committed.
+     */
+    private static void waitForOperationsInReadIndex(SegmentContainer container) throws Exception {
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        String segmentName = "test" + System.nanoTime();
+        container.createStreamSegment(segmentName, null, timer.getRemaining())
+                .thenCompose(v -> container.append(segmentName, new byte[1], null, timer.getRemaining()))
+                .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
+                .thenCompose(rr -> {
+                    ReadResultEntry rre = rr.next();
+                    rre.requestContent(TIMEOUT);
+                    return rre.getContent().thenRun(rr::close);
+                })
+                .thenCompose(v -> container.deleteStreamSegment(segmentName, timer.getRemaining()))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+    }
+
     @SneakyThrows
     private void await(Future<?> f) {
         f.get();
@@ -1423,7 +1576,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private class TestContext implements AutoCloseable {
         final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
-        private final InMemoryStorageFactory storageFactory;
+        private final WatchableInMemoryStorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
@@ -1436,7 +1589,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ContainerConfig config) {
-            this.storageFactory = new InMemoryStorageFactory(executorService());
+            this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
@@ -1535,8 +1688,35 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region Helper Classes
+
+    private static class WatchableInMemoryStorageFactory extends InMemoryStorageFactory {
+        private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
+
+        public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
+            super(executor);
+        }
+
+        @Override
+        public Storage createStorageAdapter() {
+            return new WatchableAsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
+        }
+
+        private class WatchableAsyncStorageWrapper extends AsyncStorageWrapper {
+            public WatchableAsyncStorageWrapper(SyncStorage syncStorage, Executor executor) {
+                super(syncStorage, executor);
+            }
+
+            @Override
+            public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+                return super.truncate(handle, offset, timeout)
+                            .thenRun(() -> truncationOffsets.put(handle.getSegmentName(), offset));
+            }
+        }
+    }
+
     @RequiredArgsConstructor
-    private static class WatchableOperationlogFactory implements OperationLogFactory {
+    private static class WatchableOperationLogFactory implements OperationLogFactory {
         private final OperationLogFactory wrappedFactory;
         private final Consumer<OperationLog> onCreateLog;
 
@@ -1571,4 +1751,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
     }
+
+    //endregion
 }

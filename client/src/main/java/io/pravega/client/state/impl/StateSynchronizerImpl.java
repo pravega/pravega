@@ -16,6 +16,7 @@ import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
+import io.pravega.client.stream.TruncatedDataException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,10 +56,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         return currentState;
     }
 
-    private Revision getRevisionToReadFrom() {
+    private Revision getRevisionToReadFrom(boolean useState) {
         StateT state = getState();
         Revision revision;
-        if (state == null) {
+        if (!useState || state == null) {
             revision = client.getMark();
             if (revision == null) {
                 revision = client.fetchOldestRevision();
@@ -71,21 +72,49 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void fetchUpdates() {
-        Revision revision = getRevisionToReadFrom();
+        Revision revision = getRevisionToReadFrom(true);
         log.trace("Fetching updates after {} ", revision);
+        try {
+            val iter = client.readFrom(revision);
+            while (iter.hasNext()) {
+                Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
+                log.trace("Found entry {} ", entry.getValue());
+                if (entry.getValue().isInit()) {
+                    InitialUpdate<StateT> init = entry.getValue().getInit();
+                    if (isNewer(entry.getKey())) {
+                        updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
+                    }
+                } else {
+                    applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
+                }
+            }
+        } catch (TruncatedDataException e) {
+            log.warn("{} encountered truncation on segment {}", this, segment);
+            handleTruncation();
+        }
+    }
+    
+    private void handleTruncation() {
+        log.info(this + " Encountered truncation");
+        Revision revision = getRevisionToReadFrom(false);
+        log.trace("Fetching updates after {} ", revision);
+        boolean foundInit = false;
         val iter = client.readFrom(revision);
-        while (iter.hasNext()) {
+        while (!foundInit && iter.hasNext()) {
             Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
-            log.trace("Found entry {} ", entry.getValue());
             if (entry.getValue().isInit()) {
+                log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
                 if (isNewer(entry.getKey())) {
                     updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
+                    foundInit = true;
                 }
-            } else {
-                applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
             }
         }
+        if (!foundInit) {
+            throw new IllegalStateException("Data was truncated but there is not init after the truncation point.");
+        }
+        fetchUpdates();
     }
 
     private void applyUpdates(Revision readRevision, List<? extends Update<StateT>> updates) {
@@ -141,6 +170,15 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         } else {
             updateCurrentState(initial.create(segment.getScopedStreamName(), result));
         }
+    }
+    
+    @Override
+    public long bytesWrittenSinceCompaction() {
+        Revision mark = client.getMark();
+        StateT state = getState();
+        long compaction = (mark == null) ? 0 : mark.asImpl().getOffsetInSegment();
+        long current = (state == null) ? 0 : state.getRevision().asImpl().getOffsetInSegment();
+        return Math.max(0, current - compaction);
     }
 
     @Override
@@ -212,5 +250,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         log.info("Closing stateSynchronizer ", this);
         client.close();
     }
+
 
 }

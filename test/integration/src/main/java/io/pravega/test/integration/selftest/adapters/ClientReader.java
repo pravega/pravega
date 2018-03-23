@@ -10,6 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -20,6 +21,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
@@ -150,7 +152,11 @@ class ClientReader implements StoreReader, AutoCloseable {
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
             this.readerId = UUID.randomUUID().toString().replace("-", "");
-            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, ClientReader.this.controllerUri)) {
+            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
+                    ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
+                            .trustStore("../../config/cert.pem")
+                            .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                            .validateHostName(false).build())) {
                 readerGroupManager.createReaderGroup(this.readerGroup, READER_GROUP_CONFIG, Collections.singleton(streamName));
             }
 
@@ -181,7 +187,7 @@ class ClientReader implements StoreReader, AutoCloseable {
 
         ReadItem readExact(EventPointer a) {
             try {
-                byte[] data = getReader().read(a);
+                byte[] data = getReader().fetchEvent(a);
                 return toReadItem(data, a);
             } catch (NoSuchEventException e) {
                 throw new CompletionException(e);

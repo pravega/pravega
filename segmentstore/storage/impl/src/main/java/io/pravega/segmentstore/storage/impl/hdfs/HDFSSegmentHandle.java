@@ -41,17 +41,14 @@ class HDFSSegmentHandle implements SegmentHandle {
     /**
      * Creates a new instance of the HDFSSegmentHandle class.
      *
-     * @param segmentName The name of the Segment in this Handle, as perceived by users of the Segment interface.
+     * @param segmentName The name of the Segment in this Handle, as perceived by users of the Storage interface.
      * @param readOnly    Whether this handle is read-only or not.
      * @param files       A ordered list of initial files for this handle.
      */
     private HDFSSegmentHandle(String segmentName, boolean readOnly, List<FileDescriptor> files) {
-        Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
-        Exceptions.checkNotNullOrEmpty(files, "files");
-
-        this.segmentName = segmentName;
+        this.segmentName = Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         this.readOnly = readOnly;
-        this.files = files;
+        this.files = Exceptions.checkNotNullOrEmpty(files, "files");
     }
 
     /**

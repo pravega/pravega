@@ -15,6 +15,11 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
  * A class that handles each type of reply. (Visitor pattern)
  */
 public interface ReplyProcessor {
+    
+    default void process(Reply reply) {
+        reply.process(this);
+    }
+    
     void hello(Hello hello);
     
     void wrongHost(WireCommands.WrongHost wrongHost);
@@ -61,6 +66,8 @@ public interface ReplyProcessor {
 
     void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted);
 
+    void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported);
+
     void keepAlive(WireCommands.KeepAlive keepAlive);
     
     void connectionDropped();
@@ -68,4 +75,6 @@ public interface ReplyProcessor {
     void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segmentPolicyUpdated);
     
     void processingFailure(Exception error);
+
+    void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
 }

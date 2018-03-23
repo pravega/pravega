@@ -16,10 +16,9 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ScaleOpEvent;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -50,7 +49,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         log.info("starting scale request for {}/{} segments {} to new ranges {}", request.getScope(), request.getStream(),
                 request.getSegmentsToSeal(), request.getNewRanges());
 
-        streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context)
+        streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context,
+                this.streamMetadataTasks.retrieveDelegationToken())
                 .whenCompleteAsync((res, e) -> {
                     if (e != null) {
                         Throwable cause = Exceptions.unwrap(e);

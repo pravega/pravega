@@ -10,9 +10,11 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
+import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -26,31 +28,29 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -80,14 +80,9 @@ abstract class AbstractFailoverTests {
         //read and write count variables
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
-        final AtomicLong eventReadCount = new AtomicLong(0); // used by readers to maintain a count of events.
-        final AtomicLong eventWriteCount = new AtomicLong(0); // used by writers to maintain a count of events.
-        final AtomicLong eventData = new AtomicLong(0); //data used by each of the writers.
-        final ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
-        final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
         //list of all writer's futures
         final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
         //list of all reader's futures
@@ -97,22 +92,115 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
-        final AtomicBoolean txnWrite = new AtomicBoolean(false);
+
+        final ConcurrentSet<UUID> committingTxn = new ConcurrentSet<>();
+        final ConcurrentSet<UUID> abortedTxn = new ConcurrentSet<>();
+        final AtomicLong eventData = new AtomicLong();
+        final boolean txnWrite;
+
+        private final ConcurrentHashMap<Long, Integer> eventMap = new ConcurrentHashMap<>();
+
+        TestState(boolean txnWrite) {
+            this.txnWrite = txnWrite;
+        }
+
+        void eventWritten(Long event) {
+            eventMap.putIfAbsent(event, 0);
+        }
+
+        void eventRead(Long event) {
+            eventMap.compute(event, (x, y) -> {
+                if (y == null) {
+                    return 1;
+                } else {
+                    return y + 1;
+                }
+            });
+        }
+
+        Long getNext() {
+            return eventData.getAndIncrement();
+        }
+
+        int getEventWrittenCount() {
+            return eventMap.size();
+        }
+
+        int getEventReadCount() {
+            return eventMap.values().stream().mapToInt(Integer::intValue).sum();
+        }
+
+        void checkForAnomalies() {
+            boolean failed = false;
+            List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
+                    .map(Map.Entry::getKey).collect(Collectors.toList());
+            if (notRead.size() > 0) {
+                failed = true;
+                log.error("Anomalies, unread events => {}", notRead);
+            }
+
+            Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (duplicates.size() > 0) {
+                failed = true;
+                log.error("Anomalies, duplicate events with count => {}", duplicates);
+            }
+
+            int eventReadCount = getEventReadCount();
+            int eventWrittenCount = getEventWrittenCount();
+            if (eventReadCount != eventWrittenCount) {
+                failed = true;
+                log.error("Read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
+            }
+
+            if (committingTxn.size() > 0) {
+                failed = true;
+                log.error("Txn left committing: {}", committingTxn);
+            }
+
+            if (abortedTxn.size() > 0) {
+                failed = true;
+                log.error("Txn aborted: {}", abortedTxn);
+            }
+            assertFalse("Test Failed", failed);
+        }
+
+        void eventsWritten(List<Long> eventsWritten) {
+            eventsWritten.forEach(event -> eventMap.putIfAbsent(event, 0));
+        }
+
+        public void cancelAllPendingWork() {
+            readers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader thread", e);
+                }
+            });
+
+            writers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling writer thread", e);
+                }
+            });
+        }
     }
 
-    void performFailoverTest() {
+    void performFailoverTest() throws ExecutionException {
 
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
-        long currentWriteCount1 = testState.eventWriteCount.get();
-        long currentReadCount1 = testState.eventReadCount.get();
+        long currentWriteCount1 = testState.getEventWrittenCount();
+        long currentReadCount1 = testState.getEventReadCount();
         log.info("Read count: {}, write count: {} without any failover", currentReadCount1, currentWriteCount1);
 
         //check reads and writes after sleeps
         log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        long currentWriteCount2 = testState.eventWriteCount.get();
-        long currentReadCount2 = testState.eventReadCount.get();
+        long currentWriteCount2 = testState.getEventWrittenCount();
+        long currentReadCount2 = testState.getEventReadCount();
         log.info("Read count: {}, write count: {} without any failover after sleep before scaling", currentReadCount2, currentWriteCount2);
         //ensure writes are happening
         assertTrue(currentWriteCount2 > currentWriteCount1);
@@ -120,13 +208,13 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
 
-        currentWriteCount1 = testState.eventWriteCount.get();
-        currentReadCount1 = testState.eventReadCount.get();
+        currentWriteCount1 = testState.getEventWrittenCount();
+        currentReadCount1 = testState.getEventReadCount();
         log.info("Read count: {}, write count: {} after Segment Store  failover after sleep", currentReadCount1, currentWriteCount1);
         //ensure writes are happening
         assertTrue(currentWriteCount1 > currentWriteCount2);
@@ -134,13 +222,13 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount1 > currentReadCount2);
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
 
-        currentWriteCount2 = testState.eventWriteCount.get();
-        currentReadCount2 = testState.eventReadCount.get();
+        currentWriteCount2 = testState.getEventWrittenCount();
+        currentReadCount2 = testState.getEventReadCount();
         log.info("Read count: {}, write count: {} after controller failover after sleep", currentReadCount2, currentWriteCount2);
         //ensure writes are happening
         assertTrue(currentWriteCount2 > currentWriteCount1);
@@ -148,56 +236,56 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment  store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
-        currentWriteCount1 = testState.eventWriteCount.get();
-        currentReadCount1 = testState.eventReadCount.get();
+        currentWriteCount1 = testState.getEventWrittenCount();
+        currentReadCount1 = testState.getEventReadCount();
         log.info("Stop write flag status: {}, stop read flag status: {} ", testState.stopWriteFlag.get(), testState.stopReadFlag.get());
         log.info("Read count: {}, write count: {} with Segment Store  and controller failover after sleep", currentReadCount1, currentWriteCount1);
     }
 
-    void performFailoverForTestsInvolvingTxns() {
+    void performFailoverForTestsInvolvingTxns() throws ExecutionException {
 
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
         log.info("Read count: {}, write count: {} without any failover",
-                testState.eventReadCount.get(), testState.eventWriteCount.get());
+                testState.getEventReadCount(), testState.getEventWrittenCount());
 
         //check reads and writes after sleeps
         log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Read count: {}, write count: {} without any failover after sleep before scaling",
-                testState.eventReadCount.get(),  testState.eventWriteCount.get());
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
         log.info("Read count: {}, write count: {} after Segment Store  failover after sleep",
-                testState.eventReadCount.get(),  testState.eventWriteCount.get());
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
         log.info("Read count: {}, write count: {} after controller failover after sleep",
-                testState.eventReadCount.get(),  testState.eventWriteCount.get());
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
 
         //Scale down segment store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
         log.info("Stop write flag status: {}, stop read flag status: {} ",
                 testState.stopWriteFlag.get(), testState.stopReadFlag.get());
         log.info("Read count: {}, write count: {} with Segment Store  and controller failover after sleep",
-                testState.eventReadCount.get(),  testState.eventWriteCount.get());
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
     }
 
 
@@ -206,13 +294,13 @@ abstract class AbstractFailoverTests {
         return CompletableFuture.runAsync(() -> {
             while (!testState.stopWriteFlag.get()) {
                 try {
-                    long value = testState.eventData.incrementAndGet();
+                    long value = testState.getNext();
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
                     writer.flush();
-                    testState.eventWriteCount.getAndIncrement();
+                    testState.eventWritten(value);
                     log.debug("Writing event {}", value);
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
@@ -253,10 +341,12 @@ abstract class AbstractFailoverTests {
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
+                    List<Long> eventsInTxn = new ArrayList<>(NUM_EVENTS_PER_TRANSACTION);
                     transaction = writer.beginTxn();
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
-                        long value = testState.eventData.incrementAndGet();
+                        long value = testState.getNext();
+                        eventsInTxn.add(value);
                         transaction.writeEvent(String.valueOf(value), value);
                         log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
                     }
@@ -265,7 +355,7 @@ abstract class AbstractFailoverTests {
                     txnIsDone.set(true);
 
                     //wait for transaction to get committed
-                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
+                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, eventsInTxn));
                 } catch (Throwable e) {
                     // Given that we have retry logic both in the interaction with controller and
                     // segment store, we should fail the test case in the presence of any exception
@@ -283,17 +373,19 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
-                                                   final AtomicLong eventWriteCount) {
-
+    private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
+                                                   final List<Long> eventsWritten) {
+        testState.committingTxn.add(txn.getTxnId());
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
             Transaction.Status status = txn.checkStatus();
             log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
-                eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
-                log.info("Event write count: {}", eventWriteCount.get());
+                testState.eventsWritten(eventsWritten);
+                testState.committingTxn.remove(txn.getTxnId());
+                log.info("Event write count: {}", testState.getEventWrittenCount());
             } else if (status.equals(Transaction.Status.ABORTED)) {
                 log.debug("Transaction with id: {} aborted", txn.getTxnId());
+                testState.abortedTxn.add(txn.getTxnId());
             } else {
                 throw new TxnNotCompleteException();
             }
@@ -305,8 +397,8 @@ abstract class AbstractFailoverTests {
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
-                    testState.eventReadCount.get(), testState.eventWriteCount.get());
-            while (!(testState.stopReadFlag.get() && testState.eventReadCount.get() == testState.eventWriteCount.get())) {
+                    testState.getEventReadCount(), testState.getEventWrittenCount());
+            while (!(testState.stopReadFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -314,9 +406,8 @@ abstract class AbstractFailoverTests {
                     log.debug("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
-                        testState.eventsReadFromPravega.add(longEvent);
-                        testState.eventReadCount.incrementAndGet();
-                        log.debug("Event read count {}", testState.eventReadCount.get());
+                        testState.eventRead(longEvent);
+                        log.debug("Event read count {}", testState.getEventReadCount());
                     } else {
                         log.debug("Read timeout");
                     }
@@ -341,7 +432,8 @@ abstract class AbstractFailoverTests {
     }
 
     void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
+        CompletableFuture<Boolean> sealStreamStatus = Retry.indefinitelyWithExpBackoff("Failed to seal stream. retrying ...")
+                .runAsync(() -> controller.sealStream(scope, stream), executorService);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
@@ -374,7 +466,7 @@ abstract class AbstractFailoverTests {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer{}", i);
 
-                if (!testState.txnWrite.get()) {
+                if (!testState.txnWrite) {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
@@ -449,7 +541,7 @@ abstract class AbstractFailoverTests {
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer{}", i);
-                if (!testState.txnWrite.get()) {
+                if (!testState.txnWrite) {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
@@ -513,34 +605,29 @@ abstract class AbstractFailoverTests {
 
     void validateResults() {
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
-                "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
-        assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
-        assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
+                "Count: {}", testState.getEventWrittenCount(), testState.getEventReadCount());
+        assertEquals(testState.getEventWrittenCount(), testState.getEventReadCount());
     }
 
-    void waitForScaling(String scope, String stream) {
+    void waitForScaling(String scope, String stream, StreamConfiguration initialConfig) {
+        int initialMaxSegmentNumber = initialConfig.getScalingPolicy().getMinNumSegments() - 1;
+        boolean scaled = false;
         for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
             StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
-            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
-            if (testState.currentNumOfSegments.get() == 2) {
-                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
-                //Scaling operation did not happen, wait
-                Exceptions.handleInterrupted(() -> Thread.sleep(10000));
-            }
-            if (testState.currentNumOfSegments.get() > 2) {
-                //scale operation successful.
-                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+            if (streamSegments.getSegments().stream().mapToInt(Segment::getSegmentNumber).max().orElse(-1) > initialMaxSegmentNumber) {
+                scaled = true;
                 break;
             }
+            //Scaling operation did not happen, wait
+            Exceptions.handleInterrupted(() -> Thread.sleep(10000));
         }
-        if (testState.currentNumOfSegments.get() == 2) {
-            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
-        }
+
+        assertTrue("Scaling did not happen within desired time", scaled);
     }
 
 
     static URI startZookeeperInstance() {
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -549,8 +636,8 @@ abstract class AbstractFailoverTests {
         return zkUris.get(0);
     }
 
-    static void startBookkeeperInstances(final URI zkUri) {
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+    static void startBookkeeperInstances(final URI zkUri) throws ExecutionException {
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -558,32 +645,35 @@ abstract class AbstractFailoverTests {
         log.debug("Bookkeeper service details: {}", bkUris);
     }
 
-    static URI startPravegaControllerInstances(final URI zkUri) {
-        Service controllerService = new PravegaControllerService("controller", zkUri);
+    static URI startPravegaControllerInstances(final URI zkUri) throws ExecutionException {
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        controllerService.scaleService(3, true);
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
+
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;
     }
 
-    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) {
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
+    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) throws ExecutionException {
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
-        segService.scaleService(3, true);
+        Futures.getAndHandleExceptions(segService.scaleService(3), ExecutionException::new);
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
     }
-    
+
     static class TxnNotCompleteException extends RuntimeException {
     }
 

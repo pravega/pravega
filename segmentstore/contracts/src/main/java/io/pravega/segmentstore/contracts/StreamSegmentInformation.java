@@ -69,7 +69,7 @@ public class StreamSegmentInformation implements SegmentProperties {
     }
 
     /**
-     * Creates a new StreamSegmentInformationBuilder with information already populated from the given SegmentpProperties.
+     * Creates a new StreamSegmentInformationBuilder with information already populated from the given SegmentProperties.
      *
      * @param base The SegmentProperties to use as a base.
      * @return The Builder.

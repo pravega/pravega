@@ -284,6 +284,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 Futures.await(Services.stopAsync(this, executorService()));
@@ -376,7 +381,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+        public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
             return null;
         }
 

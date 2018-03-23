@@ -9,17 +9,16 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.common.util.Property;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
+import io.pravega.common.util.Property;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.shared.metrics.MetricsConfig;
 import java.util.Map;
 import java.util.Set;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -53,6 +52,13 @@ public final class Config {
     public static final boolean HOST_MONITOR_ENABLED = CONFIG.getBoolean("config.controller.server.hostMonitorEnabled");
     public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
+    private static final boolean AUTHORIZATION_ENABLED = CONFIG.getBoolean("config.controller.server.authorizationEnabled");
+    private static final String USER_PASSWORD_FILE = CONFIG.getString("config.controller.server.userPasswordFile");
+    private static final boolean TLS_ENABLED = CONFIG.getBoolean("config.controller.server.tlsEnabled");
+    private static final String TLS_KEY_FILE = CONFIG.getString("config.controller.server.tlsKeyFile");
+    private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
+    private static final String TLS_TRUST_STORE = CONFIG.getString("config.controller.server.tlsTrustStore");
+    private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -71,8 +77,14 @@ public final class Config {
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
 
     //Transaction configuration
+    public static final long MIN_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.minLeaseValue");
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
     public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
+
+    // Retention Configuration
+    public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
+    public static final int BUCKET_COUNT = CONFIG.getInt("config.controller.server.retention.bucketCount");
+    public static final int RETENTION_THREAD_POOL_SIZE = CONFIG.getInt("config.controller.server.retention.threadCount");
 
     // Request Stream Configuration
     public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
@@ -95,6 +107,13 @@ public final class Config {
                 .port(Config.RPC_SERVER_PORT)
                 .publishedRPCHost(publishHost)
                 .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
+                .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
+                .userPasswordFile(Config.USER_PASSWORD_FILE)
+                .tlsEnabled(Config.TLS_ENABLED)
+                .tlsCertFile(Config.TLS_CERT_FILE)
+                .tlsTrustStore(Config.TLS_TRUST_STORE)
+                .tlsKeyFile(Config.TLS_KEY_FILE)
+                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                 .build();
     }
 

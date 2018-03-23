@@ -131,8 +131,6 @@ public class ByteArraySegmentTests {
 
     /**
      * Tests the functionality of getReader (the ability to return an InputStream from a sub-segment of the main buffer).
-     *
-     * @throws IOException
      */
     @Test
     public void testGetReader() throws IOException {
@@ -155,8 +153,6 @@ public class ByteArraySegmentTests {
 
     /**
      * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
-     *
-     * @throws IOException
      */
     @Test
     public void testGetWriter() throws IOException {
@@ -207,8 +203,6 @@ public class ByteArraySegmentTests {
 
     /**
      * Tests the behavior of the ByteArraySegment in read-only mode.
-     *
-     * @throws Exception
      */
     @Test
     public void testReadOnly() throws Exception {

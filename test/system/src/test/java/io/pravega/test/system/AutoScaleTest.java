@@ -25,11 +25,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -48,7 +45,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -74,7 +70,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     public static void setup() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -84,7 +80,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -93,7 +89,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -102,7 +98,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -120,14 +116,14 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         //create a scope
         Controller controller = getController();
 
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
         log.debug("create scope status {}", createScopeStatus);
-        
+
         //create a stream
         Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
@@ -152,7 +148,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     }
 
     @Test (timeout = 300000) // 5 minutes
-    public void scaleTests() throws URISyntaxException, InterruptedException {
+    public void scaleTests() {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
@@ -173,8 +169,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTest() {
 
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
@@ -213,7 +208,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest() {
 
         final ControllerImpl controller = getController();
 
@@ -245,8 +240,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTxnTest() {
 
         ControllerImpl controller = getController();
 

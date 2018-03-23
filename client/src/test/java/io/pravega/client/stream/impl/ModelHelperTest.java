@@ -10,21 +10,19 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.client.stream.RetentionPolicy;
-
-import java.util.Arrays;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -86,7 +84,7 @@ public class ModelHelperTest {
     @Test
     public void decodeScalingPolicy() {
         Controller.ScalingPolicy policy = ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3));
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -100,7 +98,7 @@ public class ModelHelperTest {
     @Test
     public void encodeScalingPolicy() {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3)));
-        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
+        assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -109,12 +107,12 @@ public class ModelHelperTest {
     @Test
     public void encodeRetentionPolicy() {
         RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L)));
-        assertEquals(RetentionPolicy.Type.SIZE, policy1.getType());
-        assertEquals(1000L, (long) policy1.getValue());
+        assertEquals(RetentionPolicy.RetentionType.SIZE, policy1.getRetentionType());
+        assertEquals(1000L, (long) policy1.getRetentionParam());
 
         RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
-        assertEquals(RetentionPolicy.Type.TIME, policy2.getType());
-        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getValue());
+        assertEquals(RetentionPolicy.RetentionType.TIME, policy2.getRetentionType());
+        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionParam());
 
         RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
         assertNull(policy3);
@@ -123,12 +121,12 @@ public class ModelHelperTest {
     @Test
     public void decodeRetentionPolicy() {
         Controller.RetentionPolicy policy1 = ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L));
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.SIZE, policy1.getType());
-        assertEquals(1000L, policy1.getValue());
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.SIZE, policy1.getRetentionType());
+        assertEquals(1000L, policy1.getRetentionParam());
 
         Controller.RetentionPolicy policy2 = ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L)));
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, policy2.getType());
-        assertEquals(Duration.ofDays(100L).toMillis(), policy2.getValue());
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, policy2.getRetentionType());
+        assertEquals(Duration.ofDays(100L).toMillis(), policy2.getRetentionParam());
 
         Controller.RetentionPolicy policy3 = ModelHelper.decode((RetentionPolicy) null);
         assertNull(policy3);
@@ -149,13 +147,13 @@ public class ModelHelperTest {
                 .build());
         assertEquals("test", config.getStreamInfo().getStream());
         Controller.ScalingPolicy policy = config.getScalingPolicy();
-        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
+        assertEquals(Controller.ScalingPolicy.ScalingPolicyType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
         Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
-        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getType());
-        assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getValue());
+        assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
+        assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
     }
 
     @Test(expected = NullPointerException.class)
@@ -173,13 +171,13 @@ public class ModelHelperTest {
           .build()));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
-        assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, policy.getType());
+        assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
-        assertEquals(RetentionPolicy.Type.SIZE, retentionPolicy.getType());
-        assertEquals(1000L, (long) retentionPolicy.getValue());
+        assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
+        assertEquals(1000L, (long) retentionPolicy.getRetentionParam());
     }
 
     @Test
@@ -189,7 +187,7 @@ public class ModelHelperTest {
         Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
         inputMap.put(segmentRange, Arrays.asList(1));
 
-        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap);
+        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());
         final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
         assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());

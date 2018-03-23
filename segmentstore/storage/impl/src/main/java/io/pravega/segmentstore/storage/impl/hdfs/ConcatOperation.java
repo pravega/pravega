@@ -56,7 +56,7 @@ public class ConcatOperation extends FileSystemOperation<HDFSSegmentHandle> impl
         // Get all files for source handle (ignore handle contents and refresh from file system). Verify it is sealed.
         val sourceFiles = findAll(this.sourceSegmentName, true);
         Preconditions.checkState(isSealed(sourceFiles.get(sourceFiles.size() - 1)),
-                "Cannot concat segment '%s' into '%s' because it is not sealed.", this.sourceSegmentName);
+                "Cannot concat segment '%s' into '%s' because it is not sealed.", this.sourceSegmentName, this.target.getSegmentName());
 
         if (sourceFiles.get(sourceFiles.size() - 1).getLastOffset() == 0) {
             // Quick bail-out: source segment is empty, simply delete it.

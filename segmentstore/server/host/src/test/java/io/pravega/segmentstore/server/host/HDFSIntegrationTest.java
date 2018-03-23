@@ -13,7 +13,6 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
-import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSClusterHelpers;
@@ -36,6 +35,7 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
 
     private static final int BOOKIE_COUNT = 1;
     private File baseDir = null;
+    private File rocksDBDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private BookKeeperRunner bookkeeper = null;
 
@@ -48,12 +48,15 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
        bookkeeper.initialize();
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
+        this.rocksDBDir = Files.createTempDirectory("rocksdb").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
 
         this.configBuilder.include(HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
-                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort())));
+                .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort())))
+                          .include(RocksDBConfig.builder()
+                                                .with(RocksDBConfig.DATABASE_DIR, rocksDBDir.toString()));
     }
 
     /**
@@ -70,6 +73,17 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
         }
+
+        if (baseDir != null) {
+            FileHelpers.deleteFileOrDirectory(this.baseDir);
+        }
+
+        if (baseDir != null) {
+            FileHelpers.deleteFileOrDirectory(this.rocksDBDir);
+        }
+
+        this.baseDir = null;
+        this.rocksDBDir = null;
     }
 
     //endregion
@@ -81,11 +95,8 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> {
-                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
-                    return new ListenableStorageFactory(f);
-                })
-                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
+                .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
 
     //endregion

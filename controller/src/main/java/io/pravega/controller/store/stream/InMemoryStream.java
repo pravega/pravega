@@ -52,6 +52,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> historyTable;
     @GuardedBy("lock")
     private Data<Integer> indexTable;
+    @GuardedBy("lock")
+    private Data<Integer> retentionSet;
+    @GuardedBy("lock")
+    private Data<Integer> sealedSegments;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -650,6 +654,95 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> checkScopeExists() throws StoreException {
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createRetentionSet(byte[] retention) {
+        Preconditions.checkNotNull(retention);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            this.retentionSet = new Data<>(retention, 0);
+            result.complete(null);
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getRetentionSet() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.retentionSet == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+            } else {
+                result.complete(copy(retentionSet));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> updateRetentionSet(Data<Integer> retention) {
+        Preconditions.checkNotNull(retention);
+        Preconditions.checkNotNull(retention.getData());
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        synchronized (lock) {
+            if (retentionSet == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "retentionSet for stream: " + getName()));
+            } else if (retentionSet.getVersion().equals(retention.getVersion())) {
+                retentionSet = new Data<>(Arrays.copyOf(retention.getData(), retention.getData().length), retention.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
+                        "retentionSet for stream: " + getName()));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentRecord) {
+        Preconditions.checkNotNull(sealedSegmentRecord);
+
+        synchronized (lock) {
+            this.sealedSegments = new Data<>(sealedSegmentRecord, 0);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getSealedSegmentsRecord() {
+        synchronized (lock) {
+            if (this.sealedSegments == null) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+            } else {
+                return CompletableFuture.completedFuture(copy(sealedSegments));
+            }
+        }
+    }
+
+    @Override
+    CompletableFuture<Void> updateSealedSegmentsRecord(Data<Integer> sealedSegments) {
+        Preconditions.checkNotNull(sealedSegments);
+        Preconditions.checkNotNull(sealedSegments.getData());
+
+        synchronized (lock) {
+            if (this.sealedSegments == null) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "sealedSegments for stream: " + getName()));
+            } else if (this.sealedSegments.getVersion().equals(sealedSegments.getVersion())) {
+                this.sealedSegments = new Data<>(Arrays.copyOf(sealedSegments.getData(), sealedSegments.getData().length),
+                        sealedSegments.getVersion() + 1);
+                return CompletableFuture.completedFuture(null);
+            } else {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT,
+                        "sealedSegments for stream: " + getName()));
+            }
+        }
     }
 
     private Data<Integer> copy(Data<Integer> input) {

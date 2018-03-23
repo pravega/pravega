@@ -9,10 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-
-import java.io.DataInputStream;
-
 /**
  * Log Operation that deals with Storage Operations. This is generally the direct result of an external operation.
  */
@@ -35,8 +31,10 @@ public abstract class StorageOperation extends Operation implements SegmentOpera
         setStreamSegmentId(streamSegmentId);
     }
 
-    protected StorageOperation(OperationHeader header, DataInputStream source) throws SerializationException {
-        super(header, source);
+    /**
+     * Deserialization constructor.
+     */
+    protected StorageOperation() {
     }
 
     //endregion

@@ -14,6 +14,7 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -24,6 +25,7 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -59,7 +61,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -134,7 +135,7 @@ public class ReadTest {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000));
+        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000, ""));
 
         assertEquals(result.getSegment(), segmentName);
         assertEquals(result.getOffset(), 0);
@@ -150,7 +151,7 @@ public class ReadTest {
     }
 
     @Test
-    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
+    public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
@@ -160,7 +161,7 @@ public class ReadTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
@@ -173,7 +174,7 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
@@ -181,6 +182,14 @@ public class ReadTest {
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
+
+        // Test large write followed by read
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 150000);
     }
 
     @Test
@@ -254,7 +263,7 @@ public class ReadTest {
 
             for (int i = 0; i < 100; i++) {
                 pointer = reader.readNextEvent(5000).getEventPointer();
-                read = reader.read(pointer);
+                read = reader.fetchEvent(pointer);
                 assertEquals(testString + i, read);
             }
         } catch (NoSuchEventException e) {

@@ -18,7 +18,7 @@ public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
      * Returns info for the current segment.
-     * 
+     *
      * @return Metadata about the segment.
      */
     abstract SegmentInfo getSegmentInfo();
@@ -46,6 +46,15 @@ public interface SegmentMetadataClient extends AutoCloseable {
      * @return If the replacement occurred. (False if the attribute was not expectedValue)
      */
     abstract boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue);
+    
+    /**
+     * Deletes all data before the offset of the provided segment.
+     * This data will no longer be readable. Existing offsets are not affected by this operations. 
+     * The new startingOffset will be reflected in {@link SegmentMetadataClient#getSegmentInfo(String).startingOffset}.
+     * @param segment The segment to truncate.
+     * @param offset The offset the segment should be truncated at.
+     */
+    abstract void truncateSegment(Segment segment, long offset);
     
     @Override
     abstract void close();

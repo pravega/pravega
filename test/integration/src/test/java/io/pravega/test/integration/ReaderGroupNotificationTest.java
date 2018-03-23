@@ -9,25 +9,7 @@
  */
 package io.pravega.test.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -58,8 +40,26 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ReaderGroupNotificationTest {
@@ -129,7 +129,9 @@ public class ReaderGroupNotificationTest {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
@@ -189,7 +191,9 @@ public class ReaderGroupNotificationTest {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup

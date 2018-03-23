@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -17,8 +18,8 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -89,9 +90,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory);
+                executorService, "host", connectionFactory,  false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
@@ -103,7 +104,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
@@ -115,7 +116,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller);
+        controllerService = new ControllerServiceImpl(controller, "", false);
     }
 
     @Override
@@ -141,15 +142,15 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void createTransactionSuccessTest() {
         int segmentsCount = 4;
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
-        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000);
+        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000, 10000);
         assertEquals(segmentsCount, response.getActiveSegmentsCount());
     }
 
     @Test
     public void transactionTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
-        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
-        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
+        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000).getTxnId();
+        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000).getTxnId();
 
         // Abort first txn.
         Controller.TxnStatus status = closeTransaction(SCOPE1, STREAM1, txnId1, true);
@@ -181,12 +182,11 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     }
 
     private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease,
-                                                           final long maxExecutionTime, final long scaleGracePeriod) {
+                                                           final long scaleGracePeriod) {
         Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
         Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(lease)
-                .setMaxExecutionTime(maxExecutionTime)
                 .setScaleGracePeriod(scaleGracePeriod).build();
         ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);

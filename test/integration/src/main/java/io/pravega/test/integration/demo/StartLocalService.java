@@ -18,7 +18,7 @@ import lombok.Cleanup;
 
 public class StartLocalService {
     
-    static final int PORT = 9090;
+    static final int SERVICE_PORT = 6000;
     static final String SCOPE = "Scope";
     static final String STREAM_NAME = "Foo";
 
@@ -28,11 +28,11 @@ public class StartLocalService {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.SERVICE_PORT, store);
         server.startListening();
         
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.PORT);
+        MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.SERVICE_PORT);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, null);
         

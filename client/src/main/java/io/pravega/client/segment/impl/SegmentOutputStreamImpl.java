@@ -17,6 +17,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -26,6 +27,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -78,13 +80,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
-    private final Object connectionEstablishmentLock = new Object();
     private final Object writeOrderLock = new Object();
-    
+    private final String delegationToken;
+
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
      * No calls to external classes occur. No network calls occur via any methods in this object.
+     * Note: In a failure scenario SegmentOutputStreamImpl.State#failConnection can be invoked before
+     * SegmentOutputStreamImpl.State#newConnection is invoked as we do not want connection setup and teardown to occur
+     * within the scope of the lock.
      */
     @ToString(of = {"closed", "exception", "eventNumber"})
     private final class State {
@@ -124,7 +129,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private void connectionSetupComplete() {
+        private void connectionSetupComplete(ClientConnection connection) {
             CompletableFuture<Void> toComplete;
             synchronized (lock) {
                 toComplete = connectionSetupCompleted;
@@ -359,13 +364,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                                                   .getData()),
                                                                       entry.getValue().getExpectedOffset()))
                                              .collect(Collectors.toList());
+            ClientConnection connection = state.getConnection();
+            if (connection == null) {
+                log.warn("Connection setup could not be completed because connection is already failed.", writerId);
+                return;
+            }
             if (toRetransmit == null || toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
-                state.connectionSetupComplete();
+                state.connectionSetupComplete(connection);
             } else {
-                state.getConnection().sendAsync(toRetransmit, e -> {
+                connection.sendAsync(toRetransmit, e -> {
                     if (e == null) {
-                        state.connectionSetupComplete();
+                        state.connectionSetupComplete(connection);
                     } else {
                         failConnection(e);
                     }
@@ -405,6 +415,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void processingFailure(Exception error) {
             failConnection(error);
         }
+
+        @Override
+        public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+            log.warn("Auth failed {}", authTokenCheckFailed);
+            failConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+        }
     }
 
     /**
@@ -413,7 +429,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void write(PendingEvent event) {
-        checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
+        checkState(!state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
         synchronized (writeOrderLock) {
             ClientConnection connection;
             try {
@@ -522,10 +538,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName, delegationToken);
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {
+                             // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
+                             state.failConnection(e1);
                              throw Lombok.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {
