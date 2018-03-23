@@ -104,8 +104,8 @@ public class ReaderGroupStateManager {
     }
 
     static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
-                                      ReaderGroupConfig config, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
+                                      ReaderGroupConfig config, Map<Segment, Long> segments, Map<Segment, Long> endSegments) {
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, endSegments));
     }
 
     /**

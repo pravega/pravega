@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
- * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
+ * Manages buffering and provides a synchronous to {@link AsyncSegmentInputStream}
  * 
  * @see SegmentInputStream
  */

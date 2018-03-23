@@ -84,8 +84,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void initializeGroup(ReaderGroupConfig config) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        Map<Segment, Long> segments = getSegmentsForStreams(config);
-        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
+        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, getSegmentsForStreams(config), getEndSegmentsForStreams(config));
     }
 
     private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
@@ -103,6 +102,21 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                              .flatMap(map -> map.entrySet().stream())
                              .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
         }), InvalidStreamException::new);
+    }
+
+    private Map<Segment, Long> getEndSegmentsForStreams(ReaderGroupConfig config) {
+        Map<Stream, StreamCut> streamToEndStreamCuts = config.getEndingStreamCuts();
+
+        //TODO: optimize this code.
+        List<Map<Segment, Long>> listOfMaps = streamToEndStreamCuts.entrySet().stream()
+                                                          .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
+                                                          .map(e -> e.getValue().asImpl().getPositions())
+                                                          .collect(Collectors.toList());
+
+        Map<Segment, Long> r4 = listOfMaps.stream()
+                                          .flatMap(map -> map.entrySet().stream())
+                                          .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        return Collections.unmodifiableMap(r4);
     }
 
     @Override
@@ -175,7 +189,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
                 positions.putAll(cut.asImpl().getPositions());
             }
-            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
+            return Collections.singletonList(new ReaderGroupStateInit(config, positions, getEndSegmentsForStreams(config)));
         });
     }
 
@@ -184,7 +198,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
+        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     @Override
