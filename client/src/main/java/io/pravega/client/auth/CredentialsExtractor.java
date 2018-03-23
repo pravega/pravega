@@ -12,12 +12,11 @@ package io.pravega.client.auth;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Credentials;
-import net.jcip.annotations.GuardedBy;
-
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Helper class to extract credentials.
