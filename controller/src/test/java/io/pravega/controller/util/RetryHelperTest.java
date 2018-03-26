@@ -107,14 +107,14 @@ public class RetryHelperTest {
         AtomicInteger loopCounter = new AtomicInteger();
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
-        AtomicLong previous = new AtomicLong(System.currentTimeMillis());
+        AtomicLong previous = new AtomicLong(System.nanoTime());
         AtomicBoolean loopDelayHonored = new AtomicBoolean(true);
 
         long oneSecond = Duration.ofSeconds(1).toMillis();
         RetryHelper.loopWithDelay(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> {
-                    loopDelayHonored.compareAndSet(true, System.currentTimeMillis() - previous.get() > oneSecond);
+                    loopDelayHonored.compareAndSet(true, System.nanoTime() - previous.get() >= oneSecond);
                     return CompletableFuture.completedFuture(null);
                 },
                 oneSecond,
