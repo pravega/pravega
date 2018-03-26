@@ -457,7 +457,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             boolean runOnlyIfStarted) {
-        return getHistoryTable()
+        return verifyNotSealed()
+                .thenCompose(v -> getHistoryTable()
                 .thenCompose(historyTable -> getSegmentTable().thenApply(segmentTable -> new ImmutablePair<>(historyTable, segmentTable)))
                 .thenCompose(pair -> {
                     final Data<T> segmentTable = pair.getRight();
@@ -502,7 +503,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         epochStartSegmentpair.getRight() + newRanges.size())
                         .boxed()
                         .collect(Collectors.toList()))
-                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments)));
+                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments))));
     }
 
     private CompletableFuture<ImmutablePair<Integer, Integer>> scaleCreateNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
@@ -963,6 +964,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private CompletableFuture<Void> verifyLegalState() {
         return getState(false).thenApply(state -> {
             if (state == null || state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "Stream: " + getName() + " State: " + state.name());
+            }
+            return null;
+        });
+    }
+
+    private CompletableFuture<Void> verifyNotSealed() {
+        return getState(false).thenApply(state -> {
+            if (state.equals(State.SEALING) || state.equals(State.SEALED)) {
                 throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
                         "Stream: " + getName() + " State: " + state.name());
             }
