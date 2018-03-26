@@ -49,7 +49,9 @@ public class ClientConfig {
 
     @Builder
     public ClientConfig(URI controllerURI, Credentials credentials, String trustStore, boolean validateHostName) {
-        this.controllerURI = controllerURI;
+        if (controllerURI != null) {
+            this.controllerURI = controllerURI;
+        }
         this.credentials = credentials;
         this.trustStore = trustStore;
         this.validateHostName = validateHostName;
