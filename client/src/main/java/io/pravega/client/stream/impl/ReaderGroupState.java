@@ -20,6 +20,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -79,7 +80,7 @@ public class ReaderGroupState implements Revisioned {
         this.futureSegments = new HashMap<>();
         this.assignedSegments = new HashMap<>();
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
-        this.endSegments = endSegments;
+        this.endSegments = Collections.unmodifiableMap(endSegments);
     }
     
     /**
@@ -177,6 +178,10 @@ public class ReaderGroupState implements Revisioned {
     @Synchronized
     Map<Segment, Long> getUnassignedSegments() {
         return new HashMap<>(unassignedSegments);
+    }
+
+    Map<Segment, Long> getEndSegments() {
+        return Collections.unmodifiableMap(new HashMap<>(endSegments));
     }
 
     @Synchronized

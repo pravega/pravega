@@ -105,18 +105,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     private Map<Segment, Long> getEndSegmentsForStreams(ReaderGroupConfig config) {
-        Map<Stream, StreamCut> streamToEndStreamCuts = config.getEndingStreamCuts();
 
-        //TODO: optimize this code.
-        List<Map<Segment, Long>> listOfMaps = streamToEndStreamCuts.entrySet().stream()
+        final List<Map<Segment, Long>> listOfMaps = config.getEndingStreamCuts().entrySet().stream()
                                                           .filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
                                                           .map(e -> e.getValue().asImpl().getPositions())
                                                           .collect(Collectors.toList());
 
-        Map<Segment, Long> r4 = listOfMaps.stream()
-                                          .flatMap(map -> map.entrySet().stream())
-                                          .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-        return Collections.unmodifiableMap(r4);
+        return listOfMaps.stream()
+                                                     .flatMap(map -> map.entrySet().stream())
+                                                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     @Override

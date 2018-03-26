@@ -191,6 +191,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
                 SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
                 in.setOffset(newSegment.getValue());
+                groupState.getEndOffsetForSegment(newSegment.getKey()).ifPresent(endOffset -> in.setEndOffset(endOffset));
                 readers.add(in);
             }
         }
@@ -260,6 +261,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         pointer.asImpl().getEventLength());
         inputStream.setOffset(pointer.asImpl().getEventStartOffset());
+        groupState.getEndOffsetForSegment(pointer.asImpl().getSegment()).ifPresent(endOffset -> inputStream.setEndOffset(endOffset));
         // Read event
         try {
             ByteBuffer buffer = inputStream.read();

@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -225,6 +226,15 @@ public class ReaderGroupStateManager {
                        .max((s1, s2) -> Double.compare(hashHelper.hashToRange(s1.getScopedName()),
                                                        hashHelper.hashToRange(s2.getScopedName())))
                        .orElse(null);
+    }
+
+    /**
+     * TODO:
+     * @param s
+     * @return
+     */
+    Optional<Long> getEndOffsetForSegment(Segment s) {
+        return Optional.ofNullable(sync.getState().getEndSegments().get(s));
     }
 
     /**

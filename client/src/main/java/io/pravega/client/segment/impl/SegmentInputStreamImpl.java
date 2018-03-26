@@ -46,6 +46,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private long offset;
     @GuardedBy("$lock")
+    private long endOffset = Long.MAX_VALUE;
+    @GuardedBy("$lock")
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
     private boolean receivedTruncated = false;
@@ -95,6 +97,25 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public long getOffset() {
         return offset;
+    }
+
+    @Override
+    @Synchronized
+    public void setEndOffset(long endOffset) {
+        log.trace("EndOffset {}", endOffset);
+        Preconditions.checkArgument(endOffset >= 0, "End Read Offset of Segment should not be negative");
+        Preconditions.checkArgument(endOffset > this.endOffset,
+                " End Read offset of Segment should be greater than startOffset");
+        this.endOffset = endOffset;
+        //TODO: do we need to manage end offset?
+    }
+
+
+    @Override
+    @Synchronized
+    public long getEndOffset() {
+        //TODO: in progress
+        return endOffset;
     }
 
     /**

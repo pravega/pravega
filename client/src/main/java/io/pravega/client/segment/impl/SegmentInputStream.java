@@ -38,8 +38,10 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return The current offset.
      */
     public abstract long getOffset();
-    
 
+    void setEndOffset(long offset);
+
+    long getEndOffset();
     
     /**
      * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent

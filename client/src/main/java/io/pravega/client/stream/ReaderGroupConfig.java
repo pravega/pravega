@@ -10,6 +10,7 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -160,6 +161,11 @@ public class ReaderGroupConfig implements Serializable {
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
                    "Stream names that the reader group can read from cannot be empty");
+
+           //endStreamCuts is an optional configuration. Initialize if it is null.
+           if ( endingStreamCuts == null) {
+               endingStreamCuts = Collections.emptyMap();
+           }
 
            startingStreamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
