@@ -47,6 +47,10 @@ import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
+import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
@@ -144,6 +148,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
             .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+            .build();
+
+    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
+            .builder()
+            .with(AttributeIndexConfig.MAX_ATTRIBUTE_COUNT, 1000)
+            .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
+            .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, 1000)
+            .with(AttributeIndexConfig.READ_BLOCK_SIZE, 1000)
             .build();
 
     private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
@@ -896,7 +908,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, executorService());
         @Cleanup
         MetadataCleanupContainer localContainer = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
-                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
         localContainer.startAsync().awaitRunning();
 
         // Create segment with initial attributes and verify they were set correctly.
@@ -976,7 +988,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         SegmentProperties originalInfo;
         try (val container1 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
-                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService())) {
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService())) {
             container1.startAsync().awaitRunning();
 
             // Create segment and make one append to it.
@@ -995,7 +1007,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Restart container and verify it started successfully.
         @Cleanup
         val container2 = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
-                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
         container2.startAsync().awaitRunning();
         val recoveredInfo = container2.getStreamSegmentInfo(segmentName, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected length from recovered segment.", originalInfo.getLength(), recoveredInfo.getLength());
@@ -1029,7 +1041,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory, executorService());
         @Cleanup
         MetadataCleanupContainer localContainer = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
-                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
         localContainer.startAsync().awaitRunning();
 
         // Create 4 segments and one transaction.
@@ -1136,7 +1148,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicReference<OperationLog> log = new AtomicReference<>();
         val watchableDurableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, log::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
-                context.readIndexFactory, failedWriterFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, failedWriterFactory, context.storageFactory, executorService());
         val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
         container.startAsync();
 
@@ -1170,7 +1182,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
         val durableLogFactory = new WatchableOperationLogFactory(new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService()), durableLog::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, durableLogFactory,
-                context.readIndexFactory, context.writerFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
 
         // Write some data
         ArrayList<String> segmentNames = new ArrayList<>();
@@ -1590,6 +1602,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
+        private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
         private final CacheFactory cacheFactory;
         private final Storage storage;
@@ -1604,9 +1617,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, executorService());
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.writerFactory, this.storageFactory, executorService());
+                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
         }
@@ -1629,9 +1643,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ScheduledExecutorService executor;
 
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
-                                 ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory,
-                                 ScheduledExecutorService executor) {
-            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, writerFactory, storageFactory, executor);
+                                 ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
+                                 WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
+            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory, storageFactory, executor);
             this.executor = executor;
         }
 
@@ -1740,7 +1754,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static class FailedWriterFactory implements WriterFactory {
         @Override
-        public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Storage storage) {
+        public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
+                                   ContainerAttributeIndex attributeIndex, Storage storage) {
             return new FailedWriter();
         }
 

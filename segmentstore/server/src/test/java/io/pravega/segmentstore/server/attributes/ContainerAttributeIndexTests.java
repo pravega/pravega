@@ -54,7 +54,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the ContainerAttributeIndex and SegmentAttributeIndex classes.
+ * Unit tests for the ContainerAttributeIndex and SegmentAttributeIndex interfaces/classes.
  */
 public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 9999;
@@ -473,11 +473,13 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         sm.setStorageLength(0);
     }
 
+    //region TestContext
+
     private class TestContext implements AutoCloseable {
         final InMemoryStorage memoryStorage;
         final TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
-        final ContainerAttributeIndex index;
+        final ContainerAttributeIndexImpl index;
         final TestOperationLog operationLog;
 
         TestContext(AttributeIndexConfig config) {
@@ -486,7 +488,8 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
             this.storage = new TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
             this.operationLog = new TestOperationLog();
-            this.index = new ContainerAttributeIndex(this.containerMetadata, this.storage, this.operationLog, config, executorService());
+            val factory = new ContainerAttributeIndexFactoryImpl(config, executorService());
+            this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage, this.operationLog);
         }
 
         long lastSnapshotOffset(long segmentId) {
@@ -658,4 +661,6 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     interface ReadInterceptor {
         CompletableFuture<Void> apply(String streamSegmentName, long offset, SyncStorage wrappedStorage);
     }
+
+    //endregion
 }

@@ -21,6 +21,9 @@ import io.pravega.segmentstore.server.SegmentContainerManager;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
+import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.ReadOnlySegmentContainerFactory;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
@@ -62,6 +65,7 @@ public class ServiceBuilder implements AutoCloseable {
     private final ScheduledExecutorService storageExecutor;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
+    private final AtomicReference<AttributeIndexFactory> attributeIndexFactory;
     private final AtomicReference<DurableDataLogFactory> dataLogFactory;
     private final AtomicReference<StorageFactory> storageFactory;
     private final AtomicReference<SegmentContainerFactory> containerFactory;
@@ -90,6 +94,7 @@ public class ServiceBuilder implements AutoCloseable {
         this.segmentToContainerMapper = createSegmentToContainerMapper(serviceConfig);
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
+        this.attributeIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
         this.storageFactory = new AtomicReference<>();
         this.containerFactory = new AtomicReference<>();
@@ -244,17 +249,24 @@ public class ServiceBuilder implements AutoCloseable {
         return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.coreExecutor);
     }
 
+    protected AttributeIndexFactory createAttributeIndexFactory() {
+        AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
+        return new ContainerAttributeIndexFactoryImpl(config, this.coreExecutor);
+    }
+
     protected StorageFactory createStorageFactory() {
         return getSingleton(this.storageFactory, this.storageFactoryCreator);
     }
 
     protected SegmentContainerFactory createSegmentContainerFactory() {
         ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory);
+        AttributeIndexFactory attributeIndexFactory = getSingleton(this.attributeIndexFactory, this::createAttributeIndexFactory);
         StorageFactory storageFactory = createStorageFactory();
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
-        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, writerFactory, storageFactory, this.coreExecutor);
+        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
+                writerFactory, storageFactory, this.coreExecutor);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,6 +61,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, AppendData> appendData;
     @GuardedBy("lock")
+    private final HashMap<Long, Map<UUID, Long>> attributeData;
+    @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
     @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
@@ -79,6 +82,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
+    private ErrorInjector<Exception> persistAttributesErrorInjector;
+    @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
     @GuardedBy("lock")
     private Runnable onGetAppendData;
@@ -97,6 +102,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.appendData = new HashMap<>();
+        this.attributeData = new HashMap<>();
         this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
         this.waitFullyAcked = null;
@@ -227,6 +233,34 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                         callback.complete(null);
                     }
                 }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        ErrorInjector<Exception> asyncErrorInjector;
+        synchronized (this.lock) {
+            asyncErrorInjector = this.readAsyncErrorInjector;
+        }
+
+        return ErrorInjector
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
+                    synchronized (this.lock) {
+                        Map<UUID, Long> segmentAttributes = this.attributeData.get(streamSegmentId);
+                        if (segmentAttributes == null) {
+                            segmentAttributes = new HashMap<>();
+                            this.attributeData.put(streamSegmentId, segmentAttributes);
+                        }
+
+                        for (val e : attributes.entrySet()) {
+                            if (e.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                                segmentAttributes.remove(e.getValue());
+                            } else {
+                                segmentAttributes.put(e.getKey(), e.getValue());
+                            }
+                        }
+                    }
+                }));
     }
 
     @Override

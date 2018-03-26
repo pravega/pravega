@@ -15,6 +15,8 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -35,6 +37,18 @@ interface WriterDataSource {
      * failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout);
+
+    /**
+     * Instructs the Data Source to durably persist the given Attributes, which have been collected for recently flushed
+     * appends.
+     *
+     * @param streamSegmentId The Id of the StreamSegment to persist for.
+     * @param attributes      The Attributes to persist (Key=AttributeId, Value=Attribute Value).
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, this Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
 
     /**
      * Reads a number of entries from the Data Source.
