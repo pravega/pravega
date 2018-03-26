@@ -71,6 +71,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -79,6 +80,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import lombok.Data;
 import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
@@ -96,7 +99,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
 public class StreamMetadataTasksTest {
@@ -840,22 +845,50 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
-        VersionedTransactionData txn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, 100L, null)
+        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, 100L, null)
                 .get().getKey();
+
+        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, 100L, null)
+                .get().getKey();
+        // set transaction to committing
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
+
+        // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
+        Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
+        Map<UUID, ActiveTxnRecord> retVal = activeTxns.entrySet().stream()
+                .map(tx -> {
+                    if (!tx.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
+                        ActiveTxnRecord txRecord = tx.getValue();
+                        return new AbstractMap.SimpleEntry<>(tx.getKey(),
+                                new ActiveTxnRecord(txRecord.getTxCreationTimestamp(), txRecord.getLeaseExpiryTime(),
+                                        txRecord.getMaxExecutionExpiryTime(), txRecord.getScaleGracePeriod(), TxnStatus.OPEN));
+                    } else {
+                        return tx;
+                    }
+                }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
+                eq(SCOPE), eq(streamWithTxn), any(), any());
 
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, null);
         AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
 
+        reset(streamStorePartialMock);
+
         // verify that the txn status is set to aborting
-        VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, txn.getId(), null, executor).join();
+        VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
         assertEquals(requestEventWriter.getEventQueue().size(), 1);
 
-        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, 0, txn.getId(), null, executor).join();
+        txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
+        assertEquals(txnData.getStatus(), TxnStatus.COMMITTING);
 
-        Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
+        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, 0, openTxn.getId(), null, executor).join();
+        streamStorePartialMock.commitTransaction(SCOPE, streamWithTxn, 0, committingTxn.getId(), null, executor).join();
+
+        activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
