@@ -22,6 +22,7 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -140,62 +141,85 @@ class HDFSStorage implements SyncStorage {
         log.info("Initialized (HDFSHost = '{}', Epoch = {}).", this.config.getHdfsHostURL(), epoch);
     }
 
+    @Override
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
+        SegmentProperties result = null;
+        int attemptCount = 0;
+        do {
+            long length = 0;
+            boolean isSealed = false;
+            FileStatus last = null;
+            try {
+                last = findStatusForSegment(streamSegmentName, true);
+                isSealed = isSealed(last.getPath());
+            } catch (IOException fnf) {
+                // This can happen if we get a concurrent call to SealOperation with an empty last file; the last file will
+                // be deleted in that case so we need to try our luck again (in which case we need to refresh the file list).
+                if (++attemptCount < MAX_ATTEMPT_COUNT) {
+                    continue;
+                }
+                HDFSExceptionHelpers.throwException(streamSegmentName, fnf);
+            }
+
+            result = StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
+        } while (result == null);
+        LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
+        return result;
+    }
+
+    @Override
+    public boolean exists(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
+        FileStatus status;
+        try {
+            status = findStatusForSegment(streamSegmentName, false);
+        } catch (IOException e) {
+            return false;
+        }
+        boolean exists = status != null;
+        LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName, exists);
+        return exists;
+    }
+
+    private boolean isSealed(Path path) throws FileNameFormatException {
+        return getEpocFromPath(path) == MAX_EPOC;
+    }
+
     protected FileSystem openFileSystem(Configuration conf) throws IOException {
         return FileSystem.get(conf);
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
-        // Create the segment using our own epoch.
-        FileStatus[] existingFiles = null;
-        try {
-            existingFiles = findAllRaw(streamSegmentName);
-        } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
-        }
-        if (existingFiles != null && existingFiles.length > 0) {
-            // Segment already exists; don't bother with anything else.
-            HDFSExceptionHelpers.throwException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
+
+        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
+            throw new ArrayIndexOutOfBoundsException(String.format(
+                    "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
+                    offset, bufferOffset, length, buffer.length));
         }
 
-        // Create the first file in the segment.
-        Path fullPath = getFilePath(streamSegmentName, this.context.epoch);
-        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, fullPath);
-        try {
-            // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
-            this.context.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.context.config.getReplication(),
-                    this.context.config.getBlockSize(), null).close();
-            log.debug("Created '{}'.", fullPath);
-        } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
-        }
-        LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
-        return StreamSegmentInformation.builder().name(streamSegmentName).build();
-    }
+        Timer timer = new Timer();
 
-    @Override
-    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
-        //TODO: Try MAX_COUNT number of times
-        try {
-            FileStatus existingFiles = findStatusForSegment(streamSegmentName, true);
-
-            if ( !isSealed(existingFiles.getPath())) {
-                if (getEpocFromPath(existingFiles.getPath()) > this.context.epoch) {
-                    throw new StorageNotPrimaryException(streamSegmentName);
-                }
-
-                Path targetPath = getFilePath(streamSegmentName, this.context.epoch);
-                if (!targetPath.equals(existingFiles.getPath())) {
-                    this.context.fileSystem.rename(existingFiles.getPath(), targetPath);
-                }
+        int attemptCount = 0;
+        AtomicInteger totalBytesRead = new AtomicInteger();
+        boolean needsRefresh = true;
+        while (needsRefresh && attemptCount < MAX_ATTEMPT_COUNT) {
+            attemptCount++;
+            // Read data.
+            try {
+                readInternal(handle, totalBytesRead, buffer, offset, bufferOffset, length);
+            } catch (IOException e) {
+                HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
             }
-            //Ensure that file exists
-            findStatusForSegment(streamSegmentName, true);
-            return HDFSSegmentHandle.write(streamSegmentName, null);
-        } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
-            return null;
+            needsRefresh = false;
         }
+
+        HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        HDFSMetrics.READ_BYTES.add(totalBytesRead.get());
+        LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
+        return totalBytesRead.get();
     }
 
     @Override
@@ -208,60 +232,6 @@ class HDFSStorage implements SyncStorage {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
             return null;
         }
-    }
-
-    @Override
-    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
-        long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
-        handle = asWritableHandle(handle);
-        FileStatus lastFile = null;
-        try {
-            lastFile = findStatusForSegment(handle.getSegmentName(), true);
-            if (isSealed(lastFile.getPath())) {
-                throw new StreamSegmentSealedException(handle.getSegmentName());
-            }
-            if (getEpocFromPath(lastFile.getPath()) > this.context.epoch) {
-                throw new StorageNotPrimaryException(handle.getSegmentName());
-            }
-        } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
-        }
-
-        Timer timer = new Timer();
-        try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
-            if (offset != lastFile.getLen()) {
-                // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
-                // before we throw BadOffsetException.
-                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLen(), offset);
-            } else if (stream.getPos() != offset) {
-                // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
-                // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
-                // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.
-                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", lastFile, lastFile.getLen(), stream.getPos());
-                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLen(), offset);
-            }
-
-            if (length == 0) {
-                // Exit here (vs at the beginning of the method), since we want to throw appropriate exceptions in case
-                // of Sealed or BadOffset
-                // Note: IOUtils.copyBytes with length == 0 will enter an infinite loop, hence the need for this check.
-                return;
-            }
-
-            // We need to be very careful with IOUtils.copyBytes. There are many overloads with very similar signatures.
-            // There is a difference between (InputStream, OutputStream, int, boolean) and (InputStream, OutputStream, long, boolean),
-            // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
-            // of bytes to copy.
-            IOUtils.copyBytes(data, stream, (long) length, false);
-
-            stream.flush();
-        } catch (IOException ex) {
-          HDFSExceptionHelpers.throwException(handle.getSegmentName(), ex);
-        }
-
-        HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        HDFSMetrics.WRITE_BYTES.add(length);
-        LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 
     @Override
@@ -363,83 +333,125 @@ class HDFSStorage implements SyncStorage {
     }
 
 
-    @Override
-    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
-        long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
 
-        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
-            throw new ArrayIndexOutOfBoundsException(String.format(
-                    "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
-                    offset, bufferOffset, length, buffer.length));
+    @Override
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
+        handle = asWritableHandle(handle);
+        FileStatus lastFile = null;
+        try {
+            lastFile = findStatusForSegment(handle.getSegmentName(), true);
+            if (isSealed(lastFile.getPath())) {
+                throw new StreamSegmentSealedException(handle.getSegmentName());
+            }
+            if (getEpocFromPath(lastFile.getPath()) > this.context.epoch) {
+                throw new StorageNotPrimaryException(handle.getSegmentName());
+            }
+        } catch (IOException e) {
+            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
 
         Timer timer = new Timer();
-
-        int attemptCount = 0;
-        AtomicInteger totalBytesRead = new AtomicInteger();
-        boolean needsRefresh = true;
-        while (needsRefresh && attemptCount < MAX_ATTEMPT_COUNT) {
-            attemptCount++;
-            // Read data.
-            try {
-                rEad(handle, totalBytesRead, buffer, offset, bufferOffset, length);
-            } catch (IOException e) {
-                HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+        try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
+            if (offset != lastFile.getLen()) {
+                // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
+                // before we throw BadOffsetException.
+                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLen(), offset);
+            } else if (stream.getPos() != offset) {
+                // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
+                // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
+                // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.
+                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", lastFile, lastFile.getLen(), stream.getPos());
+                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLen(), offset);
             }
-            needsRefresh = false;
+
+            if (length == 0) {
+                // Exit here (vs at the beginning of the method), since we want to throw appropriate exceptions in case
+                // of Sealed or BadOffset
+                // Note: IOUtils.copyBytes with length == 0 will enter an infinite loop, hence the need for this check.
+                return;
+            }
+
+            // We need to be very careful with IOUtils.copyBytes. There are many overloads with very similar signatures.
+            // There is a difference between (InputStream, OutputStream, int, boolean) and (InputStream, OutputStream, long, boolean),
+            // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
+            // of bytes to copy.
+            IOUtils.copyBytes(data, stream, (long) length, false);
+
+            stream.flush();
+        } catch (IOException ex) {
+            HDFSExceptionHelpers.throwException(handle.getSegmentName(), ex);
         }
 
-        HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-        HDFSMetrics.READ_BYTES.add(totalBytesRead.get());
-        LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
-        return totalBytesRead.get();
+        HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        HDFSMetrics.WRITE_BYTES.add(length);
+        LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 
     @Override
-    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
-        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        SegmentProperties result = null;
-        int attemptCount = 0;
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        int fencedCount = 0;
         do {
-            long length = 0;
-            boolean isSealed = false;
-            FileStatus last = null;
             try {
-                last = findStatusForSegment(streamSegmentName, true);
-                isSealed = isSealed(last.getPath());
-            } catch (IOException fnf) {
-                // This can happen if we get a concurrent call to SealOperation with an empty last file; the last file will
-                // be deleted in that case so we need to try our luck again (in which case we need to refresh the file list).
-                if (++attemptCount < MAX_ATTEMPT_COUNT) {
-                    continue;
+                FileStatus existingFiles = findStatusForSegment(streamSegmentName, true);
+
+                if (!isSealed(existingFiles.getPath())) {
+                    if (getEpocFromPath(existingFiles.getPath()) > this.context.epoch) {
+                        throw new StorageNotPrimaryException(streamSegmentName);
+                    }
+
+                    Path targetPath = getFilePath(streamSegmentName, this.context.epoch);
+                    if (!targetPath.equals(existingFiles.getPath())) {
+                        try {
+                            this.context.fileSystem.rename(existingFiles.getPath(), targetPath);
+                        } catch (FileNotFoundException e) {
+                            //This happens when more than one host is trying to fence and only one of the host goes through
+                            // retry the rename so that host with the highest epoch gets access.
+                            log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
+                            fencedCount++;
+                            continue;
+                        }
+                    }
                 }
-                HDFSExceptionHelpers.throwException(streamSegmentName, fnf);
+                //Ensure that file exists
+                findStatusForSegment(streamSegmentName, true);
+                return HDFSSegmentHandle.write(streamSegmentName, null);
+            } catch (IOException e) {
+                HDFSExceptionHelpers.throwException(streamSegmentName, e);
+                return null;
             }
-
-            result = StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
-        } while (result == null);
-        LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
-        return result;
-    }
-
-    private boolean isSealed(Path path) throws FileNameFormatException {
-        return getEpocFromPath(path) == MAX_EPOC;
+        } while (fencedCount < MAX_ATTEMPT_COUNT);
+        return null;
     }
 
     @Override
-    public boolean exists(String streamSegmentName) {
-        long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
-        FileStatus status;
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        // Create the segment using our own epoch.
+        FileStatus[] existingFiles = null;
         try {
-            status = findStatusForSegment(streamSegmentName, false);
+            existingFiles = findAllRaw(streamSegmentName);
         } catch (IOException e) {
-            return false;
+            HDFSExceptionHelpers.throwException(streamSegmentName, e);
         }
-        boolean exists = status != null;
-        LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName, exists);
-        return exists;
-    }
+        if (existingFiles != null && existingFiles.length > 0) {
+            // Segment already exists; don't bother with anything else.
+            HDFSExceptionHelpers.throwException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
+        }
 
+        // Create the first file in the segment.
+        Path fullPath = getFilePath(streamSegmentName, this.context.epoch);
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, fullPath);
+        try {
+            // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
+            this.context.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.context.config.getReplication(),
+                    this.context.config.getBlockSize(), null).close();
+            log.debug("Created '{}'.", fullPath);
+        } catch (IOException e) {
+            HDFSExceptionHelpers.throwException(streamSegmentName, e);
+        }
+        LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
+        return StreamSegmentInformation.builder().name(streamSegmentName).build();
+    }
     //endregion
 
     //region Helpers
@@ -607,9 +619,8 @@ class HDFSStorage implements SyncStorage {
         return true;
     }
 
-    private void rEad(SegmentHandle handle, AtomicInteger totalBytesRead, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
+    private void readInternal(SegmentHandle handle, AtomicInteger totalBytesRead, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
         //There is only one file per segment.
-        //TODO: The file may have changed ownership. Actually try MAX_ATTEMP times.
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
         try (FSDataInputStream stream = this.context.fileSystem.open(currentFile.getPath())) {
             if (offset + length > stream.available()) {
