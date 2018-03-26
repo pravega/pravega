@@ -71,11 +71,11 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                 .thenCompose(x -> cancelTransactions(context, scope, stream)
                         .thenAccept(cancelled -> {
                             if (!cancelled) {
-                                // If transactions exist on the stream, we will throw Start Exception so that this task
+                                // If transactions exist on the stream, we will throw OperationNotAllowed so that this task
                                 // is retried.
                                 throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
                                         "Found ongoing transactions. Abort transaction requested." +
-                                                "Delete stream segments should wait until transactions are aborted.");
+                                                "Sealing stream segments should wait until transactions are aborted.");
                             }
                         }))
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(scope, stream, context, executor))
