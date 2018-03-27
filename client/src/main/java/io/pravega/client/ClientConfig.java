@@ -56,15 +56,5 @@ public class ClientConfig {
 
     public static final class PravegaClientConfigBuilder {
         private boolean validateHostName = true;
-
-        public PravegaClientConfigBuilder() {
-
-        }
-
-        public PravegaClientConfigBuilder(ClientConfig copyConfig) {
-
-        }
     }
-
-
 }
