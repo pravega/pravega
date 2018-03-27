@@ -23,9 +23,7 @@ import java.util.Iterator;
  * data.
  * 
  * At any time {@link #getOffset()} can be called to get the byte offset in the segment the iterator
- * is currently pointing to. This can be used to call
- * {@link BatchClient#readSegment(io.pravega.client.segment.impl.Segment, io.pravega.client.stream.Serializer, long, long)}
- * to create another SegmentIterator at this offset.
+ * is currently pointing to.
  * 
  * @param <T> The type of the events written to this segment.
  */
@@ -33,8 +31,7 @@ import java.util.Iterator;
 public interface SegmentIterator<T> extends Iterator<T>, AutoCloseable {
 
     /**
-     * Provides an offset which can be used to re-create a segmentIterator at this position by
-     * calling {@link BatchClient#readSegment(io.pravega.client.segment.impl.Segment, io.pravega.client.stream.Serializer, long)}.
+     * Provides the current offset in the segment.
      * 
      * @return The current offset in the segment
      */

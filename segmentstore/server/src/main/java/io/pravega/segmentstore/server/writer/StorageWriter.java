@@ -34,7 +34,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -104,7 +103,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         .delayedFuture(getIterationStartDelay(), this.executor)
                         .thenRun(this::beginIteration)
                         .thenComposeAsync(this::readData, this.executor)
-                        .thenAcceptAsync(this::processReadResult, this.executor)
+                        .thenComposeAsync(this::processReadResult, this.executor)
                         .thenComposeAsync(this::flush, this.executor)
                         .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
@@ -196,60 +195,74 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      *
      * @param readResult The read result to process.
      */
-    @SneakyThrows(DataCorruptionException.class)
-    private void processReadResult(Iterator<Operation> readResult) {
+    private CompletableFuture<Void> processReadResult(Iterator<Operation> readResult) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "processReadResult");
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
             logStageEvent("InputRead", result);
             LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
-            return;
+            return CompletableFuture.completedFuture(null);
         }
 
-        while (readResult.hasNext()) {
-            checkRunning();
-            Operation op = readResult.next();
-
-            // Verify that the Operation we got is in the correct order (check Sequence Number).
-            if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
-                throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber()));
-            }
-
-            if (op instanceof MetadataOperation) {
-                processMetadataOperation((MetadataOperation) op);
-            } else if (op instanceof StorageOperation) {
-                result.bytes += processStorageOperation((StorageOperation) op);
-            } else {
-                // Unknown operation. Better throw an error rather than skipping over what could be important data.
-                throw new DataCorruptionException(String.format("Unsupported operation %s.", op));
-            }
-
-            // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
-            // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
-            this.state.setLastReadSequenceNumber(op.getSequenceNumber());
-            result.count++;
-        }
-
-        logStageEvent("InputRead", result);
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
+        return Futures.loop(
+                () -> canRun() && readResult.hasNext(),
+                () -> {
+                    Operation op = readResult.next();
+                    return processOperation(op).thenRun(() -> {
+                        // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
+                        // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
+                        this.state.setLastReadSequenceNumber(op.getSequenceNumber());
+                        result.operationProcessed(op);
+                    });
+                },
+                this.executor)
+                .thenRun(() -> {
+                    logStageEvent("InputRead", result);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
+                });
     }
 
-    private void processMetadataOperation(MetadataOperation op) throws DataCorruptionException {
+    private CompletableFuture<Void> processOperation(Operation op) {
+        // Verify that the Operation we got is in the correct order (check Sequence Number).
+        if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
+            return Futures.failedFuture(new DataCorruptionException(String.format(
+                    "Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber())));
+        }
+
+        if (op instanceof MetadataOperation) {
+            return processMetadataOperation((MetadataOperation) op);
+        } else if (op instanceof StorageOperation) {
+            return processStorageOperation((StorageOperation) op);
+        } else {
+            // Unknown operation. Better throw an error rather than skipping over what could be important data.
+            return Futures.failedFuture(new DataCorruptionException(String.format("Unsupported operation %s.", op)));
+        }
+    }
+
+    private CompletableFuture<Void> processMetadataOperation(MetadataOperation op) {
         // We only care about MetadataCheckpointOperations; all others are no-ops here.
         if (op instanceof MetadataCheckpointOperation) {
             // We don't care about the contents of the operation, we just need to verify that it is correctly mapped to a Valid Truncation Point.
             if (!this.dataSource.isValidTruncationPoint(op.getSequenceNumber())) {
-                throw new DataCorruptionException(String.format("Operation '%s' does not correspond to a valid Truncation Point in the metadata.", op));
+                return Futures.failedFuture(new DataCorruptionException(String.format(
+                        "Operation '%s' does not correspond to a valid Truncation Point in the metadata.", op)));
             }
         }
+
+        return CompletableFuture.completedFuture(null);
     }
 
-    private long processStorageOperation(StorageOperation op) throws DataCorruptionException {
+    private CompletableFuture<Void> processStorageOperation(StorageOperation op) {
         // Add the operation to the appropriate Aggregator.
-        SegmentAggregator aggregator = getSegmentAggregator(op.getStreamSegmentId());
-        aggregator.add(op);
-        return op.getLength();
+        return getSegmentAggregator(op.getStreamSegmentId())
+                .thenAccept(aggregator -> {
+                    try {
+                        aggregator.add(op);
+                    } catch (DataCorruptionException ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
     }
 
     //endregion
@@ -343,37 +356,40 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * Gets, or creates, a SegmentAggregator for the given StorageOperation.
      *
      * @param streamSegmentId The Id of the StreamSegment to get the aggregator for.
-     * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
-    private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
-        SegmentAggregator result = this.aggregators.getOrDefault(streamSegmentId, null);
-        if (result != null && closeIfNecessary(result).isClosed()) {
-            // Existing SegmentAggregator has become stale (most likely due to its SegmentMetadata being evicted),
-            // so it has been closed and we need to create a new one.
-            this.aggregators.remove(streamSegmentId);
-            result = null;
-        }
-
-        if (result == null) {
-            // We do not yet have this aggregator. First, get its metadata.
-            UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);
-            if (segmentMetadata == null) {
-                throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
-            }
-
-            // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
-            // having a registered aggregator that is not initialized.
-            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
-            try {
-                result.initialize(this.config.getFlushTimeout()).join(); // TODO: get rid of this join() at one point.
-                this.aggregators.put(streamSegmentId, result);
-            } catch (Exception ex) {
-                result.close();
-                throw ex;
+    private CompletableFuture<SegmentAggregator> getSegmentAggregator(long streamSegmentId) {
+        SegmentAggregator existingAggregator = this.aggregators.getOrDefault(streamSegmentId, null);
+        if (existingAggregator != null) {
+            if (closeIfNecessary(existingAggregator).isClosed()) {
+                // Existing SegmentAggregator has become stale (most likely due to its SegmentMetadata being evicted),
+                // so it has been closed and we need to create a new one.
+                this.aggregators.remove(streamSegmentId);
+            } else {
+                return CompletableFuture.completedFuture(existingAggregator);
             }
         }
 
-        return result;
+        // Get the SegmentAggregator's Metadata.
+        UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);
+        if (segmentMetadata == null) {
+            return Futures.failedFuture(new DataCorruptionException(String.format(
+                    "No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId)));
+        }
+
+        // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
+        // having a registered aggregator that is not initialized.
+        SegmentAggregator newAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
+        try {
+            CompletableFuture<Void> init = newAggregator.initialize(this.config.getFlushTimeout());
+            Futures.exceptionListener(init, ex -> newAggregator.close());
+            return init.thenApply(ignored -> {
+                this.aggregators.put(streamSegmentId, newAggregator);
+                return newAggregator;
+            });
+        } catch (Exception ex) {
+            newAggregator.close();
+            throw ex;
+        }
     }
 
     private boolean isCriticalError(Throwable ex) {
@@ -486,6 +502,13 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         InputReadStageResult(WriterState state) {
             this.state = state;
+        }
+
+        void operationProcessed(Operation op) {
+            this.count++;
+            if (op instanceof StorageOperation) {
+                this.bytes += ((StorageOperation) op).getLength();
+            }
         }
 
         @Override
