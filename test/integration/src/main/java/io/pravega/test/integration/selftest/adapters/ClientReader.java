@@ -20,7 +20,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
@@ -32,7 +32,6 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -49,7 +48,6 @@ import lombok.SneakyThrows;
 class ClientReader implements StoreReader, AutoCloseable {
     //region Members
     private static final ReaderConfig READER_CONFIG = ReaderConfig.builder().build();
-    private static final ReaderGroupConfig READER_GROUP_CONFIG = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(1, 10, 4)
             .retryingOn(ReinitializationRequiredException.class)
@@ -157,7 +155,9 @@ class ClientReader implements StoreReader, AutoCloseable {
                             .trustStore("../../config/cert.pem")
                             .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                             .validateHostName(false).build())) {
-                readerGroupManager.createReaderGroup(this.readerGroup, READER_GROUP_CONFIG, Collections.singleton(streamName));
+                readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
+                                                                                        .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
+                                                                                        .build());
             }
 
             this.closed = false;
