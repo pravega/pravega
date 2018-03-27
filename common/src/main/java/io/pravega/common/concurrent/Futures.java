@@ -280,22 +280,21 @@ public final class Futures {
     }
 
     /**
-     * Same as CompletableFuture.exceptionally(), except that it allows a particular type of Exception to be handled (expected).
+     * Same as CompletableFuture.exceptionally(), except that it allows certain types of exceptions..
      * If such an exception is caught, the given exceptionValue is then returned. All other Exceptions will be re-thrown.
      *
      * @param future         The original CompletableFuture to attach to.
-     * @param exceptionClass The type of Exception to expect.
+     * @param isExpected     A Predicate that can check whether an Exception is expected or not.
      * @param exceptionValue The value to return in case the thrown Exception if of type exceptionClass.
      * @param <T>            The Type of the Future's result.
-     * @param <E>            The Type of the Exception.
      * @return A new CompletableFuture that will complete either:
      * - With the same result as the original Future if that one completed normally
-     * - With exceptionValue if the original Future completed with an exception of type exceptionClass (E).
+     * - With exceptionValue if the original Future completed with an expected exception.
      * - Exceptionally with the original Future's exception if none of the above are true.
      */
-    public static <T, E extends Throwable> CompletableFuture<T> exceptionallyExpecting(CompletableFuture<T> future, Class<E> exceptionClass, T exceptionValue) {
+    public static <T> CompletableFuture<T> exceptionallyExpecting(CompletableFuture<T> future, Predicate<Throwable> isExpected, T exceptionValue) {
         return future.exceptionally(ex -> {
-            if (exceptionClass.isAssignableFrom(Exceptions.unwrap(ex).getClass())) {
+            if (isExpected.test(Exceptions.unwrap(ex))) {
                 return exceptionValue;
             }
             throw new CompletionException(ex);

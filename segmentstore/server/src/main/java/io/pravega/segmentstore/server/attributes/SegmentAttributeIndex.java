@@ -167,7 +167,7 @@ class SegmentAttributeIndex implements AttributeIndex {
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenComposeAsync(handle -> storage.delete(handle, timer.getRemaining())),
-                StreamSegmentNotExistsException.class,
+                ex -> ex instanceof StreamSegmentNotExistsException,
                 null);
     }
 
@@ -247,7 +247,7 @@ class SegmentAttributeIndex implements AttributeIndex {
                 createSnapshot(new AttributeCollection(), true, timer.getRemaining())
                         .thenComposeAsync(v -> this.storage.seal(this.attributeSegment.get().handle, timer.getRemaining()), this.executor)
                         .thenRun(() -> log.info("{}: Sealed (Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength())),
-                StreamSegmentSealedException.class,
+                ex -> ex instanceof StreamSegmentSealedException,
                 null);
     }
 
@@ -487,7 +487,7 @@ class SegmentAttributeIndex implements AttributeIndex {
         Preconditions.checkState(isMainSegmentDeleted(), "Main segment is not deleted.");
         log.info("{}: Main Segment is Deleted. Attempting to delete Attribute Segment.", this.traceObjectId);
         return Futures
-                .exceptionallyExpecting(this.storage.delete(this.attributeSegment.get().handle, timeout), StreamSegmentNotExistsException.class, null)
+                .exceptionallyExpecting(this.storage.delete(this.attributeSegment.get().handle, timeout), ex -> ex instanceof StreamSegmentNotExistsException, null)
                 .thenCompose(v -> Futures.failedFuture(new StreamSegmentNotExistsException(this.segmentMetadata.getName())));
     }
 

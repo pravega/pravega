@@ -14,6 +14,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
@@ -105,6 +106,11 @@ public class StorageWriterFactory implements WriterFactory {
             return this.attributeIndex
                     .forSegment(streamSegmentId, timer.getRemaining())
                     .thenCompose(ai -> ai.seal(timer.getRemaining()));
+        }
+
+        @Override
+        public CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout) {
+            return this.attributeIndex.delete(segmentMetadata, timeout);
         }
 
         @Override

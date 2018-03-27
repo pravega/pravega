@@ -10,7 +10,12 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.EvictableMetadata;
@@ -29,6 +34,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
+import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -41,7 +47,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,8 +76,11 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 1000;
+    private static final int UPDATE_ATTRIBUTES_PER_SEGMENT = 50;
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
+    private static final UUID CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
+    private static final UUID EXTENDED_ATTRIBUTE_ID = UUID.randomUUID();
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
             .builder()
             .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1000)
@@ -554,6 +565,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
             Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
             Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId, context.storage.exists(metadata.getName(), TIMEOUT).join());
+            verifyAttributes(metadata, context);
         }
 
         for (long segmentId : segmentContents.keySet()) {
@@ -575,8 +587,40 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
             Assert.assertEquals("Unexpected truncation offset for segment " + segmentId,
                     metadata.getStartOffset(), context.storage.getTruncationOffset(metadata.getName()));
+            verifyAttributes(metadata, context);
         }
     }
+
+    private void verifyAttributes(SegmentMetadata metadata, TestContext context) {
+        val persistedAttributes = context.dataSource.getPersistedAttributes(metadata.getId());
+        int extendedAttributeCount = 0;
+        if (metadata.isTransaction() && metadata.isMerged()) {
+            Assert.assertEquals("Unexpected number of attributes in attribute index for merged transaction " + metadata.getId(),
+                    0, persistedAttributes.size());
+            AssertExtensions.assertThrows(
+                    "Merged transaction attribute index still exists.",
+                    context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        } else {
+            for (val e : metadata.getAttributes().entrySet()) {
+                if (Attributes.isCoreAttribute(e.getKey())) {
+                    Assert.assertFalse("Not expecting Core Attribute in Attribute Index for " + metadata.getId(), persistedAttributes.containsKey(e.getKey()));
+                } else {
+                    extendedAttributeCount++;
+                    Assert.assertEquals("Unexpected attribute value for " + metadata.getId(), e.getValue(), persistedAttributes.get(e.getKey()));
+                }
+            }
+
+            Assert.assertEquals("Unexpected number of attributes in attribute index for " + metadata.getId(), extendedAttributeCount, persistedAttributes.size());
+            if (metadata.isSealedInStorage()) {
+                AssertExtensions.assertThrows(
+                        "Sealed segment attribute index accepted new values.",
+                        context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
+                        ex -> ex instanceof StreamSegmentSealedException);
+            }
+        }
+    }
+
 
     private void mergeTransactions(Iterable<Long> transactionIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         for (long transactionId : transactionIds) {
@@ -634,6 +678,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 appendData(segmentMetadata, i, writeId, segmentContents, context);
                 writeId++;
             }
+
+            for (int i = 0; i < UPDATE_ATTRIBUTES_PER_SEGMENT; i++) {
+                updateAttributes(segmentMetadata, context);
+            }
         }
     }
 
@@ -642,11 +690,29 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      */
     private void appendDataBreadthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         int writeId = 0;
+
+        // Put some attributes first.
+        int halfAttributes = UPDATE_ATTRIBUTES_PER_SEGMENT / 2;
+        for (int i = 0; i < halfAttributes; i++) {
+            for (long segmentId : segmentIds) {
+                UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+                updateAttributes(segmentMetadata, context);
+            }
+        }
+
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : segmentIds) {
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
                 appendData(segmentMetadata, i, writeId, segmentContents, context);
                 writeId++;
+            }
+        }
+
+        // Put the rest of the attributes.
+        for (int i = 0; i < halfAttributes; i++) {
+            for (long segmentId : segmentIds) {
+                UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+                updateAttributes(segmentMetadata, context);
             }
         }
     }
@@ -657,11 +723,28 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // Make sure we increase the Length prior to appending; the Writer checks for this.
         long offset = segmentMetadata.getLength();
         segmentMetadata.setLength(offset + data.length);
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, null);
+        Collection<AttributeUpdate> attributeUpdates = generateAttributeUpdates(segmentMetadata);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, attributeUpdates);
         op.setStreamSegmentOffset(offset);
         context.dataSource.recordAppend(op);
         context.dataSource.add(new CachedStreamSegmentAppendOperation(op));
         recordAppend(segmentMetadata.getId(), data, segmentContents);
+    }
+
+    private void updateAttributes(UpdateableSegmentMetadata segmentMetadata, TestContext context) {
+        Collection<AttributeUpdate> attributeUpdates = generateAttributeUpdates(segmentMetadata);
+        context.dataSource.add(new UpdateAttributesOperation(segmentMetadata.getId(), attributeUpdates));
+    }
+
+    private Collection<AttributeUpdate> generateAttributeUpdates(UpdateableSegmentMetadata segmentMetadata) {
+        long coreAttributeValue = segmentMetadata.getAttributes().getOrDefault(CORE_ATTRIBUTE_ID, 0L) + 1;
+        long extendedAttributeValue = segmentMetadata.getAttributes().getOrDefault(EXTENDED_ATTRIBUTE_ID, 0L) + 13;
+        Collection<AttributeUpdate> attributeUpdates = Arrays.asList(
+                new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue),
+                new AttributeUpdate(EXTENDED_ATTRIBUTE_ID, AttributeUpdateType.Replace, extendedAttributeValue));
+        segmentMetadata.updateAttributes(
+                attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
+        return attributeUpdates;
     }
 
     private <T> void recordAppend(T segmentIdentifier, byte[] data, HashMap<T, ByteArrayOutputStream> segmentContents) {

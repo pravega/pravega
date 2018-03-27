@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -243,13 +244,24 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
-            asyncErrorInjector = this.readAsyncErrorInjector;
+            asyncErrorInjector = this.persistAttributesErrorInjector;
         }
 
         return ErrorInjector
                 .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
                     synchronized (this.lock) {
-                        Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
+                        // We use "null" as an indication that the attribute data is deleted, hence the extra work here.
+                        Map<UUID, Long> segmentAttributes;
+                        if (this.attributeData.containsKey(streamSegmentId)) {
+                            segmentAttributes = this.attributeData.get(streamSegmentId);
+                        } else {
+                            segmentAttributes = new HashMap<>();
+                            this.attributeData.put(streamSegmentId, segmentAttributes);
+                        }
+
+                        if (segmentAttributes == null) {
+                            throw new CompletionException(new StreamSegmentNotExistsException(Long.toString(streamSegmentId)));
+                        }
                         try {
                             for (val e : attributes.entrySet()) {
                                 if (e.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
@@ -272,6 +284,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             synchronized (this.lock) {
                 Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
                 this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
+            }
+        }, this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout) {
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this.lock) {
+                this.attributeData.put(segmentMetadata.getId(), null);
             }
         }, this.executor);
     }
@@ -381,6 +402,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
     }
 
+    void setPersistAttributesErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.persistAttributesErrorInjector = injector;
+        }
+    }
+
     void setReadSyncErrorInjector(ErrorInjector<Exception> injector) {
         synchronized (this.lock) {
             this.readSyncErrorInjector = injector;
@@ -447,6 +474,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             }
 
             return this.waitFullyAcked;
+        }
+    }
+
+    /**
+     * Gets a copy of all the attributes so far.
+     */
+    Map<UUID, Long> getPersistedAttributes(long segmentId) {
+        synchronized (this.lock) {
+            val m = this.attributeData.get(segmentId);
+            return m == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(m));
         }
     }
 

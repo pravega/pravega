@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.io.InputStream;
@@ -59,6 +60,16 @@ interface WriterDataSource {
      * failed, the Future will complete with the appropriate exception.
      */
     CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout);
+
+    /**
+     * Instructs the DataSource to delete the Attribute Index for the given Segment.
+     *
+     * @param segmentMetadata The metadata for the Segment to delete attributes for.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, the Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout);
 
     /**
      * Reads a number of entries from the Data Source.

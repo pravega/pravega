@@ -23,7 +23,7 @@ public class SynchronousStreamSegmentStoreTests extends StreamSegmentServiceTest
     @Override
     protected int getThreadPoolSize() {
         // We await all async operations, which means we'll be eating up a lot of threads for this test.
-        return super.getThreadPoolSize() * 10;
+        return super.getThreadPoolSize() * 50;
     }
 
     @Override
