@@ -70,11 +70,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public long getEndOffset() {
-        return 0; //TODO:
-    }
-
-    @Override
     @Synchronized
     public long fetchCurrentSegmentLength() {
         return writeOffset;

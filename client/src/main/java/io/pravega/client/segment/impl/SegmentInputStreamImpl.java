@@ -54,19 +54,15 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
-    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
-        this(asyncInput, offset, DEFAULT_BUFFER_SIZE);
-    }
-
-    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset, int bufferSize) {
-        this(asyncInput, startOffset, Long.MAX_VALUE, bufferSize);
+    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
+        this(asyncInput, startOffset, Long.MAX_VALUE, DEFAULT_BUFFER_SIZE);
     }
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int bufferSize) {
         Preconditions.checkArgument(startOffset >= 0);
         Preconditions.checkNotNull(asyncInput);
         Preconditions.checkNotNull(endOffset, "endOffset");
-        Preconditions.checkArgument(endOffset > startOffset, "End Offset should be greater than start offset");
+        Preconditions.checkArgument(endOffset > startOffset, "End offset should be greater than start offset");
         this.asyncInput = asyncInput;
         this.offset = startOffset;
         this.endOffset = endOffset;
@@ -106,13 +102,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         return offset;
     }
 
-    @Override
-    @Synchronized
-    public long getEndOffset() {
-        //TODO: shrids in progress
-        return endOffset;
-    }
-
     /**
      * @see SegmentInputStream#read()
      */
@@ -137,13 +126,13 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+        if (this.offset == this.endOffset) {
+            log.debug("All events up to the configured end offset:{} have been read", endOffset);
+            return null;
+        }
         fillBuffer();
         if (receivedTruncated) {
             throw new SegmentTruncatedException();
-        }
-        if (this.offset == this.endOffset) {
-            log.debug("We have reached the end offset.");
-            return null;
         }
         while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
@@ -214,28 +203,29 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     /**
-     * Issues a request if there is enough room for another request, and we aren't already waiting on one
+     * Issues a request
+     *  - if there is enough room for another request, and we aren't already waiting on one and
+     *  - if we have not read up to the configured endOffset.
      */
     private void issueRequestIfNeeded() {
+        //compute read length based on current offset upto which the events are read are read.
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable(), readLength);
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && buffer.capacityAvailable() >= updatedReadLength && outstandingRequest == null) {
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
 
-    //TODO:shrids
-    private int computeReadLength(long currentOffset, int currentReadLength) {
-        //endOffset is Long.MAX_VALUE if the endOffset is not set.
-        if (Long.MAX_VALUE == endOffset) {
+    /*
+     * Compute the read length based on the current fetch offset and the configured end offset.
+     */
+    private int computeReadLength(long currentFetchOffset, int currentReadLength) {
+        Preconditions.checkState(endOffset >= currentFetchOffset,
+                "Current offset up to to which events are fetched should be less than the configured end offset");
+        if (Long.MAX_VALUE == endOffset) { //endOffset is Long.MAX_VALUE if the endOffset is not set.
             return currentReadLength;
         }
-
-        long numberOfBytesToRead = endOffset - currentOffset;
-        if (numberOfBytesToRead > currentReadLength) {
-            return currentReadLength;
-        } else {
-            return Math.toIntExact(numberOfBytesToRead);
-        }
+        long numberOfBytesToRead = endOffset - currentFetchOffset;
+        return Math.min(currentReadLength, Math.toIntExact(numberOfBytesToRead));
     }
 
     @Override

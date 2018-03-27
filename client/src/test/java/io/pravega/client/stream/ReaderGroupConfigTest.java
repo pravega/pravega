@@ -127,25 +127,6 @@ public class ReaderGroupConfigTest {
                                                  .build();
     }
 
-    //    @Test
-    //    public void test1() {
-    //        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
-    //                                                .disableAutomaticCheckpoints()
-    //                . stream(Stream.of(SCOPE, "s1"), getStartStreamCut("s1"), getStartStreamCut("s1"))
-    //                .build();
-    //        Map<Segment, Long> r1 = ReaderGroupImpl.getEndSegmentsForStreams(cfg);
-    //        System.out.println(r1.toString());
-    //
-    //
-    //        ReaderGroupConfig cfg1 = ReaderGroupConfig.builder()
-    //                                                 .disableAutomaticCheckpoints()
-    //                                                 . stream(Stream.of(SCOPE, "s1"), getStartStreamCut("s1"))
-    //                                                 .build();
-    //        Map<Segment, Long> r2 = ReaderGroupImpl.getEndSegmentsForStreams(cfg1);
-    //        System.out.println(r2.toString());
-    //
-    //    } //TODO: shrids
-
     private StreamCut getStartStreamCut(String streamName) {
         ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(SCOPE,
                 streamName, 0), 10L).build();

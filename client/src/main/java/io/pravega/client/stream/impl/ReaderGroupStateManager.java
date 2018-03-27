@@ -229,12 +229,13 @@ public class ReaderGroupStateManager {
     }
 
     /**
-     * TODO:
-     * @param s
-     * @return
+     * Fetch the configured end offset for a configured segment. If end offset is not configured return Long.MAX_VALUE.
+     *
+     * @param segment Segment.
+     * @return endOffset of the segment.
      */
-    Optional<Long> getEndOffsetForSegment(Segment s) {
-        return Optional.ofNullable(sync.getState().getEndSegments().get(s));
+    long getEndOffsetForSegment(Segment segment) {
+        return Optional.ofNullable(sync.getState().getEndSegments().get(segment)).orElse(Long.MAX_VALUE);
     }
 
     /**

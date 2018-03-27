@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -40,7 +39,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -109,7 +107,7 @@ public class BoundedStreamReaderTest {
         zkTestServer.close();
     }
 
-    @Test//(timeout = 50000)
+    @Test(timeout = 50000)
     public void testBoundedStreamTest() throws Exception {
         //TODO: check if we can merge this test to StreamSeekTest
         createScope(SCOPE);
@@ -143,47 +141,7 @@ public class BoundedStreamReaderTest {
                 ReaderConfig.builder().build());
 
         readAndVerify(reader, 1, 2);
-        Assert.assertNull("Null is expected", reader.readNextEvent(15000).getEvent());
-
-        //        //2.Scale stream
-        //        Map<Double, Double> newKeyRanges = new HashMap<>();
-        //        newKeyRanges.put(0.0, 0.33);
-        //        newKeyRanges.put(0.33, 0.66);
-        //        newKeyRanges.put(0.66, 1.0);
-        //        scaleStream(STREAM1, newKeyRanges);
-        //
-        //        //3.Write three events with event size of 30
-        //        writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
-        //        writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
-        //        writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
-
-        //Offset of a streamCut is always set to zero.
-//        Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
-//        readAndVerify(reader, 1, 2);
-//        readAndVerify(reader, 3, 4, 5);
-//        Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
-//
-//        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(streamCut1).build()); //reset
-//        // the readers to offset 0.
-//        verifyReinitializationRequiredException(reader);
-//
-//        @Cleanup
-//        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "group", serializer,
-//                ReaderConfig.builder().build());
-//
-//        //verify that we are at streamCut1
-//        readAndVerify(reader1, 1, 2);
-//
-//        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(streamCut2).build()); // reset
-//        // readers to post scale offset 0
-//        verifyReinitializationRequiredException(reader1);
-//
-//        @Cleanup
-//        EventStreamReader<String> reader2 = clientFactory.createReader("readerId", "group", serializer,
-//                ReaderConfig.builder().build());
-//
-//        //verify that we are at streamCut2
-//        readAndVerify(reader2, 3, 4, 5);
+        Assert.assertNull("Null is expected", reader.readNextEvent(5000).getEvent());
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
