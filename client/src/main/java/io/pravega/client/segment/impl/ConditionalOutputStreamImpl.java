@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -28,8 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,11 +58,11 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     }
 
     @Override
-    public boolean write(ByteBuffer data, long expectedOffset) {
+    public boolean write(ByteBuffer data, long expectedOffset) throws SegmentSealedException {
         synchronized (lock) { //Used to preserver order.
             long appendSequence = requestIdGenerator.get();
             return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                    .throwingOn(NoSuchSegmentException.class)
+                    .throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
@@ -87,7 +88,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         }
     }
     
-    @SneakyThrows(ConnectionFailedException.class)
     private AppendSetup transformAppendSetup(Reply reply) {
         if (reply instanceof AppendSetup) {
             return (AppendSetup) reply;
@@ -96,7 +96,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         }
     }
 
-    @SneakyThrows(ConnectionFailedException.class)
     private boolean transformDataAppended(Reply reply) {
         if (reply instanceof DataAppended) {
             return true;
@@ -107,14 +106,16 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         }
     }
     
-    private ConnectionFailedException handelUnexpectedReply(Reply reply) {
+    private RuntimeException handelUnexpectedReply(Reply reply) {
         closeConnection(reply.toString());
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
+        } else if (reply instanceof SegmentIsSealed) {
+            throw Lombok.sneakyThrow(new SegmentSealedException(reply.toString()));
         } else if (reply instanceof WrongHost) {
-            return new ConnectionFailedException(reply.toString());
+            throw Lombok.sneakyThrow(new ConnectionFailedException(reply.toString()));
         } else {
-            return new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup");
+            throw Lombok.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
         }
     }
     

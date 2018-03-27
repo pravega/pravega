@@ -63,7 +63,11 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
         synchronized (lock) {
-            wasWritten = conditional.write(serialized, offset);
+            try {
+                wasWritten = conditional.write(serialized, offset);
+            } catch (SegmentSealedException e) {
+                throw new CorruptedStateException("Unexpected end of segment ", e);
+            }
         }
         if (wasWritten) {
             long newOffset = getNewOffset(offset, size);
