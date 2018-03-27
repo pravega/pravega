@@ -12,9 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.base.Strings;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import java.io.ObjectStreamException;
 import java.io.Serializable;
-
 import lombok.Data;
 import lombok.NonNull;
 
@@ -22,7 +20,8 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-public class Segment implements Serializable {
+public class Segment implements Serializable, Comparable<Segment> {
+    private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
     private final String streamName;

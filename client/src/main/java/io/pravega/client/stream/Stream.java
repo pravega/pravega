@@ -9,14 +9,9 @@
  */
 package io.pravega.client.stream;
 
-<<<<<<< HEAD
-import io.pravega.client.stream.impl.StreamInternal;
-=======
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import java.io.Serializable;
->>>>>>> refs/heads/master
 
 /**
  * A stream can be thought of as an unbounded sequence of events.
@@ -48,12 +43,6 @@ public interface Stream {
      * @return String a fully scoped stream name
      */
     String getScopedName();
-<<<<<<< HEAD
-    
-    
-    static Stream fromScopedName(String scopedName) {
-        return StreamInternal.fromScopedName(scopedName);
-=======
 
     /**
      * Helper utility to create a Stream object.
@@ -82,6 +71,5 @@ public interface Stream {
         Exceptions.checkNotNullOrEmpty(split[0], "scope name");
         Exceptions.checkNotNullOrEmpty(split[1], "stream name");
         return new StreamImpl(split[0], split[1]);
->>>>>>> refs/heads/master
     }
 }

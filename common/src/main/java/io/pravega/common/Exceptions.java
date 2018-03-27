@@ -11,13 +11,10 @@ package io.pravega.common;
 
 import com.google.common.base.Preconditions;
 import java.util.Collection;
-<<<<<<< HEAD
 import java.util.Map;
-=======
 
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
->>>>>>> refs/heads/master
 import lombok.SneakyThrows;
 
 /**
