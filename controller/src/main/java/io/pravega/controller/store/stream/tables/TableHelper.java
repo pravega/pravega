@@ -16,11 +16,13 @@ import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
+import lombok.Lombok;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -371,15 +373,18 @@ public class TableHelper {
 
         return segmentStream.toByteArray();
     }
-
-    @SneakyThrows
+    
     private static void writeSegmentsToSegmentTable(int startingSegmentNumber, int creationEpoch, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long timeStamp, ByteArrayOutputStream segmentStream) {
         IntStream.range(0, newRanges.size())
                 .forEach(
                         newRange -> {
-                            segmentStream.write(new SegmentRecord(startingSegmentNumber + newRange,
-                                    creationEpoch, timeStamp, newRanges.get(newRange).getKey(), newRanges.get(newRange).getValue())
-                                    .toByteArray());
+                            try {
+                                segmentStream.write(new SegmentRecord(startingSegmentNumber + newRange,
+                                        creationEpoch, timeStamp, newRanges.get(newRange).getKey(), newRanges.get(newRange).getValue())
+                                        .toByteArray());
+                            } catch (IOException e) {
+                                throw Lombok.sneakyThrow(e);
+                            }
                         }
                 );
     }
