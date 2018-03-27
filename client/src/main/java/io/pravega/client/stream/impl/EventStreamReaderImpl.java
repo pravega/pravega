@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -189,9 +190,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
+
+                Optional<Long> endOffsetForSegment = groupState.getEndOffsetForSegment(newSegment.getKey());
+                final SegmentInputStream in;
+                if (endOffsetForSegment.isPresent()) {
+                    in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(), endOffsetForSegment.get());
+                } else {
+                    in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
+                }
                 in.setOffset(newSegment.getValue());
-                groupState.getEndOffsetForSegment(newSegment.getKey()).ifPresent(endOffset -> in.setEndOffset(endOffset));
                 readers.add(in);
             }
         }
@@ -261,7 +268,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
                                                                                         pointer.asImpl().getEventLength());
         inputStream.setOffset(pointer.asImpl().getEventStartOffset());
-        groupState.getEndOffsetForSegment(pointer.asImpl().getSegment()).ifPresent(endOffset -> inputStream.setEndOffset(endOffset));
         // Read event
         try {
             ByteBuffer buffer = inputStream.read();

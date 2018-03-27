@@ -70,11 +70,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void setEndOffset(long offset) {
-        //TODO:
-    }
-
-    @Override
     public long getEndOffset() {
         return 0; //TODO:
     }

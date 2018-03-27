@@ -55,6 +55,11 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+        return getMockStream(segment);
+    }
+
+    @Override
     public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
         return getMockStream(segment);
     }

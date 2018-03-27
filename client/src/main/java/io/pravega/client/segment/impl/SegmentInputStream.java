@@ -39,8 +39,6 @@ public interface SegmentInputStream extends AutoCloseable {
      */
     public abstract long getOffset();
 
-    void setEndOffset(long offset);
-
     long getEndOffset();
     
     /**
