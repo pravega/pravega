@@ -9,7 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -92,10 +91,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             if (client == null || client.isClosed()) {
                 client = new RawClient(controller, connectionFactory, segmentId);
             }
-            return client; 
-        } 
+            return client;
+        }
     }
-    
+
     @SneakyThrows(ConnectionFailedException.class)
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {
@@ -111,7 +110,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                     + klass.getName());
         }
     }
-    
+
     private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo(String delegationToken) {
         long requestId = requestIdGenerator.get();
         log.debug("Getting segment info for segment: {}", segmentId);
@@ -139,15 +138,15 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                                                                  value, expected, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
     }
-    
+
     private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset, String delegationToken) {
         long requestId = requestIdGenerator.get();
-        log.trace("Truncating segment: {}", segment);         
+        log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
         return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
-    
+
     @Override
     public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);

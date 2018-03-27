@@ -206,7 +206,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * If the given operation is a MetadataCheckpointOperation, the current state of the metadata (including pending
      * UpdateTransactions) is serialized to it.
      *
-     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation, TransactionMapOperation) this method only
+     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation) this method only
      * does anything if the base Container Metadata is in Recovery Mode (in which case the given MetadataOperation) is
      * recorded in the pending UpdateTransaction.
      *

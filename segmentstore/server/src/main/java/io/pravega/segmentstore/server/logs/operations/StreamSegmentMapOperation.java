@@ -21,10 +21,11 @@ import java.util.UUID;
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
  */
-public class StreamSegmentMapOperation extends MetadataOperation implements StreamSegmentMapping {
+public class StreamSegmentMapOperation extends MetadataOperation {
     //region Members
 
     private long streamSegmentId;
+    private long parentStreamSegmentId;
     private String streamSegmentName;
     private long startOffset;
     private long length;
@@ -36,14 +37,26 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentMapOperation class.
+     * Creates a new instance of the StreamSegmentMapOperation class for a non-transaction Segment.
      *
      * @param streamSegmentProperties Information about the StreamSegment.
      */
     public StreamSegmentMapOperation(SegmentProperties streamSegmentProperties) {
+        this(ContainerMetadata.NO_STREAM_SEGMENT_ID, streamSegmentProperties);
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentMapOperation class.
+     *
+     * @param parentStreamSegmentId   The Id of the Parent StreamSegment. If this is not a transaction, this should be set
+     *                                to ContainerMetadata.NO_STREAM_SEGMENT_ID.
+     * @param streamSegmentProperties Information about the StreamSegment.
+     */
+    public StreamSegmentMapOperation(long parentStreamSegmentId, SegmentProperties streamSegmentProperties) {
         this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
+        this.parentStreamSegmentId = parentStreamSegmentId;
         this.streamSegmentName = streamSegmentProperties.getName();
-        this.startOffset = streamSegmentProperties.getStartOffset();
+        this.startOffset = isTransaction() ? 0 : streamSegmentProperties.getStartOffset();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
         this.attributes = streamSegmentProperties.getAttributes();
@@ -57,51 +70,82 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     //endregion
 
-    //region StreamSegmentMapping implementation.
+    //region MappingOperation implementation.
 
-    @Override
+    /**
+     * Gets a value indicating the Id of the Parent StreamSegment.
+     */
+    public long getParentStreamSegmentId() {
+        return this.parentStreamSegmentId;
+    }
+
+    /**
+     * Gets a value indicating the Name of the StreamSegment.
+     */
     public String getStreamSegmentName() {
         return this.streamSegmentName;
     }
 
-    @Override
+    /**
+     * Gets a value indicating the Id of the StreamSegment.
+     */
     public long getStreamSegmentId() {
         return this.streamSegmentId;
     }
 
-    @Override
+    /**
+     * Sets the StreamSegmentId for this operation.
+     *
+     * @param value The Id of the segment to set.
+     */
     public void setStreamSegmentId(long value) {
         Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
         Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
 
-    @Override
+    /**
+     * Gets a value indicating the first offset within the StreamSegment available for reading.
+     */
     public long getStartOffset() {
         return this.startOffset;
     }
 
-    @Override
+    /**
+     * Gets a value indicating the Length of the StreamSegment at the time of the mapping.
+     */
     public long getLength() {
         return this.length;
     }
 
-    @Override
+    /**
+     * Gets a value indicating whether the StreamSegment is currently sealed at the time of the mapping.
+     */
     public boolean isSealed() {
         return this.sealed;
     }
 
-    @Override
+    /**
+     * Gets the Attributes for the StreamSegment at the time of the mapping.
+     */
     public Map<UUID, Long> getAttributes() {
         return this.attributes;
+    }
+
+    /**
+     * Gets a value indicating whether this MappingOperation is for a Transaction StreamSegment.
+     */
+    public boolean isTransaction() {
+        return this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 
     @Override
     public String toString() {
         return String.format(
-                "%s, Id = %s, Name = %s, Start = %d, Length = %d, Sealed = %s",
+                "%s, Id = %s%s, Name = %s, Start = %d, Length = %d, Sealed = %s",
                 super.toString(),
                 toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
+                isTransaction() ? String.format(", ParentId = %s", getParentStreamSegmentId()) : "",
                 getStreamSegmentName(),
                 getStartOffset(),
                 getLength(),
@@ -111,7 +155,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     //endregion
 
     static class Serializer extends OperationSerializer<StreamSegmentMapOperation> {
-        private static final int STATIC_LENGTH = 4 * Long.BYTES + Byte.BYTES;
+        private static final int STATIC_LENGTH = 5 * Long.BYTES + Byte.BYTES;
 
         @Override
         protected OperationBuilder<StreamSegmentMapOperation> newBuilder() {
@@ -139,6 +183,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
                     + target.getMapLength(o.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.streamSegmentId);
+            target.writeLong(o.parentStreamSegmentId);
             target.writeUTF(o.streamSegmentName);
             target.writeLong(o.startOffset);
             target.writeLong(o.length);
@@ -149,6 +194,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentMapOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.streamSegmentId = source.readLong();
+            b.instance.parentStreamSegmentId = source.readLong();
             b.instance.streamSegmentName = source.readUTF();
             b.instance.startOffset = source.readLong();
             b.instance.length = source.readLong();

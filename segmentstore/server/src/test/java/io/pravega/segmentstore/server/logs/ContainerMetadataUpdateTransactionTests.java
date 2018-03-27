@@ -38,7 +38,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
@@ -947,7 +946,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Part 1: recovery mode.
         metadata.enterRecoveryMode();
-        TransactionMapOperation mapOp = createTransactionMap(mapParent.getStreamSegmentId());
+        StreamSegmentMapOperation mapOp = createTransactionMap(mapParent.getStreamSegmentId());
         val txn2 = createUpdateTransaction(metadata);
         txn2.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation changed the StreamSegmentId on the operation in recovery mode.",
@@ -995,7 +994,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
-        val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
+        val updateMap = new StreamSegmentMapOperation(mapOp.getParentStreamSegmentId(),
                  StreamSegmentInformation.builder()
                         .name(mapOp.getStreamSegmentName())
                         .startOffset(1) // Purposefully setting this wrong to see if it is auto-corrected.
@@ -1053,7 +1052,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.preProcessOperation(secondMap);
         txn2.acceptOperation(secondMap);
 
-        TransactionMapOperation secondTxnMap = createTransactionMap(SEGMENT_ID, "a_txn2");
+        StreamSegmentMapOperation secondTxnMap = createTransactionMap(SEGMENT_ID, "a_txn2");
         secondTxnMap.setStreamSegmentId(1235);
         txn2.preProcessOperation(secondTxnMap);
         txn2.acceptOperation(secondTxnMap);
@@ -1544,12 +1543,12 @@ public class ContainerMetadataUpdateTransactionTests {
                 .build());
     }
 
-    private TransactionMapOperation createTransactionMap(long parentId) {
+    private StreamSegmentMapOperation createTransactionMap(long parentId) {
         return createTransactionMap(parentId, SEALED_TRANSACTION_NAME);
     }
 
-    private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, StreamSegmentInformation.builder()
+    private StreamSegmentMapOperation createTransactionMap(long parentId, String name) {
+        return new StreamSegmentMapOperation(parentId, StreamSegmentInformation.builder()
                 .name(name)
                 .startOffset(SEALED_TRANSACTION_LENGTH / 2) // This should be ignored everywhere, hence setting it wrong.
                 .length(SEALED_TRANSACTION_LENGTH)
