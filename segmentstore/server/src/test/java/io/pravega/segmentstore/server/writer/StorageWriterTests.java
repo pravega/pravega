@@ -587,7 +587,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             Assert.assertFalse("Parent is sealed already merged", parentMetadata.isSealed());
 
             // Create the Merge Op
-            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId(), null);
+            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
             op.setLength(transactionMetadata.getLength());
             op.setStreamSegmentOffset(parentMetadata.getLength());
 

@@ -217,7 +217,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             transactionIds.entrySet().forEach(mapping -> {
                 result.add(new StreamSegmentSealOperation(mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
-                result.add(new MergeTransactionOperation(mapping.getValue(), mapping.getKey(), null));
+                result.add(new MergeTransactionOperation(mapping.getValue(), mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
             addProbe(result);

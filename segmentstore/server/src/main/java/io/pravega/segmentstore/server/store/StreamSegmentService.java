@@ -114,10 +114,10 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         return invoke(
                 transactionName,
-                container -> container.mergeTransaction(transactionName, attributeUpdates, timeout),
+                container -> container.mergeTransaction(transactionName, timeout),
                 "mergeTransaction", transactionName);
     }
 

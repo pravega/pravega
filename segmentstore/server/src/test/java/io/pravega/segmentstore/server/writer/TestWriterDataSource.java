@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -28,12 +29,14 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -246,21 +249,31 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return ErrorInjector
                 .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
                     synchronized (this.lock) {
-                        Map<UUID, Long> segmentAttributes = this.attributeData.get(streamSegmentId);
-                        if (segmentAttributes == null) {
-                            segmentAttributes = new HashMap<>();
-                            this.attributeData.put(streamSegmentId, segmentAttributes);
-                        }
-
-                        for (val e : attributes.entrySet()) {
-                            if (e.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                                segmentAttributes.remove(e.getValue());
-                            } else {
-                                segmentAttributes.put(e.getKey(), e.getValue());
+                        Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
+                        try {
+                            for (val e : attributes.entrySet()) {
+                                if (e.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                                    segmentAttributes.remove(e.getKey());
+                                } else {
+                                    segmentAttributes.put(e.getKey(), e.getValue());
+                                }
                             }
+                        } catch (UnsupportedOperationException ex) {
+                            // This is turned into an UnmodifiableMap, which throws UnsupportedOperationException for modify calls.
+                            throw new CompletionException(new StreamSegmentSealedException("attributes_" + streamSegmentId, ex));
                         }
                     }
-                }));
+                }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout) {
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this.lock) {
+                Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
+                this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
+            }
+        }, this.executor);
     }
 
     @Override

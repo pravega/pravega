@@ -244,7 +244,7 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testStreamSegmentAppendWithAttributes() throws Exception {
-        testWithAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates), true);
+        testWithAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
     }
 
     /**
@@ -252,7 +252,7 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testStreamSegmentAppendWithBadAttributes() throws Exception {
-        testWithBadAttributes(SEGMENT_ID, attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
     }
 
     //endregion
@@ -264,7 +264,7 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testUpdateAttributes() throws Exception {
-        testWithAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates), true);
+        testWithAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
     /**
@@ -272,7 +272,7 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testUpdateAttributesWithBadValues() throws Exception {
-        testWithBadAttributes(SEGMENT_ID, attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+        testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
     /**
@@ -358,7 +358,7 @@ public class ContainerMetadataUpdateTransactionTests {
         }
     }
 
-    private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation, boolean isRepeatable) throws Exception {
+    private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeAccumulate = UUID.randomUUID();
         final UUID attributeReplace = UUID.randomUUID();
@@ -385,48 +385,45 @@ public class ContainerMetadataUpdateTransactionTests {
         // has internalized the attribute updates.
         verifyAttributeUpdates("after acceptOperation (1)", txn, attributeUpdates, expectedValues);
 
-        // Some operations (such as MergeTransactionOperation) are not repeatable, so don't bother with the rest.
-        if (isRepeatable) {
-            // Update #2: update all attributes that can be updated.
-            attributeUpdates.clear();
-            attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 1 + 1 = 2
-            attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 2));
-            attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
-            attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 2, 1));
-            expectedValues.put(attributeAccumulate, 2L);
-            expectedValues.put(attributeReplace, 2L);
-            expectedValues.put(attributeReplaceIfGreater, 2L);
-            expectedValues.put(attributeReplaceIfEquals, 2L);
+        // Update #2: update all attributes that can be updated.
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 1 + 1 = 2
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 2, 1));
+        expectedValues.put(attributeAccumulate, 2L);
+        expectedValues.put(attributeReplace, 2L);
+        expectedValues.put(attributeReplaceIfGreater, 2L);
+        expectedValues.put(attributeReplaceIfEquals, 2L);
 
-            op = createOperation.apply(attributeUpdates);
-            txn.preProcessOperation(op);
-            txn.acceptOperation(op);
+        op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
 
-            // This is still in the transaction, so we need to add it for comparison sake.
-            attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1));
-            verifyAttributeUpdates("after acceptOperation (2)", txn, attributeUpdates, expectedValues);
+        // This is still in the transaction, so we need to add it for comparison sake.
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 1));
+        verifyAttributeUpdates("after acceptOperation (2)", txn, attributeUpdates, expectedValues);
 
-            // Update #3: after commit, verify that attributes are committed when they need to.
-            val previousAcceptedValues = new HashMap<UUID, Long>(expectedValues);
-            txn.commit(metadata);
-            attributeUpdates.clear();
-            attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 2 + 1 = 3
-            attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 3));
-            attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 3));
-            attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 2));
-            expectedValues.put(attributeAccumulate, 3L);
-            expectedValues.put(attributeReplace, 3L);
-            expectedValues.put(attributeReplaceIfGreater, 3L);
-            expectedValues.put(attributeReplaceIfEquals, 3L);
+        // Update #3: after commit, verify that attributes are committed when they need to.
+        val previousAcceptedValues = new HashMap<UUID, Long>(expectedValues);
+        txn.commit(metadata);
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1)); // 2 + 1 = 3
+        attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 3));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 2));
+        expectedValues.put(attributeAccumulate, 3L);
+        expectedValues.put(attributeReplace, 3L);
+        expectedValues.put(attributeReplaceIfGreater, 3L);
+        expectedValues.put(attributeReplaceIfEquals, 3L);
 
-            op = createOperation.apply(attributeUpdates);
-            txn.preProcessOperation(op);
-            txn.acceptOperation(op);
+        op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
 
-            SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit+acceptOperation, but prior to second commit.",
-                    previousAcceptedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
-            verifyAttributeUpdates("after commit+acceptOperation", txn, attributeUpdates, expectedValues);
-        }
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit+acceptOperation, but prior to second commit.",
+                previousAcceptedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
+        verifyAttributeUpdates("after commit+acceptOperation", txn, attributeUpdates, expectedValues);
 
         // Final step: commit Append #3, and verify final segment metadata.
         txn.commit(metadata);
@@ -434,7 +431,7 @@ public class ContainerMetadataUpdateTransactionTests {
                 expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
-    private void testWithBadAttributes(long segmentId, Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
+    private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
         final UUID attributeReplaceIfEquals = UUID.randomUUID();
@@ -449,7 +446,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
-        Operation op = new UpdateAttributesOperation(segmentId, attributeUpdates);
+        Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
         txn.acceptOperation(op);
 
@@ -598,6 +595,9 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("acceptOperation updated the metadata.", segmentMetadata.isSealed());
 
         txn.commit(metadata);
+
+        // Check attributes.
+        SegmentMetadataComparer.assertSameAttributes("Unexpected set of attributes after commit.", segmentAttributes, segmentMetadata);
     }
 
     //endregion
@@ -772,14 +772,14 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.clear(); // Rollback the seal
 
         // When Target StreamSegment is a Transaction.
-        MergeTransactionOperation mergeToTransactionOp = new MergeTransactionOperation(NOTSEALED_TRANSACTION_ID, SEALED_TRANSACTION_ID, null);
+        MergeTransactionOperation mergeToTransactionOp = new MergeTransactionOperation(NOTSEALED_TRANSACTION_ID, SEALED_TRANSACTION_ID);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Target StreamSegment is a Transaction.",
                 () -> txn2.preProcessOperation(mergeToTransactionOp),
                 ex -> ex instanceof MetadataUpdateException);
 
         // When Transaction is not sealed.
-        MergeTransactionOperation mergeNonSealed = new MergeTransactionOperation(NOTSEALED_TRANSACTION_ID, SEGMENT_ID, null);
+        MergeTransactionOperation mergeNonSealed = new MergeTransactionOperation(NOTSEALED_TRANSACTION_ID, SEGMENT_ID);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is not sealed.",
                 () -> txn2.preProcessOperation(mergeNonSealed),
@@ -832,22 +832,6 @@ public class ContainerMetadataUpdateTransactionTests {
                 SEGMENT_LENGTH + SEALED_TRANSACTION_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
                 SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
-    }
-
-    /**
-     * Tests the ability of the ContainerMetadataUpdateTransaction to handle MergeTransactionOperations with valid Attribute Updates.
-     */
-    @Test
-    public void testMergeWithAttributes() throws Exception {
-        testWithAttributes(attributeUpdates -> new MergeTransactionOperation(SEGMENT_ID, SEALED_TRANSACTION_ID, attributeUpdates), false);
-    }
-
-    /**
-     * Tests the ability of the ContainerMetadataUpdateTransaction to reject MergeTransactionOperations with invalid Attribute Updates.
-     */
-    @Test
-    public void testMergeWithBadAttributes() throws Exception {
-        testWithBadAttributes(SEGMENT_ID, attributeUpdates -> new MergeTransactionOperation(SEGMENT_ID, SEALED_TRANSACTION_ID, attributeUpdates));
     }
 
     //endregion
@@ -1545,7 +1529,7 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private MergeTransactionOperation createMerge() {
-        return new MergeTransactionOperation(SEGMENT_ID, SEALED_TRANSACTION_ID, null);
+        return new MergeTransactionOperation(SEGMENT_ID, SEALED_TRANSACTION_ID);
     }
 
     private StreamSegmentMapOperation createMap() {

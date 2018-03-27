@@ -129,7 +129,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 50;
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final UUID MERGE_TRANSACTION_COUNT_ATTRIBUTE = new UUID(Long.MAX_VALUE, System.nanoTime());
     private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
@@ -746,15 +745,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
 
-        // 5.1. Verify parent segment's attributes (we increment the MergeTxnCount with every txn merge).
-        for (val e : transactionsBySegment.entrySet()) {
-            String segmentName = e.getKey();
-            long expectedValue = e.getValue().size();
-            long actualValue = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join()
-                                                .getAttributes().get(MERGE_TRANSACTION_COUNT_ATTRIBUTE);
-            Assert.assertEquals("Unexpected attribute value for MergeTxnCount for segment " + segmentName, expectedValue, actualValue);
-        }
-
         // 6. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
@@ -940,7 +930,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected length from segment after eviction & resurrection.", 2 * appendData.length, sp.getLength());
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
 
-        // Seal (this should clear out non-dynamic attributes).
+        // Seal (this should clear out non-core attributes).
+        expectedAttributes.keySet().removeIf(id -> !Attributes.isCoreAttribute(id));
         localContainer.sealStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
@@ -1086,7 +1077,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Case 2: following a Merge.
         localContainer.sealStreamSegment(txn1, TIMEOUT).join();
-        localContainer.mergeTransaction(txn1, null, TIMEOUT).join();
+        localContainer.mergeTransaction(txn1, TIMEOUT).join();
         val segment0Activation = tryActivate(localContainer, segment0, segment3);
         val segment0Info = segment0Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNotNull("Unable to properly activate dormant segment (0).", segment0Info);
@@ -1426,8 +1417,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
                 mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
-                val attr = Collections.singleton(new AttributeUpdate(MERGE_TRANSACTION_COUNT_ATTRIBUTE, AttributeUpdateType.Accumulate, 1));
-                mergeFutures.add(context.container.mergeTransaction(transactionName, attr, TIMEOUT));
+                mergeFutures.add(context.container.mergeTransaction(transactionName, TIMEOUT));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));

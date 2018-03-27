@@ -62,13 +62,19 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     @Override
     public CompletableFuture<AttributeIndex> forSegment(long streamSegmentId, Duration timeout) {
         SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
-        if (sm.isDeleted() || sm.isMerged()) {
+        if (sm.isDeleted()) {
             return Futures.failedFuture(new StreamSegmentNotExistsException(sm.getName()));
         }
 
         SegmentAttributeIndex index = new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.config, this.executor);
         return index.initialize(timeout)
                     .thenApply(v -> index);
+    }
+
+    @Override
+    public CompletableFuture<Void> delete(SegmentMetadata sm, Duration timeout) {
+        Preconditions.checkArgument(sm.isDeleted(), "Segment %s is not deleted.", sm.getId());
+        return SegmentAttributeIndex.delete(sm, this.storage, timeout);
     }
 
     //endregion

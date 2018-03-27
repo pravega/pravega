@@ -153,7 +153,6 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(), actual.getTransactionSegmentId());
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
-        assertSame(message + " Unexpected attributes:", expected.getAttributeUpdates(), actual.getAttributeUpdates());
     }
 
     private void assertSame(String message, StreamSegmentTruncateOperation expected, StreamSegmentTruncateOperation actual) {

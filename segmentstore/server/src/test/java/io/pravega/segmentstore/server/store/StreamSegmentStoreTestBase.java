@@ -235,7 +235,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
                 mergeFutures.add(store.sealStreamSegment(transactionName, TIMEOUT)
-                        .thenCompose(v -> store.mergeTransaction(transactionName, null, TIMEOUT)));
+                        .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));

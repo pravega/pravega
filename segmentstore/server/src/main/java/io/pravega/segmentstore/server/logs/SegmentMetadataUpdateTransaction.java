@@ -337,14 +337,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws StreamSegmentSealedException    If the parent stream is already sealed.
      * @throws StreamSegmentNotSealedException If the transaction segment is not sealed.
      * @throws MetadataUpdateException If the operation cannot be processed because of the current state of the metadata.
-     * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
-     *                                      values of the segment.
-     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
-     *                                     maximum allowed number of Attributes.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
      */
     void preProcessAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException, TooManyAttributesException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -371,9 +367,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         if (!this.recoveryMode) {
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
-
-            // Attribute validation.
-            preProcessAttributes(operation.getAttributeUpdates());
         }
     }
 
@@ -569,7 +562,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         this.length += transLength;
-        acceptAttributes(operation.getAttributeUpdates());
         this.isChanged = true;
     }
 

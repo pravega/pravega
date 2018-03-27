@@ -100,6 +100,14 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
+        public CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout) {
+            TimeoutTimer timer = new TimeoutTimer(timeout);
+            return this.attributeIndex
+                    .forSegment(streamSegmentId, timer.getRemaining())
+                    .thenCompose(ai -> ai.seal(timer.getRemaining()));
+        }
+
+        @Override
         public CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout) {
             log.debug("{}: Read (AfterSeqNo={}, MaxCount={}).", this.traceObjectId, afterSequence, maxCount);
             return this.operationLog.read(afterSequence, maxCount, timeout);

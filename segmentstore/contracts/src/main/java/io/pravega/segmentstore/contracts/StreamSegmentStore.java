@@ -132,16 +132,13 @@ public interface StreamSegmentStore {
     /**
      * Merges a Sealed Transaction into its parent StreamSegment.
      *
-     * @param transactionName  The name of the Transaction StreamSegment to merge.
-     * @param attributeUpdates A Collection of Attribute-Values to set or update on the parent StreamSegment. Only the
-     *                         attributes contained here will be touched; all other attributes will be left intact.
-     *                         May be null (which indicates no updates).
-     * @param timeout          Timeout for the operation.
+     * @param transactionName The name of the Transaction StreamSegment to merge.
+     * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> mergeTransaction(String transactionName, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.

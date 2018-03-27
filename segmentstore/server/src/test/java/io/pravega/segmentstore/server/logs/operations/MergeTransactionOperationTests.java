@@ -20,7 +20,7 @@ import java.util.Random;
 public class MergeTransactionOperationTests extends OperationTestsBase<MergeTransactionOperation> {
     @Override
     protected MergeTransactionOperation createOperation(Random random) {
-        return new MergeTransactionOperation(random.nextLong(), random.nextLong(), StreamSegmentAppendOperationTests.createAttributes());
+        return new MergeTransactionOperation(random.nextLong(), random.nextLong());
     }
 
     @Override

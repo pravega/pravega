@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -126,7 +127,7 @@ class SegmentAttributeIndex implements AttributeIndex {
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation has succeeded.
      */
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    CompletableFuture<Void> initialize(Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
         Preconditions.checkState(this.attributeSegment.get() == null, "SegmentAttributeIndex is already initialized.");
@@ -150,6 +151,24 @@ class SegmentAttributeIndex implements AttributeIndex {
                             return Futures.failedFuture(ex);
                         })
                 .thenRun(() -> log.debug("{}: Initialized (Attribute Segment Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
+    }
+
+    /**
+     * Deletes all the Attribute data associated with the given Segment.
+     *
+     * @param segmentMetadata The SegmentMetadata for the Segment whose attribute data should be deleted.
+     * @param storage         A Storage Adapter to execute the deletion on.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully.
+     */
+    static CompletableFuture<Void> delete(SegmentMetadata segmentMetadata, Storage storage, Duration timeout) {
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentMetadata.getName());
+        return Futures.exceptionallyExpecting(
+                storage.openWrite(attributeSegmentName)
+                       .thenComposeAsync(handle -> storage.delete(handle, timer.getRemaining())),
+                StreamSegmentNotExistsException.class,
+                null);
     }
 
     //endregion
@@ -224,9 +243,12 @@ class SegmentAttributeIndex implements AttributeIndex {
     public CompletableFuture<Void> seal(Duration timeout) {
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return createSnapshot(new AttributeCollection(), true, timer.getRemaining())
-                .thenComposeAsync(v -> this.storage.seal(this.attributeSegment.get().handle, timer.getRemaining()), this.executor)
-                .thenRun(() -> log.info("{}: Sealed (Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
+        return Futures.exceptionallyExpecting(
+                createSnapshot(new AttributeCollection(), true, timer.getRemaining())
+                        .thenComposeAsync(v -> this.storage.seal(this.attributeSegment.get().handle, timer.getRemaining()), this.executor)
+                        .thenRun(() -> log.info("{}: Sealed (Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength())),
+                StreamSegmentSealedException.class,
+                null);
     }
 
     //endregion
@@ -472,6 +494,8 @@ class SegmentAttributeIndex implements AttributeIndex {
     private void ensureInitialized() {
         Preconditions.checkState(this.attributeSegment.get() != null, "SegmentAttributeIndex is not initialized.");
     }
+
+    //endregion
 
     //region AttributeSegmentReader
 

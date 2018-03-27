@@ -53,6 +53,7 @@ public interface AttributeIndex extends AsyncMap<UUID, Long> {
 
     /**
      * Compacts the Attribute Index into a final Snapshot and seals it, which means it will not accept any further changes.
+     * This operation is idempotent, which means it will have no effect on an already sealed index.
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, indicates that the operation completed successfully.

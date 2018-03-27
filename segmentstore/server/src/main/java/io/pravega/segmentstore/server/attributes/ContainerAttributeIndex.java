@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.attributes;
 
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -25,4 +26,13 @@ public interface ContainerAttributeIndex {
      * @return A CompletableFuture that, when completed, will contain the requested AttributeIndex.
      */
     CompletableFuture<AttributeIndex> forSegment(long streamSegmentId, Duration timeout);
+
+    /**
+     * Deletes any existing attribute data pertaining to the given Segment.
+     *
+     * @param metadata The SegmentMetadata for the Segment whose Attribute data to delete.
+     * @param timeout  Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation finished.
+     */
+    CompletableFuture<Void> delete(SegmentMetadata metadata, Duration timeout);
 }
