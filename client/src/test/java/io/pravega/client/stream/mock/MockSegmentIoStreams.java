@@ -11,6 +11,7 @@ package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -32,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, SegmentMetadataClient {
+public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
 
     private final Segment segment;
     @GuardedBy("$lock")
@@ -99,11 +100,27 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public void write(PendingEvent event) {
-        dataWritten.add(event.getData().slice());
+        ByteBuffer data = event.getData();
+        write(data);
+        event.getAckFuture().complete(null);
+    }
+    
+    @Override
+    @Synchronized
+    public boolean write(ByteBuffer data, long expectedOffset) {
+        if (writeOffset == expectedOffset) {
+            write(data);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private void write(ByteBuffer data) {
+        dataWritten.add(data.slice());
         offsetList.add(writeOffset);
         eventsWritten++;
-        writeOffset += event.getData().remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        event.getAckFuture().complete(null);
+        writeOffset += data.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
     }
     
     @Override

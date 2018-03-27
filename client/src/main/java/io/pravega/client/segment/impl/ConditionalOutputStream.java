@@ -11,7 +11,6 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.impl.PendingEvent;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines an ConditionalOutputStream for a segment.
@@ -31,11 +30,12 @@ public interface ConditionalOutputStream extends AutoCloseable {
      * {@link PendingEvent#getExpectedOffset()} the data will be written only if the
      * SegmentOutputStream is currently of expectedLength.
      * 
-     * The associated callback will be invoked when the operation is complete.
+     * This is a synchronous and blocking method.
      * 
-     * @param event The event to be added to the segment.
+     * @param data The data to be added to the segment.
+     * @param expectedOffset The location is the segment that the data will be written to.
      */
-    public abstract CompletableFuture<Boolean> write(ByteBuffer data, long expectedOffset);
+    public abstract boolean write(ByteBuffer data, long expectedOffset);
 
     /**
      * Flushes and then closes the output stream.

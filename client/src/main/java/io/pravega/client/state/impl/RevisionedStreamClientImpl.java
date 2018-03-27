@@ -22,7 +22,6 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -54,21 +53,19 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
-    private final Controller controller;
-    private final String delegationToken;
 
     private final Object lock = new Object();
 
     @Override
     public Revision writeConditionally(Revision latestRevision, T value) {
-        CompletableFuture<Boolean> wasWritten;
+        boolean wasWritten;
         long offset = latestRevision.asImpl().getOffsetInSegment();
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
         synchronized (lock) {
             wasWritten = conditional.write(serialized, offset);
         }
-        if (Futures.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
+        if (wasWritten) {
             long newOffset = getNewOffset(offset, size);
             log.trace("Wrote from {} to {}", offset, newOffset);
             return new RevisionImpl(segment, newOffset, 0);
