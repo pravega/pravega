@@ -250,13 +250,20 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         "Operation '%s' does not correspond to a valid Truncation Point in the metadata.", op)));
             }
         }
+
+        return CompletableFuture.completedFuture(null);
     }
 
     private CompletableFuture<Void> processSegmentOperation(SegmentOperation op) {
         // Add the operation to the appropriate Aggregator.
-        SegmentAggregator aggregator = getSegmentAggregator(op.getStreamSegmentId());
-        aggregator.add(op);
-        return op.getLength();
+        return getSegmentAggregator(op.getStreamSegmentId())
+                .thenAccept(aggregator -> {
+                    try {
+                        aggregator.add(op);
+                    } catch (DataCorruptionException ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
     }
 
     //endregion
@@ -350,35 +357,41 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * Gets, or creates, a SegmentAggregator for the given StorageOperation.
      *
      * @param streamSegmentId The Id of the StreamSegment to get the aggregator for.
-     * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
-    private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
-        SegmentAggregator result = this.aggregators.getOrDefault(streamSegmentId, null);
-        if (result != null && closeIfNecessary(result).isClosed()) {
-            // Existing SegmentAggregator has become stale (most likely due to its SegmentMetadata being evicted),
-            // so it has been closed and we need to create a new one.
-            this.aggregators.remove(streamSegmentId);
-            result = null;
-        }
-
-        if (result == null) {
-            // We do not yet have this aggregator. First, get its metadata.
-            UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);
-            if (segmentMetadata == null) {
-                throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
-            }
-
-            // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
-            // having a registered aggregator that is not initialized.
-            result = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
-            try {
-                result.initialize(this.config.getFlushTimeout()).join(); // TODO: get rid of this join() at one point.
-                this.aggregators.put(streamSegmentId, result);
-            } catch (Exception ex) {
-                result.close();
-                throw ex;
+    private CompletableFuture<SegmentAggregator> getSegmentAggregator(long streamSegmentId) {
+        SegmentAggregator existingAggregator = this.aggregators.getOrDefault(streamSegmentId, null);
+        if (existingAggregator != null) {
+            if (closeIfNecessary(existingAggregator).isClosed()) {
+                // Existing SegmentAggregator has become stale (most likely due to its SegmentMetadata being evicted),
+                // so it has been closed and we need to create a new one.
+                this.aggregators.remove(streamSegmentId);
+            } else {
+                return CompletableFuture.completedFuture(existingAggregator);
             }
         }
+
+        // Get the SegmentAggregator's Metadata.
+        UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);
+        if (segmentMetadata == null) {
+            return Futures.failedFuture(new DataCorruptionException(String.format(
+                    "No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId)));
+        }
+
+        // Then create the aggregator, and only register it after a successful initialization. Otherwise we risk
+        // having a registered aggregator that is not initialized.
+        SegmentAggregator newAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, this.config, this.timer, this.executor);
+        try {
+            CompletableFuture<Void> init = newAggregator.initialize(this.config.getFlushTimeout());
+            Futures.exceptionListener(init, ex -> newAggregator.close());
+            return init.thenApply(ignored -> {
+                this.aggregators.put(streamSegmentId, newAggregator);
+                return newAggregator;
+            });
+        } catch (Exception ex) {
+            newAggregator.close();
+            throw ex;
+        }
+    }
 
     private boolean isCriticalError(Throwable ex) {
         return Exceptions.mustRethrow(ex)
@@ -490,6 +503,13 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         InputReadStageResult(WriterState state) {
             this.state = state;
+        }
+
+        void operationProcessed(Operation op) {
+            this.count++;
+            if (op instanceof StorageOperation) {
+                this.bytes += ((StorageOperation) op).getLength();
+            }
         }
 
         @Override
