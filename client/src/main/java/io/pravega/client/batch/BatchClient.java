@@ -10,19 +10,18 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import java.util.Iterator;
+import io.pravega.client.stream.StreamCut;
 
 /**
  * Please note this is an experimental API.
  * 
  * Used to get metadata about and read from an existing streams.
  * <p>
- * All events written to a stream will be visible to SegmentIterators and reflected in
- * {@link SegmentInfo#getLength()}.
+ * All events written to a stream will be visible to SegmentIterators
  * <p>
  * Events within a segment are strictly ordered, but as this API allows for reading from multiple
  * segments in parallel without adhering to time ordering. This allows for events greater
@@ -32,12 +31,21 @@ import java.util.Iterator;
 public interface BatchClient {
 
     /**
-     * Provides a list of segments and their metadata for a given stream.
+     * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
+     * Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the
+     * current end of stream respectively.
+     *<p>
+     * Note: In case of stream truncation: <p>
+     * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>
+     * - Passing a fromStreamCut which points to the truncated stream will result in a {@link NoSuchSegmentException} while
+     * iterating over SegmentRange iterator obtained via {@link StreamSegmentsIterator#getIterator()}
      *
-     * @param stream the stream
-     * @return The segments in the requested stream.
+     * @param stream the stream.
+     * @param fromStreamCut starting stream cut.
+     * @param toStreamCut end stream cut.
+     * @return Segment information between the two stream cuts.
      */
-    Iterator<SegmentInfo> listSegments(Stream stream);
+    StreamSegmentsIterator getSegments(Stream stream, StreamCut fromStreamCut, StreamCut toStreamCut);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the
@@ -48,24 +56,6 @@ public interface BatchClient {
      * @param deserializer A deserializer to be used to parse events
      * @return A SegmentIterator over the requested segment
      */
-    <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer);
-
-    /**
-     * Provides a SegmentIterator to read the events after the startingOffset in the requested
-     * segment ending at the current end of the segment.
-     *
-     * Offsets can be obtained by calling {@link SegmentIterator#getOffset()} or
-     * {@link SegmentInfo#getWriteOffset()}. There is no validation that the provided offset actually
-     * aligns to an event. If it does not, the deserializer will be passed corrupt data. This means
-     * that it is invalid to, for example, attempt to divide a segment by simply passing a starting
-     * offset that is half of the segment length.
-     *
-     * @param <T> The type of events written to the segment.
-     * @param segment The segment to read from
-     * @param deserializer A deserializer to be used to parse events
-     * @param startingOffset The offset to start iterating from.
-     * @return A SegmentIterator over the requested segment at startingOffset
-     */
-    <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset);
+    <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
 
 }
