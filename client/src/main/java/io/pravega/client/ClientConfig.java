@@ -31,7 +31,7 @@ public class ClientConfig {
         This is used to autodiscovery the controller endpoints from an initial controller list.
     */
     @Builder.Default
-    private URI controllerURI = URI.create("tcp://localhost");
+    private final URI controllerURI = URI.create("tcp://localhost");
 
     /**
      * Credentials to be passed on to the Pravega controller for authentication and authorization.
