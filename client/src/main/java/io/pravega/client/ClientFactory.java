@@ -74,7 +74,7 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, ClientConfig config) {
-        config = new CredentialsExtractor().extract(config);
+        config = CredentialsExtractor.extractCreds(config);
         val connectionFactory = new ConnectionFactoryImpl(config);
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);

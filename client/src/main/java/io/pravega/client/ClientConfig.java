@@ -21,6 +21,7 @@ import lombok.Data;
  * in future.
  */
 @Data
+@Builder(toBuilder = true)
 @Beta
 public class ClientConfig {
     /** controllerURI The controller rpc URI. This can be of 2 types
@@ -29,6 +30,7 @@ public class ClientConfig {
      2. pravega://ip1:port1,ip2:port2,...
         This is used to autodiscovery the controller endpoints from an initial controller list.
     */
+    @Builder.Default
     private URI controllerURI = URI.create("tcp://localhost");
 
     /**
@@ -47,16 +49,6 @@ public class ClientConfig {
      */
     private boolean validateHostName;
 
-    @Builder
-    public ClientConfig(URI controllerURI, Credentials credentials, String trustStore, boolean validateHostName) {
-        if (controllerURI != null) {
-            this.controllerURI = controllerURI;
-        }
-        this.credentials = credentials;
-        this.trustStore = trustStore;
-        this.validateHostName = validateHostName;
-    }
-
     public boolean isEnableTls() {
         return this.controllerURI.getScheme().equals("tls") || this.controllerURI.getScheme().equals("ssl")
                 || this.controllerURI.getScheme().equals("pravegas");
@@ -64,6 +56,14 @@ public class ClientConfig {
 
     public static final class PravegaClientConfigBuilder {
         private boolean validateHostName = true;
+
+        public PravegaClientConfigBuilder() {
+
+        }
+
+        public PravegaClientConfigBuilder(ClientConfig copyConfig) {
+
+        }
     }
 
 

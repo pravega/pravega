@@ -45,7 +45,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
-        clientConfig = new CredentialsExtractor().extract(clientConfig);
+        clientConfig = CredentialsExtractor.extractCreds(clientConfig);
         return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
     }
 

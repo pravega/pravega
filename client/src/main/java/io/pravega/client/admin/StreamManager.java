@@ -37,7 +37,7 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(ClientConfig clientConfig) {
-        clientConfig = new CredentialsExtractor().extract(clientConfig);
+        clientConfig = CredentialsExtractor.extractCreds(clientConfig);
         return new StreamManagerImpl(clientConfig);
     }
 

@@ -33,6 +33,7 @@ public class CredentialsExtractor {
     @GuardedBy("$this")
     private final Map<String, String> env;
 
+
     public CredentialsExtractor() {
         this(System.getProperties(), System.getenv());
     }
@@ -41,6 +42,10 @@ public class CredentialsExtractor {
     CredentialsExtractor(Properties properties, Map<String, String> env) {
         this.properties = properties;
         this.env = env;
+    }
+
+    public static ClientConfig extractCreds(ClientConfig config) {
+        return new CredentialsExtractor().extract(config);
     }
 
     /**
@@ -65,13 +70,7 @@ public class CredentialsExtractor {
             credentials = extractCredentialsFromEnv();
         }
 
-        return ClientConfig.builder()
-                           .credentials(credentials)
-                           .trustStore(config.getTrustStore())
-                           .validateHostName(config.isValidateHostName())
-                           .controllerURI(config.getControllerURI())
-                           .build();
-
+        return config.toBuilder().credentials(credentials).build();
     }
 
     private Credentials extractCredentialsFromProperties() {
