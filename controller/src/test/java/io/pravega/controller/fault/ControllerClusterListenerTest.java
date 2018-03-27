@@ -14,7 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -23,13 +23,20 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.task.Stream.TxnSweeper;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TestTasks;
+import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
+import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -38,14 +45,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -131,7 +130,7 @@ public class ControllerClusterListenerTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory);
+                segmentHelper, executor, host.getHostId(), connectionFactory, false, "");
         txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
                 new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
@@ -164,7 +163,7 @@ public class ControllerClusterListenerTest {
         String hostName = "localhost";
         Host host = new Host(hostName, 10, "originalhost");
         // Following futures are used as latches. When awaitRunning a sweeper, we wait on a latch by calling
-        // FutureHelpers.await across the test case.
+        // Futures.await across the test case.
         // Future for ensuring that task sweeper is ready and we let the sweep happen.
         CompletableFuture<Void> taskSweep = new CompletableFuture<>();
         // Future for when taskSweeper.failedHost is called once
@@ -207,7 +206,7 @@ public class ControllerClusterListenerTest {
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory);
+                segmentHelper, executor, host.getHostId(), connectionFactory, false, "");
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
@@ -237,7 +236,7 @@ public class ControllerClusterListenerTest {
         clusterListener.awaitRunning();
         log.info("cluster started");
         // ensure that task sweep happens after cluster listener becomes ready.
-        assertTrue(FutureHelpers.await(taskSweep, 3000));
+        assertTrue(Futures.await(taskSweep, 3000));
         log.info("task sweeper completed");
 
         // ensure only tasks are swept
@@ -257,8 +256,8 @@ public class ControllerClusterListenerTest {
         validateRemovedNode(newHost.getHostId());
         log.info("deregistering new host");
 
-        assertTrue(FutureHelpers.await(taskHostSweep1, 3000));
-        assertTrue(FutureHelpers.await(txnHostSweepIgnore, 10000));
+        assertTrue(Futures.await(taskHostSweep1, 3000));
+        assertTrue(Futures.await(txnHostSweepIgnore, 10000));
 
         log.info("task sweep for new host done");
 
@@ -280,7 +279,7 @@ public class ControllerClusterListenerTest {
                 new EventStreamWriterMock<>());
         txnSweeper.awaitInitialization();
 
-        assertTrue(FutureHelpers.await(txnSweep, 3000));
+        assertTrue(Futures.await(txnSweep, 3000));
 
         // verify that post initialization txns are swept. And host specific txn sweep is also performed.
         verify(txnSweeper, times(1)).sweepFailedProcesses(any());
@@ -293,8 +292,8 @@ public class ControllerClusterListenerTest {
         log.info("removing newhost2");
 
         validateRemovedNode(newHost.getHostId());
-        assertTrue(FutureHelpers.await(taskHostSweep2, 3000));
-        assertTrue(FutureHelpers.await(txnHostSweep2, 3000));
+        assertTrue(Futures.await(taskHostSweep2, 3000));
+        assertTrue(Futures.await(txnHostSweep2, 3000));
 
         verify(taskSweeper, atLeast(2)).handleFailedProcess(anyString());
         verify(txnSweeper, atLeast(1)).handleFailedProcess(anyString());

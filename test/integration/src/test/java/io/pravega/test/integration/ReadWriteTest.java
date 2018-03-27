@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -23,11 +24,12 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -36,7 +38,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeSet;
@@ -139,7 +140,7 @@ public class ReadWriteTest {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 
@@ -154,8 +155,7 @@ public class ReadWriteTest {
             //create a reader group
             log.info("Creating Reader group : {}", readerGroupName);
 
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
-                    Collections.singleton(STREAM_NAME));
+            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
             log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
             log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
 
@@ -171,13 +171,13 @@ public class ReadWriteTest {
             }
 
             //wait for writers completion
-            FutureHelpers.allOf(writerList).get();
+            Futures.allOf(writerList).get();
 
             //set stop read flag to true
             stopReadFlag.set(true);
 
             //wait for readers completion
-            FutureHelpers.allOf(readerList).get();
+            Futures.allOf(readerList).get();
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);

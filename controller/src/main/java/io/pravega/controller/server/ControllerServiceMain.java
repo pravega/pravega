@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -101,34 +102,36 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     protected void run() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, this.objectId, "run");
         try {
-            if (serviceConfig.isControllerClusterListenerEnabled()) {
+            while (isRunning()) {
+                // Create store client.
+                log.info("Creating store client");
+                storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
-                // Controller cluster feature is enabled.
-                while (isRunning()) {
-                    // Create store client.
-                    log.info("Creating store client");
-                    storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
+                boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
+                        serviceConfig.isControllerClusterListenerEnabled();
 
-                    // Client should be ZK if controller cluster is enabled.
+                CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
+                if (hasZkConnection) {
                     CuratorFramework client = (CuratorFramework) storeClient.getClient();
 
                     log.info("Awaiting ZK client connection to ZK server");
                     client.blockUntilConnected();
 
-                    // Start controller services.
-                    starter = starterFactory.apply(serviceConfig, storeClient);
-                    log.info("Starting controller services");
-                    notifyServiceStateChange(ServiceState.STARTING);
-                    starter.startAsync();
-
                     // Await ZK session expiry.
                     log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
-                    CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
                     client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
+                }
 
-                    log.info("Awaiting controller services start");
-                    starter.awaitRunning();
+                // Start controller services.
+                starter = starterFactory.apply(serviceConfig, storeClient);
+                log.info("Starting controller services");
+                notifyServiceStateChange(ServiceState.STARTING);
+                starter.startAsync();
 
+                log.info("Awaiting controller services start");
+                starter.awaitRunning();
+
+                if (hasZkConnection) {
                     // At this point, wait until either of the two things happen
                     // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
                     // 2. This ControllerServiceMain instance is stopped by invoking stopAsync() method,
@@ -144,41 +147,24 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                         log.info("ZK session expired");
                         storeClient.close();
                     }
-
-                    log.info("Stopping ControllerServiceStarter");
-                    notifyServiceStateChange(ServiceState.PAUSING);
-                    starter.stopAsync();
-
-                    log.info("Awaiting termination of ControllerServiceStarter");
-                    starter.awaitTerminated();
+                } else {
+                    this.serviceStopFuture.join();
                 }
-            } else {
-                // Create store client.
-                log.info("Creating store client");
-                storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
-                // Start controller services.
-                starter = starterFactory.apply(serviceConfig, storeClient);
-                log.info("Starting controller services");
-                notifyServiceStateChange(ServiceState.STARTING);
-                starter.startAsync();
-
-                log.info("Awaiting controller services start");
-                starter.awaitRunning();
-
-                // Await termination of this ControllerServiceMain service.
-                log.info("Awaiting termination trigger for ControllerServiceMain");
-                this.serviceStopFuture.join();
-
-                // Initiate termination of controller services.
-                log.info("Stopping controller services");
+                log.info("Stopping ControllerServiceStarter");
                 notifyServiceStateChange(ServiceState.PAUSING);
                 starter.stopAsync();
 
-                log.info("Awaiting termination of controller services");
+                log.info("Awaiting termination of ControllerServiceStarter");
                 starter.awaitTerminated();
             }
+        } catch (Exception e) {
+            log.error("Controller Service Main thread exited exceptionally", e);
+            throw e;
         } finally {
+            if (storeClient != null) {
+                storeClient.close();
+            }
             LoggerHelpers.traceLeave(log, this.objectId, "run", traceId);
         }
     }

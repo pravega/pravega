@@ -9,7 +9,10 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.batch.BatchClient;
+import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -33,13 +36,13 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.controller = new MockController("localhost", 0, connectionFactory);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory);
     }
 
     public MockClientFactory(String scope, Controller controller) {
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.controller = controller;
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }
@@ -77,5 +80,10 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public void close() {
         this.connectionFactory.close();
+    }
+
+    @Override
+    public BatchClient createBatchClient() {
+        return new BatchClientImpl(controller, connectionFactory);
     }
 }

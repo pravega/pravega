@@ -14,7 +14,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -42,14 +44,21 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_ZK_PORT = "zkPort";
     public static final String PROPERTY_LEDGERS_PATH = "ledgersPath";
     public static final String PROPERTY_START_ZK = "startZk";
+    public static final String PROPERTY_SECURE_BK = "secureBk";
+    public static final String TLS_KEY_STORE_PASSWD = "tlsKeyStorePasswd";
+    public static final String TLS_KEY_STORE = "tlsKeyStore";
+
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
+    private final boolean secureBK;
+    private final String tLSKeyStore;
+    private final String tLSKeyStorePasswordPath;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
-    private final List<File> tempDirs = new ArrayList<>();
+    private final HashMap<Integer, File> tempDirs = new HashMap<>();
     private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
     //endregion
@@ -59,10 +68,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            for (BookieServer bs : this.servers) {
-                bs.shutdown();
-            }
-
+            this.servers.stream().filter(Objects::nonNull).forEach(BookieServer::shutdown);
             if (this.zkServer.get() != null) {
                 this.zkServer.get().close();
             }
@@ -86,29 +92,30 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     //region BookKeeper operations
 
     /**
-     * Suspends the BookieService with the given index (does not stop it).
+     * Stops the BookieService with the given index.
      *
      * @param bookieIndex The index of the bookie to stop.
-     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
      */
-    public void suspendBookie(int bookieIndex) {
+    public void stopBookie(int bookieIndex) {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie already stopped.");
         val bk = this.servers.get(bookieIndex);
-        bk.suspendProcessing();
-        log.info("Bookie {} suspended.", bookieIndex);
+        bk.shutdown();
+        this.servers.set(bookieIndex, null);
+        log.info("Bookie {} stopped.", bookieIndex);
     }
 
     /**
-     * Resumes the BookieService with the given index.
+     * Restarts the BookieService with the given index.
      *
-     * @param bookieIndex The index of the bookie to start.
-     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     * @param bookieIndex The index of the bookie to restart.
+     * @throws Exception If an exception occurred.
      */
-    public void resumeBookie(int bookieIndex) {
+    public void startBookie(int bookieIndex) throws Exception {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
-        val bk = this.servers.get(bookieIndex);
-        bk.resumeProcessing();
-        log.info("Bookie {} resumed.", bookieIndex);
+        Preconditions.checkState(this.servers.get(0) == null, "Bookie already running.");
+        this.servers.set(bookieIndex, runBookie(this.bookiePorts.get(bookieIndex)));
+        log.info("Bookie {} stopped.", bookieIndex);
     }
 
     /**
@@ -159,8 +166,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         initializeZookeeper();
-        val baseConf = new ServerConfiguration();
-        runBookies(baseConf);
+        runBookies();
     }
 
     private void initializeZookeeper() throws Exception {
@@ -186,40 +192,56 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
-    private void runBookies(ServerConfiguration baseConf) throws Exception {
+    private void runBookies() throws Exception {
         log.info("Starting Bookie(s) ...");
-        // Create Bookie Servers (B1, B2, B3)
         for (int bkPort : this.bookiePorts) {
-            val tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
+            this.servers.add(runBookie(bkPort));
+        }
+    }
+
+    private BookieServer runBookie(int bkPort) throws Exception {
+        // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to perserve
+        // already committed data.
+        File tmpDir = this.tempDirs.getOrDefault(bkPort, null);
+        if (tmpDir == null) {
+            tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
             tmpDir.deleteOnExit();
-            this.tempDirs.add(tmpDir);
+            this.tempDirs.put(bkPort, tmpDir);
             log.info("Created " + tmpDir);
             if (!tmpDir.delete() || !tmpDir.mkdir()) {
                 throw new IOException("Couldn't create bookie dir " + tmpDir);
             }
-
-            // override settings
-            val conf = new ServerConfiguration(baseConf);
-            conf.setBookiePort(bkPort);
-            conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
-            conf.setJournalDirName(tmpDir.getPath());
-            conf.setLedgerDirNames(new String[]{ tmpDir.getPath() });
-            conf.setAllowLoopback(true);
-            conf.setJournalAdaptiveGroupWrites(false);
-            conf.setZkLedgersRootPath(ledgersPath);
-
-            log.info("Starting Bookie at port " + bkPort);
-            val bs = new BookieServer(conf);
-            this.servers.add(bs);
-            bs.start();
         }
+
+        val conf = new ServerConfiguration();
+        conf.setBookiePort(bkPort);
+        conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
+        conf.setJournalDirName(tmpDir.getPath());
+        conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
+        conf.setAllowLoopback(true);
+        conf.setJournalAdaptiveGroupWrites(false);
+        conf.setZkLedgersRootPath(ledgersPath);
+
+        if (secureBK) {
+            conf.setTLSProvider("OpenSSL");
+            conf.setTLSProviderFactoryClass("org.apache.bookkeeper.tls.TLSContextFactory");
+            conf.setTLSKeyStore(this.tLSKeyStore);
+            conf.setTLSKeyStorePasswordPath(this.tLSKeyStorePasswordPath);
+        }
+
+        log.info("Starting Bookie at port " + bkPort);
+        val bs = new BookieServer(conf);
+        bs.start();
+        return bs;
     }
 
     private void cleanupDirectories() throws IOException {
-        for (File dir : this.tempDirs) {
+        for (File dir : this.tempDirs.values()) {
             log.info("Cleaning up " + dir);
             FileUtils.deleteDirectory(dir);
         }
+
+        this.tempDirs.clear();
     }
 
     //endregion
@@ -246,6 +268,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             b.zkPort(Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT)));
             b.ledgersPath(System.getProperty(PROPERTY_LEDGERS_PATH));
             b.startZk(Boolean.parseBoolean(System.getProperty(PROPERTY_START_ZK, "false")));
+            b.tLSKeyStore(System.getProperty(TLS_KEY_STORE, "../../../config/bookie.keystore.jks"));
+            b.tLSKeyStorePasswordPath(System.getProperty(TLS_KEY_STORE_PASSWD, "../../../config/bookie.keystore.jks.passwd"));
+            b.secureBK(Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_BK, "false")));
+
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int), " +
                             "%s(int), %s(int), %s(String). (%s).", PROPERTY_BASE_PORT, PROPERTY_BOOKIE_COUNT, PROPERTY_ZK_PORT,

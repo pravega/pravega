@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
+import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -37,7 +38,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
@@ -272,6 +272,89 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testUpdateAttributesWithBadValues() throws Exception {
         testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+    }
+
+    /**
+     * Tests the ability of the ContainerMetadataUpdateTransaction to enforce the maximum attribute limit on Segments.
+     */
+    @Test
+    public void testMaxAttributeLimit() throws Exception {
+        // We check all operations that can update attributes.
+        val ops = new HashMap<String, Function<Collection<AttributeUpdate>, Operation>>();
+        ops.put("UpdateAttributes", u -> new UpdateAttributesOperation(SEGMENT_ID, u));
+        ops.put("Append", u -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, u));
+
+        // Set the maximum allowed number of attributes on a segment.
+        UpdateableContainerMetadata metadata = createMetadata();
+        val initialUpdates = new ArrayList<AttributeUpdate>(SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT);
+        val expectedValues = new HashMap<UUID, Long>();
+        for (int i = 0; i < SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT; i++) {
+            UUID attributeId;
+            do {
+                attributeId = UUID.randomUUID();
+            } while (expectedValues.containsKey(attributeId));
+
+            initialUpdates.add(new AttributeUpdate(attributeId, AttributeUpdateType.None, i));
+            expectedValues.put(attributeId, (long) i);
+        }
+
+        // And load them up into an UpdateTransaction.
+        val txn = createUpdateTransaction(metadata);
+        val initialOp = new UpdateAttributesOperation(SEGMENT_ID, initialUpdates);
+        txn.preProcessOperation(initialOp);
+        txn.acceptOperation(initialOp);
+
+        // Attempt to modify the set attributes using various operations and verify the expected behavior. This test only
+        // invokes preProcessOperation() - which is responsible with validation, so no changes are made to the UpdateTransaction.
+        for (val opGenerator : ops.entrySet()) {
+            // Value replacement.
+            val replacementUpdates = new ArrayList<AttributeUpdate>();
+            int i = 0;
+            for (val e : expectedValues.entrySet()) {
+                AttributeUpdate u;
+                switch ((i++) % 4) {
+                    case 0:
+                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfEquals, e.getValue() + 1, e.getValue());
+                        break;
+                    case 1:
+                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfGreater, e.getValue() + 1);
+                        break;
+                    case 2:
+                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.Accumulate, 1);
+                        break;
+                    default:
+                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, 1);
+                        break;
+                }
+                replacementUpdates.add(u);
+            }
+
+            // This should not throw anything.
+            txn.preProcessOperation(opGenerator.getValue().apply(replacementUpdates));
+
+            // Removal - this should not throw anything either.
+            val toRemoveId = initialUpdates.get(0).getAttributeId();
+            val toRemoveUpdate = new AttributeUpdate(toRemoveId, AttributeUpdateType.Replace, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+            txn.preProcessOperation(opGenerator.getValue().apply(Collections.singleton(toRemoveUpdate)));
+
+            // Addition - this should throw.
+            UUID toAddId;
+            do {
+                toAddId = UUID.randomUUID();
+            } while (expectedValues.containsKey(toAddId));
+            val toAddUpdate = new AttributeUpdate(toAddId, AttributeUpdateType.None, 1);
+            AssertExtensions.assertThrows(
+                    "Too many attributes were accepted for operation " + opGenerator.getKey(),
+                    () -> txn.preProcessOperation(opGenerator.getValue().apply(Collections.singleton(toAddUpdate))),
+                    ex -> ex instanceof TooManyAttributesException);
+
+            // Removal+Addition+Replacement: this particular setup should not throw anything.
+            val mixedUpdates = Arrays.asList(
+                    new AttributeUpdate(toAddId, AttributeUpdateType.None, 1),
+                    new AttributeUpdate(toRemoveId, AttributeUpdateType.Replace, SegmentMetadata.NULL_ATTRIBUTE_VALUE),
+                    new AttributeUpdate(initialUpdates.get(1).getAttributeId(), AttributeUpdateType.Replace, 10));
+            txn.preProcessOperation(opGenerator.getValue().apply(mixedUpdates));
+        }
     }
 
     private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
@@ -863,7 +946,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Part 1: recovery mode.
         metadata.enterRecoveryMode();
-        TransactionMapOperation mapOp = createTransactionMap(mapParent.getStreamSegmentId());
+        StreamSegmentMapOperation mapOp = createTransactionMap(mapParent.getStreamSegmentId());
         val txn2 = createUpdateTransaction(metadata);
         txn2.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation changed the StreamSegmentId on the operation in recovery mode.",
@@ -911,7 +994,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
-        val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
+        val updateMap = new StreamSegmentMapOperation(mapOp.getParentStreamSegmentId(),
                  StreamSegmentInformation.builder()
                         .name(mapOp.getStreamSegmentName())
                         .startOffset(1) // Purposefully setting this wrong to see if it is auto-corrected.
@@ -969,7 +1052,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.preProcessOperation(secondMap);
         txn2.acceptOperation(secondMap);
 
-        TransactionMapOperation secondTxnMap = createTransactionMap(SEGMENT_ID, "a_txn2");
+        StreamSegmentMapOperation secondTxnMap = createTransactionMap(SEGMENT_ID, "a_txn2");
         secondTxnMap.setStreamSegmentId(1235);
         txn2.preProcessOperation(secondTxnMap);
         txn2.acceptOperation(secondTxnMap);
@@ -1460,12 +1543,12 @@ public class ContainerMetadataUpdateTransactionTests {
                 .build());
     }
 
-    private TransactionMapOperation createTransactionMap(long parentId) {
+    private StreamSegmentMapOperation createTransactionMap(long parentId) {
         return createTransactionMap(parentId, SEALED_TRANSACTION_NAME);
     }
 
-    private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, StreamSegmentInformation.builder()
+    private StreamSegmentMapOperation createTransactionMap(long parentId, String name) {
+        return new StreamSegmentMapOperation(parentId, StreamSegmentInformation.builder()
                 .name(name)
                 .startOffset(SEALED_TRANSACTION_LENGTH / 2) // This should be ignored everywhere, hence setting it wrong.
                 .length(SEALED_TRANSACTION_LENGTH)

@@ -51,6 +51,7 @@ public class BookKeeperRunner implements AutoCloseable {
         this.bkRunner = BookKeeperServiceRunner.builder()
                                                .startZk(true)
                                                .zkPort(zkPort)
+                                               .secureBK(false)
                                                .ledgersPath("/ledgers")
                                                .bookiePorts(bookiePorts)
                                                .build();

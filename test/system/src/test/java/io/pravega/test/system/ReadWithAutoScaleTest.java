@@ -11,15 +11,6 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.Retry;
-import io.pravega.test.system.framework.Environment;
-import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -27,15 +18,21 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.Retry;
+import io.pravega.test.system.framework.Environment;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeSet;
@@ -46,7 +43,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -74,10 +70,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     @Environment
-    public static void setup() throws Exception {
+    public static void setup() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -87,14 +83,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUris.get(0));
+        Service bkService = Utils.createBookkeeperService(zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUris.get(0));
+        Service conService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -102,7 +98,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -118,7 +114,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         Controller controller = getController();
 
@@ -131,7 +127,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
+    @Test(timeout = 10 * 60 * 1000) //timeout of 10 mins.
     public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
@@ -155,8 +151,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.info("Creating Reader group : {}", READER_GROUP_NAME);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singleton(STREAM_NAME));
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,
@@ -201,7 +196,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 })
                 .thenRun(() -> validateResults(eventData.get(), eventsReadFromPravega));
 
-        FutureHelpers.getAndHandleExceptions(testResult
+        Futures.getAndHandleExceptions(testResult
                 .whenComplete((r, e) -> {
                     recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
                 }), RuntimeException::new);
@@ -227,6 +222,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
+            long count;
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -234,7 +230,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
-                        readCount.incrementAndGet();
+                        count = readCount.incrementAndGet();
+                        log.debug("Reader {}, read count {}", id, count);
+                    } else {
+                        log.debug("Null event, reader {}, read count {}", id, readCount.get());
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);

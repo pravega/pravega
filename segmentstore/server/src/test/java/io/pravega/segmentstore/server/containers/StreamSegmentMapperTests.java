@@ -10,12 +10,13 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -31,10 +32,11 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -46,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -97,21 +100,47 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext();
-        HashSet<String> storageSegments = new HashSet<>();
+        HashMap<String, SegmentRollingPolicy> storageSegments = new HashMap<>();
+        HashMap<String, Integer> expectedRolloverSizes = new HashMap<>();
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName).build());
+        setupStorageGetHandler(context, storageSegments.keySet(), segmentName -> StreamSegmentInformation.builder().name(segmentName).build());
 
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
             String segmentName = getName(i);
             val segmentAttributes = createAttributes(ATTRIBUTE_COUNT);
+            if (i % 2 == 0) {
+                segmentAttributes.add(new AttributeUpdate(Attributes.ROLLOVER_SIZE, AttributeUpdateType.Replace, i + 100));
+                expectedRolloverSizes.put(segmentName, i + 100);
+            }
+
             context.mapper.createNewStreamSegment(segmentName, segmentAttributes, TIMEOUT).join();
             assertSegmentCreated(segmentName, segmentAttributes, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
                 val transactionAttributes = createAttributes(ATTRIBUTE_COUNT);
+                int rolloverSize = j % 2 == 0 ? j + 100 : -1;
+                if (rolloverSize >= 0) {
+                    transactionAttributes.add(new AttributeUpdate(Attributes.ROLLOVER_SIZE, AttributeUpdateType.Replace, rolloverSize));
+                }
+
                 String transactionName = context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), transactionAttributes, TIMEOUT).join();
+                if (rolloverSize >= 0) {
+                    expectedRolloverSizes.put(transactionName, rolloverSize);
+                }
+
                 assertSegmentCreated(transactionName, transactionAttributes, context);
+            }
+        }
+
+        for (val e : storageSegments.entrySet()) {
+            if (e.getValue() == null) {
+                Assert.assertFalse("Segment was expected to have a rollover policy defined.", expectedRolloverSizes.containsKey(e.getKey()));
+            } else {
+                long expectedValue = expectedRolloverSizes.containsKey(e.getKey())
+                        ? expectedRolloverSizes.get(e.getKey())
+                        : SegmentRollingPolicy.NO_ROLLING.getMaxLength();
+                Assert.assertEquals("Unexpected rollover policy set.", expectedValue, e.getValue().getMaxLength());
             }
         }
     }
@@ -141,7 +170,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                         // Create Parent if not exists.
                         mapper.createNewStreamSegment(parentSegmentName, null, TIMEOUT)
                               .exceptionally(ex -> {
-                                  if (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentExistsException) {
+                                  if (Exceptions.unwrap(ex) instanceof StreamSegmentExistsException) {
                                       return null;
                                   }
                                   throw new CompletionException(ex);
@@ -162,14 +191,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext();
 
         // 1. Segment.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.createHandler = (name, policy) -> Futures.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
         // 2. Transaction.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.createHandler = (name, policy) -> Futures.failedFuture(new IntentionalException());
         setupStorageGetHandler(context,
                 Collections.singleton(segmentName),
                 name -> StreamSegmentInformation.builder().name(name).build());
@@ -432,7 +461,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
 
         // 1. Unable to access storage.
-        context.storage.getInfoHandler = sn -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.getInfoHandler = sn -> Futures.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
@@ -470,7 +499,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         val segmentName2 = segmentName + "2";
         val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
         context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(sn).build());
-        testStateStore.getHandler = () -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
+        testStateStore.getHandler = () -> Futures.failedFuture(new IntentionalException("intentional"));
 
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Segment when attributes could not be retrieved.",
@@ -506,10 +535,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicBoolean cleanupInvoked = new AtomicBoolean();
 
         // We use 'containerId' as a proxy for the exception id (to make sure we collect the right one).
-        context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
+        context.operationLog.addHandler = op -> Futures.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
         Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
+                return Futures.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
             return CompletableFuture.completedFuture(null);
         };
@@ -536,7 +565,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         cleanupInvoked.set(false);
         Supplier<CompletableFuture<Void>> workingCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
+                return Futures.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
 
             setupOperationLog(context); // Setup the OperationLog to function correctly.
@@ -575,10 +604,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
             if (!(op instanceof StreamSegmentMapOperation)) {
-                return FutureHelpers.failedFuture(new IllegalArgumentException("unexpected operation"));
+                return Futures.failedFuture(new IllegalArgumentException("unexpected operation"));
             }
             if (operationLogInvoked.getAndSet(true)) {
-                return FutureHelpers.failedFuture(new IllegalStateException("multiple calls to OperationLog.add"));
+                return Futures.failedFuture(new IllegalStateException("multiple calls to OperationLog.add"));
             }
 
             // Need to set SegmentId on operation.
@@ -652,7 +681,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         @Cleanup
-        val storage = new InMemoryStorage();
+        val storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         val store = new SegmentStateStore(storage, executorService());
         val mapper = new StreamSegmentMapper(context.metadata, context.operationLog, store, context.noOpMetadataCleanup, storage, executorService());
@@ -757,49 +786,39 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicLong seqNo = new AtomicLong();
         context.operationLog.addHandler = op -> {
             long currentSeqNo = seqNo.incrementAndGet();
-            if (op instanceof StreamSegmentMapOperation) {
-                StreamSegmentMapOperation mapOp = (StreamSegmentMapOperation) op;
-                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    mapOp.setStreamSegmentId(currentSeqNo);
-                }
-
-                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
-                segmentMetadata.setStorageLength(0);
-                segmentMetadata.setLength(mapOp.getLength());
-                segmentMetadata.setStartOffset(mapOp.getStartOffset());
-                if (mapOp.isSealed()) {
-                    segmentMetadata.markSealed();
-                }
-
-                segmentMetadata.updateAttributes(mapOp.getAttributes());
-            } else if (op instanceof TransactionMapOperation) {
-                TransactionMapOperation mapOp = (TransactionMapOperation) op;
-                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    mapOp.setStreamSegmentId(currentSeqNo);
-                }
-
-                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
-                segmentMetadata.setStorageLength(0);
-                segmentMetadata.setLength(mapOp.getLength());
-                segmentMetadata.setStartOffset(mapOp.getStartOffset());
-                if (mapOp.isSealed()) {
-                    segmentMetadata.markSealed();
-                }
-
-                segmentMetadata.updateAttributes(mapOp.getAttributes());
+            UpdateableSegmentMetadata sm;
+            Assert.assertTrue("Unexpected operation type.", op instanceof StreamSegmentMapOperation);
+            StreamSegmentMapOperation mop = (StreamSegmentMapOperation) op;
+            if (mop.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                mop.setStreamSegmentId(currentSeqNo);
             }
+
+            if (mop.isTransaction()) {
+                sm = context.metadata.mapStreamSegmentId(mop.getStreamSegmentName(), mop.getStreamSegmentId(), mop.getParentStreamSegmentId());
+            } else {
+                sm = context.metadata.mapStreamSegmentId(mop.getStreamSegmentName(), mop.getStreamSegmentId());
+            }
+
+            sm.setStorageLength(0);
+            sm.setLength(mop.getLength());
+            sm.setStartOffset(mop.getStartOffset());
+            if (mop.isSealed()) {
+                sm.markSealed();
+            }
+
+            sm.updateAttributes(mop.getAttributes());
 
             return CompletableFuture.completedFuture(null);
         };
     }
 
-    private void setupStorageCreateHandler(TestContext context, HashSet<String> storageSegments) {
-        context.storage.createHandler = segmentName -> {
+    private void setupStorageCreateHandler(TestContext context, HashMap<String, SegmentRollingPolicy> storageSegments) {
+        context.storage.createHandler = (segmentName, policy) -> {
             synchronized (storageSegments) {
-                if (storageSegments.contains(segmentName)) {
-                    return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
+                if (storageSegments.containsKey(segmentName)) {
+                    return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
-                    storageSegments.add(segmentName);
+                    storageSegments.put(segmentName, policy);
                     return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(segmentName).build());
                 }
             }
@@ -810,7 +829,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.getInfoHandler = segmentName -> {
             synchronized (storageSegments) {
                 if (!storageSegments.contains(segmentName)) {
-                    return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(segmentName));
+                    return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
                 } else {
                     return CompletableFuture.completedFuture(infoGetter.apply(segmentName));
                 }
@@ -870,6 +889,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
 
         }
@@ -886,6 +910,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> awaitOnline() {
             return null;
         }
 
@@ -947,12 +976,17 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     //region TestStorage
 
     private static class TestStorage implements Storage {
-        Function<String, CompletableFuture<SegmentProperties>> createHandler;
+        BiFunction<String, SegmentRollingPolicy, CompletableFuture<SegmentProperties>> createHandler;
         Function<String, CompletableFuture<SegmentProperties>> getInfoHandler;
 
         @Override
         public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-            return this.createHandler.apply(streamSegmentName);
+            return create(streamSegmentName, null, timeout);
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
+            return this.createHandler.apply(streamSegmentName, rollingPolicy);
         }
 
         @Override
@@ -1005,6 +1039,16 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Override
         public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsTruncation() {
+            return false;
         }
 
         @Override

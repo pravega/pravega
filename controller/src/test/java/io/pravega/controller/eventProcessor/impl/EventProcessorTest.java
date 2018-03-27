@@ -131,6 +131,7 @@ public class EventProcessorTest {
             this.testEvents = testEvents.clone();
         }
 
+        @Override
         protected void beforeStart() {
             for (int i : testEvents) {
                 this.getSelfWriter().write(new TestEvent(i));
@@ -509,7 +510,7 @@ public class EventProcessorTest {
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
 
         ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class), any()))
+        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class)))
                 .then(invocation -> readerGroup);
 
         return new EventProcessorSystemImpl(name, processId, scope, clientFactory, readerGroupManager);

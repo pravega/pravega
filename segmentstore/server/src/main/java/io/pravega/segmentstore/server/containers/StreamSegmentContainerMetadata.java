@@ -13,8 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.EvictableMetadata;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,7 +217,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public Collection<Long> getAllStreamSegmentIds() {
-        return this.metadataById.keySet();
+        synchronized (this.lock) {
+            return new HashSet<>(this.metadataById.keySet());
+        }
     }
 
     @Override
@@ -235,10 +238,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             result.add(segmentMetadata);
             segmentMetadata.markDeleted();
 
-            // Find any transactions that point to this StreamSegment (as a parent).
+            // Find any transactions that point to this StreamSegment (as a parent) which haven't already been deleted
+            // or fully merged in Storage.
             this.metadataById
                     .values().stream()
-                    .filter(m -> m.getParentId() == segmentMetadata.getId())
+                    .filter(m -> m.getParentId() == segmentMetadata.getId() && !m.isDeleted())
                     .forEach(m -> {
                         m.markDeleted();
                         result.add(m);

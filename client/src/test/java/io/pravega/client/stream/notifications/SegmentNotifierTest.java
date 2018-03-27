@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.notifications;
 
+import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -16,12 +17,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -33,8 +32,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
-import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
+import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.InlineExecutor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,28 +52,27 @@ public class SegmentNotifierTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(1));
+        System.setProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(1));
     }
 
     @Test
     public void segmentNotifierTest() throws Exception {
         AtomicBoolean listenerInvoked = new AtomicBoolean();
         ReusableLatch latch = new ReusableLatch();
-        Supplier<SegmentEvent> s = () -> SegmentEvent.builder().numOfReaders(1).numOfSegments(2).build();
 
-        when(state.getOnlineReaders()).thenReturn(new HashSet<String>(Arrays.asList("reader1")));
+        when(state.getOnlineReaders()).thenReturn(new HashSet<>(singletonList("reader1")));
         when(state.getNumberOfSegments()).thenReturn(1).thenReturn(2);
         when(sync.getState()).thenReturn(state);
 
-        Listener<SegmentEvent> listener1 = event -> {
+        Listener<SegmentNotification> listener1 = e -> {
             log.info("listener 1 invoked");
             listenerInvoked.set(true);
             latch.release();
         };
-        Listener<SegmentEvent> listener2 = event -> {
+        Listener<SegmentNotification> listener2 = e -> {
         };
 
-        SegmentEventNotifier notifier = new SegmentEventNotifier(system, () -> sync, executor);
+        SegmentNotifier notifier = new SegmentNotifier(system, sync, executor);
         notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
         latch.await();
@@ -87,7 +84,7 @@ public class SegmentNotifierTest {
         notifier.registerListener(listener1); //duplicate listener
 
         notifier.unregisterAllListeners();
-        verify(system, times(1)).removeListeners(SegmentEvent.class.getSimpleName());
+        verify(system, times(1)).removeListeners(SegmentNotification.class.getSimpleName());
     }
 
     @After

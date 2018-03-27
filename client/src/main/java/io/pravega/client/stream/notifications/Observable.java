@@ -15,8 +15,8 @@ package io.pravega.client.stream.notifications;
  */
 public interface Observable<T> {
     /**
-     * Register listener for event type T. Multiple listeners can be added for the same type.
-     * @param listener This is the listener which will be invoked incase of an Event.
+     * Register listener for notification type T. Multiple listeners can be added for the same type.
+     * @param listener This is the listener which will be invoked incase of an Notification.
      *
      */
     void registerListener(final Listener<T> listener);
@@ -33,8 +33,8 @@ public interface Observable<T> {
     void unregisterAllListeners();
 
     /**
-     * Get the event type.
-     * @return Event type.
+     * Get the notification type.
+     * @return Notification type.
      */
     String getType();
 }

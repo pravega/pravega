@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -17,13 +18,12 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import java.net.URI;
-import java.util.Set;
 
 /**
  * Used to create and manage reader groups.
  */
 public interface ReaderGroupManager extends AutoCloseable {
-    
+
     /**
      * Creates a new instance of ReaderGroupManager.
      *
@@ -32,12 +32,23 @@ public interface ReaderGroupManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return new ReaderGroupManagerImpl(scope, controllerUri, new ConnectionFactoryImpl(false));
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
-    
+
     /**
-     * Creates a new ReaderGroup
-     * 
+     * Creates a new instance of ReaderGroupManager.
+     *
+     * @param scope The Scope string.
+     * @param clientConfig Configuration for the client.
+     * @return Instance of Stream Manager implementation.
+     */
+    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
+        return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
+    }
+
+    /**
+     * Creates a new ReaderGroup.
+     *
      * Readers will be able to join the group by calling
      * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}
      * . Once this is done they will start receiving events from the point defined in the config
@@ -45,13 +56,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      * <p>
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
-     * 
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
-     * @param streamNames The name of the streams the reader will read from.
-     * @return Newly created ReaderGroup object
+     * @return Newly created ReaderGroup object.
      */
-    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames);
+    ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config);
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left

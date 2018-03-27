@@ -11,9 +11,9 @@ package io.pravega.client.stream.notifications;
 
 /**
  * Listener interface for receiving notifications.
- * @param <T> Event type.
+ * @param <T> Notification type.
  */
 @FunctionalInterface
 public interface Listener<T> {
-    void onEvent(T event);
+    void onNotification(T notification);
 }

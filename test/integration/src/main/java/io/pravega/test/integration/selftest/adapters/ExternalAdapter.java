@@ -9,10 +9,12 @@
  */
 package io.pravega.test.integration.selftest.adapters;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
@@ -57,14 +59,23 @@ class ExternalAdapter extends ClientAdapterBase {
             URI controllerUri = new URI(getControllerUrl());
 
             // Create Stream Manager, Scope and Client Factory.
-            this.streamManager.set(StreamManager.create(controllerUri));
+            this.streamManager.set(StreamManager.create(ClientConfig.builder()
+                            .trustStore("../../config/cert.pem")
+                            .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                    .validateHostName(false)
+                    .controllerURI(controllerUri)
+                    .build()));
             Retry.withExpBackoff(500, 2, 10)
                  .retryWhen(ex -> true)
                  .throwingOn(Exception.class)
                  .run(() -> this.streamManager.get().createScope(SCOPE));
 
             // Create Client Factory.
-            this.clientFactory.set(ClientFactory.withScope(SCOPE, controllerUri));
+            this.clientFactory.set(ClientFactory.withScope(SCOPE, ClientConfig.builder()
+                    .trustStore("../../config/cert.pem")
+                    .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                    .validateHostName(false)
+                    .controllerURI(controllerUri).build()));
 
             // Create, Seal and Delete a dummy segment - this verifies that the client is properly setup and that all the
             // components are running properly.
@@ -74,7 +85,7 @@ class ExternalAdapter extends ClientAdapterBase {
             this.streamManager.get().deleteStream(SCOPE, testStreamName);
             log("Client initialized; using scope '%s'.", SCOPE);
         } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
+            if (!Exceptions.mustRethrow(ex)) {
                 close();
             }
 
@@ -124,7 +135,7 @@ class ExternalAdapter extends ClientAdapterBase {
 
     @Override
     protected String getControllerUrl() {
-        return String.format("tcp://%s:%d", this.testConfig.getControllerHost(), this.testConfig.getControllerPort(0));
+        return String.format((this.testConfig.isEnableSecurity() ? "ssl" : "tcp") + "://%s:%d", this.testConfig.getControllerHost(), this.testConfig.getControllerPort(0));
     }
 
     //endregion

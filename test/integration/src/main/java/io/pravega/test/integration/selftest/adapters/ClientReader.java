@@ -10,6 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -19,10 +20,11 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.Event;
@@ -30,7 +32,6 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -47,7 +48,6 @@ import lombok.SneakyThrows;
 class ClientReader implements StoreReader, AutoCloseable {
     //region Members
     private static final ReaderConfig READER_CONFIG = ReaderConfig.builder().build();
-    private static final ReaderGroupConfig READER_GROUP_CONFIG = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(1, 10, 4)
             .retryingOn(ReinitializationRequiredException.class)
@@ -150,8 +150,14 @@ class ClientReader implements StoreReader, AutoCloseable {
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
             this.readerId = UUID.randomUUID().toString().replace("-", "");
-            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, ClientReader.this.controllerUri)) {
-                readerGroupManager.createReaderGroup(this.readerGroup, READER_GROUP_CONFIG, Collections.singleton(streamName));
+            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
+                    ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
+                            .trustStore("../../config/cert.pem")
+                            .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                            .validateHostName(false).build())) {
+                readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
+                                                                                        .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
+                                                                                        .build());
             }
 
             this.closed = false;
@@ -173,7 +179,7 @@ class ClientReader implements StoreReader, AutoCloseable {
         }
 
         CompletableFuture<Void> resumeReading(Consumer<ReadItem> eventHandler, CancellationToken cancellationToken) {
-            return FutureHelpers.loop(
+            return Futures.loop(
                     () -> canRead(cancellationToken),
                     () -> CompletableFuture.runAsync(() -> readNextItem(eventHandler), ClientReader.this.executor),
                     ClientReader.this.executor);
@@ -181,7 +187,7 @@ class ClientReader implements StoreReader, AutoCloseable {
 
         ReadItem readExact(EventPointer a) {
             try {
-                byte[] data = getReader().read(a);
+                byte[] data = getReader().fetchEvent(a);
                 return toReadItem(data, a);
             } catch (NoSuchEventException e) {
                 throw new CompletionException(e);

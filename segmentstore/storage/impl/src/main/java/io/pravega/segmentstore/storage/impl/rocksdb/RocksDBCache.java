@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.impl.rocksdb;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.Cache;
@@ -141,7 +141,7 @@ class RocksDBCache implements Cache {
 
             Consumer<String> callback = this.closeCallback;
             if (callback != null) {
-                CallbackHelpers.invokeSafely(callback, this.id, null);
+                Callbacks.invokeSafely(callback, this.id, null);
             }
         }
     }

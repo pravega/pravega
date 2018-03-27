@@ -10,21 +10,22 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncMap;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
 
@@ -90,7 +91,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     public CompletableFuture<Void> put(String segmentName, SegmentState state, Duration timeout) {
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        ByteArraySegment toWrite = serialize(state);
+        ArrayView toWrite = serialize(state);
 
         // We need to replace the contents of the Segment. The only way to do that with the Storage API is to
         // delete the existing segment (if any), then create a new one and write the contents to it.
@@ -98,7 +99,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .openWrite(stateSegment)
                 .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
                 .exceptionally(this::handleSegmentNotExistsException)
-                .thenComposeAsync(v -> this.storage.create(stateSegment, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.storage.create(stateSegment, SegmentRollingPolicy.NO_ROLLING, timer.getRemaining()), this.executor)
                 .thenComposeAsync(v -> this.storage.openWrite(stateSegment), this.executor)
                 .thenComposeAsync(
                         handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
@@ -130,25 +131,22 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     }
 
     @SneakyThrows(IOException.class)
-    private ByteArraySegment serialize(SegmentState state) {
-        try (EnhancedByteArrayOutputStream innerStream = new EnhancedByteArrayOutputStream();
-             DataOutputStream output = new DataOutputStream(innerStream)) {
-            state.serialize(output);
-            output.flush();
-            return innerStream.getData();
-        }
+    private ArrayView serialize(SegmentState state) {
+        return SegmentState.SERIALIZER.serialize(state);
     }
 
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     private SegmentState deserialize(byte[] contents) {
-        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(contents))) {
-            return SegmentState.deserialize(input);
+        try {
+            return SegmentState.SERIALIZER.deserialize(contents);
+        } catch (EOFException | SerializationException ex) {
+            throw new CompletionException(new DataCorruptionException("Corrupted State File.", ex));
         }
     }
 
     @SneakyThrows(Throwable.class)
     private <T> T handleSegmentNotExistsException(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (ex instanceof StreamSegmentNotExistsException) {
             // It's ok if the state segment does not exist.
             return null;

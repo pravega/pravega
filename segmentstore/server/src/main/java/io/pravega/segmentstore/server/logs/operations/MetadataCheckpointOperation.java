@@ -9,34 +9,14 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.logs.SerializationException;
-import java.io.DataInputStream;
-
 /**
  * Log Operation that contains a checkpoint of the Metadata at a particular point in time.
  */
 public class MetadataCheckpointOperation extends CheckpointOperationBase {
-    //region Constructor
-
-    /**
-     * Creates a new instance of the MetadataCheckpointOperation class.
-     */
-    public MetadataCheckpointOperation() {
-        super();
+    static class Serializer extends SerializerBase<MetadataCheckpointOperation> {
+        @Override
+        protected OperationBuilder<MetadataCheckpointOperation> newBuilder() {
+            return new OperationBuilder<>(new MetadataCheckpointOperation());
+        }
     }
-
-    protected MetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws SerializationException {
-        super(header, source);
-    }
-
-    //endregion
-
-    //region Operation Implementation
-
-    @Override
-    protected OperationType getOperationType() {
-        return OperationType.MetadataCheckpoint;
-    }
-
-    //endregion
 }

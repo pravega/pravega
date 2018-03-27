@@ -9,7 +9,8 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -23,7 +24,7 @@ import java.util.function.Supplier;
 public class RetryHelper {
 
     public static final Predicate<Throwable> RETRYABLE_PREDICATE = e -> {
-        Throwable t = ExceptionHelpers.getRealException(e);
+        Throwable t = Exceptions.unwrap(e);
         return RetryableException.isRetryable(t) || (t instanceof CheckpointStoreException &&
                 ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity));
     };
@@ -52,6 +53,11 @@ public class RetryHelper {
         return Retry
                 .indefinitelyWithExpBackoff(100, 2, 10000, exceptionConsumer)
                 .runAsync(futureSupplier, executor);
+    }
+
+    public static CompletableFuture<Void> loopWithDelay(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, long delay,
+                                                         ScheduledExecutorService executor) {
+        return Futures.loop(condition, () -> Futures.delayedFuture(loopBody, delay, executor), executor);
     }
 
 }

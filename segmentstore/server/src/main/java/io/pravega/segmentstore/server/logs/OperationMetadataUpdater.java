@@ -199,14 +199,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     /**
      * Phase 1/2 of processing a Operation.
-     * <p/>
+     *
      * If the given operation is a StorageOperation, the Operation is validated against the base Container Metadata and
      * the pending UpdateTransaction and it is updated accordingly (if needed).
-     * <p/>
+     *
      * If the given operation is a MetadataCheckpointOperation, the current state of the metadata (including pending
      * UpdateTransactions) is serialized to it.
-     * <p/>
-     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation, TransactionMapOperation) this method only
+     *
+     * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation) this method only
      * does anything if the base Container Metadata is in Recovery Mode (in which case the given MetadataOperation) is
      * recorded in the pending UpdateTransaction.
      *
@@ -226,7 +226,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     /**
      * Phase 2/2 of processing an Operation. The Operation's effects are reflected in the pending UpdateTransaction.
-     * <p/>
+     *
      * This method only has an effect on StorageOperations. It does nothing for MetadataOperations, regardless of whether
      * the base Container Metadata is in Recovery Mode or not.
      *

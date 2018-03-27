@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -16,6 +18,7 @@ import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -35,7 +38,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
+    private long readOffset = 0;
+    @GuardedBy("$lock")
     private int eventsWritten = 0;
+    @GuardedBy("$lock")
+    private long startingOffset = 0;
     @GuardedBy("$lock")
     private long writeOffset = 0;
     @GuardedBy("$lock")
@@ -53,38 +60,39 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             throw new IllegalArgumentException("There is not an entry at offset: " + offset);
         }
         readIndex = index;
+        readOffset = offset;
     }
 
     @Override
     @Synchronized
     public long getOffset() {
-        if (readIndex <= 0) {
-            return 0;
-        } else if (readIndex >= eventsWritten) {
-            return writeOffset;
-        }
-        return offsetList.get(readIndex);
+        return readOffset;
     }
 
+    @Override
     @Synchronized
-    public long fetchCurrentStreamLength() {
+    public long fetchCurrentSegmentLength() {
         return writeOffset;
     }
 
     
     @Override
-    public ByteBuffer read() throws EndOfSegmentException {
+    public ByteBuffer read() throws EndOfSegmentException, SegmentTruncatedException {
         return read(Long.MAX_VALUE);
     }
     
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         if (readIndex >= eventsWritten) {
             throw new EndOfSegmentException();
         }
+        if (readOffset < startingOffset) {
+            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
+        }
         ByteBuffer buffer = dataWritten.get(readIndex);
         readIndex++;
+        readOffset += buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         return buffer.slice();
     }
 
@@ -153,4 +161,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return close.get();
     }
 
+    @Override
+    @Synchronized
+    public SegmentInfo getSegmentInfo() {
+        return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
+    }
+
+    @Override
+    @Synchronized
+    public void truncateSegment(Segment segment, long offset) {
+        Preconditions.checkArgument(offset <= writeOffset);
+        if (offset >= startingOffset) {
+            startingOffset = offset;
+        }
+    }
 }

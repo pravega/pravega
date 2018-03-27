@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -138,7 +138,7 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+    public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),
@@ -168,7 +168,7 @@ public class StreamSegmentService implements StreamSegmentStore {
             int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
             container = this.segmentContainerRegistry.getContainer(containerId);
         } catch (ContainerNotFoundException ex) {
-            return FutureHelpers.failedFuture(ex);
+            return Futures.failedFuture(ex);
         }
 
         CompletableFuture<T> resultFuture = toInvoke.apply(container);

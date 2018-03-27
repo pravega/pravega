@@ -11,7 +11,7 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -75,7 +75,7 @@ class ProducerOperation {
         this.elapsedMillis = elapsedMillis;
         Consumer<ProducerOperation> callback = this.completionCallback;
         if (callback != null) {
-            CallbackHelpers.invokeSafely(callback, this, null);
+            Callbacks.invokeSafely(callback, this, null);
         }
     }
 
@@ -86,7 +86,7 @@ class ProducerOperation {
     void failed(Throwable ex) {
         BiConsumer<ProducerOperation, Throwable> callback = this.failureCallback;
         if (callback != null) {
-            CallbackHelpers.invokeSafely(callback, this, ex, null);
+            Callbacks.invokeSafely(callback, this, ex, null);
         }
     }
 

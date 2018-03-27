@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.store;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ServiceHelpers;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.concurrent.Services;
+import io.pravega.common.function.Callbacks;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -92,7 +92,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
-        if (result == null || isShutdown(result.container.state())) {
+        if (result == null || Services.isTerminating(result.container.state())) {
             throw new ContainerNotFoundException(containerId);
         }
 
@@ -106,7 +106,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         // Check if container exists
         ContainerWithHandle existingContainer = this.containers.get(containerId);
         if (existingContainer != null) {
-            if (!isShutdown(existingContainer.container.state())) {
+            if (!Services.isTerminating(existingContainer.container.state())) {
                 // Container is already registered and not in the process of shutting down.
                 throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
             }
@@ -129,7 +129,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         }
 
         // Stop the container and then unregister it.
-        return ServiceHelpers.stopAsync(result.container, this.executor);
+        return Services.stopAsync(result.container, this.executor);
     }
 
     //endregion
@@ -157,13 +157,13 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         log.info("Registered SegmentContainer {}.", containerId);
 
         // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when it's stopped.
-        ServiceHelpers.onStop(
+        Services.onStop(
                 newContainer.container,
                 () -> unregisterContainer(newContainer),
                 ex -> handleContainerFailure(newContainer, ex),
                 this.executor);
-        return ServiceHelpers.startAsync(newContainer.container, this.executor)
-                             .thenApply(v -> newContainer.handle);
+        return Services.startAsync(newContainer.container, this.executor)
+                       .thenApply(v -> newContainer.handle);
     }
 
     private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {
@@ -188,11 +188,6 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         containerWithHandle.shutdownNotifier.complete(null);
     }
 
-    private static boolean isShutdown(Service.State state) {
-        return state == Service.State.FAILED
-                || state == Service.State.STOPPING
-                || state == Service.State.TERMINATED;
-    }
 
     //endregion
 
@@ -228,7 +223,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         void notifyContainerStopped() {
             Consumer<Integer> handler = this.containerStoppedListener;
             if (handler != null) {
-                CallbackHelpers.invokeSafely(handler, this.containerId, null);
+                Callbacks.invokeSafely(handler, this.containerId, null);
             }
         }
 

@@ -9,32 +9,6 @@
  */
 package io.pravega.test.system;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.io.Serializable;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IntSummaryStatistics;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -51,16 +25,35 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.IntSummaryStatistics;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -77,7 +70,6 @@ public class ReaderCheckpointTest {
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
-    private final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "checkPointExecutor");
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(NUMBER_OF_READERS)).build();
@@ -87,10 +79,10 @@ public class ReaderCheckpointTest {
     private URI controllerURI;
 
     @Environment
-    public static void initialize() throws Exception {
+    public static void initialize() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -100,14 +92,14 @@ public class ReaderCheckpointTest {
 
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUris.get(0));
+        Service bkService = Utils.createBookkeeperService(zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUris.get(0));
+        Service conService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -115,7 +107,7 @@ public class ReaderCheckpointTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -123,7 +115,7 @@ public class ReaderCheckpointTest {
     }
 
     @Before
-    public void setup() throws URISyntaxException {
+    public void setup() {
         controllerURI = fetchControllerURI();
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
@@ -131,12 +123,12 @@ public class ReaderCheckpointTest {
     }
 
     @Test
-    public void readerCheckpointTest() throws Exception {
+    public void readerCheckpointTest() {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        ReaderGroup readerGroup = readerGroupManager.createReaderGroup(READER_GROUP_NAME, readerGroupConfig,
-                Collections.singleton(STREAM));
+        ReaderGroup readerGroup = readerGroupManager.createReaderGroup(READER_GROUP_NAME,
+                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE, STREAM)).build());
 
         int startInclusive = 1;
         int endExclusive = 100;
@@ -155,7 +147,7 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset to check point 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
         readEventsAndVerify(100, endExclusive);
 
         //initiate checkpoint200
@@ -169,11 +161,11 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset back to checkpoint 200
-        readerGroup.resetReadersToCheckpoint(checkPoint200);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint200).build());
         readEventsAndVerify(200, endExclusive);
 
         //reset back to checkpoint 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
         readEventsAndVerify(100, endExclusive);
 
         readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up
@@ -211,7 +203,7 @@ public class ReaderCheckpointTest {
         }
 
         //results from all readers
-        List<List<EventRead<Integer>>> results = FutureHelpers.allOfWithResults(readResults).join();
+        List<List<EventRead<Integer>>> results = Futures.allOfWithResults(readResults).join();
         List<EventRead<Integer>> eventsRead = results.stream().flatMap(List::stream).collect(Collectors.toList());
 
         verifyEvents(eventsRead, startInclusive, endExclusive);
@@ -220,7 +212,7 @@ public class ReaderCheckpointTest {
     private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String readerId) {
         CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(
                 () -> readEvents(readerId), readerExecutor);
-        FutureHelpers.exceptionListener(result,
+        Futures.exceptionListener(result,
                 t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
         return result;
     }
@@ -230,12 +222,15 @@ public class ReaderCheckpointTest {
         Supplier<Stream<Integer>> streamSupplier = () -> events.stream().map(i -> i.getEvent()).sorted();
         IntSummaryStatistics stats = streamSupplier.get().collect(Collectors.summarizingInt(value -> value));
 
-        assertTrue("Check for first event", stats.getMin() == startInclusive);
-        assertTrue("Check for last event", stats.getMax() == endExclusive - 1);
+        assertTrue(String.format("Check for first event: %d, %d", stats.getMin(), startInclusive),
+                stats.getMin() == startInclusive);
+        assertTrue(String.format("Check for last event: %d, %d", stats.getMax(), endExclusive),
+                stats.getMax() == endExclusive - 1);
         //Check for missing events
-        assertEquals("Check for number of events", endExclusive - startInclusive, stats.getCount());
-        assertEquals("Check for duplicate events", endExclusive - startInclusive,
-                streamSupplier.get().distinct().count());
+        assertEquals(String.format("Check for number of events: %d, %d, %d", endExclusive, startInclusive, stats.getCount()),
+                endExclusive - startInclusive, stats.getCount());
+        assertEquals(String.format("Check for duplicate events: %d, %d, %d", endExclusive, startInclusive, streamSupplier.get().distinct().count()),
+                endExclusive - startInclusive, streamSupplier.get().distinct().count());
     }
 
     private <T extends Serializable> List<EventRead<T>> readEvents(final String readerId) {
@@ -255,11 +250,15 @@ public class ReaderCheckpointTest {
                         log.info("Read event {}", event.getEvent());
                         events.add(event);
                     }
+                    if (event.isCheckpoint()) {
+                        log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
+                    }
                 } catch (ReinitializationRequiredException e) {
                     log.error("Exception while reading event using readerId: {}", readerId, e);
                     fail("Reinitialization Exception is not expected");
                 }
-            } while (event.getEvent() != null);
+            } while (event.isCheckpoint() || event.getEvent() != null);
+            //stop reading if event read(non-checkpoint) is null.
             log.info("No more events from {}/{} for readerId: {}", SCOPE, STREAM, readerId);
         } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
         return events;
@@ -279,7 +278,7 @@ public class ReaderCheckpointTest {
     }
 
     private URI fetchControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

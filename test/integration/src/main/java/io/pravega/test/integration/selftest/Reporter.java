@@ -35,6 +35,7 @@ class Reporter extends AbstractScheduledService {
     private final ScheduledExecutorService executorService;
     private final AtomicLong lastReportTime = new AtomicLong(-1);
     private final AtomicLong lastReportLength = new AtomicLong(-1);
+    private final AtomicLong lastReportOperationCount = new AtomicLong(-1);
 
     //endregion
 
@@ -85,11 +86,14 @@ class Reporter extends AbstractScheduledService {
         val storePoolSnapshot = this.storePoolSnapshotProvider.get();
         long time = System.nanoTime();
         long producedLength = this.testState.getProducedLength();
-        double instantThroughput = this.lastReportTime.get() < 0
-                ? -1 : (producedLength - this.lastReportLength.get()) / toSeconds(time - this.lastReportTime.get());
+        long opCount = this.testState.getSuccessfulOperationCount();
+        long lastReportTime = this.lastReportTime.getAndSet(time);
+        double elapsedSeconds = toSeconds(time - lastReportTime);
+        double instantThroughput = lastReportTime < 0 ? 0 : (producedLength - this.lastReportLength.get()) / elapsedSeconds;
+        double instantOps = lastReportTime < 0 ? 0 : Math.max(0, opCount - this.lastReportOperationCount.get()) / elapsedSeconds;
 
-        this.lastReportTime.set(time);
         this.lastReportLength.set(producedLength);
+        this.lastReportOperationCount.set(opCount);
 
         String ops = this.testState.isWarmup()
                 ? "(warmup)"
@@ -103,14 +107,16 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
                 ops,
+                (int) instantOps,
+                (int) this.testState.getOperationsPerSecond(),
                 data,
                 instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
-                formatSnapshot(storePoolSnapshot, "Store"),
-                formatSnapshot(testPoolSnapshot, "Test"),
-                formatSnapshot(joinPoolSnapshot, "ForkJoin"));
+                formatSnapshot(storePoolSnapshot, "S"),
+                formatSnapshot(testPoolSnapshot, "T"),
+                formatSnapshot(joinPoolSnapshot, "FJ"));
     }
 
     private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {

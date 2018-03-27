@@ -9,60 +9,57 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.common.Exceptions;
-import io.pravega.common.util.ToStringUtils;
-import java.io.ObjectStreamException;
+import java.util.Collections;
 import java.util.Map;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Getter;
+import java.util.Set;
 
-@Data
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
+/**
+ * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
+ * used as in intermediate class to make StreamCut instances opaque.
+ */
+@EqualsAndHashCode(callSuper = false)
+@ToString
 public class StreamCutImpl extends StreamCutInternal {
+    private static final long serialVersionUID = 1L;
 
     private final Stream stream;
-    @Getter(value = AccessLevel.PACKAGE)
+
     private final Map<Segment, Long> positions;
 
+    public StreamCutImpl(Stream stream, Map<Segment, Long> positions) {
+        this.stream = stream;
+        this.positions = positions;
+    }
+
     @Override
-    public String toString() {
-        return ToStringUtils.mapToString(positions);
+    public Map<Segment, Long> getPositions() {
+        return Collections.unmodifiableMap(positions);
     }
 
-    public static StreamCut fromString(String string) {
-        Map<Segment, Long> positions = ToStringUtils.stringToMap(string, Segment::fromScopedName, Long::parseLong);
-        Exceptions.checkNotNullOrEmpty(positions, "positions");
-        return new StreamCutImpl(verifySameStream(positions), positions);
+    @Override
+    public Stream getStream() {
+        return stream;
     }
-    
-    private static Stream verifySameStream(Map<Segment, Long> positions) {
-        String scopedName = null;
-        for (Segment s : positions.keySet()) {
-            if (scopedName == null) {
-                scopedName = s.getScopedStreamName();
-            }
-            if (!scopedName.equals(s.getScopedStreamName())) {
-                throw new IllegalArgumentException("All segments must come from the same stream. Found: " + scopedName
-                        + " and " + s);
+
+    @Override
+    public StreamCutInternal asImpl() {
+        return this;
+    }
+
+    @VisibleForTesting
+    public boolean validate(Set<String> segmentNames) {
+        for (Segment s: positions.keySet()) {
+            if (!segmentNames.contains(s.getScopedName())) {
+                return false;
             }
         }
-        return Stream.fromScopedName(scopedName);
+
+        return true;
     }
-
-
-    private Object writeReplace() throws ObjectStreamException {
-        return new SerializedForm(toString());
-    }
-
-    @Data
-    private static class SerializedForm  {
-        private final String value;
-        Object readResolve() throws ObjectStreamException {
-            return StreamCutImpl.fromString(value);
-        }
-    }
-
 }

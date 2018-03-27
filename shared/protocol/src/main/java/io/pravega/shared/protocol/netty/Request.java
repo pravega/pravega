@@ -13,5 +13,8 @@ package io.pravega.shared.protocol.netty;
  * A request from the client to the server. Requests usually result in a corresponding Reply being sent back.
  */
 public interface Request {
+    
+    long getRequestId();
+    
     void process(RequestProcessor cp);
 }

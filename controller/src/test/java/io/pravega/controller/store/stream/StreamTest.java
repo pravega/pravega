@@ -94,7 +94,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(streamConfig1).get();
+        stream.createConfigurationIfAbsent(StreamProperty.complete(streamConfig1)).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -208,7 +208,7 @@ public class StreamTest {
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments, newSegmentInt, response.getActiveEpoch(), scale).get();
+        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), newSegmentInt, response.getActiveEpoch(), scale).get();
         // scale is completed, history table also has completed record now.
         final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
         final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();

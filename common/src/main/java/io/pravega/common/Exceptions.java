@@ -11,13 +11,60 @@ package io.pravega.common;
 
 import com.google.common.base.Preconditions;
 import java.util.Collection;
+<<<<<<< HEAD
 import java.util.Map;
+=======
+
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+>>>>>>> refs/heads/master
 import lombok.SneakyThrows;
 
 /**
  * Helper methods that perform various checks and throw exceptions if certain conditions are met.
  */
 public final class Exceptions {
+
+    /**
+     * Determines if the given Throwable represents a fatal exception and cannot be handled.
+     *
+     * @param ex The Throwable to inspect.
+     * @return True if a fatal error which must be rethrown, false otherwise (it can be handled in a catch block).
+     */
+    public static boolean mustRethrow(Throwable ex) {
+        return ex instanceof VirtualMachineError;
+    }
+
+    /**
+     * If the provided exception is a CompletionException or ExecutionException which need be unwrapped.
+     *
+     * @param ex The exception to be unwrapped.
+     * @return The cause or the exception provided.
+     */
+    public static Throwable unwrap(Throwable ex) {
+        if (canInspectCause(ex)) {
+            Throwable cause = ex.getCause();
+            if (cause != null) {
+                return unwrap(cause);
+            }
+        }
+
+        return ex;
+    }
+
+    /**
+     * Returns true if the provided class is CompletionException or ExecutionException which need to be unwrapped.
+     * @param c The class to be tested
+     * @return True if {@link #unwrap(Throwable)} should be called on exceptions of this type
+     */
+    public static boolean shouldUnwrap(Class<? extends Exception> c) {
+        return c.equals(CompletionException.class) || c.equals(ExecutionException.class);
+    }
+
+    private static boolean canInspectCause(Throwable ex) {
+        return ex instanceof CompletionException
+                || ex instanceof ExecutionException;
+    }
 
     @FunctionalInterface
     public interface InterruptibleRun<ExceptionT extends Exception> {
@@ -94,13 +141,14 @@ public final class Exceptions {
      * argument has a size of zero.
      *
      * @param <T>     The type of elements in the provided collection.
+     * @param <V>     The actual type of the collection.
      * @param arg     The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
      * @return The arg.
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static <T> Collection<T> checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static <T, V extends Collection<T>> V checkNotNullOrEmpty(V arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
         return arg;

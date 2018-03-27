@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage;
 /**
  * Represents the base for an addressing scheme inside a DurableDataLog. This can be used for accurately locating where
  * DataFrames are stored inside a DurableDataLog.
- * <p/>
+ *
  * Subclasses would be specific to DurableDataLog implementations.
  */
 public abstract class LogAddress {

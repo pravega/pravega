@@ -12,7 +12,7 @@ package io.pravega.controller.eventProcessor.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Position;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
@@ -127,7 +127,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     private CompletableFuture<Void> handleProcessingError(R request, Throwable e) {
         CompletableFuture<Void> future;
-        Throwable cause = ExceptionHelpers.getRealException(e);
+        Throwable cause = Exceptions.unwrap(e);
 
         if (cause instanceof RetriesExhaustedException) {
             cause = cause.getCause();

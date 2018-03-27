@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AvlTreeIndex;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SortedIndex;
@@ -67,7 +67,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final FutureReadResultEntryCollection futureReads;
     @GuardedBy("lock")
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
-    private final StorageReader storageReader;
+    private final StorageReadManager storageReadManager;
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
@@ -109,7 +109,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.futureReads = new FutureReadResultEntryCollection();
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;
-        this.storageReader = new StorageReader(metadata, storage, executor);
+        this.storageReadManager = new StorageReadManager(metadata, storage, executor);
         this.executor = executor;
         this.summary = new ReadIndexSummary();
     }
@@ -136,7 +136,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             this.closed = true;
 
             // Close storage reader (and thus cancel those reads).
-            this.storageReader.close();
+            this.storageReadManager.close();
 
             // Cancel future reads.
             this.futureReads.close();
@@ -456,7 +456,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
-        // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
+        // the StorageReadManager. Fixing it would be complicated, so let's see if it poses any problems.
         CacheIndexEntry entry = new CacheIndexEntry(offset, data.getLength());
         long lastOffset = entry.getLastStreamSegmentOffset();
         Exceptions.checkArgument(lastOffset < this.metadata.getStorageLength(), "entry",
@@ -556,7 +556,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
                 CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
                 entryContent.thenAccept(r::complete);
-                FutureHelpers.exceptionListener(entryContent, r::fail);
+                Futures.exceptionListener(entryContent, r::fail);
             }
         }
     }
@@ -601,7 +601,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
         // Since we know all entries should be in the cache and are contiguous, there is no need
-        assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+        assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
         val entryContents = nextEntry.getContent().join();
 
         ArrayList<InputStream> contents = new ArrayList<>();
@@ -766,7 +766,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
         ArrayList<InputStream> contents = new ArrayList<>();
         do {
-            assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+            assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
             val entryContents = nextEntry.getContent().join();
             contents.add(entryContents.getData());
             readLength += entryContents.getLength();
@@ -907,7 +907,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
-        Consumer<StorageReader.Result> doneCallback = result -> {
+        Consumer<StorageReadManager.Result> doneCallback = result -> {
             ByteArraySegment data = result.getData();
 
             // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
@@ -921,7 +921,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Queue the request for async processing.
         length = getReadAlignedLength(offset, length);
-        this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
+        this.storageReadManager.execute(new StorageReadManager.Request(offset, length, doneCallback, failureCallback, timeout));
     }
 
     /**

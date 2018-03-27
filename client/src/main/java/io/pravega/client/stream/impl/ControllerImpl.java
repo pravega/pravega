@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
@@ -74,6 +76,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import javax.net.ssl.SSLException;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -555,8 +560,7 @@ public class ControllerImpl implements Controller {
     }
     
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCutInternal from) {
-        Exceptions.checkNotClosed(closed.get(), this);
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(final StreamCut from) {        Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
         HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
@@ -585,9 +589,17 @@ public class ControllerImpl implements Controller {
         return CompletableFuture.completedFuture(unread);
     }
     
-    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCutInternal from) {
-        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
-        int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+    /*
+     * This method fetches the segments of a stream which definitely reside between the segments represented by
+     * lowerBound and the upperBound using the invariant that segment numbers monotonically increase.
+     *
+     * @param lowerBound StreamCut representing the segments of the starting point.
+     * @param upperBound Segments representing the ending point.
+     * @return Segments which reside between fromStreamCut and currentSegments.
+     */
+    private List<Segment> getKnownSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
+        int highestCut = lowerBound.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int lowestCurrent = upperBound.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }

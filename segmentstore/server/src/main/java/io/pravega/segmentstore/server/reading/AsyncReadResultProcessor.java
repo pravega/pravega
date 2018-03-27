@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * for each ReadResultEntry returned by the result. This class is suitable for handling long-poll reads, as it does not
  * hog any threads while waiting for such future reads to become available. It only uses (a thread from) the Executor
  * when the data for a read becomes available, at which point it executes the handler on such a thread.
- * <p/>
+ *
  * The AsyncReadResultProcessor stops when any of the following conditions occur
  * <ul>
  * <li> The ReadResult reaches the end (hasNext() == false)
@@ -98,7 +98,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
                 this.entryHandler.processResultComplete();
             } else {
                 // An exception was encountered; this must be reported to the entry handler.
-                this.entryHandler.processError(ExceptionHelpers.getRealException(failureCause));
+                this.entryHandler.processError(Exceptions.unwrap(failureCause));
             }
         }
     }
@@ -110,7 +110,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     private void processResult(Executor executor) {
         // Process the result, one entry at a time, until one of the stopping conditions occurs.
         AtomicBoolean shouldContinue = new AtomicBoolean(true);
-        FutureHelpers
+        Futures
                 .loop(
                         () -> !this.closed.get() && shouldContinue.get(),
                         () -> {

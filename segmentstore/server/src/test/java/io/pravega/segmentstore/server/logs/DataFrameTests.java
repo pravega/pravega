@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
 import java.util.List;
 import lombok.val;
 import org.junit.Assert;
@@ -27,27 +26,6 @@ public class DataFrameTests {
     private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
-
-    /**
-     * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.
-     */
-    @Test
-    public void testAppendRead() throws Exception {
-        int maxFrameSize = 1024 * 1024;
-        int maxRecordCount = 2500;
-        int minRecordSize = 0;
-        int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
-
-        // Append some records.
-        DataFrame df = DataFrame.ofSize(maxFrameSize);
-        int recordsAppended = appendRecords(allRecords, df);
-        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
-        df.seal();
-
-        // Read them back.
-        DataFrameTestHelpers.checkReadRecords(df, allRecords, b -> b);
-    }
 
     /**
      * Tests the ability to append a set of records to a DataFrame, serialize it, deserialize it, and then read those
@@ -71,8 +49,8 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        DataFrame readFrame = DataFrame.from(new ByteArrayInputStream(frameData.array(), frameData.arrayOffset(), frameData.getLength()), frameData.getLength());
-        DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
+        val contents = DataFrame.read(frameData.getReader(), frameData.getLength(), writeFrame.getAddress());
+        DataFrameTestHelpers.checkReadRecords(contents, allRecords, b -> b);
     }
 
     /**

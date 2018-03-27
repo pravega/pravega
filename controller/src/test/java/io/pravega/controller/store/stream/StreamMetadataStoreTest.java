@@ -9,13 +9,18 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import com.google.common.collect.Lists;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Assert;
@@ -25,10 +30,13 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
@@ -36,6 +44,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -113,7 +123,8 @@ public abstract class StreamMetadataStoreTest {
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         store.setState(scope, stream1, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(scope, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                segmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -133,7 +144,8 @@ public abstract class StreamMetadataStoreTest {
         segmentsCreated = response.getSegmentsCreated();
         store.setState(scope, stream2, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(scope, stream2, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs2, null, executor).get();
-        store.scaleSegmentsSealed(scope, stream2, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs2, null, executor).get();
+        store.scaleSegmentsSealed(scope, stream2, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                segmentsCreated, response.getActiveEpoch(), scaleTs2, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -337,7 +349,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, true, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof TaskExceptions.StartException);
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
         // 1. start scale
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
@@ -364,25 +376,26 @@ public abstract class StreamMetadataStoreTest {
                 response.getActiveEpoch(), scaleTs, null, executor).join();
 
         // 3. scale segments sealed -- this will complete scale
-        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
 
         // rerun -- illegal state exception
         AssertExtensions.assertThrows("", () ->
                         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         // rerun  -- illegal state exception
         AssertExtensions.assertThrows("", () ->
-                        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
-                                scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+                        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                                scale1SegmentsCreated, scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         // rerun start scale -- should fail with precondition failure
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScalePreConditionFailureException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScalePreConditionFailureException);
 
         // endregion
 
@@ -402,13 +415,13 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConflictException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConflictException);
 
         // rerun of scale 1's new segments created method
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
 
         store.scaleNewSegmentsCreated(scope, stream, scale2SealedSegments, scale2SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
 
@@ -416,9 +429,10 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
 
-        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                scale1SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
 
         store.setState(scope, stream, State.SCALING, null, executor).get();
 
@@ -426,7 +440,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
         // endregion
     }
@@ -444,30 +458,47 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        // region idempotent
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
-        StreamConfigWithVersion configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-
+        StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
+        assertFalse(configProperty.isUpdating());
         // run update configuration multiple times
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
-        assertEquals(State.UPDATING, store.getState(scope, stream, false, null, executor).get());
+        assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
+        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
 
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
+        assertTrue(configProperty.isUpdating());
 
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        assertFalse(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+
+        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
+        assertEquals(configuration2, configProperty.getProperty());
+
+        assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+    }
+
+    @Test
+    public void deleteTest() throws Exception {
+        final String scope = "ScopeDelete";
+        final String stream = "StreamDelete";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
-        configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-        // set state to updating and run update configuration
-        store.setState(scope, stream, State.UPDATING, null, executor).get();
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
-        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        assertTrue(store.checkStreamExists(scope, stream).join());
 
-        // endregion
-
-        StreamConfigWithVersion configWithVersion2 = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-        store.setState(scope, stream, State.SCALING, null, executor).get();
-        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion2, configuration2), null, executor).get(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+        store.deleteStream(scope, stream, null, executor).get();
+        assertFalse(store.checkStreamExists(scope, stream).join());
+        DeleteScopeStatus status = store.deleteScope(scope).join();
+        assertEquals(status.getStatus(), DeleteScopeStatus.Status.SUCCESS);
     }
 
     @Test
@@ -532,7 +563,8 @@ public abstract class StreamMetadataStoreTest {
         store.sealTransaction(scope, stream, tx3.getId(), true, Optional.of(tx3.getVersion()), null, executor).get();
         store.commitTransaction(scope, stream, tx3.getEpoch(), tx3.getId(), null, executor).get(); // should not happen
 
-        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
 
         deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
         assertEquals(false, deleteResponse.isDeleted());
@@ -576,6 +608,199 @@ public abstract class StreamMetadataStoreTest {
         deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
         // now that new segments are created, we should be able to delete old epoch.
         assertEquals(true, deleteResponse.isDeleted());
+    }
+
+    @Test
+    public void truncationTest() throws Exception {
+        final String scope = "ScopeTruncate";
+        final String stream = "ScopeTruncate";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<Integer, Long> truncation = new HashMap<>();
+        truncation.put(0, 0L);
+        truncation.put(1, 0L);
+        assertTrue(Futures.await(store.startTruncation(scope, stream, truncation, null, executor)));
+
+        StreamProperty<StreamTruncationRecord> truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
+        assertTrue(truncationProperty.isUpdating());
+
+        Map<Integer, Long> truncation2 = new HashMap<>();
+        truncation2.put(0, 0L);
+        truncation2.put(1, 0L);
+
+        assertFalse(Futures.await(store.startTruncation(scope, stream, truncation2, null, executor)));
+        assertTrue(Futures.await(store.completeTruncation(scope, stream, null, executor)));
+
+        truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
+        assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
+
+        assertTrue(truncationProperty.getProperty().getCutEpochMap().size() == 2);
+
+        Map<Integer, Long> truncation3 = new HashMap<>();
+        truncation3.put(0, 0L);
+        truncation3.put(1, 0L);
+
+        assertTrue(Futures.await(store.startTruncation(scope, stream, truncation3, null, executor)));
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+    }
+
+    @Test
+    public void retentionSetTest() throws Exception {
+        final String scope = "ScopeRetain";
+        final String stream = "StreamRetain";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofDays(2).toMillis())
+                .build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+                .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        AtomicReference<BucketChangeListener.StreamNotification> notificationRef = new AtomicReference<>();
+
+        store.registerBucketChangeListener(0, notificationRef::set);
+        store.unregisterBucketListener(0);
+
+        store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();
+        List<String> streams = store.getStreamsForBucket(0, executor).get();
+        assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
+
+        Map<Integer, Long> map1 = new HashMap<>();
+        map1.put(0, 0L);
+        map1.put(1, 0L);
+        long recordingTime = System.currentTimeMillis();
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, Long.MIN_VALUE, map1);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
+
+        Map<Integer, Long> map2 = new HashMap<>();
+        map2.put(0, 10L);
+        map2.put(1, 10L);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, Long.MIN_VALUE, map2);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
+
+        Map<Integer, Long> map3 = new HashMap<>();
+        map3.put(0, 20L);
+        map3.put(1, 20L);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, Long.MIN_VALUE, map3);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
+
+        List<StreamCutRecord> list = store.getStreamCutsFromRetentionSet(scope, stream, null, executor).get();
+        assertTrue(list.contains(streamCut1));
+        assertTrue(list.contains(streamCut2));
+        assertTrue(list.contains(streamCut3));
+
+        store.deleteStreamCutBefore(scope, stream, streamCut2, null, executor).get();
+
+        list = store.getStreamCutsFromRetentionSet(scope, stream, null, executor).get();
+        assertTrue(!list.contains(streamCut1));
+        assertTrue(!list.contains(streamCut2));
+        assertTrue(list.contains(streamCut3));
+
+        store.removeStreamFromAutoStreamCut(scope, stream, null, executor).get();
+        streams = store.getStreamsForBucket(0, executor).get();
+        assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
+    }
+
+    @Test
+    public void sizeTest() throws Exception {
+        final String scope = "ScopeSize";
+        final String stream = "StreamSize";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.SIZE)
+                .retentionParam(100L).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+                .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();
+        List<String> streams = store.getStreamsForBucket(0, executor).get();
+        assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
+
+        // region Size Computation on stream cuts on epoch 0
+        Map<Integer, Long> map1 = new HashMap<>();
+        map1.put(0, 10L);
+        map1.put(1, 10L);
+
+        Long size = store.getSizeTillStreamCut(scope, stream, map1, null, executor).join();
+        assertTrue(size == 20L);
+
+        long recordingTime = System.currentTimeMillis();
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, size, map1);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
+
+        Map<Integer, Long> map2 = new HashMap<>();
+        map2.put(0, 20L);
+        map2.put(1, 20L);
+        size = store.getSizeTillStreamCut(scope, stream, map2, null, executor).join();
+        assertTrue(size == 40L);
+
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, size, map2);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
+
+        Map<Integer, Long> map3 = new HashMap<>();
+        map3.put(0, 30L);
+        map3.put(1, 30L);
+
+        size = store.getSizeTillStreamCut(scope, stream, map3, null, executor).join();
+        assertTrue(size == 60L);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, 60L, map3);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
+
+        // endregion
+
+        // region Size Computation on multiple epochs
+
+        long scaleTs = System.currentTimeMillis();
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.0, 0.5);
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.5, 1.0);
+        List<Integer> scale1SealedSegments = Lists.newArrayList(0, 1);
+
+        StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(segment2, segment3), scaleTs, false, null, executor).join();
+        final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
+        store.setState(scope, stream, State.SCALING, null, executor).get();
+        store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                response.getActiveEpoch(), scaleTs, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 40L)),
+                scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        // complex stream cut - across two epochs
+        Map<Integer, Long> map4 = new HashMap<>();
+        map4.put(0, 40L);
+        map4.put(3, 10L);
+        size = store.getSizeTillStreamCut(scope, stream, map4, null, executor).join();
+        assertTrue(size == 90L);
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, map4);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut4, null, executor).get();
+
+        // simple stream cut on epoch 2
+        Map<Integer, Long> map5 = new HashMap<>();
+        map5.put(2, 10L);
+        map5.put(3, 10L);
+
+        size = store.getSizeTillStreamCut(scope, stream, map5, null, executor).join();
+        assertTrue(size == 100L);
+        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, map5);
+        store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
+        // endregion
     }
 }
 

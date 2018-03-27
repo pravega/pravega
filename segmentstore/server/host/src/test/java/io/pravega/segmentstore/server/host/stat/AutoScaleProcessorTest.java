@@ -13,19 +13,19 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -38,18 +38,16 @@ public class AutoScaleProcessorTest {
     private static final String STREAM2 = "stream2";
     private static final String STREAM3 = "stream3";
     private static final String STREAM4 = "stream4";
-    ExecutorService executor;
     ScheduledExecutorService maintenanceExecutor;
+    private boolean authEnabled = false;
 
     @Before
     public void setup() {
-        executor = Executors.newSingleThreadExecutor();
         maintenanceExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void teardown() {
-        executor.shutdown();
         maintenanceExecutor.shutdown();
     }
 
@@ -89,9 +87,12 @@ public class AutoScaleProcessorTest {
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                                .with(AutoScalerConfig.AUTH_USERNAME, "admin")
+                                .with(AutoScalerConfig.AUTH_PASSWORD, "passwd")
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executor, maintenanceExecutor);
+                maintenanceExecutor);
 
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         String streamSegmentName2 = Segment.getScopedName(SCOPE, STREAM2, 0);
@@ -119,10 +120,17 @@ public class AutoScaleProcessorTest {
                 0.0, 0.0, 10.10, 0.0);
 
         monitor.notifySealed(streamSegmentName1);
-        assertTrue(FutureHelpers.await(result));
-        assertTrue(FutureHelpers.await(result2));
-        assertTrue(FutureHelpers.await(result3));
-        assertTrue(FutureHelpers.await(result4));
+        assertTrue(Futures.await(result));
+        assertTrue(Futures.await(result2));
+        assertTrue(Futures.await(result3));
+        assertTrue(Futures.await(result4));
+    }
+
+    @Ignore
+    public void scaleTestWithAuth() {
+        authEnabled = true;
+        this.scaleTest();
+        authEnabled = false;
     }
 
     @Test(timeout = 10000)
@@ -139,11 +147,11 @@ public class AutoScaleProcessorTest {
                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                 .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                 .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executor, maintenanceExecutor);
+                maintenanceExecutor);
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(FutureHelpers.await(scaleDownFuture));
+        assertTrue(Futures.await(scaleDownFuture));
 
         assertNull(monitor.get(streamSegmentName1));
     }

@@ -1089,8 +1089,8 @@ public class ControllerImplTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 4L);
         segments.put(new Segment(scope, stream, 1), 6L);
-        StreamCutImpl cut = new StreamCutImpl(s, segments);
-        Set<Segment> successors = controllerClient.getSuccessors(cut).get();
+    	StreamCut cut = new StreamCutImpl(s, segments);
+        Set<Segment> successors = controllerClient.getSuccessors(cut).get().getSegments();
         assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
                                      new Segment(scope, stream, 2), new Segment(scope, stream, 3),
                                      new Segment(scope, stream, 4), new Segment(scope, stream, 5),

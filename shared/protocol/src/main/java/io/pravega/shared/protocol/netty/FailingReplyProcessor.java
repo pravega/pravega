@@ -17,6 +17,7 @@ import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
@@ -24,6 +25,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
@@ -41,9 +43,19 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void hello(Hello hello) {
-        log.info("Received hello: {}", hello);
+        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
+            log.error("Incompatible wire protocol versions {}", hello);
+        } else {
+            log.info("Received hello: {}", hello);
+        }
     }
-    
+
+    @Override
+    public void operationUnsupported(OperationUnsupported operationUnsupported) {
+        throw new UnsupportedOperationException("Operation '" + operationUnsupported.getOperationName() +
+                "' is not supported on the target SegmentStore.");
+    }
+
     @Override
     public void wrongHost(WrongHost wrongHost) {
         throw new IllegalStateException("Wrong host. Segment: " + wrongHost.segment + " is on "
@@ -53,6 +65,12 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     @Override
     public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
         throw new IllegalStateException("Segment is sealed: " + segmentIsSealed.segment);
+    }
+
+    @Override
+    public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
+        throw new IllegalStateException("Segment is truncated: " + segmentIsTruncated.segment
+                + " at offset " + segmentIsTruncated.startOffset);
     }
 
     @Override
@@ -139,6 +157,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     @Override
     public void segmentSealed(SegmentSealed segmentSealed) {
         throw new IllegalStateException("Unexpected operation: " + segmentSealed);
+    }
+
+    @Override
+    public void segmentTruncated(SegmentTruncated segmentTruncated) {
+        throw new IllegalStateException("Unexpected operation: " + segmentTruncated);
     }
 
     @Override

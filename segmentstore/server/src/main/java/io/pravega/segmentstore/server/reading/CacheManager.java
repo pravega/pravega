@@ -11,11 +11,11 @@ package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
+import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Manages the lifecycle of Cache Entries. Decides which entries are to be kept in memory and which are eligible for
  * removal.
- * <p/>
+ *
  * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across multiple
  * CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to evict unused entries.
- * <p/>
+ *
  * The CacheManager holds two reference numbers: the current generation and the oldest generation. Every new Cache Entry
  * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines that
  * there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest generation.
@@ -41,15 +43,16 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-public class CacheManager extends AbstractScheduledService implements AutoCloseable {
+public class CacheManager extends AbstractScheduledService implements AutoCloseable, CacheUtilizationProvider {
     //region Members
 
     private static final String TRACE_OBJECT_ID = "CacheManager";
     @GuardedBy("clients")
     private final Collection<Client> clients;
     private final ScheduledExecutorService executorService;
-    private int currentGeneration;
-    private int oldestGeneration;
+    private final AtomicInteger currentGeneration;
+    private final AtomicInteger oldestGeneration;
+    private final AtomicLong cacheSize;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
@@ -70,8 +73,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         this.policy = policy;
         this.clients = new HashSet<>();
-        this.oldestGeneration = 0;
-        this.currentGeneration = 0;
+        this.oldestGeneration = new AtomicInteger();
+        this.currentGeneration = new AtomicInteger();
+        this.cacheSize = new AtomicLong();
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
         this.metrics = new SegmentStoreMetrics.CacheManager();
@@ -85,7 +89,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (state() == State.RUNNING) {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
+                Futures.await(Services.stopAsync(this, this.executorService));
             }
 
             synchronized (this.clients) {
@@ -116,13 +120,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         try {
             applyCachePolicy();
         } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
+            if (Exceptions.mustRethrow(ex)) {
                 throw ex;
             }
 
             // Log the error and move on. If we don't catch the exception here, the AbstractScheduledService will
             // auto-shutdown.
-            log.error("{}: Error {}.", TRACE_OBJECT_ID, ex);
+            log.error("{}: Error.", TRACE_OBJECT_ID, ex);
         }
     }
 
@@ -130,6 +134,15 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected Scheduler scheduler() {
         long millis = this.policy.getGenerationDuration().toMillis();
         return Scheduler.newFixedDelaySchedule(millis, millis, TimeUnit.MILLISECONDS);
+    }
+
+    //endregion
+
+    //region CacheUtilizationProvider Implementation
+
+    @Override
+    public double getCacheUtilization() {
+        return (double) this.cacheSize.get() / this.policy.getMaxSize();
     }
 
     //endregion
@@ -147,7 +160,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         synchronized (this.clients) {
             if (!this.clients.contains(client)) {
                 this.clients.add(client);
-                client.updateGenerations(this.currentGeneration, this.oldestGeneration);
+                client.updateGenerations(this.currentGeneration.get(), this.oldestGeneration.get());
             }
         }
 
@@ -182,6 +195,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         CacheStatus currentStatus = collectStatus();
         if (currentStatus == null || currentStatus.getSize() == 0) {
             // This indicates we have no clients or those clients have no data.
+            this.cacheSize.set(0);
             return;
         }
 
@@ -207,11 +221,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
         } while (sizeReduction > 0 && oldestChanged);
+        this.cacheSize.set(currentStatus.getSize());
         this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
     }
 
     private CacheStatus collectStatus() {
-        int minGeneration = this.currentGeneration;
+        int cg = this.currentGeneration.get();
+        int minGeneration = cg;
         int maxGeneration = 0;
         long totalSize = 0;
         Collection<Client> clients = getCurrentClients();
@@ -232,8 +248,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
 
             totalSize += clientStatus.getSize();
-            if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this.currentGeneration) {
-                log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
+            if (clientStatus.oldestGeneration > cg || clientStatus.newestGeneration > cg) {
+                log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.",
+                        TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
@@ -250,15 +267,17 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private long updateClients() {
         long sizeReduction = 0;
+        int cg = this.currentGeneration.get();
+        int og = this.oldestGeneration.get();
         for (Client c : getCurrentClients()) {
             try {
-                sizeReduction += Math.max(0, c.updateGenerations(this.currentGeneration, this.oldestGeneration));
+                sizeReduction += Math.max(0, c.updateGenerations(cg, og));
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 unregister(c);
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
+                if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 
@@ -272,9 +291,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private boolean adjustCurrentGeneration(CacheStatus currentStatus) {
         // We only need to increment if we had any activity in the current generation. This can be determined by comparing
         // the current generation with the newest generation from the retrieved status.
-        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration;
+        boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration.get();
         if (shouldIncrement) {
-            this.currentGeneration++;
+            this.currentGeneration.incrementAndGet();
         }
 
         return shouldIncrement;
@@ -282,7 +301,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private boolean adjustOldestGeneration(CacheStatus currentStatus) {
         // Figure out if we exceed the policy criteria.
-        int newOldestGeneration = this.oldestGeneration;
+        int newOldestGeneration = this.oldestGeneration.get();
         if (exceedsPolicy(currentStatus)) {
             // Start by setting the new value to the smallest reported value, and increment by one.
             newOldestGeneration = Math.max(newOldestGeneration, currentStatus.oldestGeneration) + 1;
@@ -291,12 +310,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             newOldestGeneration = Math.max(newOldestGeneration, getOldestPermissibleGeneration());
 
             // Then make sure we don't exceed the current generation.
-            newOldestGeneration = Math.min(newOldestGeneration, this.currentGeneration);
+            newOldestGeneration = Math.min(newOldestGeneration, this.currentGeneration.get());
         }
 
-        boolean isAdjusted = newOldestGeneration > this.oldestGeneration;
+        boolean isAdjusted = newOldestGeneration > this.oldestGeneration.get();
         if (isAdjusted) {
-            this.oldestGeneration = newOldestGeneration;
+            this.oldestGeneration.set(newOldestGeneration);
         }
 
         return isAdjusted;
@@ -311,7 +330,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     private int getOldestPermissibleGeneration() {
-        return this.currentGeneration - this.policy.getMaxGenerations() + 1;
+        return this.currentGeneration.get() - this.policy.getMaxGenerations() + 1;
     }
 
     private Collection<Client> getCurrentClients() {

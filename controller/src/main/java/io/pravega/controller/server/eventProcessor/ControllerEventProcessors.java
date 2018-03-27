@@ -21,7 +21,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -39,6 +39,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -130,6 +131,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 executor);
         this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);
@@ -180,7 +182,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (this.requestEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
 
     @Override
@@ -215,7 +217,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 }
             }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
 
     private CompletableFuture<Void> createStreams() {
@@ -248,16 +250,16 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
-        return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+        return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor scope " + scopeName, e))
-                .runAsync(() -> controller.createScope(scopeName)
+                                   .runAsync(() -> controller.createScope(scopeName)
                         .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(final StreamConfiguration streamConfig) {
-        return FutureHelpers.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+        return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
                 e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
-                .runAsync(() -> controller.createStream(streamConfig)
+                                   .runAsync(() -> controller.createStream(streamConfig)
                                 .thenAccept(x ->
                                         log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
                         executor));
@@ -316,7 +318,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
                     }
 
-                    return FutureHelpers.allOf(futureList);
+                    return Futures.allOf(futureList);
                 });
     }
 

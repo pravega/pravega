@@ -13,10 +13,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -43,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -70,11 +72,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
+    protected final int bucketCount;
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -110,6 +114,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         this.hostIndex = hostIndex;
+        this.bucketCount = bucketCount;
     }
 
     /**
@@ -134,13 +139,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
                 .thenApply(result -> {
-                    CREATE_STREAM.reportSuccessValue(1);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                    DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                            configuration.getScalingPolicy().getMinNumSegments());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-
+                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                        CREATE_STREAM.reportSuccessValue(1);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                configuration.getScalingPolicy().getMinNumSegments());
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                    }
+                    
                     return result;
                 });
     }
@@ -224,7 +231,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-
     /**
      * List the streams in scope.
      *
@@ -234,19 +240,57 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
-            return FutureHelpers.allOfWithResults(
+            return Futures.allOfWithResults(
                     streams.stream()
                             .map(s -> getStream(scopeName, s, null).getConfiguration())
                             .collect(Collectors.toList()));
         });
     }
 
+
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String scope,
-                                                          final String name,
-                                                          final StreamConfigWithVersion configuration,
-                                                          final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
+    public CompletableFuture<Void> startTruncation(final String scope,
+                                                   final String name,
+                                                   final Map<Integer, Long> streamCut,
+                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).startTruncation(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name,
+                                                      final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeTruncation(), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope,
+                                                                         final String name,
+                                                                         final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope,
+                                                                                           final String name,
+                                                                                           final boolean ignoreCached,
+                                                                                           final OperationContext context,
+                                                                                           final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationProperty(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> startUpdateConfiguration(final String scope,
+                                                            final String name,
+                                                            final StreamConfiguration configuration,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
+        return withCompletion(getStream(scope, name, context).startUpdateConfiguration(configuration), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeUpdateConfiguration(final String scope, final String name,
+                                                               final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeUpdateConfiguration(), executor);
     }
 
     @Override
@@ -257,10 +301,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion(final String scope,
-                                                                                  final String name,
-                                                                                  final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getConfigurationWithVersion(), executor);
+    public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope,
+                                                                                           final String name,
+                                                                                           final boolean ignoreCached,
+                                                                                           final OperationContext context,
+                                                                                           final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getConfigurationProperty(ignoreCached), executor);
     }
 
     @Override
@@ -300,8 +346,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             }
                         }, executor)
                         .thenComposeAsync(currentSegments ->
-                                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
-                                        .collect(Collectors.toList())), executor),
+                                Futures.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                                                                        .collect(Collectors.toList())), executor),
                 executor);
     }
 
@@ -320,7 +366,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                               final Executor executor) {
         final Stream streamObj = getStream(scope, stream, context);
         return withCompletion(streamObj.getActiveSegments(epoch).thenComposeAsync(segments -> {
-            return FutureHelpers.allOfWithResults(segments
+            return Futures.allOfWithResults(segments
                     .stream()
                     .map(streamObj::getSegment)
                     .collect(Collectors.toList()));
@@ -372,7 +418,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final List<Integer> sealedSegments,
+                                                       final Map<Integer, Long> sealedSegments,
                                                        final List<Segment> newSegments,
                                                        final int activeEpoch,
                                                        final long scaleTimestamp,
@@ -408,9 +454,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         return stream.latestScaleData()
                                 .thenCompose(pair -> {
                                     List<Integer> segmentsSealed = pair.getLeft();
-                                    return FutureHelpers.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
-                                            .collect(Collectors.toList()))
-                                            .thenApply(segmentsCreated ->
+                                    return Futures.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
+                                                                        .collect(Collectors.toList()))
+                                                  .thenApply(segmentsCreated ->
                                                     new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
                                 });
                     } else {
@@ -418,6 +464,34 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 new DeleteEpochResponse(false, null, null));
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Void> addStreamCutToRetentionSet(final String scope, final String name, final StreamCutRecord streamCut,
+                                                              final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.addStreamCutToRetentionSet(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String name,
+                                                                                  final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getRetentionStreamCuts(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String name, final StreamCutRecord streamCut,
+                                                         final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Integer, Long> streamCut,
+                                                        final OperationContext context, final ScheduledExecutorService executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getSizeTillStreamCut(streamCut), executor);
     }
 
     @Override
@@ -676,6 +750,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private TxnResource getTxnResource(String str) {
         return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
+
+    int getBucket(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        return scopedStreamName.hashCode() % bucketCount;
+    }
+
+    String getScopedStreamName(String scope, String stream) {
+        return String.format("%s/%s", scope, stream);
     }
 }
 

@@ -93,15 +93,15 @@ public class Segment implements Serializable {
         }
     }
     
-    private Object writeReplace() throws ObjectStreamException {
-        return new SerializedForm(getScopedName());
-    }
-    
-    @Data
-    private static class SerializedForm  {
-        private final String value;
-        Object readResolve() throws ObjectStreamException {
-            return Segment.fromScopedName(value);
+    @Override
+    public int compareTo(Segment o) {
+        int result = scope.compareTo(o.scope);
+        if (result == 0) {
+            result = streamName.compareTo(o.streamName);
         }
+        if (result == 0) {
+            result = Integer.compare(segmentNumber, o.segmentNumber);
+        }
+        return result;
     }
 }

@@ -10,15 +10,15 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.SortedIndex;
-import io.pravega.segmentstore.server.LogItem;
+import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,11 +37,12 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @NotThreadSafe
-class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
+class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoCloseable {
     //region Members
 
     private final DataFrameOutputStream outputStream;
     private final DurableDataLog targetLog;
+    private final Serializer<T> serializer;
     private final Args args;
     private final AtomicBoolean closed;
     private long lastSerializedSequenceNumber;
@@ -57,11 +58,13 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *
      * @param targetLog     A Function that, given a DataFrame, commits that DataFrame to a DurableDataLog and returns
      *                      a Future that indicates when the operation completes or errors out.
+     * @param serializer    Log Item Serializer to use.
      * @param args          Arguments for the Builder.
      * @throws NullPointerException If any of the arguments are null.
      */
-    DataFrameBuilder(DurableDataLog targetLog, Args args) {
+    DataFrameBuilder(DurableDataLog targetLog, Serializer<T> serializer, Args args) {
         this.targetLog = Preconditions.checkNotNull(targetLog, "targetLog");
+        this.serializer = Preconditions.checkNotNull(serializer, "serializer");
         this.args = Preconditions.checkNotNull(args, "args");
         Preconditions.checkNotNull(args.commitSuccess, "args.commitSuccess");
         Preconditions.checkNotNull(args.commitFailure, "args.commitFailure");
@@ -112,7 +115,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * written to the DataFrame will be discarded. Note that if a LogItem spans multiple DataFrames, in case of failure,
      * the content serialized to already committed DataFrames will not be discarded. That case will have to be dealt with
      * upon reading DataFrames from the DataFrameLog.
-     * <p/>
+     *
      * Any exceptions that resulted from the Data Frame failing to commit will be routed through the dataFrameCommitFailureCallback
      * callback, as well as being thrown from this exception.
      *
@@ -137,7 +140,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
             // Completely serialize the entry. Note that this may span more than one Data Frame.
             this.lastStartedSequenceNumber = seqNo;
-            logItem.serialize(this.outputStream);
+            this.serializer.serialize(this.outputStream, logItem);
 
             // Indicate to the output stream that have finished writing the record.
             this.outputStream.endRecord();
@@ -199,7 +202,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         // This failure is due to us being unable to commit a DataFrame, whether synchronously or via a callback. The
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (!isShutdownException(ex)) {
             // This is usually from a subsequent call. We want to store the actual failure cause.
             this.failureCause.compareAndSet(null, ex);
@@ -221,7 +224,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     /**
      * Contains Information about the committal of a DataFrame.
      */
-    static class CommitArgs implements SortedIndex.IndexEntry {
+    static class CommitArgs {
         /**
          * The Sequence Number of the last LogItem that was fully serialized (and committed).
          * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
@@ -246,8 +249,13 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         @Getter
         private final int dataFrameLength;
 
+        @Getter
         @Setter
-        private long indexKey;
+        private long metadataTransactionId;
+
+        @Getter
+        @Setter
+        private List<CompletableOperation> operations;
 
         /**
          * Creates a new instance of the CommitArgs class.
@@ -264,11 +272,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
             this.dataFrameLength = dataFrameLength;
             this.logAddress = new AtomicReference<>();
-        }
-
-        @Override
-        public long key() {
-            return this.indexKey;
         }
 
         /**

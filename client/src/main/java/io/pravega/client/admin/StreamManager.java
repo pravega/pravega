@@ -9,15 +9,16 @@
  */
 package io.pravega.client.admin;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import java.net.URI;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
  */
 public interface StreamManager extends AutoCloseable {
-
     /**
      * Creates a new instance of StreamManager.
      *
@@ -25,9 +26,19 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return new StreamManagerImpl(controller);
+        return create(ClientConfig.builder().controllerURI(controller).build());
     }
-    
+
+    /**
+     * Creates a new instance of StreamManager.
+     *
+     * @param clientConfig Configuration for the client connection to Pravega.
+     * @return Instance of Stream Manager implementation.
+     */
+    public static StreamManager create(ClientConfig clientConfig) {
+        return new StreamManagerImpl(clientConfig);
+    }
+
     /**
      * Creates a new stream
      * <p>
@@ -54,6 +65,17 @@ public interface StreamManager extends AutoCloseable {
      * @return True if stream configuration is updated
      */
     boolean updateStream(String scopeName, String streamName, StreamConfiguration config);
+
+    /**
+     * Truncate stream at given stream cut.
+     * This method may block.
+     *
+     * @param scopeName  The name of the scope to create this stream in.
+     * @param streamName The name of the stream who's config is to be changed.
+     * @param streamCut  The stream cut to truncate at.
+     * @return True if stream is truncated at given truncation stream cut.
+     */
+    boolean truncateStream(String scopeName, String streamName, StreamCut streamCut);
 
     /**
      * Seal an existing stream.

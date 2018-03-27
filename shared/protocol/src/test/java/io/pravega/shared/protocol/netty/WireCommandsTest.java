@@ -10,17 +10,20 @@
 package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import lombok.Data;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class WireCommandsTest {
 
@@ -35,7 +38,7 @@ public class WireCommandsTest {
 
     @Test
     public void testHello() throws IOException {
-        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
     }
 
     @Test
@@ -45,7 +48,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSetupAppend() throws IOException {
-        testCommand(new WireCommands.SetupAppend(l, uuid, testString1));
+        testCommand(new WireCommands.SetupAppend(l, uuid, testString1, ""));
     }
 
     @Test
@@ -69,8 +72,61 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testAuthTokenCheckFalied() throws IOException {
+        testCommand(new WireCommands.AuthTokenCheckFailed(l));
+        AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
+        ReplyProcessor rp = new FailingReplyProcessor() {
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                authTokenCheckFailedCalled.set(true);
+            }
+        };
+
+        new WireCommands.AuthTokenCheckFailed(0).process(rp);
+        assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
+    }
+
+    /*
+     * Test that we are able to decode the message of a previous version.
+     * Specifically here, we create a data structure that corresponds to the
+     * response to append data that does not include the last field (version 2)
+     * and check that we are able to decode it correctly.
+     */
+    @Data
+    public static final class DataAppendedV2 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final UUID writerId;
+        final long eventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+        }
+    }
+
+    @Test
     public void testDataAppended() throws IOException {
-        testCommand(new WireCommands.DataAppended(uuid, l));
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
+        commandV2.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(uuid, l, -1));
+
+        // Test that we are able to encode and decode the current response
+        // to append data correctly.
+        testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE));
     }
 
     @Test
@@ -80,7 +136,7 @@ public class WireCommandsTest {
 
     @Test
     public void testReadSegment() throws IOException {
-        testCommand(new WireCommands.ReadSegment(testString1, l, i));
+        testCommand(new WireCommands.ReadSegment(testString1, l, i, ""));
     }
 
     @Test
@@ -90,7 +146,7 @@ public class WireCommandsTest {
     
     @Test
     public void testUpdateSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l));
+        testCommand(new WireCommands.UpdateSegmentAttribute(l, testString1, uuid, l, l, ""));
     }
     
     @Test
@@ -101,7 +157,7 @@ public class WireCommandsTest {
 
     @Test
     public void testGetSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid));
+        testCommand(new WireCommands.GetSegmentAttribute(l, testString1, uuid, ""));
     }
     
     @Test
@@ -111,17 +167,17 @@ public class WireCommandsTest {
     
     @Test
     public void testGetStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1));
+        testCommand(new WireCommands.GetStreamSegmentInfo(l, testString1, ""));
     }
 
     @Test
     public void testStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1));
+        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1, l - 1));
     }
 
     @Test
     public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid));
+        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid, ""));
     }
 
     @Test
@@ -131,7 +187,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateSegment() throws IOException {
-        testCommand(new WireCommands.CreateSegment(l, testString1, b, i));
+        testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
     }
 
     @Test
@@ -141,7 +197,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -151,7 +207,7 @@ public class WireCommandsTest {
 
     @Test
     public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -161,7 +217,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid));
+        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid, ""));
     }
 
     @Test
@@ -171,7 +227,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSealSegment() throws IOException {
-        testCommand(new WireCommands.SealSegment(l, testString1));
+        testCommand(new WireCommands.SealSegment(l, testString1, ""));
     }
 
     @Test
@@ -180,8 +236,23 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testTruncateSegment() throws IOException {
+        testCommand(new WireCommands.TruncateSegment(l, testString1, l + 1, ""));
+    }
+
+    @Test
+    public void testSegmentTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentTruncated(l, testString1));
+    }
+
+    @Test
+    public void testSegmentIsTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1));
+    }
+
+    @Test
     public void testDeleteSegment() throws IOException {
-        testCommand(new WireCommands.DeleteSegment(l, testString1));
+        testCommand(new WireCommands.DeleteSegment(l, testString1, ""));
     }
 
     @Test
@@ -191,7 +262,7 @@ public class WireCommandsTest {
 
     @Test
     public void testUpdateSegmentPolicy() throws IOException {
-        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, b, i));
+        testCommand(new WireCommands.UpdateSegmentPolicy(l, testString1, b, i, ""));
     }
 
     @Test
@@ -238,9 +309,15 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
-        WireCommand read = command.getType().readFrom(new DataInputStream(new ByteArrayInputStream(array)),
+        WireCommand read = command.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(array)),
                                                       array.length);
         assertEquals(command, read);
+    }
+
+    private void testCommandFromByteArray(byte[] bytes, WireCommand compatibleCommand) throws IOException {
+        WireCommand read = compatibleCommand.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
+                bytes.length);
+        assertEquals(compatibleCommand, read);
     }
 
 }

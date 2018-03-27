@@ -19,7 +19,8 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -28,6 +29,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,6 +47,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
+    private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
 
     ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor, AppendBatchSizeTracker batchSizeTracker) {
         Preconditions.checkNotNull(processor);
@@ -59,8 +62,9 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
+        registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         log.info("Connection established {} ", ctx);
-        c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION), c.voidPromise());
+        c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
@@ -73,6 +77,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        registeredFutureLatch.reset();
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -90,7 +95,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
             batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
         }
         try {
-            cmd.process(processor);
+            processor.process(cmd);
         } catch (Exception e) {
             processor.processingFailure(e);
         }
@@ -104,14 +109,14 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
-        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
+        Futures.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
     
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
-        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        Futures.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
 
     @Override
@@ -128,8 +133,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
-        Channel ch = channel.get();
-        if (ch == null) {
+        Channel ch;
+        try {
+            ch = getChannel();
+        } catch (ConnectionFailedException e) {
             callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
             return;
         }
@@ -165,7 +172,17 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
         return ch;
     }
-    
+
+    /**
+     * This function completes the input future when the channel is registered.
+     *
+     * @param future CompletableFuture which will be completed once the channel is registered.
+     */
+    void completeWhenRegistered(final CompletableFuture<Void> future) {
+        Preconditions.checkNotNull(future, "future");
+        registeredFutureLatch.register(future);
+    }
+
     private final class KeepAliveTask implements Runnable {
         @Override
         public void run() {

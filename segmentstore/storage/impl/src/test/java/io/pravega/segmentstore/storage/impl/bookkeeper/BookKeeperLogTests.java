@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -21,9 +21,11 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -41,6 +45,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -51,16 +56,21 @@ import org.junit.rules.Timeout;
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
  * filesystem. It starts up the local sandbox and uses that for testing purposes.
  */
-public class BookKeeperLogTests extends DurableDataLogTestBase {
+public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
+
+    private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
 
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
-    private static final int THREAD_POOL_SIZE = 20;
+    private static final int THREAD_POOL_SIZE = 3;
+    private static final int MAX_WRITE_ATTEMPTS = 3;
+    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
@@ -71,9 +81,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
      * we only do it once.
      */
-    @BeforeClass
-    public static void setUpBookKeeper() throws Exception {
+    public static void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
+        SECURE_BK.set(secure);
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
@@ -84,10 +94,17 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .startZk(true)
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
+                                            .secureBK(isSecure())
+                                            .tLSKeyStore("../../../config/bookie.keystore.jks")
+                                            .tLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd")
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
         BK_SERVICE.set(runner);
+    }
+
+    public static boolean isSecure() {
+        return SECURE_BK.get();
     }
 
     @AfterClass
@@ -118,13 +135,14 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         this.config.set(BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
-                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 5)
-                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 100)) // Very frequent rollovers.
+                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
+                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
                 .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
                 .build());
 
@@ -135,7 +153,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
@@ -151,7 +169,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      * Tests the BookKeeperLogFactory and its initialization.
      */
     @Test
-    public void testFactoryInitialize() throws Exception {
+    public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
@@ -181,7 +199,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
                 // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
                 // WriteFailureException (general unable to write) should be thrown.
@@ -190,7 +208,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
                                 && (ex.getCause() instanceof DataLogNotAvailableException
-                                || isLedgerClosedException(ex.getCause())));
+                                || isLedgerClosedException(ex.getCause()))
+                                || ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
@@ -200,47 +220,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                                 || ex instanceof CancellationException);
             } finally {
                 // Don't forget to resume the bookie.
-                resumeFirstBookie();
-            }
-        }
-    }
-
-    /**
-     * Tests the ability to auto-close upon a permanent write failure caused by ZooKeeper
-     *
-     * @throws Exception If one got thrown.
-     */
-    @Test
-    public void testAutoCloseOnZooKeeperFailure() throws Exception {
-        int writeCount = getWriteCount();
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-
-            try {
-                // Suspend a bookie (this will trigger write errors).
-                suspendZooKeeper();
-
-                // It may be a while until the BK client realizes that ZK is closed. So we send out a number of appends
-                // and wait for one of them to fail.
-                val appends = new ArrayList<CompletableFuture<LogAddress>>();
-                for (int i = 0; i < writeCount; i++) {
-                    appends.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
-                }
-
-                AssertExtensions.assertThrows(
-                        "First write did not fail with the appropriate exception.",
-                        () -> FutureHelpers.allOf(appends),
-                        ex -> ex instanceof CancellationException);
-
-                // Subsequent writes should be rejected since the BookKeeperLog is now closed.
-                AssertExtensions.assertThrows(
-                        "Second write did not fail with the appropriate exception.",
-                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof ObjectClosedException
-                                || ex instanceof CancellationException);
-            } finally {
-                // Don't forget to cleanup after the test.
-                resumeZooKeeper();
+                restartFirstBookie();
             }
         }
     }
@@ -259,74 +239,22 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
-                // Issue appends in parallel.
+                // Issue appends in parallel, without waiting for them.
                 int writeCount = getWriteCount();
                 for (int i = 0; i < writeCount; i++) {
                     byte[] data = getWriteData();
                     futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
                     dataList.add(data);
                 }
-
-                // Give a chance for some writes to fail at least once.
-                Thread.sleep(this.config.get().getBkWriteTimeoutMillis() / 10);
             } finally {
-                // Don't forget to resume the bookie.
-                resumeFirstBookie();
+                // Resume the bookie with the appends still in flight.
+                restartFirstBookie();
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
-            val addresses = FutureHelpers.allOfWithResults(futures).join();
-            for (int i = 0; i < dataList.size(); i++) {
-                writeData.put(addresses.get(i), dataList.get(i));
-            }
-        }
-
-        // Verify data.
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-            verifyReads(log, writeData);
-        }
-    }
-
-    /**
-     * Tests the ability to retry writes when ZooKeeper fails.
-     */
-    @Test
-    public void testAppendTransientZooKeeperFailure() throws Exception {
-        TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
-        int writeCount = getWriteCount();
-        int failEvery = writeCount / 5;
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-
-            val dataList = new ArrayList<byte[]>();
-            val futures = new ArrayList<CompletableFuture<LogAddress>>();
-
-            try {
-                // Issue appends in parallel.
-                for (int i = 0; i < writeCount; i++) {
-                    byte[] data = getWriteData();
-                    futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
-                    dataList.add(data);
-                    if (i % failEvery == 0) {
-                        FutureHelpers.allOf(futures).join();
-                        suspendZooKeeper();
-                        resumeZooKeeper();
-                    }
-                }
-            } finally {
-                // Don't forget to cleanup after the test.
-                try {
-                    resumeZooKeeper();
-                } catch (IllegalStateException ex) {
-                    // Ignore.
-                }
-            }
-
-            // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
-            val addresses = FutureHelpers.allOfWithResults(futures).join();
+            val addresses = Futures.allOfWithResults(futures).join();
             for (int i = 0; i < dataList.size(); i++) {
                 writeData.put(addresses.get(i), dataList.get(i));
             }
@@ -350,7 +278,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
             List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
                 // Issue appends in parallel.
                 int writeCount = getWriteCount();
@@ -376,7 +304,61 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 }
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
-                resumeFirstBookie();
+                restartFirstBookie();
+            }
+        }
+    }
+
+    /**
+     * Tests the ability of BookKeeperLog to automatically remove empty ledgers during initialization.
+     */
+    @Test
+    public void testRemoveEmptyLedgers() throws Exception {
+        final int count = 100;
+        final int writeEvery = count / 10;
+        final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
+        val allLedgers = new ArrayList<Map.Entry<Long, LedgerMetadata.Status>>();
+        final Predicate<Integer> shouldExist = index -> (index >= allLedgers.size() - Ledgers.MIN_FENCE_LEDGER_COUNT)
+                || (allLedgers.get(index).getValue() != LedgerMetadata.Status.Empty);
+
+        for (int i = 0; i < count; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+
+                boolean shouldAppend = shouldAppendAnything.test(i);
+                val currentMetadata = log.loadMetadata();
+                val lastLedger = currentMetadata.getLedgers().get(currentMetadata.getLedgers().size() - 1);
+                allLedgers.add(new AbstractMap.SimpleImmutableEntry<>(lastLedger.getLedgerId(),
+                        shouldAppend ? LedgerMetadata.Status.NotEmpty : LedgerMetadata.Status.Empty));
+                val metadataLedgers = currentMetadata.getLedgers().stream().map(LedgerMetadata::getLedgerId).collect(Collectors.toSet());
+
+                // Verify Log Metadata does not contain old empty ledgers.
+                for (int j = 0; j < allLedgers.size(); j++) {
+                    val e = allLedgers.get(j);
+                    val expectedExist = shouldExist.test(j);
+                    Assert.assertEquals("Unexpected state for metadata. AllLedgerCount=" + allLedgers.size() +
+                                    ", LedgerIndex=" + j + ", LedgerStatus=" + e.getValue(),
+                            expectedExist, metadataLedgers.contains(e.getKey()));
+                }
+
+                // Append some data to this Ledger, if needed.
+                if (shouldAppend) {
+                    log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+            }
+        }
+
+        // Verify that these ledgers have also been deleted from BookKeeper.
+        for (int i = 0; i < allLedgers.size(); i++) {
+            val e = allLedgers.get(i);
+            if (shouldExist.test(i)) {
+                // This should not throw any exceptions.
+                Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get());
+            } else {
+                AssertExtensions.assertThrows(
+                        "Ledger not deleted from BookKeeper.",
+                        () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
+                        ex -> true);
             }
         }
     }
@@ -386,21 +368,13 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         return THREAD_POOL_SIZE;
     }
 
-    private static void suspendFirstBookie() {
-        BK_SERVICE.get().suspendBookie(0);
-    }
-
-    private static void resumeFirstBookie() {
-        BK_SERVICE.get().resumeBookie(0);
-    }
-
-    private static void suspendZooKeeper() {
-        BK_SERVICE.get().suspendZooKeeper();
+    private static void stopFirstBookie() {
+        BK_SERVICE.get().stopBookie(0);
     }
 
     @SneakyThrows
-    private static void resumeZooKeeper() {
-        BK_SERVICE.get().resumeZooKeeper();
+    private static void restartFirstBookie() {
+        BK_SERVICE.get().startBookie(0);
     }
 
     private static boolean isLedgerClosedException(Throwable ex) {
@@ -437,4 +411,17 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     //endregion
+    public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(true);
+        }
+    }
+
+    public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
+        @BeforeClass
+        public static void startUp() throws Exception {
+            setUpBookKeeper(false);
+        }
+    }
 }

@@ -402,9 +402,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCutInternal from) {
-        throw new UnsupportedOperationException();
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.asImpl().getPositions().keySet())
+                                                               .addAll(toStreamCut.asImpl().getPositions().keySet()).build();
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, ""));
     }
+
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {

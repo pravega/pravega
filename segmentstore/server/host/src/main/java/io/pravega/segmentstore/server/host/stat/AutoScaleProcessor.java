@@ -15,11 +15,13 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
@@ -27,7 +29,6 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,15 +58,12 @@ public class AutoScaleProcessor {
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
-    private final Executor executor;
     private final ScheduledExecutorService maintenanceExecutor;
 
     AutoScaleProcessor(AutoScalerConfig configuration,
-                       Executor executor,
                        ScheduledExecutorService maintenanceExecutor) {
         this.configuration = configuration;
         this.maintenanceExecutor = maintenanceExecutor;
-        this.executor = executor;
 
         serializer = new JavaSerializer<>();
         writerConfig = EventWriterConfig.builder().build();
@@ -86,8 +84,8 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, Executor executor, ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, executor, maintenanceExecutor);
+    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
         maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
@@ -95,9 +93,8 @@ public class AutoScaleProcessor {
 
     @VisibleForTesting
     AutoScaleProcessor(AutoScalerConfig configuration, ClientFactory cf,
-                       Executor executor,
                        ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, executor, maintenanceExecutor);
+        this(configuration, maintenanceExecutor);
         clientFactory.set(cf);
     }
 
@@ -116,7 +113,18 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
+                        ClientFactory factory = null;
+                        if (configuration.isAuthEnabled()) {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
+                                                .trustStore(configuration.getTlsCertFile())
+                                                .build());
+                        } else {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+                        }
+                        clientFactory.compareAndSet(null, factory);
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),

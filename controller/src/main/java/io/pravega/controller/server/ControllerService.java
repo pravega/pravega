@@ -9,14 +9,16 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
@@ -36,9 +38,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
-import com.google.common.base.Preconditions;
+import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -47,7 +47,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Lombok;
@@ -73,7 +72,7 @@ public class ControllerService {
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
-            return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
+            return Futures.failedFuture(new IllegalStateException("Controller cluster not initialized"));
         }
 
         return CompletableFuture.supplyAsync(() -> {
@@ -110,6 +109,15 @@ public class ControllerService {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         return streamMetadataTasks.updateStream(
                 streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
+                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+    }
+
+    public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,
+                                                                final Map<Integer, Long> streamCut) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        return streamMetadataTasks.truncateStream(scope, stream, streamCut, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
@@ -163,8 +171,8 @@ public class ControllerService {
                 segment.getSegmentNumber(),
                 context,
                 executor)
-                .thenComposeAsync(successors -> FutureHelpers.keysAllOfWithResults(successors.entrySet().stream()
-                        .collect(Collectors.toMap(
+                .thenComposeAsync(successors -> Futures.keysAllOfWithResults(successors.entrySet().stream()
+                                                                                       .collect(Collectors.toMap(
                         entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
                                 segment.getStreamInfo().getStream(),
                                 entry.getKey(),
@@ -243,12 +251,11 @@ public class ControllerService {
     @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease,
-                                                                               final long maxExecutionPeriod,
                                                                                final long scaleGracePeriod) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null)
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, scaleGracePeriod, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<Segment> segments = pair.getValue();
