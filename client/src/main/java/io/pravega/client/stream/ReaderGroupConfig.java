@@ -10,9 +10,9 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Builder;
