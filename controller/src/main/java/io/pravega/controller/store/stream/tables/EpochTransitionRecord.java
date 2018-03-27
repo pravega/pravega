@@ -17,10 +17,9 @@ import io.pravega.controller.store.stream.tables.serializers.EpochTransitionReco
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 
 /**
@@ -60,25 +59,17 @@ public class EpochTransitionRecord {
 
     }
 
+    @SneakyThrows
     public static EpochTransitionRecord parse(byte[] data) {
         EpochTransitionRecord epochTransitionRecord;
-        try {
-            epochTransitionRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for epoch transition record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
+        epochTransitionRecord = SERIALIZER.deserialize(data);
         return epochTransitionRecord;
     }
 
+    @SneakyThrows()
     public byte[] toByteArray() {
         byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing epoch transition record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
+        array = SERIALIZER.serialize(this).getCopy();
         return array;
     }
 }

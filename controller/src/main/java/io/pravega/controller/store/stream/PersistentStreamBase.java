@@ -516,13 +516,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    /**
-     * Called after start scale to indicate store to create new segments in the segment table. This method takes care of
-     * checking for idempotent addition of segments to the table.
-     * @return future which when complete will imply that segment table is updated successfully.
-     */
     @Override
     public CompletableFuture<Void> scaleCreateNewSegments() {
+
+        // Called after start scale to indicate store to create new segments in the segment table. This method takes care of
+        // checking for idempotent addition of segments to the table.
         return getState(true)
                 .thenCompose(state -> {
                     checkState(state, State.SCALING);
@@ -542,7 +540,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}",
                                                     scope, name, epochTransition.getSegmentsToSeal());
 
-                                            return scaleCreateNewSegments(
+                                            return createNewSegments(
                                                     Lists.newArrayList(epochTransition.getNewSegmentsWithRange().values()),
                                                     historyTable.getData(), segmentTable,
                                                     segmentCount, newEpoch, epochTransition.getTime());
@@ -560,12 +558,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private CompletableFuture<Void> scaleCreateNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
-                                                           final byte[] historyTable,
-                                                           final Data<T> segmentTable,
-                                                           final int nextSegmentNumber,
-                                                           final int newEpoch,
-                                                           final long scaleStartTime) {
+    private CompletableFuture<Void> createNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
+                                                      final byte[] historyTable,
+                                                      final Data<T> segmentTable,
+                                                      final int nextSegmentNumber,
+                                                      final int newEpoch,
+                                                      final long scaleStartTime) {
         // Ensure that segment.creation time is monotonically increasing after each new scale.
         // because scale time could be supplied by a controller with a skewed clock, we should:
         // take max(scaleTime, lastScaleTime + 1, System.currentTimeMillis)

@@ -223,6 +223,9 @@ interface Stream {
     /**
      * Called after epochTransition entry is created. Implementation of this method should create new segments that are
      * specified in epochTransition in stream metadata tables.
+     *
+     * @return Future, which when completed will indicate that new segments are created in the metadata store or wouldl
+     * have failed with appropriate exception.
      */
     CompletableFuture<Void> scaleCreateNewSegments();
 

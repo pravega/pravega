@@ -16,7 +16,7 @@ import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -42,10 +42,8 @@ import java.util.stream.IntStream;
  */
 public class TableHelper {
     /**
-     * Segment Table records are of fixed size.
-     * So O(constant) operation to get segment given segmentTable Chunk.
-     * <p>
-     * Note: this method assumes you have supplied the correct chunk
+     * Segment Table records are of fixed size. So its O(constant) operation to read the segment record given the segment
+     * number.
      *
      * @param number       segment number
      * @param segmentTable segment table
@@ -68,18 +66,9 @@ public class TableHelper {
     }
 
     /**
-     * Helper method to get next higher number than highest segment number.
-     * @param segmentTable segment table.
-     * @return latest segment number
-     */
-    public static int getLastSegmentNumber(final byte[] segmentTable) {
-        return (segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE) - 1;
-    }
-
-    /**
      * This method reads segment table and returns total number of segments in the table.
      *
-     * @param segmentTable history table.
+     * @param segmentTable segment table.
      * @return total number of segments in the stream.
      */
     public static int getSegmentCount(final byte[] segmentTable) {
@@ -87,7 +76,7 @@ public class TableHelper {
     }
 
     /**
-     * Current active segments correspond to last entry in the history table.
+     * Current active segments correspond to last "complete" entry in the history table.
      * Until segment number is written to the history table it is not exposed to outside world
      * (e.g. callers - producers and consumers)
      *
@@ -261,8 +250,8 @@ public class TableHelper {
      * Perform binary search on index+history records to find segment seal event.
      *
      * If index table is not up to date we may have two cases:
-     * 1. Segment create time &gt; highest event time in index
-     * 2. Segment seal time &gt; highest event time in index
+     * 1. Segment create time > highest event time in index
+     * 2. Segment seal time > highest event time in index
      *
      * For 1 we cant have any searches in index and will need to fall through
      * History table starting from last indexed record.
@@ -309,10 +298,10 @@ public class TableHelper {
      * Method to find candidates for predecessors.
      * If segment was created at the time of creation of stream (= no predecessors)
      * it returns an empty list.
-     * <p>
+     *
      * First find the segment start time entry in the history table by using a binary
      * search on index followed by fall through History table if index is not up to date.
-     * <p>
+     *
      * Fetch the record in history table that immediately preceeds segment created entry.
      *
      * @param segment      segment
@@ -344,28 +333,23 @@ public class TableHelper {
 
     /**
      * Add new segments to the segment table.
-     * This method is designed to work with chunked creation. So it takes a
-     * toCreate count and newRanges and it picks toCreate entries from the end of newranges.
+     * It takes the newRanges and creates corresponding entries in segment table.
      *
      * @param newRanges             ranges
      * @param timeStamp             timestamp
      * @return serialized segment table
      */
+    @SneakyThrows
     public static byte[] createSegmentTable(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long timeStamp) {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
-        try {
-            writeSegmentsToSegmentTable(0, 0, newRanges, timeStamp, segmentStream);
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        writeSegmentsToSegmentTable(0, 0, newRanges, timeStamp, segmentStream);
 
         return segmentStream.toByteArray();
     }
 
     /**
      * Add new segments to the segment table.
-     * This method is designed to work with chunked creation. So it takes a
-     * toCreate count and newRanges and it picks toCreate entries from the end of newranges.
+     * It takes starting segment number and newRanges and it computes toCreate entries from the end of newranges.
      *
      * @param startingSegmentNumber starting segment number
      * @param creationEpoch         epoch in which segment is created
@@ -374,34 +358,28 @@ public class TableHelper {
      * @param timeStamp             timestamp
      * @return serialized segment table
      */
+    @SneakyThrows
     public static byte[] updateSegmentTable(final int startingSegmentNumber,
                                             final int creationEpoch,
                                             final byte[] segmentTable,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final long timeStamp) {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
-        try {
-            segmentStream.write(segmentTable);
+        segmentStream.write(segmentTable);
 
-            writeSegmentsToSegmentTable(startingSegmentNumber, creationEpoch, newRanges, timeStamp, segmentStream);
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        writeSegmentsToSegmentTable(startingSegmentNumber, creationEpoch, newRanges, timeStamp, segmentStream);
 
         return segmentStream.toByteArray();
     }
 
+    @SneakyThrows
     private static void writeSegmentsToSegmentTable(int startingSegmentNumber, int creationEpoch, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long timeStamp, ByteArrayOutputStream segmentStream) {
         IntStream.range(0, newRanges.size())
                 .forEach(
-                        x -> {
-                            try {
-                                segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
-                                        creationEpoch, timeStamp, newRanges.get(x).getKey(), newRanges.get(x).getValue())
-                                        .toByteArray());
-                            } catch (Exception e) {
-                                throw Lombok.sneakyThrow(e);
-                            }
+                        newRange -> {
+                            segmentStream.write(new SegmentRecord(startingSegmentNumber + newRange,
+                                    creationEpoch, timeStamp, newRanges.get(newRange).getKey(), newRanges.get(newRange).getValue())
+                                    .toByteArray());
                         }
                 );
     }
@@ -414,18 +392,15 @@ public class TableHelper {
      * @param newActiveSegments new active segments
      * @return serialized updated history table
      */
+    @SneakyThrows
     public static byte[] addPartialRecordToHistoryTable(final byte[] historyTable,
                                                         final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
         Optional<HistoryRecord> last = HistoryRecord.readLatestRecord(historyTable, false);
         assert last.isPresent() && !(last.get().isPartial());
 
-        try {
-            historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments, historyTable.length).toBytePartial());
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        historyStream.write(historyTable);
+        historyStream.write(new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments, historyTable.length).toBytePartial());
         return historyStream.toByteArray();
     }
 
@@ -437,6 +412,7 @@ public class TableHelper {
      * @param timestamp            scale timestamp
      * @return serialized updated history table
      */
+    @SneakyThrows
     public static byte[] completePartialRecordInHistoryTable(final byte[] historyTable,
                                                              final HistoryRecord partialHistoryRecord,
                                                              final long timestamp) {
@@ -444,14 +420,10 @@ public class TableHelper {
         assert record.isPresent() && record.get().isPartial() && record.get().getEpoch() == partialHistoryRecord.getEpoch();
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
-        try {
-            historyStream.write(historyTable);
+        historyStream.write(historyTable);
 
-            historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
-                    partialHistoryRecord.getEpoch(), timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
+                partialHistoryRecord.getEpoch(), timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
         return historyStream.toByteArray();
     }
 
@@ -462,20 +434,17 @@ public class TableHelper {
      * @param newActiveSegments new active segments
      * @return serialized history table
      */
+    @SneakyThrows
     public static byte[] createHistoryTable(final long timestamp,
                                             final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
-        try {
-            historyStream.write(new HistoryRecord(
-                    newActiveSegments,
-                    0,
-                    timestamp,
-                    0)
-                    .toByteArray());
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        historyStream.write(new HistoryRecord(
+                newActiveSegments,
+                0,
+                timestamp,
+                0)
+                .toByteArray());
         return historyStream.toByteArray();
     }
 
@@ -485,14 +454,11 @@ public class TableHelper {
      * @param timestamp     timestamp
      * @return serialized index table
      */
+    @SneakyThrows
     public static byte[] createIndexTable(final long timestamp) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
-        try {
-            indexStream.write(new IndexRecord(timestamp, 0, 0).toByteArray());
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        indexStream.write(new IndexRecord(timestamp, 0, 0).toByteArray());
         return indexStream.toByteArray();
     }
 
@@ -504,21 +470,18 @@ public class TableHelper {
      * @param historyOffset history table offset
      * @return serialized index table
      */
+    @SneakyThrows
     public static byte[] updateIndexTable(final byte[] indexTable,
                                           final long timestamp,
                                           final int historyOffset) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
-        try {
-            indexStream.write(indexTable);
-            indexStream.write(new IndexRecord(
-                    timestamp,
-                    indexTable.length / IndexRecord.INDEX_RECORD_SIZE,
-                    historyOffset)
-                    .toByteArray());
-        } catch (Exception e) {
-            throw Lombok.sneakyThrow(e);
-        }
+        indexStream.write(indexTable);
+        indexStream.write(new IndexRecord(
+                timestamp,
+                indexTable.length / IndexRecord.INDEX_RECORD_SIZE,
+                historyOffset)
+                .toByteArray());
         return indexStream.toByteArray();
     }
 
