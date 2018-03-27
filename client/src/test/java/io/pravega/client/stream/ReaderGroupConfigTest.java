@@ -24,7 +24,7 @@ public class ReaderGroupConfigTest {
     private static final String SCOPE = "scope";
 
     @Test
-    public void testValidConfig() {
+    public void testValidConfigWithScopedStreamName() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStartStreamCut("s1"))
@@ -38,7 +38,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testValidConfig2() {
+    public void testStartFromCheckpoint() {
         Checkpoint checkpoint = Mockito.mock(Checkpoint.class);
         CheckpointImpl checkpointImpl = Mockito.mock(CheckpointImpl.class);
         when(checkpoint.asImpl()).thenReturn(checkpointImpl);
@@ -58,7 +58,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testValidConfig3() {
+    public void testStartFromStreamCuts() {
         Map<Stream, StreamCut> streamCuts = ImmutableMap.<Stream, StreamCut>builder()
                 .put(Stream.of(SCOPE, "s1"), getStartStreamCut("s1"))
                 .put(Stream.of("scope/s2"), getStartStreamCut("s2")).build();
@@ -75,7 +75,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testValidConfig4() {
+    public void testValidConfig() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
                                                  .stream("scope/s1", getStartStreamCut("s1"))
@@ -89,7 +89,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testValidConfig5() {
+    public void testValidConfigWithoutStartStreamCut() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
                                                  .stream("scope/s1")
@@ -119,7 +119,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testInValidStartStreamCut2() {
+    public void testInValidStartStreamCutForStream() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
                                                  .stream(Stream.of(SCOPE, "s1"), getStartStreamCut("s2"))
