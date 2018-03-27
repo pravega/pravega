@@ -33,7 +33,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -56,7 +56,6 @@ import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -208,10 +207,10 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
@@ -241,11 +240,10 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
-                                                                   .disableAutomaticCheckpoints().build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 

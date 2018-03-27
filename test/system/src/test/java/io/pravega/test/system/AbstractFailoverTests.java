@@ -20,6 +20,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
@@ -34,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -500,8 +500,7 @@ abstract class AbstractFailoverTests {
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
                                  ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
-        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singleton(stream));
+        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
         log.info("Reader group name: {}, Reader group scope: {}, Online readers: {}",
                 readerGroupManager.getReaderGroup(readerGroupName).getGroupName(), readerGroupManager
                         .getReaderGroup(readerGroupName).getScope(), readerGroupManager
