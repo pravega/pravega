@@ -506,7 +506,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             historyTable.getData(), segmentTable.getData(), segmentsToSeal, newRanges, scaleTimestamp);
 
                                     return createEpochTransitionNode(epochTransition.toByteArray())
-                                            .thenApply(x -> {
+                                            .handle((r, e) -> {
+                                                if (Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                                                    log.debug("scale conflict, another scale operation is ongoing");
+                                                    throw new ScaleOperationExceptions.ScaleConflictException();
+                                                }
+
                                                 log.info("scale for stream {}/{} accepted. Segments to seal = {}", scope, name,
                                                         epochTransition.getSegmentsToSeal());
                                                 return epochTransition;

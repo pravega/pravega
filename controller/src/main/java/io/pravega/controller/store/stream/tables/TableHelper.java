@@ -373,7 +373,7 @@ public class TableHelper {
 
         return segmentStream.toByteArray();
     }
-    
+
     private static void writeSegmentsToSegmentTable(int startingSegmentNumber, int creationEpoch, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long timeStamp, ByteArrayOutputStream segmentStream) {
         IntStream.range(0, newRanges.size())
                 .forEach(

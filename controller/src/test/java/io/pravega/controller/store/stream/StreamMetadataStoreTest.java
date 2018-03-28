@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -53,6 +54,9 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 /**
  * Stream metadata test.
@@ -425,6 +429,40 @@ public abstract class StreamMetadataStoreTest {
                 null, executor).get();
 
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        // endregion
+
+        // region concurrent start scale requests
+        // run two concurrent startScale operations such that after doing a getEpochTransition, we create a new epoch
+        // transition node. We should get ScaleConflict in such a case.
+        // mock createEpochTransition
+        SimpleEntry<Double, Double> segment6 = new SimpleEntry<>(0.0, 1.0);
+        List<Integer> scale3SealedSegments = Arrays.asList(4, 5, 6);
+        long scaleTs3 = System.currentTimeMillis();
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        PersistentStreamBase streamObjSpied = spy(streamObj);
+
+        CompletableFuture<Void> latch = new CompletableFuture<>();
+        CompletableFuture<Void> createEpochTransitionCalled = new CompletableFuture<>();
+
+        doAnswer(x -> {
+            // wait until we create epoch transition outside of this method
+            createEpochTransitionCalled.complete(null);
+            latch.join();
+
+            return streamObj.createEpochTransitionNode(new byte[0]);
+        }).when(streamObjSpied).createEpochTransitionNode(any());
+
+        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+
+        // the following will should be stuck at createEpochTransition
+        CompletableFuture<StartScaleResponse> resp = store.startScale(scope, stream, scale3SealedSegments, Arrays.asList(segment6), scaleTs3, false, null, executor);
+        createEpochTransitionCalled.join();
+        streamObj.createEpochTransitionNode(new byte[0]).join();
+        latch.complete(null);
+
+        AssertExtensions.assertThrows("", resp, e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConflictException);
+
         // endregion
     }
 

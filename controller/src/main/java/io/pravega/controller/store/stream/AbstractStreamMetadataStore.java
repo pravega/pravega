@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -674,6 +675,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             stream.refresh();
         }
         return stream;
+    }
+
+    @VisibleForTesting
+    void setStream(Stream stream) {
+        cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
     }
 
     private Scope getScope(final String scopeName) {
