@@ -112,8 +112,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                                                           .collect(Collectors.toList());
 
         return listOfMaps.stream()
-                                                     .flatMap(map -> map.entrySet().stream())
-                                                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+                         .flatMap(map -> map.entrySet().stream())
+                         .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     @Override

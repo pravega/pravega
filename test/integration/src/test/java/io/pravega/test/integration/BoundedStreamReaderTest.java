@@ -105,10 +105,11 @@ public class BoundedStreamReaderTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 50000)
+    @Test(timeout = 60000)
     public void testBoundedStreamTest() throws Exception {
         createScope(SCOPE);
         createStream(STREAM1);
+        createStream(STREAM2);
 
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
@@ -125,12 +126,13 @@ public class BoundedStreamReaderTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1),
+                .builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
                         new StreamCutImpl(Stream.of(SCOPE, STREAM1), ImmutableMap.of(new Segment(SCOPE, STREAM1, 0), 60L)))
-
+                .stream(Stream.of(SCOPE, STREAM2))
                 .build());
 
         //Create a reader
@@ -138,8 +140,22 @@ public class BoundedStreamReaderTest {
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
                 ReaderConfig.builder().build());
 
+        //2. Verify if endStreamCut configuration is enforced.
         readAndVerify(reader, 1, 2);
-        Assert.assertNull("Null is expected", reader.readNextEvent(5000).getEvent());
+        //The following read should not return events 3, 4 due to the endStreamCut configuration.
+        Assert.assertNull("Null is expected", reader.readNextEvent(2000).getEvent());
+
+        //3. Write events to the STREAM2.
+        @Cleanup
+        EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM2, serializer,
+                EventWriterConfig.builder().build());
+        writer2.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
+        writer2.writeEvent(keyGenerator.get(), getEventData.apply(6)).get();
+
+        //4. Verify that events can be read from STREAM2. (Events from STREAM1 are not read since endStreamCut is reached).
+        readAndVerify(reader, 5, 6);
+        Assert.assertNull("Null is expected", reader.readNextEvent(2000).getEvent());
+
     }
 
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {

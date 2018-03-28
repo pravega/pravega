@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
+import java.util.function.Consumer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -163,16 +164,21 @@ public class ReaderGroupConfig implements Serializable {
                    "Stream names that the reader group can read from cannot be empty");
 
            //endStreamCuts is an optional configuration. Initialize if it is null.
-           if ( endingStreamCuts == null) {
+           if (endingStreamCuts == null) {
                endingStreamCuts = Collections.emptyMap();
            }
 
-           startingStreamCuts.forEach((s, streamCut) -> {
+           Consumer<Map<Stream, StreamCut>> validateStreamCuts = map -> map.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
                    checkArgument(s.equals(streamCut.asImpl().getStream()));
                }
            });
-           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis, startingStreamCuts, endingStreamCuts);
+           //validate start and end StreamCuts
+           validateStreamCuts.accept(startingStreamCuts);
+           validateStreamCuts.accept(endingStreamCuts);
+
+           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
+                   startingStreamCuts, endingStreamCuts);
        }
    }
 }
