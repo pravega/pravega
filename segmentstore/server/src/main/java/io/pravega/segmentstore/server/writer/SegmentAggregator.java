@@ -1278,6 +1278,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
     }
 
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     private void updateMetadataForTransactionPostMerger(UpdateableSegmentMetadata transactionMetadata) {
         // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is marked as deleted.
         transactionMetadata.markDeleted();

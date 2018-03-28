@@ -48,7 +48,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -308,10 +309,42 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             long scaleTs = record.getLeft();
                             CompletableFuture<List<Segment>> list = Futures.allOfWithResults(
                                     record.getRight().stream().map(this::getSegment)
-                                    .collect(Collectors.toList()));
+                                            .collect(Collectors.toList()));
 
-                            return list.thenApply(segments -> new ScaleMetadata(scaleTs, segments));
-                        }).collect(Collectors.toList())));
+                            return list.thenApply(segments -> new ImmutablePair<>(scaleTs, segments));
+                        }).collect(Collectors.toList())))
+                .thenApply(this::mapToScaleMetadata);
+    }
+
+    private List<ScaleMetadata> mapToScaleMetadata(List<ImmutablePair<Long, List<Segment>>> scalePair) {
+        final AtomicReference<List<Segment>> previous = new AtomicReference<>();
+        return scalePair.stream()
+                .map(pair -> {
+                    long splits = 0;
+                    long merges = 0;
+                    if (previous.get() != null) {
+                        splits = findSegmentSplitsMerges(previous.get(), pair.right);
+                        merges = findSegmentSplitsMerges(pair.right, previous.get());
+                    }
+                    previous.set(pair.getRight());
+                    return new ScaleMetadata(pair.left, pair.right, splits, merges);
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Method to calculate number of splits and merges.
+     *
+     * Principle to calculate the number of splits and merges:
+     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
+     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
+     *
+     * @param referenceSegmentsList Reference segment list.
+     * @param targetSegmentsList Target segment list.
+     * @return Number of splits/merges.
+     */
+    private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
+        return referenceSegmentsList.stream().filter(
+                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     /**
@@ -559,7 +592,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private CompletionStage<Void> isEpochTransitionConsistent(Data<T> historyTable, Data<T> segmentTable,
+    private CompletableFuture<Void> isEpochTransitionConsistent(Data<T> historyTable, Data<T> segmentTable,
                                                               EpochTransitionRecord epochTransition, Segment latestSegment) {
         // verify that epoch transition is consistent with segments in the table.
         if (TableHelper.isEpochTransitionConsistent(epochTransition, historyTable.getData(), segmentTable.getData())) {

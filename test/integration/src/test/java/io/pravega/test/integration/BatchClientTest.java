@@ -13,8 +13,9 @@ import com.google.common.collect.Lists;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -121,8 +122,7 @@ public class BatchClientTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton(STREAM));
+                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                 EventWriterConfig.builder().build());
@@ -151,22 +151,23 @@ public class BatchClientTest {
         BatchClient batchClient = clientFactory.createBatchClient();
 
         //List out all the segments in the stream.
-        ArrayList<SegmentInfo> segments = Lists.newArrayList(batchClient.listSegments(stream));
+        ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(stream, null, null).getIterator());
         assertEquals("Expected number of segments", 6, segments.size());
 
         //Batch read all events from stream.
         List<String> batchEventList = new ArrayList<>();
         segments.forEach(segInfo -> {
             @Cleanup
-            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo.getSegment(), serializer);
+            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo, serializer);
             batchEventList.addAll(Lists.newArrayList(segmentIterator));
         });
         assertEquals("Event count", 9, batchEventList.size());
 
         //read from a given offset.
         Segment seg0 = new Segment(SCOPE, STREAM, 0);
+        SegmentRange seg0Info = SegmentRangeImpl.builder().segment(seg0).startOffset(60).endOffset(90).build();
         @Cleanup
-        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0, serializer, 60);
+        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0Info, serializer);
         ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);
         assertEquals(1, dataAtOffset.size());
         assertEquals(DATA_OF_SIZE_30, dataAtOffset.get(0));
