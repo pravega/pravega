@@ -508,7 +508,7 @@ public abstract class StreamMetadataStoreTest {
 
         ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
 
-        // the following will should be stuck at createEpochTransition
+        // the following should be stuck at createEpochTransition
         CompletableFuture<StartScaleResponse> response = store.startScale(scope, stream, segmentsToSeal,
                 Arrays.asList(segment2), scaleTs, false, null, executor);
         createEpochTransitionCalled.join();
