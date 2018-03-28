@@ -16,10 +16,13 @@ import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
+import lombok.Lombok;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -41,14 +45,12 @@ import java.util.stream.IntStream;
  */
 public class TableHelper {
     /**
-     * Segment Table records are of fixed size.
-     * So O(constant) operation to get segment given segmentTable Chunk.
-     * <p>
-     * Note: this method assumes you have supplied the correct chunk
+     * Segment Table records are of fixed size. So its O(constant) operation to read the segment record given the segment
+     * number.
      *
      * @param number       segment number
      * @param segmentTable segment table
-     * @return
+     * @return segment
      */
     public static Segment getSegment(final int number, final byte[] segmentTable) {
 
@@ -56,6 +58,7 @@ public class TableHelper {
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
             return new Segment(record.getSegmentNumber(),
+                    record.getEpoch(),
                     record.getStartTime(),
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
@@ -66,18 +69,9 @@ public class TableHelper {
     }
 
     /**
-     * Helper method to get next higher number than highest segment number.
-     * @param segmentTable segment table.
-     * @return
-     */
-    public static int getLastSegmentNumber(final byte[] segmentTable) {
-        return (segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE) - 1;
-    }
-
-    /**
      * This method reads segment table and returns total number of segments in the table.
      *
-     * @param segmentTable history table.
+     * @param segmentTable segment table.
      * @return total number of segments in the stream.
      */
     public static int getSegmentCount(final byte[] segmentTable) {
@@ -85,12 +79,12 @@ public class TableHelper {
     }
 
     /**
-     * Current active segments correspond to last entry in the history table.
+     * Current active segments correspond to last "complete" entry in the history table.
      * Until segment number is written to the history table it is not exposed to outside world
      * (e.g. callers - producers and consumers)
      *
      * @param historyTable history table
-     * @return
+     * @return segments in the active epoch
      */
     public static List<Integer> getActiveSegments(final byte[] historyTable) {
         final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyTable, true);
@@ -110,13 +104,14 @@ public class TableHelper {
      * @param historyTable     history table
      * @param segmentTable     segment table
      * @param truncationRecord truncation record
-     * @return list of active segments.
+     * @return list of active segments at given time or head of stream if timestamp is before head of stream.
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable,
                                                   final byte[] segmentTable, final StreamTruncationRecord truncationRecord) {
+        // read epoch 0
         Optional<HistoryRecord> recordOpt = HistoryRecord.readRecord(historyTable, 0, true);
         if (recordOpt.isPresent() && timestamp > recordOpt.get().getScaleTime()) {
-            final Optional<IndexRecord> indexOpt = IndexRecord.search(timestamp, indexTable).getValue();
+            final Optional<IndexRecord> indexOpt = IndexRecord.search(timestamp, indexTable);
             final int startingOffset = indexOpt.map(IndexRecord::getHistoryOffset).orElse(0);
 
             recordOpt = findRecordInHistoryTable(startingOffset, timestamp, historyTable, true);
@@ -241,7 +236,7 @@ public class TableHelper {
      *
      * @param current    current segment number
      * @param candidates candidates
-     * @return
+     * @return overlapping segments from candidate list
      */
     public static List<Integer> getOverlaps(
             final Segment current,
@@ -253,86 +248,52 @@ public class TableHelper {
      * Find history record from the event when the given segment was sealed.
      * If segment is never sealed this method returns an empty list.
      * If segment is yet to be created, this method still returns empty list.
-     * <p>
+     *
      * Find index that corresponds to segment start event.
      * Perform binary search on index+history records to find segment seal event.
-     * <p>
+     *
      * If index table is not up to date we may have two cases:
      * 1. Segment create time > highest event time in index
      * 2. Segment seal time > highest event time in index
-     * <p>
+     *
      * For 1 we cant have any searches in index and will need to fall through
      * History table starting from last indexed record.
-     * <p>
+     *
      * For 2, fall through History Table starting from last indexed record
      * to find segment sealed event in history table.
      *
      * @param segment      segment
      * @param indexTable   index table
      * @param historyTable history table
-     * @return
+     * @return list of segments that belong to epoch where given segment was sealed
      */
     public static List<Integer> findSegmentSuccessorCandidates(
             final Segment segment,
             final byte[] indexTable,
             final byte[] historyTable) {
-        // fetch segment start time from segment Is
-        // fetch last index Ic
-        // fetch record corresponding to Ic. If segment present in that history record, fall through history table
-        // else perform binary searchIndex
-        // Note: if segment is present at Ic, we will fall through in the history table one record at a time
-        final Optional<HistoryRecord> segmentCreatedHistoryRecordOpt = segmentCreationHistoryRecord(segment, indexTable, historyTable);
+        // find segment creation epoch.
+        // find latest epoch from history table.
+        final int creationEpoch = segment.getEpoch();
+        final Optional<HistoryRecord> creationRecordOpt = readEpochHistoryRecord(creationEpoch, indexTable, historyTable);
 
         // segment information not in history table
-        if (!segmentCreatedHistoryRecordOpt.isPresent()) {
+        if (!creationRecordOpt.isPresent()) {
             return new ArrayList<>();
         }
 
-        // take index of segment created event instead of searched index based on segment.startTime.
-        final int lower = IndexRecord.search(segmentCreatedHistoryRecordOpt.get().getScaleTime(), indexTable).getKey() / IndexRecord.INDEX_RECORD_SIZE;
+        final HistoryRecord latest = HistoryRecord.readLatestRecord(historyTable, false).get();
 
-        final int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
-
-        // index table may be stale, whereby we may not find segment.start to match an entry in the index table
-        final Optional<IndexRecord> indexRecord = IndexRecord.readLatestRecord(indexTable);
-        // if nothing is indexed read the first record in history table, hence offset = 0
-        final int lastIndexedRecordOffset = indexRecord.isPresent() ? indexRecord.get().getHistoryOffset() : 0;
-
-        final Optional<HistoryRecord> lastIndexedRecord = HistoryRecord.readRecord(historyTable, lastIndexedRecordOffset, false);
-
-        // if segment is present in history table but its offset is greater than last indexed record,
-        // we cant do anything on index table, fall through. OR
-        // if segment exists at the last indexed record in history table, fall through,
-        // no binary search possible on index
-        // Note: lower will always be lessThanEq upper. So if upper.getScaleTime < segmentCreatedRecord.ScaleTime then lower < segmentCreatedRecord.ScaleTime.
-        if (lastIndexedRecord.get().getScaleTime() < segmentCreatedHistoryRecordOpt.get().getScaleTime() ||
-                lastIndexedRecord.get().getSegments().contains(segment.getNumber())) {
-            // segment was sealed after the last index entry
-            HistoryRecord startPoint = lastIndexedRecord.get().getScaleTime() < segmentCreatedHistoryRecordOpt.get().getScaleTime() ?
-                    segmentCreatedHistoryRecordOpt.get() : lastIndexedRecord.get();
-            Optional<HistoryRecord> next = HistoryRecord.fetchNext(startPoint, historyTable, false);
-
-            while (next.isPresent() && next.get().getSegments().contains(segment.getNumber())) {
-                startPoint = next.get();
-                next = HistoryRecord.fetchNext(startPoint, historyTable, false);
-            }
-
-            if (next.isPresent()) {
-                return next.get().getSegments();
-            } else { // we have reached end of history table which means segment was never sealed
-                return new ArrayList<>();
-            }
+        if (latest.getSegments().contains(segment.getNumber())) {
+            // Segment is not sealed yet so there cannot be a successor.
+            return new ArrayList<>();
         } else {
-            // segment is definitely sealed and segment sealed event is also present in index table
-            // we should be able to find it by doing binary search on Index table
-            final Optional<HistoryRecord> record = findSegmentSealedEvent(
-                    lower,
-                    upper,
+            // segment is definitely sealed, we should be able to find it by doing binary search to find the respective epoch.
+            return findSegmentSealedEvent(
+                    creationEpoch,
+                    latest.getEpoch(),
                     segment.getNumber(),
                     indexTable,
-                    historyTable);
-
-            return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
+                    historyTable).map(HistoryRecord::getSegments).get();
         }
     }
 
@@ -340,22 +301,22 @@ public class TableHelper {
      * Method to find candidates for predecessors.
      * If segment was created at the time of creation of stream (= no predecessors)
      * it returns an empty list.
-     * <p>
+     *
      * First find the segment start time entry in the history table by using a binary
      * search on index followed by fall through History table if index is not up to date.
-     * <p>
+     *
      * Fetch the record in history table that immediately preceeds segment created entry.
      *
      * @param segment      segment
      * @param indexTable   index table
      * @param historyTable history table
-     * @return
+     * @return list of segments from epoch before the segment was created
      */
     public static List<Integer> findSegmentPredecessorCandidates(
             final Segment segment,
             final byte[] indexTable,
             final byte[] historyTable) {
-        Optional<HistoryRecord> historyRecordOpt = segmentCreationHistoryRecord(segment, indexTable, historyTable);
+        Optional<HistoryRecord> historyRecordOpt = readEpochHistoryRecord(segment.getEpoch(), indexTable, historyTable);
         if (!historyRecordOpt.isPresent()) {
             // cant compute predecessors because the creation event is not present in history table yet.
             return new ArrayList<>();
@@ -375,41 +336,58 @@ public class TableHelper {
 
     /**
      * Add new segments to the segment table.
-     * This method is designed to work with chunked creation. So it takes a
-     * toCreate count and newRanges and it picks toCreate entries from the end of newranges.
+     * It takes the newRanges and creates corresponding entries in segment table.
+     *
+     * @param newRanges             ranges
+     * @param timeStamp             timestamp
+     * @return serialized segment table
+     */
+    @SneakyThrows
+    public static byte[] createSegmentTable(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long timeStamp) {
+        final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
+        writeSegmentsToSegmentTable(0, 0, newRanges, timeStamp, segmentStream);
+
+        return segmentStream.toByteArray();
+    }
+
+    /**
+     * Add new segments to the segment table.
+     * It takes starting segment number and newRanges and it computes toCreate entries from the end of newranges.
      *
      * @param startingSegmentNumber starting segment number
+     * @param creationEpoch         epoch in which segment is created
      * @param segmentTable          segment table
      * @param newRanges             ranges
      * @param timeStamp             timestamp
-     * @return
+     * @return serialized segment table
      */
+    @SneakyThrows
     public static byte[] updateSegmentTable(final int startingSegmentNumber,
+                                            final int creationEpoch,
                                             final byte[] segmentTable,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final long timeStamp) {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
-        try {
-            segmentStream.write(segmentTable);
+        segmentStream.write(segmentTable);
 
-            IntStream.range(0, newRanges.size())
-                    .forEach(
-                            x -> {
-                                try {
-                                    segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
-                                            timeStamp,
-                                            newRanges.get(x).getKey(),
-                                            newRanges.get(x).getValue()).toByteArray());
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                    );
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        writeSegmentsToSegmentTable(startingSegmentNumber, creationEpoch, newRanges, timeStamp, segmentStream);
 
         return segmentStream.toByteArray();
+    }
+
+    private static void writeSegmentsToSegmentTable(int startingSegmentNumber, int creationEpoch, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long timeStamp, ByteArrayOutputStream segmentStream) {
+        IntStream.range(0, newRanges.size())
+                .forEach(
+                        newRange -> {
+                            try {
+                                segmentStream.write(new SegmentRecord(startingSegmentNumber + newRange,
+                                        creationEpoch, timeStamp, newRanges.get(newRange).getKey(), newRanges.get(newRange).getValue())
+                                        .toByteArray());
+                            } catch (IOException e) {
+                                throw Lombok.sneakyThrow(e);
+                            }
+                        }
+                );
     }
 
     /**
@@ -418,20 +396,17 @@ public class TableHelper {
      *
      * @param historyTable      history table
      * @param newActiveSegments new active segments
-     * @return
+     * @return serialized updated history table
      */
+    @SneakyThrows
     public static byte[] addPartialRecordToHistoryTable(final byte[] historyTable,
                                                         final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
         Optional<HistoryRecord> last = HistoryRecord.readLatestRecord(historyTable, false);
         assert last.isPresent() && !(last.get().isPartial());
 
-        try {
-            historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments, historyTable.length).toBytePartial());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        historyStream.write(historyTable);
+        historyStream.write(new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments, historyTable.length).toBytePartial());
         return historyStream.toByteArray();
     }
 
@@ -441,8 +416,9 @@ public class TableHelper {
      * @param historyTable         history table
      * @param partialHistoryRecord partial history record
      * @param timestamp            scale timestamp
-     * @return
+     * @return serialized updated history table
      */
+    @SneakyThrows
     public static byte[] completePartialRecordInHistoryTable(final byte[] historyTable,
                                                              final HistoryRecord partialHistoryRecord,
                                                              final long timestamp) {
@@ -450,14 +426,10 @@ public class TableHelper {
         assert record.isPresent() && record.get().isPartial() && record.get().getEpoch() == partialHistoryRecord.getEpoch();
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
-        try {
-            historyStream.write(historyTable);
+        historyStream.write(historyTable);
 
-            historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
-                    partialHistoryRecord.getEpoch(), timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        historyStream.write(new HistoryRecord(partialHistoryRecord.getSegments(),
+                partialHistoryRecord.getEpoch(), timestamp, partialHistoryRecord.getOffset()).remainingByteArray());
         return historyStream.toByteArray();
     }
 
@@ -466,22 +438,19 @@ public class TableHelper {
      *
      * @param timestamp         timestamp
      * @param newActiveSegments new active segments
-     * @return
+     * @return serialized history table
      */
+    @SneakyThrows
     public static byte[] createHistoryTable(final long timestamp,
                                             final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
-        try {
-            historyStream.write(new HistoryRecord(
-                    newActiveSegments,
-                    0,
-                    timestamp,
-                    0)
-                    .toByteArray());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        historyStream.write(new HistoryRecord(
+                newActiveSegments,
+                0,
+                timestamp,
+                0)
+                .toByteArray());
         return historyStream.toByteArray();
     }
 
@@ -489,17 +458,13 @@ public class TableHelper {
      * Add a new row to index table.
      *
      * @param timestamp     timestamp
-     * @param historyOffset history Offset
-     * @return
+     * @return serialized index table
      */
-    public static byte[] createIndexTable(final long timestamp, final int historyOffset) {
+    @SneakyThrows
+    public static byte[] createIndexTable(final long timestamp) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
-        try {
-            indexStream.write(new IndexRecord(timestamp, historyOffset).toByteArray());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        indexStream.write(new IndexRecord(timestamp, 0, 0).toByteArray());
         return indexStream.toByteArray();
     }
 
@@ -509,35 +474,21 @@ public class TableHelper {
      * @param indexTable    index table
      * @param timestamp     timestamp
      * @param historyOffset history table offset
-     * @return
+     * @return serialized index table
      */
+    @SneakyThrows
     public static byte[] updateIndexTable(final byte[] indexTable,
                                           final long timestamp,
                                           final int historyOffset) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
-        try {
-            indexStream.write(indexTable);
-            indexStream.write(new IndexRecord(
-                    timestamp,
-                    historyOffset)
-                    .toByteArray());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        indexStream.write(indexTable);
+        indexStream.write(new IndexRecord(
+                timestamp,
+                indexTable.length / IndexRecord.INDEX_RECORD_SIZE,
+                historyOffset)
+                .toByteArray());
         return indexStream.toByteArray();
-    }
-
-    /**
-     * Method to check if a scale operation is currently ongoing.
-     * @param historyTable history table
-     * @param segmentTable segment table
-     * @return true if a scale operation is ongoing, false otherwise
-     */
-    public static boolean isScaleOngoing(final byte[] historyTable, final byte[] segmentTable) {
-
-        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
-        return latestHistoryRecord.isPartial() || !latestHistoryRecord.getSegments().contains(getLastSegmentNumber(segmentTable));
     }
 
     /**
@@ -562,47 +513,50 @@ public class TableHelper {
     }
 
     /**
-     * Method that looks at the supplied input and compares it with partial state in metadata store to determine
+     * Method that looks at the supplied epoch transition record and compares it with partial state in metadata store to determine
      * if the partial state corresponds to supplied input.
-     * @param segmentsToSeal segments to seal
-     * @param newRanges new ranges to create
+     * 
+     * @param epochTransitionRecord epoch transition record
      * @param historyTable history table
      * @param segmentTable segment table
      * @return true if input matches partial state, false otherwise
      */
-    public static boolean isRerunOf(final List<Integer> segmentsToSeal,
-                    final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    public static boolean isEpochTransitionConsistent(final EpochTransitionRecord epochTransitionRecord,
                     final byte[] historyTable,
                     final byte[] segmentTable) {
-        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
-
-        int n = newRanges.size();
-        List<SegmentRecord> lastN = SegmentRecord.readLastN(segmentTable, n);
-
-        boolean newSegmentsPredicate = newRanges.stream()
-                .allMatch(x -> lastN.stream().anyMatch(y -> y.getRoutingKeyStart() == x.getKey() && y.getRoutingKeyEnd() == x.getValue()));
-        boolean segmentToSealPredicate;
-        boolean exactMatchPredicate;
-
-        // CASE 1: only segment table is updated.. history table isnt...
-        if (!latestHistoryRecord.isPartial()) {
-            // it is implicit: history.latest.containsNone(lastN)
-            segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(segmentsToSeal);
-            assert !latestHistoryRecord.getSegments().isEmpty();
-            exactMatchPredicate = latestHistoryRecord.getSegments().stream()
-                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
-        } else { // CASE 2: segment table updated.. history table updated (partial record)..
-            // since latest is partial so previous has to exist
-            HistoryRecord previousHistoryRecord = HistoryRecord.fetchPrevious(latestHistoryRecord, historyTable).get();
-
-            segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(lastN.stream()
-                    .map(SegmentRecord::getSegmentNumber).collect(Collectors.toList())) &&
-                    previousHistoryRecord.getSegments().containsAll(segmentsToSeal);
-            exactMatchPredicate = previousHistoryRecord.getSegments().stream()
-                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
+        AtomicBoolean isConsistent = new AtomicBoolean(true);
+        SegmentRecord latest = SegmentRecord.readRecord(segmentTable, getSegmentCount(segmentTable) - 1).get();
+        // verify that epoch transition record is consistent with segment table
+        if (latest.getEpoch() == epochTransitionRecord.newEpoch) { // if segment table is updated
+            epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentTable, segmentWithRange.getKey());
+                isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
+                        segmentOpt.get().getEpoch() == epochTransitionRecord.getNewEpoch() &&
+                        segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
+                        segmentOpt.get().getRoutingKeyEnd() == segmentWithRange.getValue().getValue());
+            });
+        } else { // if segment table is not updated
+            isConsistent.compareAndSet(true, latest.getEpoch() == epochTransitionRecord.getActiveEpoch());
         }
 
-        return newSegmentsPredicate && segmentToSealPredicate && exactMatchPredicate;
+        // verify that epoch transition record is consistent with history table
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // if history table is not updated
+        if (latestHistoryRecord.getEpoch() == epochTransitionRecord.activeEpoch) {
+            isConsistent.compareAndSet(true,
+                    !latestHistoryRecord.isPartial() &&
+                    latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.segmentsToSeal));
+        } else if (latestHistoryRecord.getEpoch() == epochTransitionRecord.newEpoch) {
+            // if history table is updated
+            boolean check = latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.newSegmentsWithRange.keySet()) &&
+            epochTransitionRecord.segmentsToSeal.stream().noneMatch(x -> latestHistoryRecord.getSegments().contains(x));
+
+            isConsistent.compareAndSet(true, check);
+        } else {
+            isConsistent.set(false);
+        }
+
+        return isConsistent.get();
     }
 
     /**
@@ -693,100 +647,51 @@ public class TableHelper {
     }
 
     /**
-     * It finds the segment sealed event between lower and upper where 'lower' offset is guaranteed to be greater than or equal to segmentCreatedEvent
-     * @param lower starting record number in index table from where to search
-     * @param upper last record number in index table till where to search
+     * It finds the segment sealed event between lower and upper where 'lower' offset is guaranteed to be greater than or
+     * equal to segment creation epoch
+     * @param lowerEpoch starting record number in index table from where to search
+     * @param upperEpoch last record number in index table till where to search
      * @param segmentNumber segment number to find sealed event
      * @param indexTable index table
      * @param historyTable history table
      * @return returns history record where segment was sealed
      */
-    private static Optional<HistoryRecord> findSegmentSealedEvent(final int lower,
-                                                                  final int upper,
+    private static Optional<HistoryRecord> findSegmentSealedEvent(final int lowerEpoch,
+                                                                  final int upperEpoch,
                                                                   final int segmentNumber,
                                                                   final byte[] indexTable,
                                                                   final byte[] historyTable) {
-
-        if (lower > upper || historyTable.length == 0) {
+        if (lowerEpoch > upperEpoch || historyTable.length == 0) {
             return Optional.empty();
         }
 
-        final int offset = ((lower + upper) / 2) * IndexRecord.INDEX_RECORD_SIZE;
+        final int middle = (lowerEpoch + upperEpoch) / 2;
 
-        final Optional<IndexRecord> indexRecord = IndexRecord.readRecord(indexTable, offset);
-
-        final Optional<IndexRecord> previousIndex = indexRecord.isPresent() ?
-                IndexRecord.fetchPrevious(indexTable, offset) :
-                Optional.empty();
-
-        final int historyTableOffset = indexRecord.isPresent() ? indexRecord.get().getHistoryOffset() : 0;
-        final Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, historyTableOffset, false);
-
-        // if segment is not present in history record, check if it is present in previous
+        final Optional<HistoryRecord> record = readEpochHistoryRecord(middle, indexTable, historyTable);
+        assert record.isPresent();
+        // if segment is not present in middle record, check if it is present in previous
         // if yes, we have found the segment sealed event
         // else repeat binary searchIndex
         if (!record.get().getSegments().contains(segmentNumber)) {
-            assert previousIndex.isPresent();
-
-            final Optional<HistoryRecord> previousRecord = HistoryRecord.readRecord(historyTable,
-                    previousIndex.get().getHistoryOffset(), false);
+            final Optional<HistoryRecord> previousRecord = HistoryRecord.fetchPrevious(record.get(), historyTable);
+            assert previousRecord.isPresent();
             if (previousRecord.get().getSegments().contains(segmentNumber)) {
                 return record; // search complete
             } else { // binary search lower
-                return findSegmentSealedEvent(lower,
-                        (lower + upper) / 2 - 1,
+                return findSegmentSealedEvent(lowerEpoch,
+                        (lowerEpoch + upperEpoch) / 2 - 1,
                         segmentNumber,
                         indexTable,
                         historyTable);
             }
         } else { // binary search upper
             // not sealed in the current location: look in second half
-            return findSegmentSealedEvent((lower + upper) / 2 + 1,
-                    upper,
+            return findSegmentSealedEvent((lowerEpoch + upperEpoch) / 2 + 1,
+                    upperEpoch,
                     segmentNumber,
                     indexTable,
                     historyTable);
         }
-    }
-
-    private static Optional<HistoryRecord> segmentCreationHistoryRecord(Segment segment, byte[] indexTable, byte[] historyTable) {
-        return segmentCreationHistoryRecord(segment.getNumber(), segment.getStart(), indexTable, historyTable);
-    }
-
-    private static Optional<HistoryRecord> segmentCreationHistoryRecord(int segmentNumber, long startTime,
-                                                                        byte[] indexTable, byte[] historyTable) {
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(startTime, indexTable)
-                .getValue();
-        final int startingOffset = recordOpt.map(IndexRecord::getHistoryOffset).orElse(0);
-
-        return findSegmentCreatedEvent(startingOffset, segmentNumber, startTime, historyTable);
-    }
-
-    private static Optional<HistoryRecord> findSegmentCreatedEvent(final int startingOffset,
-                                                                   final int segmentNumber,
-                                                                   final long segmentCreationTime,
-                                                                   final byte[] historyTable) {
-
-        Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segmentCreationTime, historyTable, false);
-
-        if (!historyRecordOpt.isPresent()) {
-            // segment not present in history record.
-            return Optional.empty();
-        }
-
-        // By doing the indexed search using segment's start time we have found the record in history table that was active
-        // at the time segment was created in segment table.
-        // Since segment has eventTime from before scale and history record is assigned time after scale,
-        // So history record's time identifying when segment was created will typically be after the segment table record.
-        // This is not true for initial sets of segments though where segment.createTime == historyrecord.eventTime.
-        // So we will need to check at both records. We are guaranteed that it cannot be before this though.
-        // Question is should we fall thru more than one entry because of clock mismatch between controller instances.
-        while (historyRecordOpt.isPresent() && !historyRecordOpt.get().getSegments().contains(segmentNumber)) {
-            historyRecordOpt = HistoryRecord.fetchNext(historyRecordOpt.get(), historyTable, false);
-        }
-
-        return historyRecordOpt;
     }
 
     public static boolean isScaleInputValid(final List<Integer> segmentsToSeal,
@@ -811,6 +716,33 @@ public class TableHelper {
                         Map.Entry::getValue));
     }
 
+    /**
+     * Method to compute epoch transition record. It takes segments to seal and new ranges and all the tables and
+     * computes the next epoch transition record.
+     * @param historyTable history table.
+     * @param segmentTable segment table
+     * @param segmentsToSeal segments to seal
+     * @param newRanges new ranges
+     * @param scaleTimestamp scale time
+     * @return new epoch transition record based on supplied input
+     */
+    public static EpochTransitionRecord computeEpochTransition(byte[] historyTable, byte[] segmentTable,
+                                                               List<Integer> segmentsToSeal,
+                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                               long scaleTimestamp) {
+        Pair<Integer, List<Integer>> activeEpoch = getActiveEpoch(historyTable);
+        Preconditions.checkState(activeEpoch.getValue().containsAll(segmentsToSeal), "Invalid epoch transition request");
+
+        int newEpoch = activeEpoch.getKey() + 1;
+        int segmentCount = getSegmentCount(segmentTable);
+        Map<Integer, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
+        IntStream.range(0, newRanges.size()).forEach(x -> {
+            newSegments.put(segmentCount + x, newRanges.get(x));
+        });
+        return new EpochTransitionRecord(activeEpoch.getKey(), newEpoch, scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
+                ImmutableMap.copyOf(newSegments));
+    }
+
     private static Map<Integer, Integer> computeEpochCutMap(byte[] historyTable, byte[] indexTable,
                                                                   byte[] segmentTable, Map<Integer, Long> streamCut) {
         Map<Integer, Integer> epochStreamCutMap = new HashMap<>();
@@ -818,7 +750,7 @@ public class TableHelper {
         int mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         Segment mostRecentSegment = getSegment(mostRecent, segmentTable);
 
-        final Optional<HistoryRecord> highEpochRecord = segmentCreationHistoryRecord(mostRecent, mostRecentSegment.getStart(),
+        final Optional<HistoryRecord> highEpochRecord = readEpochHistoryRecord(mostRecentSegment.getEpoch(),
                 indexTable, historyTable);
 
         List<Integer> toFind = new ArrayList<>(streamCut.keySet());
@@ -835,6 +767,11 @@ public class TableHelper {
         }
 
         return epochStreamCutMap;
+    }
+
+    public static Optional<HistoryRecord> readEpochHistoryRecord(int epoch, byte[] indexTable, byte[] historyTable) {
+        Optional<IndexRecord> index = IndexRecord.readRecord(indexTable, epoch);
+        return index.flatMap(i -> HistoryRecord.readRecord(historyTable, i.getHistoryOffset(), false));
     }
 
     private static Set<Integer> computeToDelete(Map<Segment, Integer> epochCutMap, byte[] historyTable,

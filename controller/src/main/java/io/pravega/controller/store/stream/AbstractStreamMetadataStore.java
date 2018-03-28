@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -183,6 +184,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                              final OperationContext context,
                                              final Executor executor) {
         return withCompletion(getStream(scope, name, context).getState(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> resetStateConditionally(String scope, String name, State state, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, name, context).resetStateConditionally(state), executor);
     }
 
     /**
@@ -404,30 +410,28 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
-                                                           final List<Integer> sealedSegments,
-                                                           final List<Segment> newSegments,
-                                                           final int activeEpoch,
-                                                           final long scaleTimestamp,
+    public CompletableFuture<Void> scaleCreateNewSegments(final String scope,
+                                                          final String name,
+                                                          final OperationContext context,
+                                                          final Executor executor) {
+        return withCompletion(getStream(scope, name, context).scaleCreateNewSegments(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
+                                                           final String name,
                                                            final OperationContext context,
                                                            final Executor executor) {
-        List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
-        return withCompletion(getStream(scope, name, context)
-                .scaleNewSegmentsCreated(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
+        return withCompletion(getStream(scope, name, context).scaleNewSegmentsCreated(), executor);
     }
 
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final Map<Integer, Long> sealedSegments,
-                                                       final List<Segment> newSegments,
-                                                       final int activeEpoch,
-                                                       final long scaleTimestamp,
+                                                       final Map<Integer, Long> sealedSegmentSizes,
                                                        final OperationContext context,
                                                        final Executor executor) {
-        List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
-        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
-                .scaleOldSegmentsSealed(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
+        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes), executor);
 
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
@@ -672,6 +676,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             stream.refresh();
         }
         return stream;
+    }
+
+    @VisibleForTesting
+    void setStream(Stream stream) {
+        cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
     }
 
     private Scope getScope(final String scopeName) {
