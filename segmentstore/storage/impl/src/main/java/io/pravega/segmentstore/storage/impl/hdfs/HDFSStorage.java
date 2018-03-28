@@ -147,7 +147,7 @@ class HDFSStorage implements SyncStorage {
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         try {
-            return Retry.withExpBackoff(0, 5, MAX_ATTEMPT_COUNT)
+            return Retry.withExpBackoff( 1, 5, MAX_ATTEMPT_COUNT)
                         .retryingOn(FileNotFoundException.class)
                         .throwingOn(IOException.class)
                         .run(() -> {
@@ -204,7 +204,7 @@ class HDFSStorage implements SyncStorage {
         Timer timer = new Timer();
 
         try {
-            return Retry.withExpBackoff(0, 5, MAX_ATTEMPT_COUNT)
+            return Retry.withExpBackoff(1, 5, MAX_ATTEMPT_COUNT)
                         .retryingOn(FileNotFoundException.class)
                         .throwingOn(IOException.class)
                         .run(() -> {
@@ -218,7 +218,7 @@ class HDFSStorage implements SyncStorage {
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         } catch (RetriesExhaustedException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e.getCause());
         }
         return -1;
     }
