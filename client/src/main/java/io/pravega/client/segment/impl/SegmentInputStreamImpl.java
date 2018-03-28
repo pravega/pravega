@@ -62,7 +62,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         Preconditions.checkArgument(startOffset >= 0);
         Preconditions.checkNotNull(asyncInput);
         Preconditions.checkNotNull(endOffset, "endOffset");
-        Preconditions.checkArgument(endOffset > startOffset, "End offset should be greater than start offset");
+        Preconditions.checkArgument(endOffset > startOffset + WireCommands.TYPE_PLUS_LENGTH_SIZE,
+                "Invalid end offset.");
         this.asyncInput = asyncInput;
         this.offset = startOffset;
         this.endOffset = endOffset;

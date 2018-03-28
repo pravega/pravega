@@ -38,8 +38,6 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -109,10 +107,8 @@ public class BoundedStreamReaderTest {
 
     @Test(timeout = 50000)
     public void testBoundedStreamTest() throws Exception {
-        //TODO: check if we can merge this test to StreamSeekTest
         createScope(SCOPE);
         createStream(STREAM1);
-        createStream(STREAM2);
 
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
@@ -120,19 +116,21 @@ public class BoundedStreamReaderTest {
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
         //Prep the stream with data.
-        //1.Write two events with event size of 30
+        //1.Write events with event size of 30
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
-        writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1),
-                        StreamCut.UNBOUNDED, new StreamCutImpl(Stream.of(SCOPE, STREAM1),
-                                ImmutableMap.of(new Segment(SCOPE, STREAM1, 0), 60L)))
+                        //startStreamCut points to the current HEAD of stream
+                        StreamCut.UNBOUNDED,
+                        //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
+                        new StreamCutImpl(Stream.of(SCOPE, STREAM1), ImmutableMap.of(new Segment(SCOPE, STREAM1, 0), 60L)))
+
                 .build());
 
         //Create a reader
@@ -142,21 +140,6 @@ public class BoundedStreamReaderTest {
 
         readAndVerify(reader, 1, 2);
         Assert.assertNull("Null is expected", reader.readNextEvent(5000).getEvent());
-    }
-
-    private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
-        Stream stream = Stream.of(SCOPE, streamName);
-        Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
-    }
-
-    private void verifyReinitializationRequiredException(EventStreamReader<String> reader) {
-        try {
-            reader.readNextEvent(15000);
-            Assert.fail("Reinitialization Exception excepted");
-        } catch (ReinitializationRequiredException e) {
-            reader.close();
-        }
     }
 
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {

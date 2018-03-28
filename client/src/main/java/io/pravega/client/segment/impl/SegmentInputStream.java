@@ -39,8 +39,6 @@ public interface SegmentInputStream extends AutoCloseable {
      */
     public abstract long getOffset();
 
-
-
     /**
      * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent
      * blocking. If there is no event after timeout null will be returned. EndOfSegmentException indicates the

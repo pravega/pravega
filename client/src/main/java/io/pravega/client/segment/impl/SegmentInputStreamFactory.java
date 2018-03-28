@@ -28,6 +28,14 @@ public interface SegmentInputStreamFactory {
      */
     SegmentInputStream createInputStreamForSegment(Segment segment);
 
+    /**
+     * Open an existing segment for reading up to the provided end offset. This operation will fail if the segment
+     * does not exist.
+     *
+     * @param segment The segment to create an input for.
+     * @param endOffset The offset up to which the segment can be read.
+     * @return New instance of the SegmentInputStream for reading.
+     */
     SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset);
 
     /**
