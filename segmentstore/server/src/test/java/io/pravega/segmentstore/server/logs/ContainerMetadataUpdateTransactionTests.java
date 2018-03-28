@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -437,9 +438,19 @@ public class ContainerMetadataUpdateTransactionTests {
 
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
+        BiFunction<Throwable, Boolean, Boolean> exceptionChecker = (ex, expectNoPreviousValue) ->
+            (ex instanceof BadAttributeUpdateException) && ((BadAttributeUpdateException) ex).isPreviousValueMissing() == expectNoPreviousValue;
+
+        // Values not set
+        Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.ReplaceIfEquals, 0, 0));
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
+                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                ex -> exceptionChecker.apply(ex, true));
 
         // Append #1.
-        Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2)); // Initial add, so it's ok.
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
@@ -455,7 +466,7 @@ public class ContainerMetadataUpdateTransactionTests {
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an unmodifiable attribute.",
                 () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
-                ex -> ex instanceof BadAttributeUpdateException);
+                ex -> exceptionChecker.apply(ex, false));
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
         attributeUpdates.clear();
@@ -463,7 +474,7 @@ public class ContainerMetadataUpdateTransactionTests {
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
                 () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
-                ex -> ex instanceof BadAttributeUpdateException);
+                ex -> exceptionChecker.apply(ex, false));
 
         // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
         attributeUpdates.clear();
@@ -471,7 +482,7 @@ public class ContainerMetadataUpdateTransactionTests {
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
                 () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
-                ex -> ex instanceof BadAttributeUpdateException);
+                ex -> exceptionChecker.apply(ex, false));
 
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();

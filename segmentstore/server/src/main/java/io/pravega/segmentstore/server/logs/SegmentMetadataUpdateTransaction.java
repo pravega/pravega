@@ -415,14 +415,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
             long previousValue = this.attributeValues.getOrDefault(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+            boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
-                    boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
                     if (hasValue && u.getValue() <= previousValue) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                        throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Expected greater than '%s'.", previousValue));
                     }
 
@@ -430,7 +430,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 case ReplaceIfEquals:
                     // Verify value against existing value, if any.
                     if (u.getComparisonValue() != previousValue) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                        throw new BadAttributeUpdateException(this.name, u, !hasValue,
                                 String.format("Expected existing value to be '%s', actual '%s'.",
                                         u.getComparisonValue(), previousValue));
                     }
@@ -438,14 +438,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case None:
                     // Verify value is not already set.
-                    if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                    if (hasValue) {
+                        throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Attribute value already set (%s).", previousValue));
                     }
 
                     break;
                 case Accumulate:
-                    if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                    if (hasValue) {
                         u.setValue(previousValue + u.getValue());
                     }
 
@@ -453,7 +453,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 case Replace:
                     break;
                 default:
-                    throw new BadAttributeUpdateException(this.name, u, "Unexpected update type: " + updateType);
+                    throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
 
             if (previousValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
