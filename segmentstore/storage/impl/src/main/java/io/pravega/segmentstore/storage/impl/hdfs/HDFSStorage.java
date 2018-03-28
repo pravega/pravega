@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -145,24 +147,21 @@ class HDFSStorage implements SyncStorage {
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         SegmentProperties result = null;
-        int attemptCount = 0;
         do {
-            long length = 0;
-            boolean isSealed = false;
-            FileStatus last = null;
             try {
-                last = findStatusForSegment(streamSegmentName, true);
-                isSealed = isSealed(last.getPath());
-            } catch (IOException fnf) {
-                // This can happen if we get a concurrent call to SealOperation with an empty last file; the last file will
-                // be deleted in that case so we need to try our luck again (in which case we need to refresh the file list).
-                if (++attemptCount < MAX_ATTEMPT_COUNT) {
-                    continue;
-                }
-                HDFSExceptionHelpers.throwException(streamSegmentName, fnf);
+                result = Retry.withExpBackoff(1, 10, MAX_ATTEMPT_COUNT)
+                              .retryingOn(IOException.class)
+                              .throwingOn(RuntimeException.class)
+                              .run(() -> {
+                                  boolean isSealed = false;
+                                  FileStatus last = null;
+                                  last = findStatusForSegment(streamSegmentName, true);
+                                  isSealed = isSealed(last.getPath());
+                                  return StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
+                              });
+            } catch (RetriesExhaustedException e) {
+                    HDFSExceptionHelpers.throwException(streamSegmentName, e.getCause());
             }
-
-            result = StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
         } while (result == null);
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
         return result;
@@ -171,11 +170,11 @@ class HDFSStorage implements SyncStorage {
     @Override
     public boolean exists(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
-        FileStatus status;
+        FileStatus status = null;
         try {
             status = findStatusForSegment(streamSegmentName, false);
         } catch (IOException e) {
-            return false;
+            log.warn("Got exception while checking for existence of file", e);
         }
         boolean exists = status != null;
         LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName, exists);
@@ -205,15 +204,19 @@ class HDFSStorage implements SyncStorage {
         int attemptCount = 0;
         AtomicInteger totalBytesRead = new AtomicInteger();
         boolean needsRefresh = true;
-        while (needsRefresh && attemptCount < MAX_ATTEMPT_COUNT) {
-            attemptCount++;
-            // Read data.
-            try {
-                readInternal(handle, totalBytesRead, buffer, offset, bufferOffset, length);
-            } catch (IOException e) {
-                HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
-            }
-            needsRefresh = false;
+
+        try {
+            Retry.withExpBackoff(1, 10, MAX_ATTEMPT_COUNT)
+                 .retryingOn(FileNotFoundException.class)
+                 .throwingOn(IOException.class)
+                 .run(() -> {
+                     readInternal(handle, totalBytesRead, buffer, offset, bufferOffset, length);
+                     return null;
+                 });
+        } catch (IOException e) {
+            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+        } catch (RetriesExhaustedException e) {
+            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e.getCause());
         }
 
         HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
@@ -390,6 +393,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+
         int fencedCount = 0;
         do {
             try {
