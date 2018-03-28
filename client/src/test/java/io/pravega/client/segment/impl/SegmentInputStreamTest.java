@@ -332,6 +332,8 @@ public class SegmentInputStreamTest {
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read); //verify we are reading the data.
         verify(mockAsyncInputStream, times(1)).read(0L, wireDataSize); //ensure there is one invocation.
+        read = stream.read();
+        assertNull( "Null expected since we have read it upto end offset", read);
     }
 
     @Test
