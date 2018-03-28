@@ -1109,7 +1109,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             }
 
                             final List<Integer> newActiveSegments = getNewActiveSegments(createdSegments, segmentsToSeal, lastRecord);
-
                             final int offset = historyTable.getData().length;
                             // now we know the offset at which we want to add.
                             final byte[] updatedTable = TableHelper.addPartialRecordToHistoryTable(historyTable.getData(), newActiveSegments);
