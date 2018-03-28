@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -78,6 +79,14 @@ public class StreamSegmentService implements StreamSegmentStore {
                 streamSegmentName,
                 container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout),
                 "updateAttributes", streamSegmentName, attributeUpdates);
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+        return invoke(
+                streamSegmentName,
+                container -> container.getAttributes(streamSegmentName, attributeIds, timeout),
+                "getAttributes", streamSegmentName, attributeIds);
     }
 
     @Override

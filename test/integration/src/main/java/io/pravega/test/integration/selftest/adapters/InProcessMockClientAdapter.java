@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -155,6 +156,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("updateAttributes");
+        }
+
+        @Override
+        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+            throw new UnsupportedOperationException("getAttributes");
         }
 
         @Override

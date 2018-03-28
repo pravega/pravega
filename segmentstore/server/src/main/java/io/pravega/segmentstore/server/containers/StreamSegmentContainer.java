@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -47,6 +48,8 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -317,6 +320,39 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+        ensureRunning();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("getAttributes", streamSegmentName, attributeIds);
+        this.metrics.getAttributes();
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> {
+                    // Collect Core Attributes and Cached Extended Attributes.
+                    Map<UUID, Long> result = new HashMap<>();
+                    Map<UUID, Long> metadataAttributes = this.metadata.getStreamSegmentMetadata(streamSegmentId).getAttributes();
+                    ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
+                    attributeIds.forEach(attributeId -> {
+                        Long v = metadataAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                        if (v != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                            result.put(attributeId, v);
+                        } else if (!Attributes.isCoreAttribute(attributeId)) {
+                            extendedAttributeIds.add(attributeId);
+                        }
+                    });
+
+                    // Collect remaining Extended Attributes.
+                    return this.attributeIndex
+                            .forSegment(streamSegmentId, timer.getRemaining())
+                            .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor)
+                            .thenApply(extendedAttributes ->{
+                                result.putAll(extendedAttributes);
+                                return result;
+                            });
                 });
     }
 

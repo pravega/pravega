@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.attributes;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.AttributeIndex;
@@ -39,7 +40,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     private final OperationLog operationLog;
     private final AttributeIndexConfig config;
     @GuardedBy("attributeIndices")
-    private final HashMap<Long, SegmentAttributeIndex> attributeIndices;
+    private final HashMap<Long, CompletableFuture<AttributeIndex>> attributeIndices;
     private final ScheduledExecutorService executor;
     private final String traceObjectId;
 
@@ -78,20 +79,41 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
             return Futures.failedFuture(new StreamSegmentNotExistsException(sm.getName()));
         }
 
-        AtomicReference<SegmentAttributeIndex> index = new AtomicReference<>();
-        boolean needsInitialization = false;
+        // Figure out if we already have this AttributeIndex cached. If not, we need to initialize it.
+        CompletableFuture<AttributeIndex> result;
+        AtomicReference<SegmentAttributeIndex> toInitialize = new AtomicReference<>();
         synchronized (this.attributeIndices) {
-            index.set(this.attributeIndices.getOrDefault(streamSegmentId, null));
-            if (index.get() == null) {
-                index.set(new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.config, this.executor));
-                this.attributeIndices.put(streamSegmentId, index.get());
-                needsInitialization = true;
+            result = this.attributeIndices.computeIfAbsent(streamSegmentId, id -> {
+                toInitialize.set(new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.config, this.executor));
+                return new CompletableFuture<>();
+            });
+        }
+
+        if (toInitialize.get() == null) {
+            // We already have it cached - return its future (which should be already completed or will complete once
+            // its initialization is done).
+            return result;
+        } else {
+            try {
+                // Need to initialize the AttributeIndex and complete the future that we just registered.
+                // If this fails
+                toInitialize.get().initialize(timeout)
+                            .whenComplete((r, ex) -> {
+                                if (ex == null) {
+                                    result.complete(toInitialize.get());
+                                } else {
+                                    indexInitializationFailed(streamSegmentId, result, ex);
+                                }
+                            });
+            } catch (Throwable ex) {
+                if (!Exceptions.mustRethrow(ex)) {
+                    indexInitializationFailed(streamSegmentId, result, ex);
+                }
+                throw ex;
             }
         }
 
-        return needsInitialization
-                ? index.get().initialize(timeout).thenApply(v -> index.get())
-                : CompletableFuture.completedFuture(index.get());
+        return result;
     }
 
     @Override
@@ -113,6 +135,17 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         }
 
         log.info("{}: Cleaned up Attribute Indices for {} Segment(s).", this.traceObjectId, segmentIds.size());
+    }
+
+    //endregion
+
+    //region Helpers
+
+    private void indexInitializationFailed(long streamSegmentId, CompletableFuture<AttributeIndex> result, Throwable ex){
+        synchronized (this.attributeIndices) {
+            this.attributeIndices.remove(streamSegmentId);
+        }
+        result.completeExceptionally(ex);
     }
 
     //endregion

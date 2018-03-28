@@ -103,6 +103,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -322,6 +323,91 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the ability to set attributes (via append() or updateAttributes()), then fetch them back using getAttributes(),
+     * emphasizing on Extended Attributes that are dumped into Storage and cleared from memory.
+     */
+    @Test
+    public void testAttributes() throws Exception {
+        final List<UUID> extendedAttributes = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
+        final UUID coreAttribute = Attributes.EVENT_COUNT;
+        final List<UUID> allAttributes = Stream.concat(extendedAttributes.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
+        final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+
+        @Cleanup
+        TestContext context = new TestContext();
+        context.container.startAsync().awaitRunning();
+
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+
+        // 2. Add some appends.
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+            for (String segmentName : segmentNames) {
+                Collection<AttributeUpdate> attributeUpdates = allAttributes
+                        .stream()
+                        .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
+                        .collect(Collectors.toList());
+                byte[] appendData = getAppendData(segmentName, i);
+                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
+            }
+        }
+
+        // 2.1 Update some of the attributes.
+        for (String segmentName : segmentNames) {
+            for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
+                Collection<AttributeUpdate> attributeUpdates = allAttributes
+                        .stream()
+                        .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
+                        .collect(Collectors.toList());
+                opFutures.add(context.container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
+            }
+        }
+
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 3. getSegmentInfo
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            val allAttributeValues = context.container.getAttributes(segmentName, allAttributes, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of attributes retrieved via getAttributes().", allAttributes.size(), allAttributeValues.size());
+
+            // Verify all attribute values.
+            for (val attributeId : allAttributes) {
+                Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getInfo() for segment " + segmentName,
+                        expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getAttributes() for segment " + segmentName,
+                        expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+            }
+        }
+
+        // 4. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.container.stopAsync().awaitTerminated();
+
+        // 5. After recovery.
+        System.out.println("begin recovery");
+        try (val container2 = context.containerFactory.createStreamSegmentContainer(CONTAINER_ID)) {
+            container2.startAsync().awaitRunning();
+            System.out.println("end recovery");
+
+
+            for (String segmentName : segmentNames) {
+                val allAttributeValues = container2.getAttributes(segmentName, allAttributes, TIMEOUT).join();
+                Assert.assertEquals("Unexpected number of attributes retrieved via getAttributes() after recovery for segment " + segmentName,
+                        allAttributes.size(), allAttributeValues.size());
+
+                // Verify all attribute values.
+                for (val attributeId : allAttributes) {
+                    Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getAttributes() after recovery for segment " + segmentName,
+                            expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                }
+            }
+            container2.stopAsync().awaitTerminated();
+        }
     }
 
     /**

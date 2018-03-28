@@ -1107,14 +1107,27 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                 StreamSegmentInformation.builder().name(newSegmentName).length( SEGMENT_LENGTH).build());
+                StreamSegmentInformation.builder().name(newSegmentName).length(SEGMENT_LENGTH).build());
         processOperation(mapOp, txn, seqNo::incrementAndGet);
-        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, createAttributeUpdates()), txn, seqNo::incrementAndGet);
+
+        // Add a few Extended Attributes.
+        val extendedAttributeUpdates = createAttributeUpdates();
+        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, extendedAttributeUpdates), txn, seqNo::incrementAndGet);
+
+        // Add a Core Attribute.
+        val coreAttributeUpdates = Collections.singletonList(new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1));
+        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, coreAttributeUpdates),
+                txn, seqNo::incrementAndGet);
         processOperation(checkpoint2, txn, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
         txn.commit(metadata);
         checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
+
+        // Checkpointing will remove all Extended Attributes. In order to facilitate the comparison, we should remove those
+        // too, from the original metadata (after we've serialized the checkpoint).
+        metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId())
+                .updateAttributes(extendedAttributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, au -> SegmentMetadata.NULL_ATTRIBUTE_VALUE)));
         assertMetadataSame("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
     }
 

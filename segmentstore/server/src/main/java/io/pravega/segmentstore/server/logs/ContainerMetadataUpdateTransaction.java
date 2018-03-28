@@ -16,6 +16,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -720,7 +722,12 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeBoolean(sm.isDeleted());
             output.writeLong(sm.getLastModified().getTime());
             output.writeLong(sm.getStartOffset());
-            output.writeMap(sm.getAttributes(), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+
+            // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
+            val coreAttributes = sm.getAttributes().entrySet().stream()
+                                   .filter(e -> Attributes.isCoreAttribute(e.getKey()))
+                                   .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            output.writeMap(coreAttributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
