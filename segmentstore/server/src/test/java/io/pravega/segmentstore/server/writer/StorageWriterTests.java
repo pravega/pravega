@@ -125,6 +125,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final int failAckSyncEvery = 2;
         final int failAckAsyncEvery = 3;
         final int failGetAppendDataEvery = 99;
+        final int failPersistAttributeEvery = 11;
 
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
@@ -141,6 +142,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         // Simulated data retrieval errors.
         context.dataSource.setGetAppendDataErrorInjector(new ErrorInjector<>(count -> count % failGetAppendDataEvery == 0, exceptionSupplier));
+
+        // Simulated attribute persistence errors
+        context.dataSource.setPersistAttributesErrorInjector(new ErrorInjector<>(count -> count % failPersistAttributeEvery == 0, exceptionSupplier));
 
         testWriter(context);
     }
@@ -542,7 +546,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // Wait for the writer to complete its job.
         context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // Verify final output.
+        // Verify final output (and clear out any error injectors since we are done using the writer at this point).
+        context.dataSource.setAckAsyncErrorInjector(null);
+        context.dataSource.setAckSyncErrorInjector(null);
+        context.dataSource.setGetAppendDataErrorInjector(null);
+        context.dataSource.setPersistAttributesErrorInjector(null);
+        context.dataSource.setReadAsyncErrorInjector(null);
+        context.dataSource.setReadSyncErrorInjector(null);
         verifyFinalOutput(segmentContents, transactionIds, context);
     }
 
@@ -603,14 +613,14 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         } else {
             for (val e : metadata.getAttributes().entrySet()) {
                 if (Attributes.isCoreAttribute(e.getKey())) {
-                    Assert.assertFalse("Not expecting Core Attribute in Attribute Index for " + metadata.getId(), persistedAttributes.containsKey(e.getKey()));
+                    Assert.assertFalse("Not expecting Core Attribute in Attribute Index for Segment " + metadata.getId(), persistedAttributes.containsKey(e.getKey()));
                 } else {
                     extendedAttributeCount++;
-                    Assert.assertEquals("Unexpected attribute value for " + metadata.getId(), e.getValue(), persistedAttributes.get(e.getKey()));
+                    Assert.assertEquals("Unexpected attribute value for Segment " + metadata.getId(), e.getValue(), persistedAttributes.get(e.getKey()));
                 }
             }
 
-            Assert.assertEquals("Unexpected number of attributes in attribute index for " + metadata.getId(), extendedAttributeCount, persistedAttributes.size());
+            Assert.assertEquals("Unexpected number of attributes in attribute index for Segment " + metadata.getId(), extendedAttributeCount, persistedAttributes.size());
             if (metadata.isSealedInStorage()) {
                 AssertExtensions.assertThrows(
                         "Sealed segment attribute index accepted new values.",
