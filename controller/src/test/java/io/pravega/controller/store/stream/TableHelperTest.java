@@ -651,8 +651,6 @@ public class TableHelperTest {
         // nothing should change the consistency even with history table update
         assertTrue(TableHelper.isEpochTransitionConsistent(consistentEpochTransitionRecord, historyTable, segmentTable));
         assertFalse(TableHelper.isEpochTransitionConsistent(inconsistentEpochTransitionRecord, historyTable, segmentTable));
-
-        
     }
 
     @Test
