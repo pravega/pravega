@@ -456,7 +456,7 @@ public abstract class StreamMetadataStoreTest {
 
         ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
 
-        // the following will should be stuck at createEpochTransition
+        // the following should be stuck at createEpochTransition
         CompletableFuture<StartScaleResponse> resp = store.startScale(scope, stream, scale3SealedSegments, Arrays.asList(segment6), scaleTs3, false, null, executor);
         createEpochTransitionCalled.join();
         streamObj.createEpochTransitionNode(new byte[0]).join();
@@ -479,7 +479,8 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        // region concurrent start scale requests where one request starts and completes as the other is waiting on StartScale
+        // region concurrent start scale
+        // Test scenario where one request starts and completes as the other is waiting on StartScale.createEpochTransition
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.0, 1.0);
         List<Integer> segmentsToSeal = Arrays.asList(0, 1);
         long scaleTs = System.currentTimeMillis();

@@ -515,6 +515,7 @@ public class TableHelper {
     /**
      * Method that looks at the supplied epoch transition record and compares it with partial state in metadata store to determine
      * if the partial state corresponds to supplied input.
+     * 
      * @param epochTransitionRecord epoch transition record
      * @param historyTable history table
      * @param segmentTable segment table
