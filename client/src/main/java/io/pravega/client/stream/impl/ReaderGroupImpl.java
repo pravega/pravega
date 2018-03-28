@@ -103,19 +103,23 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
      * @param  config The configuration for the reader group.
-     * @param streams The segments to use and where to start from.
      */
     @VisibleForTesting
-    public void initializeGroup(ReaderGroupConfig config, Set<String> streams) {
-        Map<Segment, Long> segments = getSegmentsForStreams(streams);
+    public void initializeGroup(ReaderGroupConfig config) {
+        Map<Segment, Long> segments = getSegmentsForStreams(config);
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
     }
-    
-    private Map<Segment, Long> getSegmentsForStreams(Set<String> streams) {
-        List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streams.size());
-        for (String stream : streams) {
-            futures.add(controller.getSegmentsAtTime(new StreamImpl(scope, stream), 0L));
-        }
+
+    private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
+        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
+        streamToStreamCuts.entrySet().forEach(e -> {
+                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
+                  } else {
+                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+                  }
+              });
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
@@ -169,6 +173,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return new CheckpointImpl(checkpointName, map);
     }
 
+    @SuppressWarnings( "deprecation" )
     @Override
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
         synchronizer.updateState(state -> {
@@ -182,8 +187,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void updateConfig(ReaderGroupConfig config, Set<String> streamNames) {
-        Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
+    public void resetReaderGroup(ReaderGroupConfig config) {
+        Map<Segment, Long> segments = getSegmentsForStreams(config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
     }
 

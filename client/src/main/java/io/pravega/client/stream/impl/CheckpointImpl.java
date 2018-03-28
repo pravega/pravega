@@ -18,7 +18,6 @@ import io.pravega.client.stream.StreamCut;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -28,7 +27,7 @@ public class CheckpointImpl implements Checkpoint {
     private static final long serialVersionUID = 1L;
     @Getter
     private final String name;
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final Map<Stream, StreamCut> positions;
     
     CheckpointImpl(String name, Map<Segment, Long> segmentPositions) {

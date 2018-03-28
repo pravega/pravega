@@ -113,18 +113,19 @@ public class RawClient implements AutoCloseable {
     }
     
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
-        log.debug("Sending request: {}", request);
-        ClientConnection c = connection.join();
-        CompletableFuture<Reply> reply = new CompletableFuture<>();
-        synchronized (lock) {
-            requests.put(requestId, reply);
-        }
-        try {
-            c.send(request);
-        } catch (ConnectionFailedException e) {
-            closeConnection(e);
-        }
-        return reply;
+        return connection.thenCompose(c -> {
+            log.debug("Sending request: {}", request);
+            CompletableFuture<Reply> reply = new CompletableFuture<>();
+            synchronized (lock) {
+                requests.put(requestId, reply);
+            }
+            try {
+                c.send(request);
+            } catch (ConnectionFailedException e) {
+                closeConnection(e);
+            }
+            return reply;
+        });
     }
     
     public boolean isClosed() {

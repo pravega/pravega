@@ -77,23 +77,32 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * group they will resume from the position the provided checkpoint was taken. (The mapping of
      * segments to readers may not be the same, and the current readers need not be the same ones as
      * existed at the time of the checkpoint.)
+     *
+     * @deprecated
+     * Use {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} to reset readers to a given Checkpoint.
      * 
      * @param checkpoint The checkpoint to restore to.
      */
+    @Deprecated
     void resetReadersToCheckpoint(Checkpoint checkpoint);
-    
+
     /**
-     * Updates a reader group. All existing readers will have to call
-     * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} . If they continue to read
-     * events they will eventually encounter an {@link ReinitializationRequiredException}.
-     * 
-     * Readers connecting to the group will start from the point defined in the config, exactly as though it
-     * were a new reader group.
-     * 
-     * @param config The configuration for the new ReaderGroup.
-     * @param streamNames The name of the streams the reader will read from.
+     * Reset a reader group with the provided {@link ReaderGroupConfig}.
+     *
+     * <p>- The stream(s) that are part of the reader group
+     * can be specified using {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String)} and
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut)}.</p>
+     * <p>- To reset a reader group to a given checkpoint use
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromCheckpoint(Checkpoint)} api.</p>
+     * <p>- To reset a reader group to a given StreamCut use
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromStreamCuts(Map)}.</p>
+     *
+     * All existing readers will have to call {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)}.
+     * If they continue to read events they will eventually encounter an {@link ReinitializationRequiredException} .
+     *
+     * @param config The new configuration for the ReaderGroup.
      */
-    void updateConfig(ReaderGroupConfig config, Set<String> streamNames);
+    void resetReaderGroup(ReaderGroupConfig config);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will
