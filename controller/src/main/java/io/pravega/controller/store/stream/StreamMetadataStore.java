@@ -716,16 +716,6 @@ public interface StreamMetadataStore {
     CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
-     * Method to count number of splits and merges.
-     *
-     * @param scopeName     stream scope
-     * @param streamName    stream name
-     * @param executor      callers executor
-     * @return              SimpleEntry, number of splits as Key and number of merges as value
-     */
-    CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
-
-    /**
      * Method to register listener for changes to bucket's ownership.
      *
      * @param listener listener
