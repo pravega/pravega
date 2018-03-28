@@ -445,13 +445,11 @@ public abstract class StreamMetadataStoreTest {
         CompletableFuture<Void> latch = new CompletableFuture<>();
         CompletableFuture<Void> createEpochTransitionCalled = new CompletableFuture<>();
 
-        doAnswer(x -> {
-            // wait until we create epoch transition outside of this method
-            createEpochTransitionCalled.complete(null);
-            latch.join();
-
-            return streamObj.createEpochTransitionNode(new byte[0]);
-        }).when(streamObjSpied).createEpochTransitionNode(any());
+        doAnswer(x -> CompletableFuture.runAsync(() -> {
+        // wait until we create epoch transition outside of this method
+        createEpochTransitionCalled.complete(null);
+        latch.join();
+        }).thenCompose(v -> streamObj.createEpochTransitionNode(new byte[0]))).when(streamObjSpied).createEpochTransitionNode(any());
 
         ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
 
