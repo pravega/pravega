@@ -22,10 +22,10 @@ import lombok.Getter;
  */
 public class AttributeIndexConfig {
     //region Config Names
-    public static final Property<Integer> MAX_ATTRIBUTE_COUNT = Property.named("maxAttributeCount", 100 * 1000);
-    public static final Property<Integer> READ_BLOCK_SIZE = Property.named("memoryReadMinLength", 1024 * 1024);
+
+    public static final Property<Integer> UPDATE_COUNT_THRESHOLD_SNAPSHOT = Property.named("updateCountThresholdForSnapshot", 50 * 1000);
+    public static final Property<Integer> READ_BLOCK_SIZE = Property.named("readBlockSize", 1024 * 1024);
     private static final int AUTO_VALUE = -1; // This implies the value will be auto-calculated.
-    public static final Property<Integer> SNAPSHOT_TRIGGER_SIZE = Property.named("snapshotTriggerSizeBytes", AUTO_VALUE);
     public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegmentRollingSizeBytes", AUTO_VALUE);
     private static final String COMPONENT_CODE = "attributeindex";
     private static final int ESTIMATED_ATTRIBUTE_SERIALIZATION_SIZE = RevisionDataOutput.UUID_BYTES + Long.BYTES;
@@ -35,13 +35,8 @@ public class AttributeIndexConfig {
     //region Members
 
     /**
-     * The maximum number of attributes (approximate) that are allowed.
-     */
-    @Getter
-    private final int maxAttributeCount;
-    /**
      * The maximum read request length (bytes) to use when reading from Storage. This is also used as a minimum bound for
-     * SnapshotTriggerSize if Auto-calculation was requested.
+     * the Attribute Segment Rolling Policy if Auto-calculation was requested.
      */
     @Getter
     private final int readBlockSize;
@@ -67,17 +62,18 @@ public class AttributeIndexConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private AttributeIndexConfig(TypedProperties properties) throws ConfigurationException {
-        this.maxAttributeCount = properties.getInt(MAX_ATTRIBUTE_COUNT);
-        if (this.maxAttributeCount <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer; found '%d'.", MAX_ATTRIBUTE_COUNT, this.maxAttributeCount));
+        int updateCountThresholdSnapshot = properties.getInt(UPDATE_COUNT_THRESHOLD_SNAPSHOT);
+        if (updateCountThresholdSnapshot <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer; found '%d'.", UPDATE_COUNT_THRESHOLD_SNAPSHOT, updateCountThresholdSnapshot));
         }
+
+        this.snapshotTriggerSize = (int) Math.min(Integer.MAX_VALUE, (long) updateCountThresholdSnapshot * ESTIMATED_ATTRIBUTE_SERIALIZATION_SIZE);
 
         this.readBlockSize = properties.getInt(READ_BLOCK_SIZE);
         if (this.readBlockSize <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer; found '%d'.", READ_BLOCK_SIZE, this.readBlockSize));
         }
 
-        this.snapshotTriggerSize = calculateSnapshotTriggerSize(this.maxAttributeCount, properties);
         this.attributeSegmentRollingPolicy = createRollingPolicy(this.snapshotTriggerSize, this.readBlockSize, properties);
     }
 
@@ -95,19 +91,6 @@ public class AttributeIndexConfig {
         }
 
         return new SegmentRollingPolicy(rollingSize);
-    }
-
-    private int calculateSnapshotTriggerSize(int maxAttributeCount, TypedProperties properties) throws ConfigurationException {
-        int configValue = properties.getInt(SNAPSHOT_TRIGGER_SIZE);
-        if (configValue == AUTO_VALUE) {
-            // We allow about 10% of attribute changes before triggering a new snapshot.
-            return maxAttributeCount / 10 * ESTIMATED_ATTRIBUTE_SERIALIZATION_SIZE;
-        } else if (configValue > 0) {
-            return configValue;
-        } else {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer or the AUTO_VALUE (%d); found '%d'.",
-                    SNAPSHOT_TRIGGER_SIZE, AUTO_VALUE, configValue));
-        }
     }
 
     /**

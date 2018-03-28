@@ -63,7 +63,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(10000);
     private static final AttributeIndexConfig NO_SNAPSHOT_CONFIG = AttributeIndexConfig
             .builder()
-            .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, Integer.MAX_VALUE)
+            .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, Integer.MAX_VALUE)
             .build();
 
     @Override
@@ -86,7 +86,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     public void testSmallSnapshots() {
         int batchSize = 7;
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, batchSize * 13)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, batchSize)
                                          .build();
         testRegularOperations(100, batchSize, 5, config, true);
     }
@@ -97,12 +97,10 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testLargeSnapshots() {
         int attributeCount = 5000;
-        int batchSize = 17;
-        int repeats = 3;
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, batchSize * repeats * attributeCount / 2)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, attributeCount / 2)
                                          .build();
-        testRegularOperations(attributeCount, batchSize, repeats, config, true);
+        testRegularOperations(attributeCount, 17, 3, config, true);
     }
 
     /**
@@ -189,7 +187,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         val attributeId = UUID.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, 100)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
                                          .build();
         @Cleanup
         val context = new TestContext(config);
@@ -238,7 +236,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         val attributeId = UUID.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, 100)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
                                          .build();
         @Cleanup
         val context = new TestContext(config);
@@ -287,7 +285,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         val attributeId2 = UUID.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, 100)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
                                          .build();
         @Cleanup
         val context = new TestContext(config);
@@ -336,10 +334,9 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     public void testTruncatedSegment() {
         val attributeId = UUID.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
-        val snapshotTriggerSize = 100;
         val config = AttributeIndexConfig.builder()
-                                         .with(AttributeIndexConfig.SNAPSHOT_TRIGGER_SIZE, snapshotTriggerSize)
-                                         .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, snapshotTriggerSize / 10)
+                                         .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
+                                         .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10)
                                          .build();
         @Cleanup
         val context = new TestContext(config);
