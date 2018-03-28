@@ -41,7 +41,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,13 +175,13 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @SuppressWarnings( "deprecation" )
     @Override
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
-        synchronizer.updateState(state -> {
+        synchronizer.updateState((state, updates) -> {
             ReaderGroupConfig config = state.getConfig();
             Map<Segment, Long> positions = new HashMap<>();
             for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
                 positions.putAll(cut.asImpl().getPositions());
             }
-            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
+            updates.add(new ReaderGroupStateInit(config, positions));
         });
     }
 

@@ -189,11 +189,9 @@ public class SetSynchronizer<T extends Serializable> {
      * @param value The value to be added.
      */
     public void add(T value) {
-        stateSynchronizer.updateState(set -> {
-            if (set.impl.contains(value)) {
-                return Collections.emptyList();
-            } else {
-                return Collections.singletonList(new AddToSet<>(value));
+        stateSynchronizer.updateState((set, updates) -> {
+            if (!set.impl.contains(value)) {
+                updates.add(new AddToSet<>(value));
             }
         });
     }
@@ -203,11 +201,9 @@ public class SetSynchronizer<T extends Serializable> {
      * @param value The value to be removed.
      */
     public void remove(T value) {
-        stateSynchronizer.updateState(set -> {
+        stateSynchronizer.updateState((set, updates) -> {
             if (set.impl.contains(value)) {
-                return  Collections.singletonList(new RemoveFromSet<>(value));
-            } else {
-                return Collections.emptyList();
+                updates.add(new RemoveFromSet<>(value));
             }
         });
         if (countdownToCompaction.decrementAndGet() <= 0) {
@@ -224,11 +220,9 @@ public class SetSynchronizer<T extends Serializable> {
      * Clears the set.
      */
     public void clear() {
-        stateSynchronizer.updateState(set -> { 
+        stateSynchronizer.updateState((set, updates) -> { 
             if (set.getCurrentSize() > 0) {
-                return Collections.singletonList(new ClearSet<>());
-            } else {
-                return Collections.emptyList();
+                updates.add(new ClearSet<>());
             }
         });
         compact();
