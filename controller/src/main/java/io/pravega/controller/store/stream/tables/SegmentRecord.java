@@ -12,8 +12,6 @@ package io.pravega.controller.store.stream.tables;
 import io.pravega.common.util.BitConverter;
 import lombok.Data;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 @Data
@@ -45,24 +43,6 @@ public class SegmentRecord {
             return Optional.empty();
         }
         return Optional.of(parse(segmentTable, offset));
-    }
-
-    /**
-     * Method to read last 'n' segments from the segment table. Where n is supplied by the caller.
-     * @param segmentTable segment table
-     * @param count number of segments to read.
-     * @return list of last n segments. If number of segments in the table are less than requested, all are returned.
-     */
-    static List<SegmentRecord> readLastN(final byte[] segmentTable, final int count) {
-        int totalSegments = segmentTable.length / SEGMENT_RECORD_SIZE;
-        List<SegmentRecord> result = new ArrayList<>(count);
-        for (int i = totalSegments - count; i < totalSegments; i++) {
-            int offset = i * SegmentRecord.SEGMENT_RECORD_SIZE;
-            if (offset >= 0) {
-                result.add(parse(segmentTable, offset));
-            }
-        }
-        return result;
     }
 
     private static SegmentRecord parse(final byte[] table, final int offset) {

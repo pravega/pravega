@@ -17,8 +17,10 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
@@ -66,7 +68,6 @@ public abstract class StreamMetadataStoreTest {
     //Ensure each test completes within 10 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
-
     protected StreamMetadataStore store;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected final String scope = "scope";
@@ -439,17 +440,19 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> scale3SealedSegments = Arrays.asList(4, 5, 6);
         long scaleTs3 = System.currentTimeMillis();
 
-        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
-        PersistentStreamBase streamObjSpied = spy(streamObj);
+        PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);
 
         CompletableFuture<Void> latch = new CompletableFuture<>();
         CompletableFuture<Void> createEpochTransitionCalled = new CompletableFuture<>();
 
         doAnswer(x -> CompletableFuture.runAsync(() -> {
-        // wait until we create epoch transition outside of this method
-        createEpochTransitionCalled.complete(null);
-        latch.join();
+            // wait until we create epoch transition outside of this method
+            createEpochTransitionCalled.complete(null);
+            latch.join();
         }).thenCompose(v -> streamObj.createEpochTransitionNode(new byte[0]))).when(streamObjSpied).createEpochTransitionNode(any());
+
+        doAnswer(x -> streamObj.getEpochTransitionNode()).when(streamObjSpied).getEpochTransitionNode();
 
         ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
 
@@ -460,7 +463,93 @@ public abstract class StreamMetadataStoreTest {
         latch.complete(null);
 
         AssertExtensions.assertThrows("", resp, e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConflictException);
+        // endregion
+    }
 
+    @Test
+    public void concurrentStartScaleTest() throws Exception {
+        final String scope = "ScopeScale";
+        final String stream = "StreamScale";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // region concurrent start scale requests where one request starts and completes as the other is waiting on StartScale
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.0, 1.0);
+        List<Integer> segmentsToSeal = Arrays.asList(0, 1);
+        long scaleTs = System.currentTimeMillis();
+
+        PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store)
+                .getStream(scope, stream, null);
+        PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);
+
+        CompletableFuture<Void> latch = new CompletableFuture<>();
+        CompletableFuture<Void> createEpochTransitionCalled = new CompletableFuture<>();
+
+        doAnswer(x -> streamObj.getEpochTransitionNode()).when(streamObjSpied).getEpochTransitionNode();
+        doAnswer(x -> streamObj.deleteEpochTransitionNode()).when(streamObjSpied).deleteEpochTransitionNode();
+
+        doAnswer(x -> CompletableFuture.runAsync(() -> {
+            EpochTransitionRecord record = EpochTransitionRecord.parse(x.getArgument(0));
+
+            if (record.getSegmentsToSeal().containsAll(segmentsToSeal)) {
+                // wait until we create epoch transition outside of this method
+                createEpochTransitionCalled.complete(null);
+                latch.join();
+            }
+        }).thenCompose(v -> streamObj.createEpochTransitionNode(x.getArgument(0))))
+                .when(streamObjSpied).createEpochTransitionNode(any());
+
+        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+
+        // the following will should be stuck at createEpochTransition
+        CompletableFuture<StartScaleResponse> response = store.startScale(scope, stream, segmentsToSeal,
+                Arrays.asList(segment2), scaleTs, false, null, executor);
+        createEpochTransitionCalled.join();
+
+        // update history and segment table with a new scale as the previous scale waits to create epoch transition record
+        SimpleEntry<Double, Double> segment2p = new SimpleEntry<>(0.0, 0.5);
+        List<Integer> segmentsToSeal2 = Arrays.asList(0);
+        long scaleTs2 = System.currentTimeMillis();
+
+        streamObjSpied.getHistoryTable()
+                .thenCompose(historyTable -> streamObjSpied.getSegmentTable()
+                        .thenCompose(segmentTable -> streamObjSpied.createEpochTransitionNode(
+                                TableHelper.computeEpochTransition(historyTable.getData(), segmentTable.getData(),
+                                        segmentsToSeal2, Arrays.asList(segment2p), scaleTs2).toByteArray())))
+                .thenCompose(x -> store.setState(scope, stream, State.SCALING, null, executor))
+                .thenCompose(x -> store.scaleCreateNewSegments(scope, stream, null, executor))
+                .thenCompose(x -> store.scaleNewSegmentsCreated(scope, stream, null, executor))
+                .thenCompose(x -> store.scaleSegmentsSealed(scope, stream,
+                        segmentsToSeal2.stream().collect(Collectors.toMap(r -> r, r -> 0L)), null, executor)).join();
+
+        latch.complete(null);
+
+        // first startScale should also complete with epoch transition record that matches first scale request
+        assertTrue(Futures.await(response));
+        EpochTransitionRecord epochTransitionRecord = EpochTransitionRecord.parse(streamObj.getEpochTransitionNode().join().getData());
+        assertEquals(0, epochTransitionRecord.getActiveEpoch());
+        assertEquals(1, epochTransitionRecord.getNewEpoch());
+        assertTrue(epochTransitionRecord.getSegmentsToSeal().size() == 2 &&
+                epochTransitionRecord.getSegmentsToSeal().contains(0) &&
+                epochTransitionRecord.getSegmentsToSeal().contains(1));
+        // now that start scale succeeded, we should set the state to scaling.
+        store.setState(scope, stream, State.SCALING, null, executor).join();
+        // now call first step of scaling -- createNewSegments.. this should throw exception
+        AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
+                store.scaleCreateNewSegments(scope, stream, null, executor),
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+        // verify that state is reset to ACTIVE
+        assertEquals(State.ACTIVE, store.getState(scope, stream, true, null, executor).join());
+        // verify that epoch transition is cleaned up
+        AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
+                streamObj.getEpochTransitionNode(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // endregion
     }
 

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -509,6 +510,52 @@ public class TableHelper {
     public static boolean canScaleFor(final List<Integer> segmentsToSeal, final byte[] historyTable) {
         HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
         return latestHistoryRecord.getSegments().containsAll(segmentsToSeal);
+    }
+
+    /**
+     * Method that looks at the supplied epoch transition record and compares it with partial state in metadata store to determine
+     * if the partial state corresponds to supplied input.
+     * @param epochTransitionRecord epoch transition record
+     * @param historyTable history table
+     * @param segmentTable segment table
+     * @return true if input matches partial state, false otherwise
+     */
+    public static boolean isEpochTransitionConsistent(final EpochTransitionRecord epochTransitionRecord,
+                    final byte[] historyTable,
+                    final byte[] segmentTable) {
+        AtomicBoolean isConsistent = new AtomicBoolean(true);
+        SegmentRecord latest = SegmentRecord.readRecord(segmentTable, getSegmentCount(segmentTable) - 1).get();
+        // verify that epoch transition record is consistent with segment table
+        if (latest.getEpoch() == epochTransitionRecord.newEpoch) { // if segment table is updated
+            epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentTable, segmentWithRange.getKey());
+                isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
+                        segmentOpt.get().getEpoch() == epochTransitionRecord.getNewEpoch() &&
+                        segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
+                        segmentOpt.get().getRoutingKeyEnd() == segmentWithRange.getValue().getValue());
+            });
+        } else { // if segment table is not updated
+            isConsistent.compareAndSet(true, latest.getEpoch() == epochTransitionRecord.getActiveEpoch());
+        }
+
+        // verify that epoch transition record is consistent with history table
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // if history table is not updated
+        if (latestHistoryRecord.getEpoch() == epochTransitionRecord.activeEpoch) {
+            isConsistent.compareAndSet(true,
+                    !latestHistoryRecord.isPartial() &&
+                    latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.segmentsToSeal));
+        } else if (latestHistoryRecord.getEpoch() == epochTransitionRecord.newEpoch) {
+            // if history table is updated
+            boolean check = latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.newSegmentsWithRange.keySet()) &&
+            epochTransitionRecord.segmentsToSeal.stream().noneMatch(x -> latestHistoryRecord.getSegments().contains(x));
+
+            isConsistent.compareAndSet(true, check);
+        } else {
+            isConsistent.set(false);
+        }
+
+        return isConsistent.get();
     }
 
     /**

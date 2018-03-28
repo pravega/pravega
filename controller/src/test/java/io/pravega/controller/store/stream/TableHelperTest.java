@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.Lists;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
@@ -596,6 +597,62 @@ public class TableHelperTest {
                         .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(8));
         assertEquals(successors, new ArrayList<>());
+    }
+
+    @Test
+    public void epochTransitionConsistencyTest() {
+        long timestamp = System.currentTimeMillis();
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        int epoch = 0;
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+
+        // start new scale
+        List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
+        final double keyRangeChunk = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, 5)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                .collect(Collectors.toList());
+        EpochTransitionRecord consistentEpochTransitionRecord = TableHelper.computeEpochTransition(historyTable, segmentTable,
+                Lists.newArrayList(0, 1, 2, 3, 4), newRanges, timestamp + 1);
+
+        final double keyRangeChunkInconsistent = 1.0 / 2;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRangesInconsistent = IntStream.range(0, 2)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunkInconsistent, (x + 1) * keyRangeChunkInconsistent))
+                .collect(Collectors.toList());
+
+        EpochTransitionRecord inconsistentEpochTransitionRecord = TableHelper.computeEpochTransition(historyTable, segmentTable,
+                Lists.newArrayList(0, 1, 2, 3, 4), newRangesInconsistent, timestamp + 1);
+
+        // before updating segment table, both records should be consistent.
+        assertTrue(TableHelper.isEpochTransitionConsistent(consistentEpochTransitionRecord, historyTable, segmentTable));
+        assertTrue(TableHelper.isEpochTransitionConsistent(inconsistentEpochTransitionRecord, historyTable, segmentTable));
+
+        // update segment table corresponding to consistent epoch transition record
+        epoch++;
+        segmentTable = updateSegmentTable(segmentTable, epoch, newRanges, timestamp + 1);
+
+        // now only consistentEpochTransitionRecord should return true as only its new range should match the state in
+        // segment table
+        assertTrue(TableHelper.isEpochTransitionConsistent(consistentEpochTransitionRecord, historyTable, segmentTable));
+        assertFalse(TableHelper.isEpochTransitionConsistent(inconsistentEpochTransitionRecord, historyTable, segmentTable));
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+        // nothing should change the consistency even with history table update
+        assertTrue(TableHelper.isEpochTransitionConsistent(consistentEpochTransitionRecord, historyTable, segmentTable));
+        assertFalse(TableHelper.isEpochTransitionConsistent(inconsistentEpochTransitionRecord, historyTable, segmentTable));
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+
+        // nothing should change the consistency even with history table update
+        assertTrue(TableHelper.isEpochTransitionConsistent(consistentEpochTransitionRecord, historyTable, segmentTable));
+        assertFalse(TableHelper.isEpochTransitionConsistent(inconsistentEpochTransitionRecord, historyTable, segmentTable));
+
+        
     }
 
     @Test

@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -523,7 +524,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Void> scaleCreateNewSegments() {
-
         // Called after start scale to indicate store to create new segments in the segment table. This method takes care of
         // checking for idempotent addition of segments to the table.
         return getState(true)
@@ -542,6 +542,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         final Segment latestSegment = TableHelper.getSegment(segmentCount - 1,
                                                 segmentTable.getData());
                                         if (latestSegment.getEpoch() < newEpoch) {
+                                            assert latestSegment.getEpoch() == epochTransition.getActiveEpoch();
+
                                             log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}",
                                                     scope, name, epochTransition.getSegmentsToSeal());
 
@@ -549,18 +551,31 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                     Lists.newArrayList(epochTransition.getNewSegmentsWithRange().values()),
                                                     historyTable.getData(), segmentTable,
                                                     segmentCount, newEpoch, epochTransition.getTime());
-                                        } else if (latestSegment.getEpoch() == newEpoch) {
-                                            log.debug("CreateNewSegments step for stream {}/{} is idempotent, " +
-                                                    "segments are already present in segment table.", scope, name);
-                                            return CompletableFuture.completedFuture(null);
                                         } else {
-                                            log.error("Start scale epoch mismatch. Latest segments epoch {} is higher than" +
-                                                    "new epoch {}", latestSegment.getEpoch(), newEpoch);
-                                            throw new IllegalArgumentException("start scale epoch mismatch. Latest segments " +
-                                                    "epoch is higher than new epoch");
+                                            return isEpochTransitionConsistent(historyTable, segmentTable, epochTransition,
+                                                    latestSegment);
                                         }
                                     })));
                 });
+    }
+
+    private CompletionStage<Void> isEpochTransitionConsistent(Data<T> historyTable, Data<T> segmentTable,
+                                                              EpochTransitionRecord epochTransition, Segment latestSegment) {
+        // verify that epoch transition is consistent with segments in the table.
+        if (TableHelper.isEpochTransitionConsistent(epochTransition, historyTable.getData(), segmentTable.getData())) {
+            log.debug("CreateNewSegments step for stream {}/{} is idempotent, " +
+                    "segments are already present in segment table.", scope, name);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return deleteEpochTransitionNode()
+                    .thenCompose(v -> resetStateConditionally(State.SCALING))
+                    .thenAccept(v -> {
+                        log.warn("Scale epoch transition record is inconsistent with data in the table. ",
+                                latestSegment.getEpoch(), epochTransition.getNewEpoch());
+                        throw new IllegalArgumentException("Epoch transition record is inconsistent.");
+                    });
+        }
+
     }
 
     private CompletableFuture<Void> createNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
@@ -1181,8 +1196,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                             return addSealedSegmentsToRecord(sealedSegments)
                                     .thenCompose(x -> updateHistoryTable(updated))
-                                    .thenCompose(x -> Futures.toVoid(updateState(State.ACTIVE)))
                                     .thenCompose(x -> deleteEpochTransitionNode())
+                                    .thenCompose(x -> Futures.toVoid(updateState(State.ACTIVE)))
                                     .whenComplete((r, e) -> {
                                         if (e != null) {
                                             log.warn("{}/{} attempt to complete scale for epoch {}. {}", scope, name, activeEpoch,
