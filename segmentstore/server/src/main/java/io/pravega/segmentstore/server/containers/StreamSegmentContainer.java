@@ -496,7 +496,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     protected void notifyMetadataRemoved(Collection<SegmentMetadata> segments) {
         if (segments.size() > 0) {
-            this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
+            Collection<Long> segmentIds = segments.stream().map(SegmentMetadata::getId).collect(Collectors.toList());
+            this.readIndex.cleanup(segmentIds);
+            this.attributeIndex.cleanup(segmentIds);
         }
     }
 

@@ -243,7 +243,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void cleanup(Iterator<Long> segmentIds) {
+        public void cleanup(Collection<Long> segmentIds) {
             invoke(new MethodInvocation(CLEANUP));
         }
 

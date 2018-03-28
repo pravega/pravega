@@ -403,8 +403,8 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         populateSegments(context);
 
         // Create one index before main segment deletion and make sure the attribute file is there.
-        val idx1 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        idx1.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
         // Delete Segment.
         context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID).markDeleted();
@@ -412,17 +412,17 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         // Verify relevant operations cannot proceed.
         AssertExtensions.assertThrows(
                 "put() worked on deleted segment.",
-                () -> idx1.put(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
+                () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
                 "get() worked on deleted segment.",
-                () -> idx1.get(UUID.randomUUID(), TIMEOUT),
+                () -> idx.get(UUID.randomUUID(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
                 "seal() worked on deleted segment.",
-                () -> idx1.seal(TIMEOUT),
+                () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Verify we cannot create new indices.
@@ -485,6 +485,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         checkIndex(idx, expectedValues);
 
         // 2. Reload index and verify it still has the correct values.
+        context.index.cleanup(null);
         val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         checkIndex(idx2, expectedValues);
 

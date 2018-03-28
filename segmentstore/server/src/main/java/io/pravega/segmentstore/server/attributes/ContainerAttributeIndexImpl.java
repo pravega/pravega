@@ -18,12 +18,19 @@ import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Default implementation for ContainerAttributeIndex.
  */
+@Slf4j
 class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     //region Members
 
@@ -31,7 +38,10 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     private final Storage storage;
     private final OperationLog operationLog;
     private final AttributeIndexConfig config;
+    @GuardedBy("attributeIndices")
+    private final HashMap<Long, SegmentAttributeIndex> attributeIndices;
     private final ScheduledExecutorService executor;
+    private final String traceObjectId;
 
     //endregion
 
@@ -53,6 +63,8 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         this.operationLog = Preconditions.checkNotNull(operationLog, "operationLog");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.attributeIndices = new HashMap<>();
+        this.traceObjectId = String.format("ContainerAttributeIndex[%d]", containerMetadata.getContainerId());
     }
 
     //endregion
@@ -66,15 +78,41 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
             return Futures.failedFuture(new StreamSegmentNotExistsException(sm.getName()));
         }
 
-        SegmentAttributeIndex index = new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.config, this.executor);
-        return index.initialize(timeout)
-                    .thenApply(v -> index);
+        AtomicReference<SegmentAttributeIndex> index = new AtomicReference<>();
+        boolean needsInitialization = false;
+        synchronized (this.attributeIndices) {
+            index.set(this.attributeIndices.getOrDefault(streamSegmentId, null));
+            if (index.get() == null) {
+                index.set(new SegmentAttributeIndex(sm, this.storage, this.operationLog, this.config, this.executor));
+                this.attributeIndices.put(streamSegmentId, index.get());
+                needsInitialization = true;
+            }
+        }
+
+        return needsInitialization
+                ? index.get().initialize(timeout).thenApply(v -> index.get())
+                : CompletableFuture.completedFuture(index.get());
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentMetadata sm, Duration timeout) {
         Preconditions.checkArgument(sm.isDeleted(), "Segment %s is not deleted.", sm.getId());
         return SegmentAttributeIndex.delete(sm, this.storage, timeout);
+    }
+
+    @Override
+    public void cleanup(Collection<Long> segmentIds) {
+        synchronized (this.attributeIndices) {
+            if (segmentIds == null) {
+                segmentIds = new ArrayList<>(this.attributeIndices.keySet());
+            }
+
+            for (long streamSegmentId : segmentIds) {
+                this.attributeIndices.remove(streamSegmentId);
+            }
+        }
+
+        log.info("{}: Cleaned up Attribute Indices for {} Segment(s).", this.traceObjectId, segmentIds.size());
     }
 
     //endregion

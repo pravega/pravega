@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.attributes;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -35,4 +36,12 @@ public interface ContainerAttributeIndex {
      * @return A CompletableFuture that, when completed, will indicate that the operation finished.
      */
     CompletableFuture<Void> delete(SegmentMetadata metadata, Duration timeout);
+
+    /**
+     * Removes all internal indices that point to the given StreamSegments.
+     *
+     * @param segmentIds A Collection of SegmentIds for the Segments to clean up. If this is null, then all the Segment Ids
+     *                   registered in this ContainerAttributeIndex are eligible for removal.
+     */
+    void cleanup(Collection<Long> segmentIds);
 }
