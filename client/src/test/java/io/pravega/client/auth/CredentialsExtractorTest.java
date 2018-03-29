@@ -26,7 +26,7 @@ public class CredentialsExtractorTest {
     @Test
     public void testextractCredentials() {
         //No creds defined
-        ClientConfig config = ClientConfig.builder().extractCredentials().build();
+        ClientConfig config = ClientConfig.builder().build();
         assertEquals("Empty list should return null", config.getCredentials(), null);
 
         //Test custom creds

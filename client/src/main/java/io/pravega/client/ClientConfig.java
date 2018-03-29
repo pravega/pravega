@@ -26,8 +26,8 @@ import lombok.Data;
  * in future.
  */
 @Data
-@Builder(toBuilder = true)
 @Beta
+@Builder(toBuilder = true)
 public class ClientConfig {
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
@@ -35,8 +35,7 @@ public class ClientConfig {
      2. pravega://ip1:port1,ip2:port2,...
         This is used to autodiscovery the controller endpoints from an initial controller list.
     */
-    @Builder.Default
-    private final URI controllerURI = URI.create("tcp://localhost");
+    private final URI controllerURI;
 
     /**
      * Credentials to be passed on to the Pravega controller for authentication and authorization.
@@ -68,6 +67,13 @@ public class ClientConfig {
 
         private boolean validateHostName = true;
 
+        public ClientConfig build() {
+            if (controllerURI == null) {
+                controllerURI = URI.create("tcp://localhost");
+            }
+            extractCredentials();
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
+        }
 
         /**
          * Function to extract the credentials object in the given client config.
@@ -80,7 +86,7 @@ public class ClientConfig {
          *
          * @return Returns the builder with extracted credentials. This object is created as per the steps above.
          */
-        public ClientConfigBuilder extractCredentials() {
+        private ClientConfigBuilder extractCredentials() {
             return extractCredentials(System.getProperties(), System.getenv());
         }
 
@@ -98,32 +104,28 @@ public class ClientConfig {
         }
 
         private Credentials extractCredentialsFromProperties(Properties properties) {
-            synchronized (this) {
-                Map<String, String> retVal = properties.entrySet()
-                                                       .stream()
-                                                       .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
-                                                       .collect(Collectors.toMap(entry ->
-                                                                       entry.getKey().toString().replace("_", "."),
-                                                               value -> (String) value.getValue()));
-                if (retVal.containsKey(AUTH_METHOD)) {
-                    return credentialFromMap(retVal);
-                } else {
-                    return null;
-                }
+            Map<String, String> retVal = properties.entrySet()
+                                                   .stream()
+                                                   .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
+                                                   .collect(Collectors.toMap(entry ->
+                                                                   entry.getKey().toString().replace("_", "."),
+                                                           value -> (String) value.getValue()));
+            if (retVal.containsKey(AUTH_METHOD)) {
+                return credentialFromMap(retVal);
+            } else {
+                return null;
             }
         }
 
         private Credentials extractCredentialsFromEnv(Map<String, String> env) {
-            synchronized (this) {
-                Map<String, String> retVal = env.entrySet()
-                                                .stream()
-                                                .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
-                                                .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
-                if (retVal.containsKey(AUTH_METHOD)) {
-                    return credentialFromMap(retVal);
-                } else {
-                    return null;
-                }
+            Map<String, String> retVal = env.entrySet()
+                                            .stream()
+                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
+                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+            if (retVal.containsKey(AUTH_METHOD)) {
+                return credentialFromMap(retVal);
+            } else {
+                return null;
             }
         }
 
