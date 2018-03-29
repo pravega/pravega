@@ -396,23 +396,23 @@ public class ReaderGroupStateManagerTest {
 
         ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", state2, controller, clock::get);
         reader2.initializeReader(0);
-        
+
         Map<Segment, Long> segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertFalse(segments1.isEmpty());
         assertEquals(2, segments1.size());
         assertTrue(reader1.acquireNewSegmentsIfNeeded(0).isEmpty());
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
         assertNull(reader1.findSegmentToReleaseIfRequired());
-       
+
         Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertFalse(segments2.isEmpty());
         assertEquals(2, segments2.size());
         assertNull(reader2.findSegmentToReleaseIfRequired());
-        
+
         segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertTrue(segments1.isEmpty());
     }
-    
+
     @Test(timeout = 10000)
     public void testSegmentsAssigned() throws ReinitializationRequiredException {
         String scope = "scope";
