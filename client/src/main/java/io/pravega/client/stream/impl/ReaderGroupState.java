@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -20,7 +21,6 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -80,7 +80,7 @@ public class ReaderGroupState implements Revisioned {
         this.futureSegments = new HashMap<>();
         this.assignedSegments = new HashMap<>();
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
-        this.endSegments = Collections.unmodifiableMap(endSegments);
+        this.endSegments = ImmutableMap.copyOf(endSegments);
     }
     
     /**
@@ -181,7 +181,7 @@ public class ReaderGroupState implements Revisioned {
     }
 
     Map<Segment, Long> getEndSegments() {
-        return Collections.unmodifiableMap(new HashMap<>(endSegments));
+        return endSegments; //endSegments is an ImmutableMap.
     }
 
     @Synchronized

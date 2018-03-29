@@ -9,18 +9,21 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
-import java.util.function.Consumer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.val;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.stream.Collectors.summarizingInt;
 
 @Data
 @Builder
@@ -168,17 +171,55 @@ public class ReaderGroupConfig implements Serializable {
                endingStreamCuts = Collections.emptyMap();
            }
 
-           Consumer<Map<Stream, StreamCut>> validateStreamCuts = map -> map.forEach((s, streamCut) -> {
+           //validate start and end StreamCuts
+           validateStreamCut(startingStreamCuts);
+           validateStreamCut(endingStreamCuts);
+
+           //basic check to verify if endStreamCut > startStreamCut.
+           validateStartAndEndStreamCuts(startingStreamCuts, endingStreamCuts);
+
+           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
+                   startingStreamCuts, endingStreamCuts);
+       }
+
+       private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
+                                                  Map<Stream, StreamCut> endStreamCuts) {
+           endStreamCuts.entrySet().stream().filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
+                                .forEach(e -> {
+                               if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
+                                   verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
+                               }
+                           });
+       }
+
+       /**
+        * Verify if startStreamCut comes before endStreamCut.
+        */
+       private void verifyStartAndEndStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final Map<Segment, Long> startPositions = startStreamCut.asImpl().getPositions();
+           final Map<Segment, Long> endPositions = endStreamCut.asImpl().getPositions();
+           //check offsets for overlapping segments.
+           startPositions.keySet().stream().filter(endPositions::containsKey)
+                        .forEach(s -> Preconditions.checkArgument(startPositions.get(s) <= endPositions.get(s),
+                                "Segment offset in startStreamCut should be <= segment offset in endStreamCut."));
+
+           val fromSCSummary = startPositions.keySet()
+                                             .stream().collect(summarizingInt(Segment::getSegmentNumber));
+           val toSCSummary = endPositions.keySet()
+                                         .stream().collect(summarizingInt(Segment::getSegmentNumber));
+           //basic check to 
+           Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
+                   "Overlapping StreamCuts cannot be provided");
+           Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
+                   "Overlapping StreamCuts cannot be provided");
+       }
+
+       private void validateStreamCut(Map<Stream, StreamCut> streamCuts) {
+           streamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
                    checkArgument(s.equals(streamCut.asImpl().getStream()));
                }
            });
-           //validate start and end StreamCuts
-           validateStreamCuts.accept(startingStreamCuts);
-           validateStreamCuts.accept(endingStreamCuts);
-
-           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts);
        }
    }
 }

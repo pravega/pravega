@@ -46,7 +46,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private long offset;
     @GuardedBy("$lock")
-    private long endOffset;
+    private final long endOffset;
     @GuardedBy("$lock")
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
@@ -127,7 +127,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        if (this.offset == this.endOffset) {
+        if (this.offset >= this.endOffset) {
             log.debug("All events up to the configured end offset:{} have been read", endOffset);
             return null;
         }
@@ -209,14 +209,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      *  - if we have not read up to the configured endOffset.
      */
     private void issueRequestIfNeeded() {
-        //compute read length based on current offset upto which the events are read are read.
+        //compute read length based on current offset up to which the events are read.
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable(), readLength);
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && buffer.capacityAvailable() >= updatedReadLength && outstandingRequest == null) {
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
 
-    /*
+    /**
      * Compute the read length based on the current fetch offset and the configured end offset.
      */
     private int computeReadLength(long currentFetchOffset, int currentReadLength) {
@@ -225,8 +225,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (Long.MAX_VALUE == endOffset) { //endOffset is Long.MAX_VALUE if the endOffset is not set.
             return currentReadLength;
         }
-        long numberOfBytesToRead = endOffset - currentFetchOffset;
-        return Math.min(currentReadLength, Math.toIntExact(numberOfBytesToRead));
+        long numberOfBytesRemaining = endOffset - currentFetchOffset;
+        return Math.toIntExact(Math.min(currentReadLength, numberOfBytesRemaining));
     }
 
     @Override
