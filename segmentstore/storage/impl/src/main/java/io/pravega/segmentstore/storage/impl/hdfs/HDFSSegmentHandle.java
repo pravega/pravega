@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import lombok.Getter;
-import org.apache.http.annotation.GuardedBy;
 import org.apache.http.annotation.ThreadSafe;
 
 /**
@@ -26,9 +25,6 @@ class HDFSSegmentHandle implements SegmentHandle {
     private final String segmentName;
     @Getter
     private final boolean readOnly;
-    @GuardedBy("files")
-    @Getter
-    private final String file;
 
     //endregion
 
@@ -38,34 +34,30 @@ class HDFSSegmentHandle implements SegmentHandle {
      * Creates a new instance of the HDFSSegmentHandle class.
      *  @param segmentName The name of the Segment in this Handle, as perceived by users of the Storage interface.
      * @param readOnly    Whether this handle is read-only or not.
-     * @param file       The HDFS file for this handle.
      */
-    private HDFSSegmentHandle(String segmentName, boolean readOnly, String file) {
+    private HDFSSegmentHandle(String segmentName, boolean readOnly) {
         this.segmentName = Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         this.readOnly = readOnly;
-        this.file = Exceptions.checkNotNullOrEmpty(file, "file");
     }
 
     /**
      * Creates a read-write handle.
      *
      * @param segmentName The name of the Segment to create the handle for.
-     * @param file       The HDFS file for this handle.
      * @return The new handle.
      */
-    static HDFSSegmentHandle write(String segmentName, String file) {
-        return new HDFSSegmentHandle(segmentName, false, file);
+    static HDFSSegmentHandle write(String segmentName) {
+        return new HDFSSegmentHandle(segmentName, false);
     }
 
     /**
      * Creates a read-only handle.
      *
      * @param segmentName The name of the Segment to create the handle for.
-     * @param file       The HDFS file for this handle.
      * @return The new handle.
      */
-    static HDFSSegmentHandle read(String segmentName, String file) {
-        return new HDFSSegmentHandle(segmentName, true, file);
+    static HDFSSegmentHandle read(String segmentName) {
+        return new HDFSSegmentHandle(segmentName, true);
     }
 
     //endregion

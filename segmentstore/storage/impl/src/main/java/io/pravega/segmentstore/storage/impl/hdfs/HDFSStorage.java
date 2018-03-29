@@ -227,7 +227,7 @@ class HDFSStorage implements SyncStorage {
             //Ensure that file exists
             findStatusForSegment(streamSegmentName, true);
             LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
-            return HDFSSegmentHandle.read(streamSegmentName, null);
+            return HDFSSegmentHandle.read(streamSegmentName);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
             return null;
@@ -277,16 +277,16 @@ class HDFSStorage implements SyncStorage {
 
         target = asWritableHandle(target);
         // Check for target offset and whether it is sealed.
-        FileStatus lastFile = null;
+        FileStatus fileStatus = null;
         try {
-            lastFile = findStatusForSegment(target.getSegmentName(), true);
+            fileStatus = findStatusForSegment(target.getSegmentName(), true);
 
-            if (isSealed(lastFile.getPath())) {
+            if (isSealed(fileStatus.getPath())) {
                 throw new StreamSegmentSealedException(target.getSegmentName());
-            } else if (getEpoc(lastFile) > this.epoch) {
+            } else if (getEpoc(fileStatus) > this.epoch) {
                 throw new StorageNotPrimaryException(target.getSegmentName());
-            } else if (lastFile.getLen() != offset) {
-                throw new BadOffsetException(target.getSegmentName(), lastFile.getLen(), offset);
+            } else if (fileStatus.getLen() != offset) {
+                throw new BadOffsetException(target.getSegmentName(), fileStatus.getLen(), offset);
             }
 
             FileStatus sourceFile = findStatusForSegment(sourceSegment, true);
@@ -295,7 +295,7 @@ class HDFSStorage implements SyncStorage {
 
             // Concat source files into target and update the handle.
             makeWrite(sourceFile);
-            this.fileSystem.concat(lastFile.getPath(), new Path[]{sourceFile.getPath()});
+            this.fileSystem.concat(fileStatus.getPath(), new Path[]{sourceFile.getPath()});
         } catch (IOException ex) {
             HDFSExceptionHelpers.throwException(sourceSegment, ex);
         }
@@ -308,12 +308,11 @@ class HDFSStorage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
         handle = asWritableHandle(handle);
         try {
-            // Get an initial list of all files.
-            FileStatus files = findStatusForSegment(handle.getSegmentName(), true);
-            if (getEpoc(files) > this.epoch && !isSealed(files.getPath())) {
+            FileStatus statusForSegment = findStatusForSegment(handle.getSegmentName(), true);
+            if (getEpoc(statusForSegment) > this.epoch && !isSealed(statusForSegment.getPath())) {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
-            this.fileSystem.delete(files.getPath(), true);
+            this.fileSystem.delete(statusForSegment.getPath(), true);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
@@ -415,7 +414,7 @@ class HDFSStorage implements SyncStorage {
                 }
                 //Ensure that file exists
                 findStatusForSegment(streamSegmentName, true);
-                return HDFSSegmentHandle.write(streamSegmentName, null);
+                return HDFSSegmentHandle.write(streamSegmentName);
             } catch (IOException e) {
                 HDFSExceptionHelpers.throwException(streamSegmentName, e);
             }
