@@ -11,8 +11,6 @@ package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.util.BitConverter;
 import lombok.Data;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.Optional;
 
@@ -26,9 +24,11 @@ public class IndexRecord {
     public static final int INDEX_RECORD_SIZE = Long.BYTES + Integer.BYTES;
 
     private final long eventTime;
+    private final long epoch;
     private final int historyOffset;
 
-    public static Optional<IndexRecord> readRecord(final byte[] indexTable, final int offset) {
+    public static Optional<IndexRecord> readRecord(final byte[] indexTable, final int epoch) {
+        int offset = epoch * INDEX_RECORD_SIZE;
         if (offset >= indexTable.length) {
             return Optional.empty();
         } else {
@@ -38,55 +38,40 @@ public class IndexRecord {
 
     public static Optional<IndexRecord> readLatestRecord(final byte[] indexTable) {
         final int lastIndexedRecordOffset = Integer.max(indexTable.length - IndexRecord.INDEX_RECORD_SIZE, 0);
-
-        return readRecord(indexTable, lastIndexedRecordOffset);
+        final int epoch = lastIndexedRecordOffset / INDEX_RECORD_SIZE;
+        return readRecord(indexTable, epoch);
     }
 
-    public static Optional<IndexRecord> fetchPrevious(final byte[] indexTable, final int offset) {
-        if (offset == 0) {
-            return Optional.<IndexRecord>empty();
-        } else {
-            return IndexRecord.readRecord(indexTable, offset - IndexRecord.INDEX_RECORD_SIZE);
-        }
-    }
-
-    public static Optional<IndexRecord> fetchNext(final byte[] indexTable, final int offset) {
-        if (offset + IndexRecord.INDEX_RECORD_SIZE == indexTable.length) {
-            return Optional.<IndexRecord>empty();
-        } else {
-            return readRecord(indexTable, offset + IndexRecord.INDEX_RECORD_SIZE);
-        }
-    }
-
-    public static Pair<Integer, Optional<IndexRecord>> search(final long timestamp, final byte[] indexTable) {
+    public static Optional<IndexRecord> search(final long timestamp, final byte[] indexTable) {
         final int lower = 0;
         final int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
         return binarySearchIndex(lower, upper, timestamp, indexTable);
     }
 
     private static IndexRecord parse(final byte[] bytes, int offset) {
+        final int epoch = offset / INDEX_RECORD_SIZE;
         final long eventTime = BitConverter.readLong(bytes, offset);
         final int historyOffset = BitConverter.readInt(bytes, offset + Long.BYTES);
-        return new IndexRecord(eventTime, historyOffset);
+        return new IndexRecord(eventTime, epoch, historyOffset);
     }
 
-    private static Pair<Integer, Optional<IndexRecord>> binarySearchIndex(final int lower,
-                                                                          final int upper,
-                                                                          final long timestamp,
-                                                                          final byte[] indexTable) {
+    private static Optional<IndexRecord> binarySearchIndex(final int lower,
+                                         final int upper,
+                                         final long timestamp,
+                                         final byte[] indexTable) {
         if (upper < lower || indexTable.length == 0) {
-            return new ImmutablePair<>(0, Optional.empty());
+            return Optional.empty();
         }
 
-        final int offset = ((lower + upper) / 2) * IndexRecord.INDEX_RECORD_SIZE;
+        final int middle = (lower + upper) / 2;
 
-        final IndexRecord record = IndexRecord.readRecord(indexTable, offset).get();
+        final IndexRecord record = IndexRecord.readRecord(indexTable, middle).get();
 
-        final Optional<IndexRecord> next = IndexRecord.fetchNext(indexTable, offset);
+        final Optional<IndexRecord> next = IndexRecord.readRecord(indexTable, middle);
 
         if (record.getEventTime() <= timestamp) {
             if (!next.isPresent() || (next.get().getEventTime() > timestamp)) {
-                return new ImmutablePair<>(offset, Optional.of(record));
+                return Optional.of(record);
             } else {
                 return binarySearchIndex((lower + upper) / 2 + 1, upper, timestamp, indexTable);
             }

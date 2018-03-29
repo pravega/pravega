@@ -9,6 +9,8 @@
  */
 package io.pravega.client.state.examples;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -16,11 +18,7 @@ import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.impl.JavaSerializer;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +30,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -139,16 +136,14 @@ public class MembershipSynchronizer extends AbstractService {
                 stateSync.fetchUpdates();
                 notifyListener();
                 if (stateSync.getState().isOverUnconditionalThreshold(instanceId)) {
-                    stateSync.updateState(state -> {
-                        List<HeartbeatUpdate> result = new ArrayList<>(2);
+                    stateSync.updateState((state, updates) -> {
                         long vectorTime = state.getVectorTime() + 1;
-                        result.add(new HeartBeat(instanceId, vectorTime));
+                        updates.add(new HeartBeat(instanceId, vectorTime));
                         for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
                             if (!id.equals(instanceId)) {
-                                result.add(new DeclareDead(id));
+                                updates.add(new DeclareDead(id));
                             }
                         }
-                        return result;
                     });
                 } else {
                     stateSync.updateStateUnconditionally(new HeartBeat(instanceId, stateSync.getState().vectorTime));

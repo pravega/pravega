@@ -11,7 +11,7 @@ package io.pravega.client.stream.notifications;
 
 /**
  * This represents an observable notification.
- * @param <T>
+ * @param <T> The type of event that is to be observed.
  */
 public interface Observable<T> {
     /**

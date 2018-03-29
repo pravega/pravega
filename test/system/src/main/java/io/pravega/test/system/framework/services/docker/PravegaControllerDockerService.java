@@ -44,6 +44,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         this.zkUri = zkUri;
     }
 
+    @Override
     public void stop() {
         super.stop();
     }
