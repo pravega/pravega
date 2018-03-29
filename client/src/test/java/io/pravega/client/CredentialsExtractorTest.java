@@ -7,10 +7,9 @@
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.auth;
+package io.pravega.client;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;

@@ -13,6 +13,7 @@ import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
 import java.net.URI;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -89,7 +90,7 @@ public class ClientConfig {
         }
 
         @VisibleForTesting
-        public ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
+        ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
             if (credentials != null) {
                 return this;
             }
@@ -150,7 +151,7 @@ public class ClientConfig {
 
                 @Override
                 public Map<String, String> getAuthParameters() {
-                    return credsMap;
+                    return Collections.unmodifiableMap(credsMap);
                 }
             };
         }
