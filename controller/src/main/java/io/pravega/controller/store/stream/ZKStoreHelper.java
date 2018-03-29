@@ -206,6 +206,20 @@ public class ZKStoreHelper {
         return result;
     }
 
+    CompletableFuture<Void> createZNode(final String path, final byte[] data) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(null),
+                    e -> result.completeExceptionally(e), path);
+            createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+
     CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
         return createZNodeIfNotExist(path, data, true);
     }

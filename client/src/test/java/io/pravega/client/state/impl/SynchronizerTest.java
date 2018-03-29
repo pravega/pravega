@@ -50,18 +50,20 @@ public class SynchronizerTest {
     private static class RevisionedImpl implements Revisioned {
         private final String scopedStreamName;
         private final Revision revision;
+        private final String value;
     }
     
     @Data
     private static class RegularUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
+        private final String value;
         @Override
         public RevisionedImpl create(String scopedStreamName, Revision revision) {
-            return new RevisionedImpl(scopedStreamName, revision);
+            return new RevisionedImpl(scopedStreamName, revision, value);
         }
 
         @Override
         public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
-            return new RevisionedImpl(oldState.getScopedStreamName(), newRevision);
+            return new RevisionedImpl(oldState.getScopedStreamName(), newRevision, value);
         }
     }
 
@@ -73,14 +75,15 @@ public class SynchronizerTest {
         @Override
         public RevisionedImpl create(String scopedSteamName, Revision revision) {
             latch.awaitUninterruptibly();
-            return new RevisionedImpl(scopedSteamName, new RevisionImpl(revision.asImpl().getSegment(), num, num));
+            return new RevisionedImpl(scopedSteamName, new RevisionImpl(revision.asImpl().getSegment(), num, num),
+                                      String.valueOf(num));
         }
 
         @Override
         public RevisionedImpl applyTo(RevisionedImpl oldState, Revision newRevision) {
             latch.awaitUninterruptibly();
             return new RevisionedImpl(oldState.scopedStreamName,
-                    new RevisionImpl(newRevision.asImpl().getSegment(), num, num));
+                                      new RevisionImpl(newRevision.asImpl().getSegment(), num, num), "" + num);
         }
     }
 
@@ -216,38 +219,139 @@ public class SynchronizerTest {
                                                                                        SynchronizerConfig.builder().build());
         assertEquals(0, sync.bytesWrittenSinceCompaction());
         AtomicInteger callCount = new AtomicInteger(0);
-        sync.initialize(new RegularUpdate());
-        sync.updateState(state -> {
+        sync.initialize(new RegularUpdate("a"));
+        sync.updateState((state, updates) -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new RegularUpdate());
+            updates.add(new RegularUpdate("b"));
         });
+        assertEquals(sync.getState().getValue(), "b");
         assertEquals(1, callCount.get());
         long size = sync.bytesWrittenSinceCompaction();
         assertTrue(size > 0);
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new RegularUpdate());
+            updates.add(new RegularUpdate("c"));
         });
+        assertEquals(sync.getState().getValue(), "c");
         assertEquals(2, callCount.get());
         assertTrue(sync.bytesWrittenSinceCompaction() > size);
         sync.compact(state -> {
             callCount.incrementAndGet();
-            return new RegularUpdate();
+            return new RegularUpdate("c");
         });
+        assertEquals(sync.getState().getValue(), "c");
         assertEquals(3, callCount.get());
         assertEquals(0, sync.bytesWrittenSinceCompaction());
-        sync.updateState(s -> {
+        sync.updateState((state, updates) -> {
             callCount.incrementAndGet();
-            return Collections.singletonList(new RegularUpdate());
+            updates.add(new RegularUpdate("e"));
         });
+        assertEquals(sync.getState().getValue(), "e");
         assertEquals(5, callCount.get());
         assertEquals(size, sync.bytesWrittenSinceCompaction());
         sync.compact(state -> {
             callCount.incrementAndGet();
-            return new RegularUpdate();
+            return new RegularUpdate("e");
         });
+        assertEquals(sync.getState().getValue(), "e");
         assertEquals(6, callCount.get());
         assertEquals(0, sync.bytesWrittenSinceCompaction());
+    }
+
+    @Test(timeout = 20000)
+    public void testConsistency() {
+        String streamName = "streamName";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        @Cleanup
+        StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
+                                                                                        new JavaSerializer<>(),
+                                                                                        new JavaSerializer<>(),
+                                                                                        SynchronizerConfig.builder().build());
+        @Cleanup
+        StateSynchronizer<RevisionedImpl> syncB = clientFactory.createStateSynchronizer(streamName,
+                                                                                        new JavaSerializer<>(),
+                                                                                        new JavaSerializer<>(),
+                                                                                        SynchronizerConfig.builder().build());
+        syncA.initialize(new RegularUpdate("Foo"));
+        AtomicInteger callCount = new AtomicInteger(0);
+        syncB.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Bar"));
+        });
+        assertEquals(1, callCount.get());
+        assertEquals("Foo", syncA.getState().value);
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Baz"));
+        });
+        assertEquals(3, callCount.get());
+        assertEquals("Baz", syncA.getState().value);
+        syncB.fetchUpdates();
+        assertEquals("Baz", syncA.getState().value);
+        syncB.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Bat"));
+        });
+        assertEquals(4, callCount.get());
+        assertEquals("Baz", syncA.getState().value);
+        syncA.fetchUpdates();
+        assertEquals("Bat", syncA.getState().value);
+    }
+    
+    @Test(timeout = 20000)
+    public void testReturnValue() throws EndOfSegmentException {
+        String streamName = "streamName";
+        String scope = "scope";
+        
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
+                                                                                       new JavaSerializer<>(),
+                                                                                       new JavaSerializer<>(),
+                                                                                       SynchronizerConfig.builder().build());
+        StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
+                                                                                        new JavaSerializer<>(),
+                                                                                        new JavaSerializer<>(),
+                                                                                        SynchronizerConfig.builder().build());
+        StateSynchronizer<RevisionedImpl> syncB = clientFactory.createStateSynchronizer(streamName,
+                                                                                        new JavaSerializer<>(),
+                                                                                        new JavaSerializer<>(),
+                                                                                        SynchronizerConfig.builder().build());
+        syncA.initialize(new RegularUpdate("Foo"));
+        AtomicInteger callCount = new AtomicInteger(0);
+        String previous = syncB.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Bar"));
+            return state.getValue();
+        });
+        assertEquals(previous, "Foo");
+        assertEquals(1, callCount.get());
+        assertEquals("Foo", syncA.getState().value);
+        previous = syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Baz"));
+            return state.getValue();
+        });
+        assertEquals(previous, "Bar");
+        assertEquals(3, callCount.get());
+        assertEquals("Baz", syncA.getState().value);
+        syncB.fetchUpdates();
+        assertEquals("Baz", syncA.getState().value);
+        previous = syncB.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("Bat"));
+            return state.getValue();
+        });
+        assertEquals(previous, "Baz");
+        assertEquals(4, callCount.get());
+        assertEquals("Baz", syncA.getState().value);
+        syncA.fetchUpdates();
+        assertEquals("Bat", syncA.getState().value);
     }
     
     @Test(timeout = 20000)

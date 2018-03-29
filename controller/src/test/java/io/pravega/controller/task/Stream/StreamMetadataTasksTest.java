@@ -161,9 +161,10 @@ public class StreamMetadataTasksTest {
         StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+        streamStorePartialMock.scaleCreateNewSegments(SCOPE, stream1, null, executor).get();
+        streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
         streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
-                segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+                null, executor).get();
     }
 
     @After
@@ -262,6 +263,8 @@ public class StreamMetadataTasksTest {
 
         configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
         assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
+
+        streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
     }
 
     @Test(timeout = 30000)
@@ -742,10 +745,9 @@ public class StreamMetadataTasksTest {
                 newSegments, scaleTs, false, null, executor).join();
         final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
         streamStorePartialMock.setState(scope, stream, State.SCALING, null, executor).join();
-        streamStorePartialMock.scaleNewSegmentsCreated(scope, stream, sealedSegments, scale1SegmentsCreated,
-                response.getActiveEpoch(), scaleTs, null, executor).join();
-        streamStorePartialMock.scaleSegmentsSealed(scope, stream, sealedSegmentsWithSize,
-                scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+        streamStorePartialMock.scaleCreateNewSegments(scope, stream, null, executor).join();
+        streamStorePartialMock.scaleNewSegmentsCreated(scope, stream, null, executor).join();
+        streamStorePartialMock.scaleSegmentsSealed(scope, stream, sealedSegmentsWithSize, null, executor).join();
         streamStorePartialMock.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
@@ -907,9 +909,7 @@ public class StreamMetadataTasksTest {
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", true, context, executor).get(), State.ACTIVE);
 
         AssertExtensions.assertThrows("", () -> streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, "test",
-                Collections.singletonList(0), response.getSegmentsCreated(),
-                response.getActiveEpoch(), 30, context, executor).get(),
-                ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException);
+                context, executor).get(), ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException);
 
         List<Segment> segments = streamMetadataTasks.startScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
 
