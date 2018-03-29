@@ -19,7 +19,6 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
@@ -432,7 +431,7 @@ public class EventProcessorTest {
         Assert.assertTrue(true);
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testEventProcessorGroup() throws CheckpointStoreException, ReinitializationRequiredException {
         int count = 4;
         int initialCount = count / 2;
@@ -510,8 +509,7 @@ public class EventProcessorTest {
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
 
         ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class)))
-                .then(invocation -> readerGroup);
+        Mockito.when(readerGroupManager.getReaderGroup(anyString())).then(invocation -> readerGroup);
 
         return new EventProcessorSystemImpl(name, processId, scope, clientFactory, readerGroupManager);
     }

@@ -9,7 +9,6 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -89,33 +88,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
 
-    /**
-     * Called by the StreamManager to provide the streams the group should start reading from.
-     * @param  config The configuration for the reader group.
-     */
-    @VisibleForTesting
-    public void initializeGroup(ReaderGroupConfig config) {
-        Map<Segment, Long> segments = getSegmentsForStreams(config);
-        ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
-    }
-
-    private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
-        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
-        final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
-        streamToStreamCuts.entrySet().forEach(e -> {
-                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
-                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
-                  } else {
-                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
-                  }
-              });
-        return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
-            return listOfMaps.stream()
-                             .flatMap(map -> map.entrySet().stream())
-                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        }), InvalidStreamException::new);
-    }
-
     @Override
     public void readerOffline(String readerId, Position lastPosition) {
         ReaderGroupStateManager.readerShutdown(readerId, lastPosition, synchronizer);
@@ -177,8 +149,25 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        Map<Segment, Long> segments = getSegmentsForStreams(config);
+        Map<Segment, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
+    }
+    
+    public static Map<Segment, Long> getSegmentsForStreams(Controller controller, ReaderGroupConfig config) {
+        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
+        streamToStreamCuts.entrySet().forEach(e -> {
+                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
+                  } else {
+                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+                  }
+              });
+        return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
+            return listOfMaps.stream()
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        }), InvalidStreamException::new);
     }
 
     @Override
@@ -253,5 +242,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
 
         return cuts;
+    }
+
+    @Override
+    public void close() {
+        synchronizer.close();
     }
 }
