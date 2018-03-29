@@ -10,8 +10,13 @@
 package io.pravega.client;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
 import java.net.URI;
+import java.util.Map;
+import java.util.Properties;
+import java.util.ServiceLoader;
+import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
 
@@ -54,7 +59,100 @@ public class ClientConfig {
                 || this.controllerURI.getScheme().equals("pravegas");
     }
 
-    public static final class PravegaClientConfigBuilder {
+    public static final class ClientConfigBuilder {
+        private static final String AUTH_PROPS_START = "pravega.client.auth.";
+        private static final String AUTH_METHOD = AUTH_PROPS_START + "method";
+        private static final String AUTH_METHOD_LOAD_DYNAMIC = AUTH_PROPS_START + "loadDynamic";
+
+        private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+
         private boolean validateHostName = true;
+
+
+        /**
+         * Function to extract the credentials object in the given client config.
+         * Here is the order of preference in descending order:
+         * 1. User provides a credential object. This overrides any other settings.
+         * 2. System properties: System properties are defined in the format: "pravega.client.auth.*"
+         * 3. Environment variables. Environment variables are defined under the format "PRAVEGA_CLIENT_AUTH_*"
+         * 4. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
+         *     setting property `pravega.client.auth.loadDynamic` to true.
+         *
+         * @return Returns the builder with extracted credentials. This object is created as per the steps above.
+         */
+        public ClientConfigBuilder extractCredentials() {
+            return extractCredentials(System.getProperties(), System.getenv());
+        }
+
+        @VisibleForTesting
+        public ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
+            if (credentials != null) {
+                return this;
+            }
+
+            credentials = extractCredentialsFromProperties(properties);
+            if (credentials == null) {
+                credentials = extractCredentialsFromEnv(env);
+            }
+            return this;
+        }
+
+        private Credentials extractCredentialsFromProperties(Properties properties) {
+            synchronized (this) {
+                Map<String, String> retVal = properties.entrySet()
+                                                       .stream()
+                                                       .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
+                                                       .collect(Collectors.toMap(entry ->
+                                                                       entry.getKey().toString().replace("_", "."),
+                                                               value -> (String) value.getValue()));
+                if (retVal.containsKey(AUTH_METHOD)) {
+                    return credentialFromMap(retVal);
+                } else {
+                    return null;
+                }
+            }
+        }
+
+        private Credentials extractCredentialsFromEnv(Map<String, String> env) {
+            synchronized (this) {
+                Map<String, String> retVal = env.entrySet()
+                                                .stream()
+                                                .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
+                                                .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+                if (retVal.containsKey(AUTH_METHOD)) {
+                    return credentialFromMap(retVal);
+                } else {
+                    return null;
+                }
+            }
+        }
+
+        private Credentials credentialFromMap(Map<String, String> credsMap) {
+
+            String expectedMethod = credsMap.get(AUTH_METHOD);
+
+            // Load the class dynamically if the user wants it to.
+            if (credsMap.containsKey(AUTH_METHOD_LOAD_DYNAMIC) && Boolean.parseBoolean(credsMap.get(AUTH_METHOD_LOAD_DYNAMIC))) {
+                ServiceLoader<Credentials> loader = ServiceLoader.load(Credentials.class);
+                for (Credentials creds : loader) {
+                    if (creds.getAuthenticationType().equals(expectedMethod)) {
+                        return creds;
+                    }
+                }
+                return null;
+            }
+
+            return new Credentials() {
+                @Override
+                public String getAuthenticationType() {
+                    return credsMap.get(AUTH_METHOD);
+                }
+
+                @Override
+                public Map<String, String> getAuthParameters() {
+                    return credsMap;
+                }
+            };
+        }
     }
 }

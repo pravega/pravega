@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.auth;
@@ -26,8 +26,7 @@ public class CredentialsExtractorTest {
     @Test
     public void testextractCredentials() {
         //No creds defined
-        ClientConfig config = ClientConfig.builder().build();
-        config = new CredentialsExtractor().extract(config);
+        ClientConfig config = ClientConfig.builder().extractCredentials().build();
         assertEquals("Empty list should return null", config.getCredentials(), null);
 
         //Test custom creds
@@ -36,8 +35,7 @@ public class CredentialsExtractorTest {
         properties.setProperty("pravega.client.auth.prop1", "prop1");
         properties.setProperty("pravega.client.auth.prop2", "prop2");
 
-        config = ClientConfig.builder().build();
-        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
+        config = ClientConfig.builder().extractCredentials(properties, new HashMap()).build();
 
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
@@ -61,7 +59,7 @@ public class CredentialsExtractorTest {
             }
         }).build();
 
-        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
+        config = config.toBuilder().extractCredentials(properties, new HashMap()).build();
 
         assertNotEquals("Credentials should not be overridden",
                 config.getCredentials().getAuthenticationType(), "temp");
@@ -69,22 +67,20 @@ public class CredentialsExtractorTest {
         //In case dynamic creds system property is false, load the creds from properties
         properties.setProperty("pravega.client.auth.loadDynamic", "false");
 
-        config = ClientConfig.builder().build();
-        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
+        config = ClientConfig.builder().extractCredentials(properties, new HashMap()).build();
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
 
         //In case dynamic creds system property is true and class does not exist, the API should return null.
         properties.setProperty("pravega.client.auth.loadDynamic", "true");
 
-        config = ClientConfig.builder().build();
-        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
+        config = ClientConfig.builder().extractCredentials(properties, new HashMap()).build();
         Assert.assertNull("Creds should not be picked up from properties",
                 config.getCredentials());
 
         //In case dynamic creds system property is true, the correct class should be loaded.
         properties.setProperty("pravega.client.auth.method", "DynamicallyLoadedCredsSecond");
-        config = new CredentialsExtractor(properties, new HashMap()).extract(config);
+        config = ClientConfig.builder().extractCredentials(properties, new HashMap()).build();
         Assert.assertEquals("Correct creds object should be loaded dynamically",
                 config.getCredentials().getAuthenticationType(), "DynamicallyLoadedCredsSecond");
     }

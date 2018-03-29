@@ -11,7 +11,6 @@ package io.pravega.client.admin;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.auth.CredentialsExtractor;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
@@ -37,7 +36,7 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(ClientConfig clientConfig) {
-        clientConfig = CredentialsExtractor.extractCreds(clientConfig);
+        clientConfig = clientConfig.toBuilder().extractCredentials().build();
         return new StreamManagerImpl(clientConfig);
     }
 
