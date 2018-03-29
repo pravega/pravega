@@ -79,20 +79,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<ReaderGroupStateInit> initSerializer, Serializer<ReaderGroupStateUpdate> updateSerializer,
                            ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(groupName);
-        Preconditions.checkNotNull(synchronizerConfig);
-        Preconditions.checkNotNull(initSerializer);
-        Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
-        Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
-        this.scope = scope;
-        this.groupName = groupName;
-        this.synchronizerConfig = synchronizerConfig;
-        this.initSerializer = initSerializer;
-        this.updateSerializer = updateSerializer;
-        this.controller = controller;
+        this.scope = Preconditions.checkNotNull(scope);
+        this.groupName = Preconditions.checkNotNull(groupName);
+        this.synchronizerConfig = Preconditions.checkNotNull(synchronizerConfig);
+        this.initSerializer = Preconditions.checkNotNull(initSerializer);
+        this.updateSerializer = Preconditions.checkNotNull(updateSerializer);
+        this.controller = Preconditions.checkNotNull(controller);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                                                   updateSerializer, initSerializer, synchronizerConfig);
