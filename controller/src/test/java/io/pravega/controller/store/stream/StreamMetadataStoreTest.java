@@ -518,11 +518,14 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> segmentsToSeal2 = Arrays.asList(0);
         long scaleTs2 = System.currentTimeMillis();
 
-        streamObjSpied.getHistoryTable()
-                .thenCompose(historyTable -> streamObjSpied.getSegmentTable()
+        streamObjSpied.getHistoryIndex()
+            .thenCompose(historyIndex -> streamObjSpied.getHistoryTable()
+                .thenCompose(historyTable -> streamObjSpied.getSegmentIndex()
+                    .thenCompose(segmentIndex -> streamObjSpied.getSegmentTable()
                         .thenCompose(segmentTable -> streamObjSpied.createEpochTransitionNode(
-                                TableHelper.computeEpochTransition(historyTable.getData(), segmentTable.getData(),
-                                        segmentsToSeal2, Arrays.asList(segment2p), scaleTs2).toByteArray())))
+                                TableHelper.computeEpochTransition(historyIndex.getData(), historyTable.getData(),
+                                        segmentIndex.getData(), segmentTable.getData(), segmentsToSeal2,
+                                        Arrays.asList(segment2p), scaleTs2).toByteArray())))))
                 .thenCompose(x -> store.setState(scope, stream, State.SCALING, null, executor))
                 .thenCompose(x -> store.scaleCreateNewSegments(scope, stream, null, executor))
                 .thenCompose(x -> store.scaleNewSegmentsCreated(scope, stream, null, executor))
