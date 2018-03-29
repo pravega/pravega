@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +75,13 @@ class HDFSStorage implements SyncStorage {
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
     private static final int MAX_ATTEMPT_COUNT = 3;
     private static final long MAX_EPOCH = Long.MAX_VALUE;
+
+
+    private static final Retry.RetryAndThrowExceptionally<FileNotFoundException, IOException> HDFS_RETRY = Retry
+            .withExpBackoff(1, 5, MAX_ATTEMPT_COUNT)
+            .retryingOn(FileNotFoundException.class)
+            .throwingOn(IOException.class);
+
     //region Members
 
     private final HDFSStorageConfig config;
@@ -148,20 +154,13 @@ class HDFSStorage implements SyncStorage {
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         try {
-            return Retry.withExpBackoff( 1, 5, MAX_ATTEMPT_COUNT)
-                        .retryingOn(FileNotFoundException.class)
-                        .throwingOn(IOException.class)
-                        .run(() -> {
-                            long length = 0;
-                            boolean isSealed;
-                            FileStatus last = null;
-                            SegmentProperties result = null;
-                            last = findStatusForSegment(streamSegmentName, true);
-                            isSealed = isSealed(last.getPath());
-                            result = StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
-                            LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
-                            return result;
-                        });
+            return HDFS_RETRY.run(() -> {
+                FileStatus last = findStatusForSegment(streamSegmentName, true);
+                boolean isSealed = isSealed(last.getPath());
+                StreamSegmentInformation result = StreamSegmentInformation.builder().name(streamSegmentName).length(last.getLen()).sealed(isSealed).build();
+                LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName, result);
+                return result;
+            });
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
         } catch (RetriesExhaustedException e) {
@@ -177,6 +176,7 @@ class HDFSStorage implements SyncStorage {
         try {
             status = findStatusForSegment(streamSegmentName, false);
         } catch (IOException e) {
+            // HDFS could not find the file. Returning false.
             return false;
         }
         boolean exists = status != null;
@@ -205,16 +205,12 @@ class HDFSStorage implements SyncStorage {
         Timer timer = new Timer();
 
         try {
-            return Retry.withExpBackoff(1, 5, MAX_ATTEMPT_COUNT)
-                        .retryingOn(FileNotFoundException.class)
-                        .throwingOn(IOException.class)
-                        .run(() -> {
-                            AtomicInteger totalBytesRead = new AtomicInteger();
-                            readInternal(handle, totalBytesRead, buffer, offset, bufferOffset, length);
+            return HDFS_RETRY.run(() -> {
+                            int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
                             HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-                            HDFSMetrics.READ_BYTES.add(totalBytesRead.get());
+                            HDFSMetrics.READ_BYTES.add(totalBytesRead);
                             LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
-                            return totalBytesRead.get();
+                            return totalBytesRead;
                         });
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
@@ -226,9 +222,11 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         try {
             //Ensure that file exists
             findStatusForSegment(streamSegmentName, true);
+            LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
             return HDFSSegmentHandle.read(streamSegmentName, null);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
@@ -254,12 +252,12 @@ class HDFSStorage implements SyncStorage {
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
-
         LoggerHelpers.traceLeave(log, "seal", traceId, handle);
     }
 
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
             if (!isSealed(status.getPath())) {
@@ -270,6 +268,7 @@ class HDFSStorage implements SyncStorage {
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
+        LoggerHelpers.traceLeave(log, "unseal", traceId, handle);
     }
 
     @Override
@@ -290,15 +289,13 @@ class HDFSStorage implements SyncStorage {
                 throw new BadOffsetException(target.getSegmentName(), lastFile.getLen(), offset);
             }
 
-            FileStatus sourceFile;
-            sourceFile = findStatusForSegment(sourceSegment, true);
+            FileStatus sourceFile = findStatusForSegment(sourceSegment, true);
             Preconditions.checkState(isSealed(sourceFile.getPath()),
                     "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceSegment, target.getSegmentName());
 
             // Concat source files into target and update the handle.
             makeWrite(sourceFile);
             this.fileSystem.concat(lastFile.getPath(), new Path[]{sourceFile.getPath()});
-            this.fileSystem.delete(sourceFile.getPath(), true);
         } catch (IOException ex) {
             HDFSExceptionHelpers.throwException(sourceSegment, ex);
         }
@@ -392,6 +389,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         int fencedCount = 0;
         do {
             try {
@@ -420,14 +418,15 @@ class HDFSStorage implements SyncStorage {
                 return HDFSSegmentHandle.write(streamSegmentName, null);
             } catch (IOException e) {
                 HDFSExceptionHelpers.throwException(streamSegmentName, e);
-                return null;
             }
         } while (fencedCount < MAX_ATTEMPT_COUNT);
+        LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
         return null;
     }
 
     @Override
     public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         // Create the segment using our own epoch.
         FileStatus[] existingFiles = null;
         try {
@@ -442,7 +441,6 @@ class HDFSStorage implements SyncStorage {
 
         // Create the first file in the segment.
         Path fullPath = getFilePath(streamSegmentName, this.epoch);
-        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, fullPath);
         try {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
             this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
@@ -529,7 +527,7 @@ class HDFSStorage implements SyncStorage {
      * @param segmentName      The name of the Segment to retrieve for.
      * @param enforceExistence If true, it will throw a FileNotFoundException if no files are found, otherwise an empty
      *                         list is returned.
-     * @return A List of FileDescriptor
+     * @return FileStatus of the HDFS file.
      * @throws IOException If an exception occurred.
      */
     private FileStatus findStatusForSegment(String segmentName, boolean enforceExistence) throws IOException {
@@ -608,22 +606,23 @@ class HDFSStorage implements SyncStorage {
         return true;
     }
 
-    private void readInternal(SegmentHandle handle, AtomicInteger totalBytesRead, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
+    private int readInternal(SegmentHandle handle, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
         //There is only one file per segment.
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
+        int totalBytesRead = 0;
         try (FSDataInputStream stream = this.fileSystem.open(currentFile.getPath())) {
             if (offset + length > stream.available()) {
                 throw new ArrayIndexOutOfBoundsException();
             }
-            stream.readFully(offset, buffer, bufferOffset + totalBytesRead.get(), length);
-            totalBytesRead.addAndGet(length);
+            stream.readFully(offset, buffer, bufferOffset + totalBytesRead, length);
+            totalBytesRead += length;
         } catch (EOFException ex) {
             throw new IOException(
                     String.format("Internal error while reading segment file. Attempted to read file '%s' at offset %d, length %d.",
                             currentFile, offset, length),
                     ex);
         }
-
+        return totalBytesRead;
     }
 
 
