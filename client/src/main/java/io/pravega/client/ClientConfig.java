@@ -83,11 +83,9 @@ public class ClientConfig {
          * 3. Environment variables. Environment variables are defined under the format "PRAVEGA_CLIENT_AUTH_*"
          * 4. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
          *     setting property `pravega.client.auth.loadDynamic` to true.
-         *
-         * @return Returns the builder with extracted credentials. This object is created as per the steps above.
          */
-        private ClientConfigBuilder extractCredentials() {
-            return extractCredentials(System.getProperties(), System.getenv());
+        private void extractCredentials() {
+            extractCredentials(System.getProperties(), System.getenv());
         }
 
         @VisibleForTesting
