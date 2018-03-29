@@ -66,12 +66,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private final String scope;
     private final String groupName;
-    private final SynchronizerConfig synchronizerConfig;
-    private final Serializer<ReaderGroupStateInit> initSerializer;
-    private final Serializer<ReaderGroupStateUpdate> updateSerializer;
     private final Controller controller;
     private final SegmentMetadataClientFactory metaFactory;
-    private final NotificationSystem notificationSystem = new NotificationSystem();
     private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final NotifierFactory notifierFactory;
 
@@ -79,18 +75,18 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<ReaderGroupStateInit> initSerializer, Serializer<ReaderGroupStateUpdate> updateSerializer,
                            ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
+        Preconditions.checkNotNull(synchronizerConfig);
+        Preconditions.checkNotNull(initSerializer);
+        Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
         Preconditions.checkNotNull(connectionFactory);
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
-        this.synchronizerConfig = Preconditions.checkNotNull(synchronizerConfig);
-        this.initSerializer = Preconditions.checkNotNull(initSerializer);
-        this.updateSerializer = Preconditions.checkNotNull(updateSerializer);
         this.controller = Preconditions.checkNotNull(controller);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                                                   updateSerializer, initSerializer, synchronizerConfig);
-        this.notifierFactory = new NotifierFactory(notificationSystem, synchronizer);
+        this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
 
     /**
