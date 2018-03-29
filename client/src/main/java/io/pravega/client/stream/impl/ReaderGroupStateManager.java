@@ -312,15 +312,15 @@ public class ReaderGroupStateManager {
         Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return null;
+                return Collections.EMPTY_MAP;
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return null;
+                return Collections.EMPTY_MAP;
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return null;
+                return Collections.EMPTY_MAP;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);
