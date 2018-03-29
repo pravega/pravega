@@ -363,16 +363,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(final int number) {
         return verifyLegalState().thenCompose(v -> getSuccessorsForSegment(number))
-                .thenApply(list -> list.stream().map(Segment::getNumber).collect(Collectors.toList()));
+                                 .thenApply(list -> list.stream().map(Segment::getNumber).collect(Collectors.toList()));
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
         return verifyLegalState().thenCompose(v -> Futures.allOfWithResults(candidates.stream()
-                .map(this::getSegment)
-                .collect(Collectors.toList())))
-                .thenApply(successorCandidates -> successorCandidates.stream()
-                        .filter(x -> x.overlaps(segment))
-                        .collect(Collectors.toList()));
+                                                                                      .map(this::getSegment)
+                                                                                      .collect(Collectors.toList())))
+                                 .thenApply(successorCandidates -> successorCandidates.stream()
+                                                                                      .filter(x -> x.overlaps(segment))
+                                                                                      .collect(Collectors.toList()));
     }
 
     private CompletableFuture<List<Segment>> getSuccessorsForSegment(final int number) {
@@ -918,7 +918,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                                              final Optional<Integer> version) {
         return getActiveTx(epoch, txId).thenCompose(data -> {
             ActiveTxnRecord txnRecord = ActiveTxnRecord.parse(data.getData());
-            int dataVersion = version.orElseGet(data::getVersion);
+            int dataVersion = version.isPresent() ? version.get() : data.getVersion();
             TxnStatus status = txnRecord.getTxnStatus();
             switch (status) {
                 case OPEN:
@@ -1142,11 +1142,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
         });
     }
 
-    private CompletableFuture<List<Segment>> getSegments(final Set<Integer> segments) {
-        return Futures.allOfWithResults(segments.stream().map(this::getSegment)
-                .collect(Collectors.toList()));
-    }
-
     private CompletableFuture<Void> createNewEpoch(int epoch) {
         return createEpochNodeIfAbsent(epoch);
     }
@@ -1203,7 +1198,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                         segmentIndex.getData(), segmentTable.getData());
                                                 return latestSegment.getStart();
                                             })))
-                                    .thenCompose(start -> addIndexRecord(newEpoch, offset))
+                                    .thenCompose(start -> addHistoryIndexRecord(newEpoch, offset))
                                     .thenCompose(v -> updateHistoryTable(updated))
                                     .whenComplete((r, e) -> {
                                         if (e == null) {
@@ -1303,7 +1298,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return segments;
     }
 
-    private CompletableFuture<Void> addIndexRecord(final int newEpoch, final int historyOffset) {
+    private CompletableFuture<Void> addHistoryIndexRecord(final int newEpoch, final int historyOffset) {
         return getHistoryIndex()
                 .thenCompose(indexTable -> {
                     final Optional<HistoryIndexRecord> lastRecord = HistoryIndexRecord.readLatestRecord(indexTable.getData());
