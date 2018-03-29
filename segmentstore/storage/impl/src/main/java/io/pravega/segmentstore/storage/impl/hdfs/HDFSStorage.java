@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -56,14 +55,14 @@ import org.apache.hadoop.io.IOUtils;
  * <p>
  * Example: Segment "foo" can have these files
  * <ol>
- * <li> foo_<epoc>: Segement file, owned by a segmentstore running under epoch 1.
+ * <li> foo_<epoch>: Segment file, owned by a segmentstore running under epoch "epoch".
  * <li> foo_<MAX_LONG>: A sealed segment.
  * <p>
- * When a container fails over and needs to reacquire ownership of a segment, it renames the segment file as foo_<current_epoc>.
+ * When a container fails over and needs to reacquire ownership of a segment, it renames the segment file as foo_<current_epoch>.
  * After creation of the file, the filename is checked again. If there exists any file with higher epoc, the current file is deleted
- * and access is ceded to the later owner.
+ * and access is ceded to the owner with highest epoch.
  * <p>
- * When a failover happens, the previous Container (if still active) will detect that its file is not present and is renamed to
+ * When a fail over happens, the previous Container (if still active) will detect that its file is not present and is renamed to
  * a file with higher epoch and know it's time to stop all activity for that segment (i.e., it was fenced out).
  * <p>
  */
@@ -76,12 +75,13 @@ class HDFSStorage implements SyncStorage {
     private static final FsPermission READWRITE_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
     private static final int MAX_ATTEMPT_COUNT = 3;
-    private static final long MAX_EPOC = Long.MAX_VALUE;
+    private static final long MAX_EPOCH = Long.MAX_VALUE;
     //region Members
 
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
-    private OperationContext context;
+    private long epoch;
+    private FileSystem fileSystem;
 
     //endregion
 
@@ -105,10 +105,10 @@ class HDFSStorage implements SyncStorage {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            if (this.context != null) {
+            if (this.fileSystem != null) {
                 try {
-                    this.context.fileSystem.close();
-                    this.context = null;
+                    this.fileSystem.close();
+                    this.fileSystem = null;
                 } catch (IOException e) {
                     log.warn("Could not close the HDFS filesystem: {}.", e);
                 }
@@ -124,7 +124,7 @@ class HDFSStorage implements SyncStorage {
     @SneakyThrows(IOException.class)
     public void initialize(long epoch) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.context == null, "HDFSStorage has already been initialized.");
+        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number. Given %s.", epoch);
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
@@ -139,7 +139,8 @@ class HDFSStorage implements SyncStorage {
             conf.set("dfs.client.block.write.replace-datanode-on-failure.policy", "NEVER");
         }
 
-        this.context = new OperationContext(epoch, openFileSystem(conf), this.config);
+        this.epoch = epoch;
+        this.fileSystem = openFileSystem(conf);
         log.info("Initialized (HDFSHost = '{}', Epoch = {}).", this.config.getHdfsHostURL(), epoch);
     }
 
@@ -152,7 +153,7 @@ class HDFSStorage implements SyncStorage {
                         .throwingOn(IOException.class)
                         .run(() -> {
                             long length = 0;
-                            boolean isSealed = false;
+                            boolean isSealed;
                             FileStatus last = null;
                             SegmentProperties result = null;
                             last = findStatusForSegment(streamSegmentName, true);
@@ -184,7 +185,7 @@ class HDFSStorage implements SyncStorage {
     }
 
     private boolean isSealed(Path path) throws FileNameFormatException {
-        return getEpocFromPath(path) == MAX_EPOC;
+        return getEpocFromPath(path) == MAX_EPOCH;
     }
 
     protected FileSystem openFileSystem(Configuration conf) throws IOException {
@@ -243,12 +244,12 @@ class HDFSStorage implements SyncStorage {
             FileStatus lastHandleFile = findStatusForSegment(handle.getSegmentName(), true);
 
             if (!isSealed(lastHandleFile.getPath())) {
-                if (getEpoc(lastHandleFile) > this.context.epoch) {
+                if (getEpoc(lastHandleFile) > this.epoch) {
                     throw new StorageNotPrimaryException(handle.getSegmentName());
                 }
                 makeReadOnly(lastHandleFile);
                 Path sealedPath = getSealedFilePath(handle.getSegmentName());
-                this.context.fileSystem.rename(lastHandleFile.getPath(), sealedPath);
+                this.fileSystem.rename(lastHandleFile.getPath(), sealedPath);
             }
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
@@ -265,7 +266,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
             makeWrite(status);
-            this.context.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.context.epoch));
+            this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
@@ -283,7 +284,7 @@ class HDFSStorage implements SyncStorage {
 
             if (isSealed(lastFile.getPath())) {
                 throw new StreamSegmentSealedException(target.getSegmentName());
-            } else if (getEpoc(lastFile) > this.context.epoch) {
+            } else if (getEpoc(lastFile) > this.epoch) {
                 throw new StorageNotPrimaryException(target.getSegmentName());
             } else if (lastFile.getLen() != offset) {
                 throw new BadOffsetException(target.getSegmentName(), lastFile.getLen(), offset);
@@ -296,8 +297,8 @@ class HDFSStorage implements SyncStorage {
 
             // Concat source files into target and update the handle.
             makeWrite(sourceFile);
-            this.context.fileSystem.concat(lastFile.getPath(), new Path[]{sourceFile.getPath()});
-            this.context.fileSystem.delete(sourceFile.getPath(), true);
+            this.fileSystem.concat(lastFile.getPath(), new Path[]{sourceFile.getPath()});
+            this.fileSystem.delete(sourceFile.getPath(), true);
         } catch (IOException ex) {
             HDFSExceptionHelpers.throwException(sourceSegment, ex);
         }
@@ -312,10 +313,10 @@ class HDFSStorage implements SyncStorage {
         try {
             // Get an initial list of all files.
             FileStatus files = findStatusForSegment(handle.getSegmentName(), true);
-            if (getEpoc(files) > this.context.epoch && !isSealed(files.getPath())) {
+            if (getEpoc(files) > this.epoch && !isSealed(files.getPath())) {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
-            this.context.fileSystem.delete(files.getPath(), true);
+            this.fileSystem.delete(files.getPath(), true);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
@@ -345,7 +346,7 @@ class HDFSStorage implements SyncStorage {
             if (isSealed(lastFile.getPath())) {
                 throw new StreamSegmentSealedException(handle.getSegmentName());
             }
-            if (getEpocFromPath(lastFile.getPath()) > this.context.epoch) {
+            if (getEpocFromPath(lastFile.getPath()) > this.epoch) {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
         } catch (IOException e) {
@@ -353,7 +354,7 @@ class HDFSStorage implements SyncStorage {
         }
 
         Timer timer = new Timer();
-        try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
+        try (FSDataOutputStream stream = this.fileSystem.append(lastFile.getPath())) {
             if (offset != lastFile.getLen()) {
                 // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
                 // before we throw BadOffsetException.
@@ -397,14 +398,14 @@ class HDFSStorage implements SyncStorage {
                 FileStatus existingFiles = findStatusForSegment(streamSegmentName, true);
 
                 if (!isSealed(existingFiles.getPath())) {
-                    if (getEpocFromPath(existingFiles.getPath()) > this.context.epoch) {
+                    if (getEpocFromPath(existingFiles.getPath()) > this.epoch) {
                         throw new StorageNotPrimaryException(streamSegmentName);
                     }
 
-                    Path targetPath = getFilePath(streamSegmentName, this.context.epoch);
+                    Path targetPath = getFilePath(streamSegmentName, this.epoch);
                     if (!targetPath.equals(existingFiles.getPath())) {
                         try {
-                            this.context.fileSystem.rename(existingFiles.getPath(), targetPath);
+                            this.fileSystem.rename(existingFiles.getPath(), targetPath);
                         } catch (FileNotFoundException e) {
                             //This happens when more than one host is trying to fence and only one of the host goes through
                             // retry the rename so that host with the highest epoch gets access.
@@ -440,12 +441,12 @@ class HDFSStorage implements SyncStorage {
         }
 
         // Create the first file in the segment.
-        Path fullPath = getFilePath(streamSegmentName, this.context.epoch);
+        Path fullPath = getFilePath(streamSegmentName, this.epoch);
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, fullPath);
         try {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
-            this.context.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.context.config.getReplication(),
-                    this.context.config.getBlockSize(), null).close();
+            this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
+                    this.config.getBlockSize(), null).close();
             log.debug("Created '{}'.", fullPath);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
@@ -475,22 +476,9 @@ class HDFSStorage implements SyncStorage {
 
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.context != null, "HDFSStorage is not initialized.");
+        Preconditions.checkState(this.fileSystem != null, "HDFSStorage is not initialized.");
     }
 
-    //endregion
-
-    //region OperationContext
-
-    /**
-     * Context for each operation.
-     */
-    @RequiredArgsConstructor
-    static class OperationContext {
-        final long epoch;
-        final FileSystem fileSystem;
-        final HDFSStorageConfig config;
-    }
     //endregion
 
     //Region HDFS helper methods.
@@ -502,7 +490,7 @@ class HDFSStorage implements SyncStorage {
     FileStatus[] findAllRaw(String segmentName) throws IOException {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
         String pattern = String.format(NAME_FORMAT, getPathPrefix(segmentName), NUMBER_GLOB_REGEX);
-        FileStatus[] files = this.context.fileSystem.globStatus(new Path(pattern));
+        FileStatus[] files = this.fileSystem.globStatus(new Path(pattern));
 
         if (files.length > 1) {
             throw new IllegalArgumentException("More than one file");
@@ -514,7 +502,7 @@ class HDFSStorage implements SyncStorage {
      * Gets an HDFS-friendly path prefix for the given Segment name by pre-pending the HDFS root from the config.
      */
     private String getPathPrefix(String segmentName) {
-        return this.context.config.getHdfsRoot() + Path.SEPARATOR + segmentName;
+        return this.config.getHdfsRoot() + Path.SEPARATOR + segmentName;
     }
 
     /**
@@ -531,7 +519,7 @@ class HDFSStorage implements SyncStorage {
      */
     Path getSealedFilePath(String segmentName) {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
-        return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), MAX_EPOC));
+        return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), MAX_EPOCH));
     }
 
 
@@ -577,7 +565,7 @@ class HDFSStorage implements SyncStorage {
         }
         if ( pos2 == fileName.length() - 1) {
             //File is sealed. This is the final version
-            return MAX_EPOC;
+            return MAX_EPOCH;
         }
         try {
             return Long.parseLong(fileName.substring(pos2 + 1));
@@ -609,13 +597,13 @@ class HDFSStorage implements SyncStorage {
             return false;
         }
 
-        this.context.fileSystem.setPermission(file.getPath(), READONLY_PERMISSION);
+        this.fileSystem.setPermission(file.getPath(), READONLY_PERMISSION);
         log.debug("MakeReadOnly '{}'.", file.getPath());
         return true;
     }
 
     private boolean makeWrite(FileStatus file) throws IOException {
-        this.context.fileSystem.setPermission(file.getPath(), READWRITE_PERMISSION);
+        this.fileSystem.setPermission(file.getPath(), READWRITE_PERMISSION);
         log.debug("MakeReadOnly '{}'.", file.getPath());
         return true;
     }
@@ -623,7 +611,7 @@ class HDFSStorage implements SyncStorage {
     private void readInternal(SegmentHandle handle, AtomicInteger totalBytesRead, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
         //There is only one file per segment.
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
-        try (FSDataInputStream stream = this.context.fileSystem.open(currentFile.getPath())) {
+        try (FSDataInputStream stream = this.fileSystem.open(currentFile.getPath())) {
             if (offset + length > stream.available()) {
                 throw new ArrayIndexOutOfBoundsException();
             }
