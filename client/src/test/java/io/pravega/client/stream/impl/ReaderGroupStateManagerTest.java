@@ -159,7 +159,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(1), newSegments.get(initialSegment));
 
-        readerState.handleEndOfSegment(initialSegment);
+        readerState.handleEndOfSegment(initialSegment, true);
         newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(2, newSegments.size());
         assertEquals(Long.valueOf(0), newSegments.get(successorA));
@@ -200,11 +200,11 @@ public class ReaderGroupStateManagerTest {
         assertEquals(Long.valueOf(1), newSegments.get(initialSegmentA));
         assertEquals(Long.valueOf(2), newSegments.get(initialSegmentB));
         
-        readerState.handleEndOfSegment(initialSegmentA);
+        readerState.handleEndOfSegment(initialSegmentA, true);
         newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertTrue(newSegments.isEmpty());
         
-        readerState.handleEndOfSegment(initialSegmentB);
+        readerState.handleEndOfSegment(initialSegmentB, true);
         newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(0), newSegments.get(successor));

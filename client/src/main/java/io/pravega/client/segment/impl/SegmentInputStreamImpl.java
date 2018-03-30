@@ -25,6 +25,7 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkState;
+import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OFFSET_REACHED;
 
 /**
  * Manages buffering and provides a synchronous to {@link AsyncSegmentInputStream}
@@ -129,7 +130,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         if (this.offset >= this.endOffset) {
             log.debug("All events up to the configured end offset:{} have been read", endOffset);
-            return null;
+            throw new EndOfSegmentException(END_OFFSET_REACHED);
         }
         fillBuffer();
         if (receivedTruncated) {

@@ -315,7 +315,7 @@ public class SegmentInputStreamTest {
         AssertExtensions.assertThrows(ObjectClosedException.class, () -> stream.read());
     }
 
-    @Test
+    @Test(expected = EndOfSegmentException.class)
     public void testReadWithEndOffset() throws Exception {
         byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
@@ -332,8 +332,7 @@ public class SegmentInputStreamTest {
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read); //verify we are reading the data.
         verify(mockAsyncInputStream, times(1)).read(0L, wireDataSize); //ensure there is one invocation.
-        read = stream.read();
-        assertNull( "Null expected since we have read it upto end offset", read);
+        stream.read(); // this should throw EndOfSegmentExceptiono as we have reached the endOffset
     }
 
     @Test

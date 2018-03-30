@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -158,18 +159,25 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
-        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
-        synchronized (this) {
-            latestDelegationToken = successors.getDelegationToken();
+    void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReinitializationRequiredException {
+        final Map<Segment, List<Integer>> segmentToPredecessor;
+        if (fetchSuccesors) {
+            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+            synchronized (this) {
+                latestDelegationToken = successors.getDelegationToken();
+            }
+            segmentToPredecessor = successors.getSegmentToPredecessor();
+        } else {
+            segmentToPredecessor = Collections.emptyMap();
         }
+
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
             } else {
                 reinitRequired.set(false);
-                updates.add(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
             }
         });
         if (reinitRequired.get()) {
