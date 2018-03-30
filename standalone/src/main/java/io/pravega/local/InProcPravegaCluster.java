@@ -239,6 +239,10 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
+        System.setProperty("pravega.client.auth.method", "Default");
+        System.setProperty("pravega.client.auth.userName", "arvind");
+        System.setProperty("pravega.client.auth.password", "1111_aaaa");
+
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
@@ -266,8 +270,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
-                                         .with(AutoScalerConfig.AUTH_USERNAME, "admin")
-                                         .with(AutoScalerConfig.AUTH_PASSWORD, "1111_aaaa")
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)

@@ -84,12 +84,14 @@ public class AutoScaleProcessorTest {
             }
         });
 
+        System.setProperty("pravega.client.auth.method", "Default");
+        System.setProperty("pravega.client.auth.userName", "admin");
+        System.setProperty("pravega.client.auth.passwd", "passwd");
+
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
-                                .with(AutoScalerConfig.AUTH_USERNAME, "admin")
-                                .with(AutoScalerConfig.AUTH_PASSWORD, "passwd")
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 maintenanceExecutor);
