@@ -19,8 +19,11 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -37,6 +40,7 @@ import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
+import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -69,6 +73,9 @@ import lombok.val;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
+    private static final Retry.RetryAndThrowBase<Exception> CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
+            .retryWhen(ex -> ex instanceof BadAttributeUpdateException)
+            .throwingOn(Exception.class);
     private final String traceObjectId;
     private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
@@ -291,7 +298,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
     }
 
@@ -305,7 +312,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
     }
 
@@ -319,41 +326,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
     }
 
     @Override
-    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("getAttributes", streamSegmentName, attributeIds);
         this.metrics.getAttributes();
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> {
-                    // Collect Core Attributes and Cached Extended Attributes.
-                    Map<UUID, Long> result = new HashMap<>();
-                    Map<UUID, Long> metadataAttributes = this.metadata.getStreamSegmentMetadata(streamSegmentId).getAttributes();
-                    ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
-                    attributeIds.forEach(attributeId -> {
-                        Long v = metadataAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-                        if (v != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                            result.put(attributeId, v);
-                        } else if (!Attributes.isCoreAttribute(attributeId)) {
-                            extendedAttributeIds.add(attributeId);
-                        }
-                    });
 
-                    // Collect remaining Extended Attributes.
-                    return this.attributeIndex
-                            .forSegment(streamSegmentId, timer.getRemaining())
-                            .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor)
-                            .thenApply(extendedAttributes -> {
-                                result.putAll(extendedAttributes);
-                                return result;
-                            });
-                });
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> CACHE_ATTRIBUTES_RETRY.runAsync(() ->
+                        getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer), this.executor));
     }
 
     @Override
@@ -523,6 +510,111 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
+
+    /**
+     * Processes the given AttributeUpdaterOperation with exactly one retry in case it was rejected because an attribute update
+     * failure due to the attribute value missing from the in-memory cache.
+     *
+     * @param operation The Operation to process.
+     * @param timer     Timer for the operation.
+     * @param <T>       Type of the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Operation has been successfully
+     * processed. If it failed, it will be completed with an appropriate exception.
+     */
+    private <T extends Operation & AttributeUpdaterOperation> CompletableFuture<Void> processAttributeUpdaterOperation(T operation, TimeoutTimer timer) {
+        Collection<AttributeUpdate> updates = operation.getAttributeUpdates();
+        if (updates == null || updates.isEmpty()) {
+            // No need for extra complicated handling.
+            return this.durableLog.add(operation, timer.getRemaining());
+        }
+
+        return Futures.exceptionallyCompose(
+                this.durableLog.add(operation, timer.getRemaining()),
+                ex -> {
+                    // We only retry BadAttributeUpdateExceptions if it has the PreviousValueMissing flag set.
+                    ex = Exceptions.unwrap(ex);
+                    if (ex instanceof BadAttributeUpdateException && ((BadAttributeUpdateException) ex).isPreviousValueMissing()) {
+                        // Get the missing attributes and load them into the cache, then retry the operation, exactly once.
+                        SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(operation.getStreamSegmentId());
+                        Collection<UUID> attributeIds = updates.stream()
+                                .map(AttributeUpdate::getAttributeId)
+                                .filter(id -> !Attributes.isCoreAttribute(id))
+                                .collect(Collectors.toList());
+                        if (!attributeIds.isEmpty()) {
+                            // This only makes sense if a core attribute was missing.
+                            return getAndCacheAttributes(segmentMetadata, attributeIds, true, timer)
+                                    .thenComposeAsync(attributes -> {
+                                        // Final attempt - now that we should have the attributes cached.
+                                        return this.durableLog.add(operation, timer.getRemaining());
+                                    }, this.executor);
+                        }
+                    }
+
+                    // Anything else is non-retryable; rethrow.
+                    return Futures.failedFuture(ex);
+                });
+    }
+
+    /**
+     * Gets the values of the given (Core & Extended) Attribute Ids for the given segment.
+     *
+     * @param segmentMetadata The SegmentMetadata for the Segment to retrieve attribute values for.
+     * @param attributeIds    A Collection of AttributeIds to retrieve.
+     * @param cache           If true, any Extended Attribute value that is not present in the SegmentMetadata cache will
+     *                        be added to that (using a conditional updateAttributes() call) before completing.
+     * @param timer           Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation failed,
+     * it will be completed with the appropriate exception. If cache==true and the conditional call to updateAttributes()
+     * could not be completed because of a conflicting update, it will be failed with BadAttributeUpdateException, in which
+     * case a retry is warranted.
+     */
+    private CompletableFuture<Map<UUID, Long>> getAndCacheAttributes(SegmentMetadata segmentMetadata, Collection<UUID> attributeIds, boolean cache, TimeoutTimer timer) {
+        // Collect Core Attributes and Cached Extended Attributes.
+        Map<UUID, Long> result = new HashMap<>();
+        Map<UUID, Long> metadataAttributes = segmentMetadata.getAttributes();
+        ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
+        attributeIds.forEach(attributeId -> {
+            Long v = metadataAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+            if (v != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                result.put(attributeId, v);
+            } else if (!Attributes.isCoreAttribute(attributeId)) {
+                extendedAttributeIds.add(attributeId);
+            }
+        });
+
+        // Collect remaining Extended Attributes.
+        CompletableFuture<Map<UUID, Long>> r = this.attributeIndex
+                .forSegment(segmentMetadata.getId(), timer.getRemaining())
+                .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor);
+
+        if (cache && extendedAttributeIds.size() > 0) {
+            // Add them to the cache if requested.
+            r = r.thenComposeAsync(extendedAttributes -> {
+                if (extendedAttributes.size() > 0) {
+                    // We were asked to cache them. Update the in-memory Segment Metadata using a conditional update, which
+                    // should complete IFF the attribute is not currently set. If it has a non-null value, then a concurrent
+                    // update must have changed it and we cannot update anymore.
+                    Collection<AttributeUpdate> updates = extendedAttributes.entrySet().stream()
+                            .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfEquals, e.getValue(), SegmentMetadata.NULL_ATTRIBUTE_VALUE))
+                            .collect(Collectors.toList());
+
+                    // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
+                    // invoke this one again.
+                    return this.durableLog.add(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
+                            .thenApply(v -> extendedAttributes);
+                } else {
+                    // Nothing to cache.
+                    return CompletableFuture.completedFuture(extendedAttributes);
+                }
+            }, this.executor);
+        }
+
+        // Compile the final result.
+        return r.thenApply(extendedAttributes -> {
+            result.putAll(extendedAttributes);
+            return result;
+        });
+    }
 
     /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,

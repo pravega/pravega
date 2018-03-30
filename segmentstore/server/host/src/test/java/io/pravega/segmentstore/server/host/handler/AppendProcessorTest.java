@@ -16,8 +16,6 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.shared.protocol.netty.Append;
@@ -30,13 +28,10 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -66,14 +61,14 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
 
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         processor.append(new Append(streamSegmentName, clientId, data.length, Unpooled.wrappedBuffer(data), null));
-        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(streamSegmentName,
                              data,
                              updateEventNumber(clientId, data.length),
@@ -96,20 +91,20 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName1, clientId, store);
+        setupGetAttributes(streamSegmentName1, clientId, store);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName1, ""));
-        verifier.verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
-        
+        verifier.verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName1, data, updateEventNumber(clientId, 10), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         processor.append(new Append(streamSegmentName1, clientId, 10, Unpooled.wrappedBuffer(data), null));
         verifier.verify(store).append(streamSegmentName1, data, updateEventNumber(clientId, 10), AppendProcessor.TIMEOUT);
 
-        setupGetStreamSegmentInfo(streamSegmentName2, clientId, store);
+        setupGetAttributes(streamSegmentName2, clientId, store);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName2, ""));
-        verifier.verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
-        
+        verifier.verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+
         CompletableFuture<Void> result2 = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName2, data, updateEventNumber(clientId, 2000), AppendProcessor.TIMEOUT))
             .thenReturn(result2);
@@ -134,7 +129,7 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 1),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
@@ -146,7 +141,7 @@ public class AppendProcessorTest {
                           AppendProcessor.TIMEOUT)).thenReturn(result);
 
         processor.append(new Append(streamSegmentName, clientId, 2, Unpooled.wrappedBuffer(data), (long) data.length));
-        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 1), AppendProcessor.TIMEOUT);
         verify(store).append(streamSegmentName, data.length, data, updateEventNumber(clientId, 2, 1, 1),
                              AppendProcessor.TIMEOUT);
@@ -167,7 +162,7 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 1),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
@@ -179,7 +174,7 @@ public class AppendProcessorTest {
                           AppendProcessor.TIMEOUT)).thenReturn(result);
 
         processor.append(new Append(streamSegmentName, clientId, 2, Unpooled.wrappedBuffer(data), 0L));
-        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 1), AppendProcessor.TIMEOUT);
         verify(store).append(streamSegmentName, 0L, data, updateEventNumber(clientId, 2, 1, 1), AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
@@ -199,7 +194,7 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, 100, store);
+        setupGetAttributes(streamSegmentName, clientId, 100, store);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         try {
             processor.append(new Append(streamSegmentName, clientId, data.length, Unpooled.wrappedBuffer(data), null));
@@ -207,7 +202,7 @@ public class AppendProcessorTest {
         } catch (RuntimeException e) {
             //expected
         }
-        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
         verify(connection, atLeast(0)).resumeReading();
         verifyNoMoreInteractions(connection);
@@ -243,12 +238,12 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(segment1, clientId1, store);
+        setupGetAttributes(segment1, clientId1, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         when(store.append(segment1, data, updateEventNumber(clientId1, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
 
-        setupGetStreamSegmentInfo(segment2, clientId2, store);
+        setupGetAttributes(segment2, clientId2, store);
         result = CompletableFuture.completedFuture(null);
         when(store.append(segment2, data, updateEventNumber(clientId2, data.length), AppendProcessor.TIMEOUT))
             .thenReturn(result);
@@ -258,12 +253,12 @@ public class AppendProcessorTest {
         processor.setupAppend(new SetupAppend(2, clientId2, segment2, ""));
         processor.append(new Append(segment2, clientId2, data.length, Unpooled.wrappedBuffer(data), null));
 
-        verify(store).getStreamSegmentInfo(eq(segment1), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(eq(segment1), eq(Collections.singleton(clientId1)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(segment1,
                              data,
                              updateEventNumber(clientId1, data.length),
                              AppendProcessor.TIMEOUT);
-        verify(store).getStreamSegmentInfo(eq(segment2), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(eq(segment2), eq(Collections.singleton(clientId2)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(segment2,
                              data,
                              updateEventNumber(clientId2, data.length),
@@ -286,7 +281,7 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException("Fake exception for testing"));
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
@@ -316,11 +311,10 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder().name(streamSegmentName).build());
-        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyMap()));
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
+        verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
         
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         int eventCount = 100;
@@ -331,11 +325,6 @@ public class AppendProcessorTest {
         verify(store).append(streamSegmentName, data,
                              updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
                              AppendProcessor.TIMEOUT);
-
-        Map<UUID, Long> map = new HashMap<>();
-        map.put(clientId, 100L);
-        map.put(EVENT_COUNT, 100L);
-        propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).attributes(map).build());
 
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
@@ -379,11 +368,11 @@ public class AppendProcessorTest {
 
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder().name(streamSegmentName).build());
-        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyMap()));
+
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
+        verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
 
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         int eventCount = 100;
@@ -431,15 +420,10 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder()
-                        .name(streamSegmentName)
-                        .attributes(Collections.singletonMap(clientId, 100L))
-                        .build());
-
-        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
+        when(store.getAttributes(streamSegmentName,Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, 100L)));
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
+        verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
 
         int eventCount = 10;
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -468,14 +452,14 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = Futures.failedFuture(new UnsupportedOperationException());
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
                 .thenReturn(result);
 
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         processor.append(new Append(streamSegmentName, clientId, data.length, Unpooled.wrappedBuffer(data), null));
-        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(store).append(streamSegmentName,
                 data,
                 updateEventNumber(clientId, data.length),
@@ -488,12 +472,6 @@ public class AppendProcessorTest {
         verifyNoMoreInteractions(store);
     }
 
-    @Test
-    @Ignore
-    public void testRecoveryFromFailure() {
-        fail();
-    }
-
     private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long eventNum) {
         return updateEventNumber(clientId, eventNum, 0, 1);
     }
@@ -504,17 +482,12 @@ public class AppendProcessorTest {
                              new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
     }
 
-    private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
-        setupGetStreamSegmentInfo(streamSegmentName, clientId, 0, store);
+    private void setupGetAttributes(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
+        setupGetAttributes(streamSegmentName, clientId, 0, store);
     }
 
-    private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
-        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder()
-                .name(streamSegmentName)
-                .attributes(Collections.singletonMap(clientId, eventNumber))
-                .build());
-
-        when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
-                .thenReturn(propsFuture);
+    private void setupGetAttributes(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, eventNumber)));
     }
 }

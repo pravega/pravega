@@ -90,10 +90,12 @@ public interface StreamSegmentStore {
      *
      * Lookup order:
      * 1. (Core or Extended) In-memory Segment Metadata cache (which always has the latest value of an attribute).
-     * 2. (Extended only) Backing Attribute Index for this Segment. This value will not be populated into the in-memory Segment Metadata.
+     * 2. (Extended only) Backing Attribute Index for this Segment.
      *
      * @param streamSegmentName The name of the StreamSegment for which to get attributes.
      * @param attributeIds      A Collection of Attribute Ids to fetch. These may be Core or Extended Attributes.
+     * @param cache             If set, then any Extended Attribute values that are not already in the in-memory Segment
+     *                          Metadata cache will be atomically added using a conditional update (comparing against a missing value).
      * @param timeout           Timeout for the operation.
      * @return A Completable future that, when completed, will contain a Map of Attribute Ids to their latest values. If
      * an attribute does not exist, it will not be populated in this map. If the operation failed, the future will be failed
@@ -102,7 +104,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout);
+    CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the

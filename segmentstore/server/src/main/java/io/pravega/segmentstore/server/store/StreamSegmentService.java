@@ -82,10 +82,10 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.getAttributes(streamSegmentName, attributeIds, timeout),
+                container -> container.getAttributes(streamSegmentName, attributeIds, cache, timeout),
                 "getAttributes", streamSegmentName, attributeIds);
     }
 

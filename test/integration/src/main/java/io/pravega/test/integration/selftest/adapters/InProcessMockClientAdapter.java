@@ -159,7 +159,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
+        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
             throw new UnsupportedOperationException("getAttributes");
         }
 

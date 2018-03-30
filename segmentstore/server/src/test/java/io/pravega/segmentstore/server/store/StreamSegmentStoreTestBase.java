@@ -376,7 +376,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
 
                 // Check attributes.
-                val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, TIMEOUT).join();
+                val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
                 for (UUID attributeId : ATTRIBUTES) {
                     Assert.assertEquals("Unexpected attribute value from getAttributes().",
                             EXPECTED_ATTRIBUTE_VALUE, (long) allAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));

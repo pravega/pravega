@@ -55,8 +55,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, Duration timeout) {
-        CompletableFuture<Map<UUID, Long>> result = impl.getAttributes(streamSegmentName, attributeIds, timeout);
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        CompletableFuture<Map<UUID, Long>> result = impl.getAttributes(streamSegmentName, attributeIds, cache, timeout);
         Futures.await(result);
         return result;
     }

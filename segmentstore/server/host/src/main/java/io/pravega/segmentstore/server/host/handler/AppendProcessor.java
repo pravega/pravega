@@ -53,6 +53,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -164,13 +165,15 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             return;
         }
 
-        store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
-                .whenComplete((info, u) -> {
+        // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
+        // the value in the Store's cache so it's faster to access later.
+        store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT)
+                .whenComplete((attributes, u) -> {
                     try {
                         if (u != null) {
                             handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
-                            long eventNumber = info.getAttributes().getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            long eventNumber = attributes.getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
                             synchronized (lock) {
                                 latestEventNumbers.putIfAbsent(Pair.of(newSegment, writer), eventNumber);
                             }
