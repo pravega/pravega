@@ -208,8 +208,6 @@ class SegmentAttributeIndex implements AttributeIndex {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
-        // TODO: remove next line
-        System.out.println(keys.size());
         return readAllSinceLastSnapshot(timeout)
                 .thenApply(c -> {
                     ImmutableMap.Builder<UUID, Long> b = ImmutableMap.builder();

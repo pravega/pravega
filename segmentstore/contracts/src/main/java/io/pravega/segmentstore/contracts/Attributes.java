@@ -9,7 +9,9 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Defines a set of Core Attributes.
@@ -70,5 +72,17 @@ public final class Attributes {
      */
     public static boolean isCoreAttribute(UUID attributeId) {
         return attributeId.getMostSignificantBits() == CORE_ATTRIBUTE_ID_PREFIX;
+    }
+
+    /**
+     * Returns a new Map of Attribute Ids to Values containing only those Core Attributes from the given Map.
+     *
+     * @param attributes The Map of Attribute Ids to Values to filter from.
+     * @return A new Map containing only Core Attribute Ids and Values (from the original map).
+     */
+    public static Map<UUID, Long> getCoreAttributes(Map<UUID, Long> attributes) {
+        return attributes.entrySet().stream()
+                .filter(e -> Attributes.isCoreAttribute(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

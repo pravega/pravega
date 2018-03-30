@@ -349,7 +349,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return this.attributeIndex
                             .forSegment(streamSegmentId, timer.getRemaining())
                             .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor)
-                            .thenApply(extendedAttributes ->{
+                            .thenApply(extendedAttributes -> {
                                 result.putAll(extendedAttributes);
                                 return result;
                             });

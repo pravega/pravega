@@ -141,7 +141,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
 
     //region Helpers
 
-    private void indexInitializationFailed(long streamSegmentId, CompletableFuture<AttributeIndex> result, Throwable ex){
+    private void indexInitializationFailed(long streamSegmentId, CompletableFuture<AttributeIndex> result, Throwable ex) {
         synchronized (this.attributeIndices) {
             this.attributeIndices.remove(streamSegmentId);
         }

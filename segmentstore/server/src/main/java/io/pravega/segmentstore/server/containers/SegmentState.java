@@ -13,6 +13,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.io.IOException;
 import java.util.Map;
@@ -85,7 +86,9 @@ class SegmentState {
             output.writeLong(s.segmentId);
             output.writeUTF(s.segmentName);
             output.writeLong(s.startOffset);
-            output.writeMap(s.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+
+            // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
+            output.writeMap(Attributes.getCoreAttributes(s.attributes), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private void read00(RevisionDataInput input, SegmentState.SegmentStateBuilder builder) throws IOException {

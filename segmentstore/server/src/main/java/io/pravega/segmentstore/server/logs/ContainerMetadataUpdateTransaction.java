@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -724,10 +723,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeLong(sm.getStartOffset());
 
             // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
-            val coreAttributes = sm.getAttributes().entrySet().stream()
-                                   .filter(e -> Attributes.isCoreAttribute(e.getKey()))
-                                   .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            output.writeMap(coreAttributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+            output.writeMap(Attributes.getCoreAttributes(sm.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
