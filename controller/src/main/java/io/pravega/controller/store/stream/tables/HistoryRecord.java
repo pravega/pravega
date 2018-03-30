@@ -229,13 +229,18 @@ public class HistoryRecord {
         return scaleTimeOffset(segmentCount) + Long.BYTES;
     }
 
+    /**
+     * Returns scale records in chronological order starting from epoch 0 and moving to the latest epoch.
+     * @param historyTable history table
+     * @return list of pair of scale time and list of segments in the epoch.
+     */
     public static List<Pair<Long, List<Integer>>> readAllRecords(byte[] historyTable) {
         List<Pair<Long, List<Integer>>> result = new LinkedList<>();
-        Optional<HistoryRecord> record = readLatestRecord(historyTable, true);
-        while (record.isPresent()) {
-            result.add(new ImmutablePair<>(record.get().getScaleTime(), record.get().getSegments()));
-            record = fetchPrevious(record.get(), historyTable);
-        }
+            Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0, true);
+            while (record.isPresent()) {
+                result.add(new ImmutablePair<>(record.get().getScaleTime(), record.get().getSegments()));
+                record = fetchNext(record.get(), historyTable, true);
+            }
         return result;
     }
 }

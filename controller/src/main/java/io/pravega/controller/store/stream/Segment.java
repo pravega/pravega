@@ -22,6 +22,7 @@ import java.util.AbstractMap;
 public class Segment {
 
     protected final int number;
+    protected final int epoch;
     protected final long start;
     protected final double keyStart;
     protected final double keyEnd;

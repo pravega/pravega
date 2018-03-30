@@ -51,6 +51,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
     private final String expectedDockerApiVersion = "1.22";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
+    @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         try {
@@ -95,6 +96,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                 });
     }
 
+    @Override
     public void stopTestExecution() {
         try {
             Exceptions.handleInterrupted(() -> client.stopContainer(id.get(), 0));
