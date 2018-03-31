@@ -704,7 +704,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 : this.storage.write(this.handle.get(), this.metadata.getStorageLength(), flushArgs.getStream(), flushArgs.getLength(), timer.getRemaining());
 
         if (!flushArgs.getAttributes().isEmpty()) {
-            flush = flush.thenComposeAsync(v -> this.dataSource.persistAttributes(this.metadata.getId(), flushArgs.attributes, timer.getRemaining()));
+            flush = flush.thenComposeAsync(v -> handleAttributeException(
+                    this.dataSource.persistAttributes(this.metadata.getId(), flushArgs.attributes, timer.getRemaining())));
         }
 
         return flush
@@ -879,7 +880,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
                 }, this.executor)
-                .thenComposeAsync(v -> dataSource.deleteAllAttributes(transactionMetadata, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.dataSource.deleteAllAttributes(transactionMetadata, timer.getRemaining()), this.executor)
                 .thenApply(v -> {
                     this.lastFlush.set(this.timer.getElapsed());
                     result.withMergedBytes(mergedLength.get());
@@ -934,12 +935,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * Seals the Attribute Index for this Segment.
      *
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that will indicate when the operation compeleted.
+     * @return A CompletableFuture that will indicate when the operation completed.
      */
     private CompletableFuture<Void> sealAttributes(Duration timeout) {
         return this.metadata.isTransaction()
                 ? CompletableFuture.completedFuture(null) // Transactions' indices will be deleted anyway.
-                : this.dataSource.sealAttributes(this.metadata.getId(), timeout);
+                : handleAttributeException(this.dataSource.sealAttributes(this.metadata.getId(), timeout));
     }
 
     //endregion
@@ -1187,7 +1188,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> reconcileSealOperation(SegmentProperties storageInfo, Duration timeout) {
         // All we need to do is verify that the Segment is actually sealed in Storage.
         if (storageInfo.isSealed()) {
-            // Seal the Attribute Index (this is an indepotent operation so it's OK if it's already sealed).
+            // Seal the Attribute Index (this is an idempotent operation so it's OK if it's already sealed).
             return sealAttributes(timeout)
                     .thenApplyAsync(v -> {
                         // Update metadata and the internal state (this also pops the first Op from the operation list).
@@ -1214,8 +1215,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // This operation must have previously succeeded if any of the following are true:
         // - If the Attribute Index is sealed, and so is our Segment.
         // - If the Attribute Index does not exist (deleted), and our Segment is deleted or a merged Transaction.
+        return handleAttributeException(this.dataSource.persistAttributes(this.metadata.getId(), op.attributes, timer.getRemaining()));
+    }
+
+    /**
+     * Handles expected Attribute-related exceptions. Since the attribute index is a separate segment from the main one,
+     * it is highly likely that it may get temporarily out of sync with the main one, thus causing spurious StreamSegmentSealedExceptions
+     * or StreamSegmentNotExistsExceptions. If we get either of those, and they are consistent with our current state, the
+     * we can safely ignore them; otherwise we should be rethrowing them.
+     */
+    private CompletableFuture<Void> handleAttributeException(CompletableFuture<Void> future) {
         return Futures.exceptionallyExpecting(
-                this.dataSource.persistAttributes(this.metadata.getId(), op.attributes, timer.getRemaining()),
+                future,
                 ex -> (ex instanceof StreamSegmentSealedException && this.metadata.isSealedInStorage())
                         || (ex instanceof StreamSegmentNotExistsException && (this.metadata.isMerged() || this.metadata.isDeleted())),
                 null);

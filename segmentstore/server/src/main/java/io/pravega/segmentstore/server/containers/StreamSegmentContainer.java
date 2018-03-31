@@ -587,7 +587,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .forSegment(segmentMetadata.getId(), timer.getRemaining())
                 .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor);
 
-        if (cache && extendedAttributeIds.size() > 0) {
+        if (cache && !segmentMetadata.isSealed() && extendedAttributeIds.size() > 0) {
             // Add them to the cache if requested.
             r = r.thenComposeAsync(extendedAttributes -> {
                 if (extendedAttributes.size() > 0) {

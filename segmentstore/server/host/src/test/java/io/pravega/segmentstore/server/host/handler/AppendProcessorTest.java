@@ -420,7 +420,7 @@ public class AppendProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
-        when(store.getAttributes(streamSegmentName,Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, 100L)));
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
