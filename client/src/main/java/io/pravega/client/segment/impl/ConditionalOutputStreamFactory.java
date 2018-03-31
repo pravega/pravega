@@ -14,9 +14,10 @@ package io.pravega.client.segment.impl;
  */
 public interface ConditionalOutputStreamFactory {
     /**
-     * Opens an existing segment for conditional append operations. This operation will fail if the
-     * segment does not exist. This operation may be called multiple times on the same segment from
-     * the same client (i.e., there can be concurrent conditional clients in the same process space).
+     * Opens an existing segment for conditional append operations. This operation will throw
+     * {@link NoSuchSegmentException} if the segment does not exist. This operation may be called
+     * multiple times on the same segment from the same client (i.e., there can be concurrent
+     * conditional clients in the same process space).
      *
      * @param segment The segment to create a conditional client for.
      * @param delegationToken token to be passed on to segmentstore for validation.

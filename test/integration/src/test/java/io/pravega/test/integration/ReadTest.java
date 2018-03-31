@@ -17,6 +17,8 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.Segment;
@@ -189,6 +191,42 @@ public class ReadTest {
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 150000);
+    }
+    
+    @Test
+    public void readConditionalData() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
+        String endpoint = "localhost";
+        String scope = "scope";
+        String stream = "stream";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
+        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        
+        ConditionalOutputStreamFactoryImpl segmentproducerClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+
+        SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
+
+        Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
+                                 .getSegments().iterator().next();
+
+        @Cleanup("close")
+        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "");
+        assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
+
+
+        @Cleanup("close")
+        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
+        ByteBuffer result = in.read();
+        assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
+
+        //TODO: read / writer more data
     }
 
     @Test

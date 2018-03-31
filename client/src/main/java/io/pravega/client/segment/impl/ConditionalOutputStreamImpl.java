@@ -19,9 +19,12 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -68,13 +71,18 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             client = new RawClient(controller, connectionFactory, segmentId);
                             long requestId = requestIdGenerator.get();
                             log.debug("Setting up append on segment: {}", segmentId);
-                            val reply = client.sendRequest(requestId, new WireCommands.SetupAppend(requestId, writerId, segmentId.getScopedName(), delegationToken));
+                            SetupAppend setup = new SetupAppend(requestId, writerId,
+                                                                segmentId.getScopedName(),
+                                                                delegationToken);
+                            val reply = client.sendRequest(requestId, setup);
                             AppendSetup appendSetup = transformAppendSetup(reply.join());
                             if (appendSetup.getLastEventNumber() >= appendSequence) {
                                 return true;
                             }
                         }
-                        val reply = client.sendRequest(appendSequence, new WireCommands.ConditionalAppend(writerId, appendSequence, expectedOffset, Unpooled.wrappedBuffer(data)));
+                        val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
+                                                            new Event(Unpooled.wrappedBuffer(data)));
+                        val reply = client.sendRequest(appendSequence, request);
                         return transformDataAppended(reply.join());
                     });
         } 
