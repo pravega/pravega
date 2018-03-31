@@ -572,7 +572,7 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - 8*4);
+            Event event = Event.readFrom(in, length - 8 * 4);
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event);
         }
 

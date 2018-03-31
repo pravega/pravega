@@ -220,7 +220,6 @@ public class ReadTest {
         ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "");
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
 
-
         @Cleanup("close")
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
