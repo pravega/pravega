@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -348,8 +350,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param operation The Operation to process.
      */
     private void addUpdateAttributesOperation(UpdateAttributesOperation operation) {
-        AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
-        aggregatedAppend.includeAttributes(operation.getAttributeUpdates());
+        Map<UUID, Long> attributes = getExtendedAttributes(operation);
+        if (!attributes.isEmpty()) {
+            AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
+            aggregatedAppend.includeAttributes(attributes);
+        }
     }
 
     /**
@@ -418,6 +423,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             log.debug("{}: Skipping {} bytes from the beginning of '{}' since it has already been partially written to Storage.", this.traceObjectId, delta, operation);
         }
 
+        // We only include the attributes in the first AggregatedAppend of an Append (it makes no difference if we had
+        // chosen to do so in the last one, as long as we are consistent).
+        aggregatedAppend.includeAttributes(getExtendedAttributes(operation));
         while (remainingLength > 0) {
             // All append lengths are integers, so it's safe to cast here.
             int lengthToAdd = (int) Math.min(this.config.getMaxFlushSizeBytes() - aggregatedAppend.getLength(), remainingLength);
@@ -428,10 +436,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 aggregatedAppend = new AggregatedAppendOperation(this.metadata.getId(), aggregatedAppend.getLastStreamSegmentOffset(), operation.getSequenceNumber());
                 this.operations.add(aggregatedAppend);
             }
-
-            // We only include the attributes in the last AggregatedAppend of an Append (it makes no difference if we had
-            // chosen to do so in the first one, as long as we are consistent).
-            aggregatedAppend.includeAttributes(operation.getAttributeUpdates());
         }
     }
 
@@ -1470,6 +1474,20 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 }, this.executor);
     }
 
+    /**
+     * Collects the extended Attributes from the AttributeUpdates of the given operation.
+     */
+    private Map<UUID, Long> getExtendedAttributes(AttributeUpdaterOperation operation) {
+        Collection<AttributeUpdate> updates = operation.getAttributeUpdates();
+        if (updates == null) {
+            return Collections.emptyMap();
+        }
+
+        return updates.stream()
+                .filter(au -> !Attributes.isCoreAttribute(au.getAttributeId()))
+                .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+    }
+
     //endregion
 
     //region ReconciliationState
@@ -1522,13 +1540,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             this.attributes = new HashMap<>();
         }
 
-        void includeAttributes(Collection<AttributeUpdate> updates) {
-            if (updates != null) {
-                // Only include Extended Attributes (non-core). Core Attributes are handled by the OperationProcessor.
-                updates.stream()
-                       .filter(au -> !Attributes.isCoreAttribute(au.getAttributeId()))
-                       .forEach(au -> this.attributes.put(au.getAttributeId(), au.getValue()));
-            }
+        void includeAttributes(Map<UUID, Long> newAttributes) {
+            this.attributes.putAll(newAttributes);
         }
 
         void increaseLength(int amount) {
