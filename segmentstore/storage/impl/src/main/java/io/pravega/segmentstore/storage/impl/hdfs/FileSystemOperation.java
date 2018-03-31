@@ -193,7 +193,9 @@ abstract class FileSystemOperation<T> {
             }
 
             // Finally, concatenate the source files into the target.
-            this.context.fileSystem.concat(target.getPath(), toConcat);
+            if (toConcat.length > 0) {
+                this.context.fileSystem.concat(target.getPath(), toConcat);
+            }
         } finally {
             if (makeReadOnly) {
                 // Make sure we revert back to the original state if an error occurred.
