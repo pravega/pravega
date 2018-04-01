@@ -556,7 +556,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
-     * Gets the values of the given (Core & Extended) Attribute Ids for the given segment.
+     * Gets the values of the given (Core and Extended) Attribute Ids for the given segment.
      *
      * @param segmentMetadata The SegmentMetadata for the Segment to retrieve attribute values for.
      * @param attributeIds    A Collection of AttributeIds to retrieve.

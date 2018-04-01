@@ -96,6 +96,7 @@ public interface StreamSegmentStore {
      * @param attributeIds      A Collection of Attribute Ids to fetch. These may be Core or Extended Attributes.
      * @param cache             If set, then any Extended Attribute values that are not already in the in-memory Segment
      *                          Metadata cache will be atomically added using a conditional update (comparing against a missing value).
+     *                          This argument will be ignored if the StreamSegment is currently Sealed.
      * @param timeout           Timeout for the operation.
      * @return A Completable future that, when completed, will contain a Map of Attribute Ids to their latest values. If
      * an attribute does not exist, it will not be populated in this map. If the operation failed, the future will be failed

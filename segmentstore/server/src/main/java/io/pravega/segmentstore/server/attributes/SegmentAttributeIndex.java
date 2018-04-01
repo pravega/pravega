@@ -81,7 +81,7 @@ class SegmentAttributeIndex implements AttributeIndex {
             .throwingOn(Exception.class);
 
     /**
-     * Calls to get() & put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
      * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
      * if we stumble across a segment truncation.
      */
@@ -166,7 +166,7 @@ class SegmentAttributeIndex implements AttributeIndex {
         String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentMetadata.getName());
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
-                       .thenComposeAsync(handle -> storage.delete(handle, timer.getRemaining())),
+                       .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
                 ex -> ex instanceof StreamSegmentNotExistsException,
                 null);
     }
@@ -442,9 +442,6 @@ class SegmentAttributeIndex implements AttributeIndex {
     @SneakyThrows(IOException.class)
     @VisibleForTesting
     ArrayView serialize(AttributeCollection attributes) {
-        // TODO: split up large sets
-        // TODO: sort for snapshots
-        // TODO: compression
         return AttributeCollection.SERIALIZER.serialize(attributes);
     }
 
@@ -639,7 +636,6 @@ class SegmentAttributeIndex implements AttributeIndex {
                     output.length(output.getMapLength(c.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
                 }
 
-                // TODO Do we need to differentiate between a regular update and a snapshot? Snapshots (big) may be split into multiple writes, so not all may go in.
                 output.writeMap(c.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
             }
 

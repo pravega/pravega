@@ -52,7 +52,7 @@ interface WriterDataSource {
     CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
 
     /**
-     * Instructs the DataSource to seal & compact the Attribute Index for the given Segment.
+     * Instructs the DataSource to seal and compact the Attribute Index for the given Segment.
      *
      * @param streamSegmentId The Id of the StreamSegment to seal Attributes for.
      * @param timeout         Timeout for the operation.

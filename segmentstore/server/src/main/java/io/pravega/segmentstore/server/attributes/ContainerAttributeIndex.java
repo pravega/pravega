@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ContainerAttributeIndex {
     /**
-     * Creates a new AttributeIndex instance and initializes it.
+     * Gets or creates an AttributeIndex instance and initializes it.
      *
      * @param streamSegmentId The Id of the Segment to create the AttributeIndex for.
      * @param timeout         Timeout for the operation.
