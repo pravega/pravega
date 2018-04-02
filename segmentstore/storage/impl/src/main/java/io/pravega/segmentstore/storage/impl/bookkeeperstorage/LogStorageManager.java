@@ -30,9 +30,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
@@ -57,10 +57,9 @@ class LogStorageManager {
     private final BookKeeperStorageConfig config;
     private final CuratorFramework zkClient;
 
-    @GuardedBy("this")
     private final ConcurrentHashMap<String, LogStorage> ledgers;
     private BookKeeper bookkeeper;
-    private long containerEpoch;
+    private AtomicLong containerEpoch;
 
     LogStorageManager(BookKeeperStorageConfig config, CuratorFramework zkClient) {
         Preconditions.checkNotNull(config, "config");
@@ -83,7 +82,7 @@ class LogStorageManager {
      */
     public LedgerData create(String streamSegmentName) throws StreamSegmentException {
         log.info("Creating segment {}", streamSegmentName);
-        LogStorage logStorage = new LogStorage(streamSegmentName, 0, this.containerEpoch, 0);
+        LogStorage logStorage = new LogStorage(streamSegmentName, 0, this.containerEpoch.get(), 0);
 
         /* Create the node for the segment in the ZK. */
         try {
@@ -110,49 +109,45 @@ class LogStorageManager {
      * @param streamSegmentName name of the segment to be fenced.
      */
     public LogStorage fence(String streamSegmentName) throws StreamSegmentException {
-        boolean tryAgain = true;
-        boolean needFencing = false;
 
         log.info("Sealing ledger for segment {}", streamSegmentName);
         /** Get the LogStorage metadata. */
         LogStorage ledger = getOrRetrieveStorageLedger(streamSegmentName);
 
         /** check whether fencing is required. */
-        if (ledger.getContainerEpoch() == containerEpoch) {
+        if (ledger.getContainerEpoch() == containerEpoch.get()) {
             return ledger;
-        } else if (ledger.getContainerEpoch() > containerEpoch) {
+        } else if (ledger.getContainerEpoch() > containerEpoch.get()) {
             throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
         } else {
-            /** If fencing is required, update the metadata. */
-            needFencing = true;
-            ledger.setContainerEpoch(containerEpoch);
-            Stat stat = null;
+           return fenceWithUpdate(ledger, streamSegmentName);
+        }
+    }
 
-            while (tryAgain) {
-                try {
-                    stat = zkClient.setData()
-                                   .withVersion(ledger.getUpdateVersion())
-                                   .forPath(getZkPath(streamSegmentName), ledger.serialize());
-                    tryAgain = false;
-                } catch (Exception exc) {
-                    if (Exceptions.unwrap(exc) instanceof KeeperException.BadVersionException) {
-                        //Need to retry as data we had was out of sync
-                        tryAgain = true;
-                        continue;
-                    } else {
-                        throw translateZKException(streamSegmentName, exc);
-                    }
+    private LogStorage fenceWithUpdate(LogStorage ledger, String streamSegmentName) throws StreamSegmentException {
+        boolean tryAgain = true;
+        ledger.setContainerEpoch(containerEpoch.get());
+        Stat stat = null;
+
+        while (tryAgain) {
+            try {
+                stat = zkClient.setData()
+                               .withVersion(ledger.getUpdateVersion())
+                               .forPath(getZkPath(streamSegmentName), ledger.serialize());
+                tryAgain = false;
+            } catch (Exception exc) {
+                if (Exceptions.unwrap(exc) instanceof KeeperException.BadVersionException) {
+                    //Need to retry as data we had was out of sync
+                    tryAgain = true;
+                } else {
+                    throw translateZKException(streamSegmentName, exc);
                 }
             }
-            ledger.setUpdateVersion(stat.getVersion());
-            /** Fence out all the ledgers and create a new one at the end for appends. */
-            if (needFencing) {
-                log.info("Fencing all the ledgers for {}", streamSegmentName);
-                return fenceLedgersAndCreateOneAtEnd(streamSegmentName, ledger);
-            } else {
-                return ledger;
-            }
         }
+        ledger.setUpdateVersion(stat.getVersion());
+        /** Fence out all the ledgers and create a new one at the end for appends. */
+        log.info("Fencing all the ledgers for {}", streamSegmentName);
+        return fenceLedgersAndCreateOneAtEnd(streamSegmentName, ledger);
     }
 
     /**
@@ -161,7 +156,7 @@ class LogStorageManager {
      * @param containerEpoch the epoc to be used for the fencing and create calls.
      */
     public void initialize(long containerEpoch) {
-        this.containerEpoch = containerEpoch;
+        this.containerEpoch.set(containerEpoch);
         int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
         int readTimeout = (int) Math.ceil(this.config.getBkReadTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
@@ -273,7 +268,7 @@ class LogStorageManager {
     public void seal(String segmentName) throws StreamSegmentException {
         LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName);
         /** Check whether this segmentstore is the current owner. */
-        if (ledger.getContainerEpoch() > this.containerEpoch) {
+        if (ledger.getContainerEpoch() > this.containerEpoch.get()) {
             throw new CompletionException(new StorageNotPrimaryException(segmentName));
         }
         ledger.markSealed();
@@ -332,7 +327,7 @@ class LogStorageManager {
      */
     public void delete(String segmentName) throws StreamSegmentException {
         LogStorage ledger = this.getOrRetrieveStorageLedger(segmentName);
-        if (ledger.getContainerEpoch() > this.containerEpoch) {
+        if (ledger.getContainerEpoch() > this.containerEpoch.get()) {
             throw new CompletionException(new StorageNotPrimaryException(segmentName));
         }
         try {
@@ -362,7 +357,7 @@ class LogStorageManager {
         try {
             LedgerHandle ledgerHandle = bookkeeper.createLedger(config.getBkEnsembleSize(),
                     config.getBkWriteQuorumSize(), LEDGER_DIGEST_TYPE, config.getBKPassword());
-            LedgerData lh = new LedgerData(ledgerHandle, offset, 0, this.containerEpoch);
+            LedgerData lh = new LedgerData(ledgerHandle, offset, 0, this.containerEpoch.get());
             zkClient.create().forPath(getZkPath(streamSegmentName) + "/" + offset, lh.serialize());
             return lh;
         } catch (Exception e) {
@@ -465,7 +460,7 @@ class LogStorageManager {
             log.warn("Exception {} while opening ledger id {}", e, ledgerId);
             throw new CompletionException(e);
         }
-        LedgerData ld = new LedgerData(lh, startOffset, stat.getVersion(), containerEpoch);
+        LedgerData ld = new LedgerData(lh, startOffset, stat.getVersion(), containerEpoch.get());
         ld.setLength((int) lh.getLength());
         ld.setReadonly(lh.isClosed());
         ld.setLastAddConfirmed(lh.getLastAddConfirmed());
@@ -667,7 +662,7 @@ class LogStorageManager {
         LogStorage target = this.getOrRetrieveStorageLedger(segmentName);
         LogStorage source = this.getOrRetrieveStorageLedger(sourceSegment);
         Preconditions.checkState(source.isSealed(), "source must be sealed");
-        if (source.getContainerEpoch() != this.containerEpoch) {
+        if (source.getContainerEpoch() != this.containerEpoch.get()) {
             throw new CompletionException(new StorageNotPrimaryException(target.getName()));
         }
         List<CuratorOp> operations = new ArrayList<>();
