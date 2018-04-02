@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -63,8 +64,10 @@ public class ReaderGroupState implements Revisioned {
     private final Map<String, Map<Segment, Long>> assignedSegments;
     @GuardedBy("$lock")
     private final Map<Segment, Long> unassignedSegments;
+    private final Map<Segment, Long> endSegments;
     
-    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets) {
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets,
+                     Map<Segment, Long> endSegments) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
@@ -77,6 +80,7 @@ public class ReaderGroupState implements Revisioned {
         this.futureSegments = new HashMap<>();
         this.assignedSegments = new HashMap<>();
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
+        this.endSegments = ImmutableMap.copyOf(endSegments);
     }
     
     /**
@@ -176,6 +180,10 @@ public class ReaderGroupState implements Revisioned {
         return new HashMap<>(unassignedSegments);
     }
 
+    Map<Segment, Long> getEndSegments() {
+        return endSegments; //endSegments is an ImmutableMap.
+    }
+
     @Synchronized
     boolean isReaderOnline(String reader) {
         return assignedSegments.get(reader) != null;
@@ -269,10 +277,11 @@ public class ReaderGroupState implements Revisioned {
 
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
+        private final Map<Segment, Long> endSegments;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, config, segments);
+            return new ReaderGroupState(scopedStreamName, revision, config, segments, endSegments);
         }
     }
     
@@ -285,6 +294,7 @@ public class ReaderGroupState implements Revisioned {
         private final Map<Segment, Set<Integer>> futureSegments;
         private final Map<String, Map<Segment, Long>> assignedSegments;
         private final Map<Segment, Long> unassignedSegments;
+        private final Map<Segment, Long> endSegments;
         
         CompactReaderGroupState(ReaderGroupState state) {
             synchronized (state.$lock) {
@@ -300,13 +310,14 @@ public class ReaderGroupState implements Revisioned {
                     assignedSegments.put(entry.getKey(), new HashMap<>(entry.getValue()));
                 }
                 unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
+                endSegments = state.endSegments;
             }
         }
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
-                                        futureSegments, assignedSegments, unassignedSegments);
+                                        futureSegments, assignedSegments, unassignedSegments, endSegments);
         }
     }
     

@@ -9,7 +9,10 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -17,8 +20,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.val;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.stream.Collectors.summarizingInt;
 
 @Data
 @Builder
@@ -29,6 +34,7 @@ public class ReaderGroupConfig implements Serializable {
    private final long automaticCheckpointIntervalMillis;
 
    private final Map<Stream, StreamCut> startingStreamCuts;
+   private final Map<Stream, StreamCut> endingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -48,18 +54,40 @@ public class ReaderGroupConfig implements Serializable {
        }
 
        /**
-        * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
+        * readers of a ReaderGroup.
+        *
         * @param scopedStreamName Scoped Name of the Stream.
         * @param startStreamCut Start {@link StreamCut}
+        * @param endStreamCut End {@link StreamCut}
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut) {
+       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final Stream stream = Stream.of(scopedStreamName);
+
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(Stream.of(scopedStreamName), startStreamCut);
+           this.startingStreamCuts.put(stream, startStreamCut);
+
+           if (endingStreamCuts == null) {
+               endingStreamCuts = new HashMap<>();
+           }
+           this.endingStreamCuts.put(stream, endStreamCut);
+
            return this;
        }
+
+       /**
+        * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        * @param scopedStreamName Scoped Name of the Stream.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut) {
+           return stream(scopedStreamName, startStreamCut, StreamCut.UNBOUNDED);
+       }
+
 
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
@@ -68,7 +96,30 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scopedStreamName) {
-           return stream(scopedStreamName, StreamCut.UNBOUNDED);
+           return stream(scopedStreamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       }
+
+       /**
+        * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by
+        * the readers of a ReaderGroup.
+        *
+        * @param stream Stream.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @param endStreamCut End {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           if (startingStreamCuts == null) {
+               startingStreamCuts = new HashMap<>();
+           }
+           this.startingStreamCuts.put(stream, startStreamCut);
+
+           if (endingStreamCuts == null) {
+               endingStreamCuts = new HashMap<>();
+           }
+           this.endingStreamCuts.put(stream, endStreamCut);
+
+           return this;
        }
 
        /**
@@ -78,11 +129,7 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut) {
-           if (startingStreamCuts == null) {
-               startingStreamCuts = new HashMap<>();
-           }
-           this.startingStreamCuts.put(stream, startStreamCut);
-           return this;
+            return stream(stream, startStreamCut, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -92,7 +139,7 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final Stream stream) {
-           return stream(stream, StreamCut.UNBOUNDED);
+           return stream(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -119,12 +166,60 @@ public class ReaderGroupConfig implements Serializable {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
                    "Stream names that the reader group can read from cannot be empty");
 
-           startingStreamCuts.forEach((s, streamCut) -> {
+           //endStreamCuts is an optional configuration. Initialize if it is null.
+           if (endingStreamCuts == null) {
+               endingStreamCuts = Collections.emptyMap();
+           }
+
+           //validate start and end StreamCuts
+           validateStreamCut(startingStreamCuts);
+           validateStreamCut(endingStreamCuts);
+
+           //basic check to verify if endStreamCut > startStreamCut.
+           validateStartAndEndStreamCuts(startingStreamCuts, endingStreamCuts);
+
+           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
+                   startingStreamCuts, endingStreamCuts);
+       }
+
+       private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
+                                                  Map<Stream, StreamCut> endStreamCuts) {
+           endStreamCuts.entrySet().stream().filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
+                                .forEach(e -> {
+                               if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
+                                   verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
+                               }
+                           });
+       }
+
+       /**
+        * Verify if startStreamCut comes before endStreamCut.
+        */
+       private void verifyStartAndEndStreamCuts(final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final Map<Segment, Long> startPositions = startStreamCut.asImpl().getPositions();
+           final Map<Segment, Long> endPositions = endStreamCut.asImpl().getPositions();
+           //check offsets for overlapping segments.
+           startPositions.keySet().stream().filter(endPositions::containsKey)
+                        .forEach(s -> Preconditions.checkArgument(startPositions.get(s) <= endPositions.get(s),
+                                "Segment offset in startStreamCut should be <= segment offset in endStreamCut."));
+
+           val fromSCSummary = startPositions.keySet()
+                                             .stream().collect(summarizingInt(Segment::getSegmentNumber));
+           val toSCSummary = endPositions.keySet()
+                                         .stream().collect(summarizingInt(Segment::getSegmentNumber));
+           //basic check to 
+           Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
+                   "Overlapping StreamCuts cannot be provided");
+           Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
+                   "Overlapping StreamCuts cannot be provided");
+       }
+
+       private void validateStreamCut(Map<Stream, StreamCut> streamCuts) {
+           streamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
                    checkArgument(s.equals(streamCut.asImpl().getStream()));
                }
            });
-           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis, startingStreamCuts);
        }
    }
 }
