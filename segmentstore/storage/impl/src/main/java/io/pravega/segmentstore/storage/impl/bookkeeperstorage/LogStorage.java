@@ -11,29 +11,23 @@ package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.StreamSegmentException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
-import org.apache.curator.framework.api.transaction.CuratorOp;
 
 /*
  * Storage Log represents a single segment. A segment is rolled over whenever a ownership change is observed.
  *
  **/
 class LogStorage {
-
-    private final LogStorageManager manager;
+    @GuardedBy("this")
+    final ConcurrentSkipListMap<Integer, LedgerData> dataMap;
 
     @Getter
     private final String name;
-
-    private final ConcurrentSkipListMap<Integer, LedgerData> dataMap;
 
     @GuardedBy("this")
     private int updateVersion;
@@ -51,8 +45,8 @@ class LogStorage {
     @Getter
     private final ImmutableDate lastModified;
 
-    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, int sealed) {
-        this.manager = logStorageManager;
+
+    LogStorage(String streamSegmentName, int updateVersion, long containerEpoch, int sealed) {
         this.dataMap = new ConcurrentSkipListMap<>();
         this.name = streamSegmentName;
         this.sealed = sealed == 1;
@@ -61,25 +55,7 @@ class LogStorage {
         lastModified = new ImmutableDate();
     }
 
-    /**
-     * Returns the BK ledger which has the given offset and is writable.
-     * @param offset offset from which writes start.
-     * @return The metadata of the ledger.
-     */
-    LedgerData getLedgerDataForWriteAt(long offset) throws BadOffsetException {
-        if (offset != length) {
-            throw new BadOffsetException(this.getName(), length, offset);
-        }
-        LedgerData ledgerData = this.getLastLedgerData();
-        if (ledgerData != null && !ledgerData.getLedgerHandle().isClosed()) {
-            return ledgerData;
-        } else {
-            // If there is no ledger, create a new one.
-            LedgerData data = manager.createLedgerAt(this.name, (int) offset);
-            this.dataMap.put((int) offset, data);
-            return data;
-        }
-    }
+
 
     /**
      * Add a new BK ledger and metadata at a given offset.
@@ -107,9 +83,6 @@ class LogStorage {
         this.length += size;
     }
 
-    synchronized void deleteAllLedgers() {
-                this.dataMap.entrySet().stream().forEach(entry -> manager.deleteLedger(entry.getValue().getLedgerHandle()));
-    }
 
     LedgerData getLastLedgerData() {
         if (this.dataMap.isEmpty()) {
@@ -123,28 +96,6 @@ class LogStorage {
         this.sealed = true;
     }
 
-    /**
-     * Creates a list of curator transaction for merging source LogStorage in to this.
-     * @param source Name of the source ledger.
-     * @return list of curator operations.
-     */
-    synchronized List<CuratorOp> addLedgerDataFrom(LogStorage source) {
-        List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
-            int newKey = (int) (entry.getKey() + this.length);
-            LedgerData value = entry.getValue();
-            value.setStartOffset(newKey);
-            this.dataMap.put(newKey, value);
-            try {
-                return manager.createAddOp(this.name, newKey, entry.getValue());
-            } catch (StreamSegmentException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toList());
-
-        // Increase the target segment length
-        this.length += source.length;
-        return retVal;
-    }
 
     synchronized LedgerData getLedgerDataForReadAt(long offset) {
         if (offset >= length) {
@@ -158,12 +109,12 @@ class LogStorage {
         }
     }
 
-    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
+    public static LogStorage deserialize(String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         long epoc = bb.getLong();
         int sealed = bb.getInt();
 
-        return new LogStorage(manager, segmentName, version, epoc, sealed);
+        return new LogStorage(segmentName, version, epoc, sealed);
     }
 
     synchronized void setContainerEpoch(long containerEpoch) {

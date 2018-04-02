@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
@@ -82,7 +83,7 @@ class LogStorageManager {
      */
     public LedgerData create(String streamSegmentName) throws StreamSegmentException {
         log.info("Creating segment {}", streamSegmentName);
-        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0);
+        LogStorage logStorage = new LogStorage(streamSegmentName, 0, this.containerEpoch, 0);
 
         /* Create the node for the segment in the ZK. */
         try {
@@ -91,7 +92,7 @@ class LogStorageManager {
             synchronized (this) {
                 ledgers.put(streamSegmentName, logStorage);
             }
-            LedgerData data = logStorage.getLedgerDataForWriteAt(0);
+            LedgerData data = getLedgerDataForWriteAt(logStorage, 0);
             return data;
         } catch (Exception exc) {
             throw translateZKException(streamSegmentName, exc);
@@ -343,7 +344,13 @@ class LogStorageManager {
 
         }
         ledgers.remove(segmentName);
-        ledger.deleteAllLedgers();
+        deleteAllLedgers(ledger);
+    }
+
+    void deleteAllLedgers(LogStorage ledger) {
+        synchronized (ledger) {
+            ledger.dataMap.entrySet().stream().forEach(entry -> deleteLedger(entry.getValue().getLedgerHandle()));
+        }
     }
 
     //endregion
@@ -411,7 +418,31 @@ class LogStorageManager {
     }
 
     private LedgerData getORCreateLHForOffset(LogStorage ledger, long offset) throws BadOffsetException {
-        return ledger.getLedgerDataForWriteAt(offset);
+        return getLedgerDataForWriteAt(ledger, offset);
+    }
+
+    /**
+     * Returns the BK ledger which has the given offset and is writable.
+     *
+     * @param ledger
+     * @param offset offset from which writes start.
+     * @return The metadata of the ledger.
+     */
+    LedgerData getLedgerDataForWriteAt(LogStorage ledger, long offset) throws BadOffsetException {
+        synchronized (ledger) {
+            if (offset != ledger.getLength()) {
+                throw new BadOffsetException(ledger.getName(), ledger.getLength(), offset);
+            }
+            LedgerData ledgerData = ledger.getLastLedgerData();
+            if (ledgerData != null && !ledgerData.getLedgerHandle().isClosed()) {
+                return ledgerData;
+            } else {
+                // If there is no ledger, create a new one.
+                LedgerData data = createLedgerAt(ledger.getName(), (int) offset);
+                ledger.dataMap.put((int) offset, data);
+                return data;
+            }
+        }
     }
 
     private void sealLedger(LedgerData lastLedgerData) {
@@ -457,7 +488,7 @@ class LogStorageManager {
         byte[] bytes = null;
         try {
             bytes = zkClient.getData().storingStatIn(stat).forPath(getZkPath(streamSegmentName));
-            LogStorage storageLog = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion());
+            LogStorage storageLog = LogStorage.deserialize(streamSegmentName, bytes, stat.getVersion());
             synchronized (this) {
                 LogStorage olderValue = ledgers.putIfAbsent(streamSegmentName, storageLog);
             }
@@ -644,11 +675,37 @@ class LogStorageManager {
         if (lastLedger != null && lastLedger.getLedgerHandle().getLength() == 0) {
             operations.add(createLedgerDeleteOp(lastLedger, target));
         }
-        List<CuratorOp> targetOps = target.addLedgerDataFrom(source);
+        List<CuratorOp> targetOps = addLedgerDataFrom(source, target);
         operations.addAll(targetOps);
         // Update the segment also to ensure fencing has not happened
         operations.add(createLedgerUpdateOp(target));
         return operations;
+    }
+
+    /**
+     * Creates a list of curator transaction for merging source LogStorage in to this.
+     * @param source Name of the source ledger.
+     * @return list of curator operations.
+     */
+    List<CuratorOp> addLedgerDataFrom(LogStorage source, LogStorage target) {
+        List<CuratorOp> retVal = null;
+        synchronized (source) {
+            retVal = source.dataMap.entrySet().stream().map(entry -> {
+                int newKey = (int) (entry.getKey() + target.getLength());
+                LedgerData value = entry.getValue();
+                value.setStartOffset(newKey);
+                target.dataMap.put(newKey, value);
+                try {
+                    return createAddOp(target.getName(), newKey, entry.getValue());
+                } catch (StreamSegmentException e) {
+                    throw new RuntimeException(e);
+                }
+            }).collect(Collectors.toList());
+        }
+
+        // Increase the target segment length
+        target.increaseLengthBy((int) source.getLength());
+        return retVal;
     }
 
     private CuratorOp createLedgerDeleteOp(LedgerData lastLedger, LogStorage target) throws Exception {

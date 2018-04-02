@@ -167,10 +167,10 @@ public class BookKeeperStorageTest extends StorageTestBase {
         manager.initialize(0);
         manager.create("name");
 
-        LogStorage storage = new LogStorage(manager, "name", 0, 1, 1);
+        LogStorage storage = new LogStorage("name", 0, 1, 1);
 
         AssertExtensions.assertThrows("LogStorage should throw exception at wrong offset",
-                () -> storage.getLedgerDataForWriteAt(10),
+                () -> manager.getLedgerDataForWriteAt(storage, 10),
                 exc -> exc instanceof BadOffsetException);
     }
 
