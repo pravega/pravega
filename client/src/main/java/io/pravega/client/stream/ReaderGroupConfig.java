@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
+import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -33,8 +34,8 @@ public class ReaderGroupConfig implements Serializable {
    @Getter
    private final long automaticCheckpointIntervalMillis;
 
-   private final Map<Stream, StreamCut> startingStreamCuts;
-   private final Map<Stream, StreamCut> endingStreamCuts;
+   private final Map<String, StreamCut> startingStreamCuts;
+   private final Map<String, StreamCut> endingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -63,17 +64,16 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
-           final Stream stream = Stream.of(scopedStreamName);
 
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(stream, startStreamCut);
+           this.startingStreamCuts.put(scopedStreamName, startStreamCut);
 
            if (endingStreamCuts == null) {
                endingStreamCuts = new HashMap<>();
            }
-           this.endingStreamCuts.put(stream, endStreamCut);
+           this.endingStreamCuts.put(scopedStreamName, endStreamCut);
 
            return this;
        }
@@ -109,15 +109,16 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final String scopedStreamName = stream.getScopedName();
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(stream, startStreamCut);
+           this.startingStreamCuts.put(scopedStreamName, startStreamCut);
 
            if (endingStreamCuts == null) {
                endingStreamCuts = new HashMap<>();
            }
-           this.endingStreamCuts.put(stream, endStreamCut);
+           this.endingStreamCuts.put(scopedStreamName, endStreamCut);
 
            return this;
        }
@@ -148,7 +149,9 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder startFromStreamCuts(final Map<Stream, StreamCut> streamCuts) {
-           this.startingStreamCuts(streamCuts);
+           this.startingStreamCuts(streamCuts.entrySet().stream()
+                                             .collect(Collectors.toMap(o -> o.getKey().getScopedName(),
+                                                     Map.Entry::getValue)));
            return this;
        }
 
@@ -158,7 +161,9 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder startFromCheckpoint(final Checkpoint checkpoint) {
-           this.startingStreamCuts(checkpoint.asImpl().getPositions());
+           this.startingStreamCuts(checkpoint.asImpl().getPositions().entrySet().stream()
+                                             .collect(Collectors.toMap(o -> o.getKey().getScopedName(),
+                                                     Map.Entry::getValue)));
            return this;
        }
 
@@ -182,8 +187,8 @@ public class ReaderGroupConfig implements Serializable {
                    startingStreamCuts, endingStreamCuts);
        }
 
-       private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
-                                                  Map<Stream, StreamCut> endStreamCuts) {
+       private void validateStartAndEndStreamCuts(Map<String, StreamCut> startStreamCuts,
+                                                  Map<String, StreamCut> endStreamCuts) {
            endStreamCuts.entrySet().stream().filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
                                 .forEach(e -> {
                                if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
@@ -214,10 +219,14 @@ public class ReaderGroupConfig implements Serializable {
                    "Overlapping StreamCuts cannot be provided");
        }
 
-       private void validateStreamCut(Map<Stream, StreamCut> streamCuts) {
+       private void validateStreamCut(Map<String, StreamCut> streamCuts) {
            streamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
-                   checkArgument(s.equals(streamCut.asImpl().getStream()));
+                   if (s.contains("/")) {
+                       checkArgument(s.equals(streamCut.asImpl().getStream().getScopedName()));
+                   } else {
+                       checkArgument(s.equals(streamCut.asImpl().getStream().getStreamName()));
+                   }
                }
            });
        }

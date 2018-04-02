@@ -87,15 +87,22 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     private Map<Segment, Long> getSegmentsForStreams(ReaderGroupConfig config) {
-        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                                                          .collect(Collectors.toMap(o -> {
+                                                              if (o.getKey().contains("/")) { // fully scoped streamName
+                                                                  return Stream.of(o.getKey());
+                                                              } else { //use default scope.
+                                                                  return Stream.of(this.scope, o.getKey());
+                                                              }
+                                                          }, Entry::getValue));
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
         streamToStreamCuts.entrySet().forEach(e -> {
-                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
-                      futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
-                  } else {
-                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
-                  }
-              });
+            if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                futures.add(controller.getSegmentsAtTime(e.getKey(), 0L));
+            } else {
+                futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+            }
+        });
         return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
             return listOfMaps.stream()
                              .flatMap(map -> map.entrySet().stream())
