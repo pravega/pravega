@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
@@ -21,7 +22,9 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,6 +54,8 @@ import org.junit.rules.Timeout;
  * Unit tests for HDFSStorage.
  */
 public class HDFSStorageTest extends StorageTestBase {
+    private static final int WRITE_COUNT = 5;
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
@@ -210,6 +215,154 @@ public class HDFSStorageTest extends StorageTestBase {
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new TestHDFSStorage(this.adapterConfig), executorService());
     }
+
+    // region HDFS specific tests
+
+    /**
+     * Tests general GetInfoOperation behavior.
+     */
+    @Test
+    public void testGetInfo() throws Exception {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            createSegment(segmentName, s);
+            SegmentHandle handle = s.openWrite(segmentName).join();
+
+            long expectedLength = 0;
+
+            for (int i = 0; i < WRITE_COUNT; i++) {
+                byte[] data = new byte[i + 1];
+                s.write(handle, expectedLength, new ByteArrayInputStream(data), data.length, null).join();
+                expectedLength += data.length;
+            }
+
+            SegmentProperties result = s.getStreamSegmentInfo(segmentName, null).join();
+
+            validateProperties("pre-seal", segmentName, result, expectedLength, false);
+
+            // Seal.
+            s.seal(handle, null).join();
+            result = s.getStreamSegmentInfo(segmentName, null).join();
+            validateProperties("post-seal", segmentName, result, expectedLength, true);
+
+            // Inexistent segment.
+            AssertExtensions.assertThrows(
+                    "GetInfo succeeded on missing segment.",
+                    s.getStreamSegmentInfo("non-existent", null),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        }
+    }
+
+        private void validateProperties(String stage, String segmentName, SegmentProperties sp, long expectedLength, boolean expectedSealed) {
+            Assert.assertNotNull("No result from GetInfoOperation (" + stage + ").", sp);
+            Assert.assertEquals("Unexpected name (" + stage + ").", segmentName, sp.getName());
+            Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
+            Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
+        }
+
+    /**
+     * Tests the ExistsOperation in various scenarios.
+     */
+    @Test
+    public void testExists() throws Exception {
+        final int epoch = 1;
+        final int offset = 0;
+
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            createSegment(segmentName, s);
+
+            // Not exists.
+            Assert.assertFalse("Unexpected result for missing segment (no files).",
+                    s.exists("nonexistent", null).join());
+        }
+    }
+
+    /**
+     * Tests a read scenario with no issues or failures.
+     */
+    @Test
+    public void testNormalRead() throws Exception {
+        // Write data.
+        String segmentName = "foo_open";
+        val rnd = new Random(0);
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            createSegment(segmentName, s);
+            SegmentHandle handle = s.openWrite(segmentName).join();
+
+            long expectedLength = 0;
+
+            ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+            for (int i = 0; i < WRITE_COUNT; i++) {
+                byte[] data = new byte[i + 1];
+                rnd.nextBytes(data);
+                s.write(handle, expectedLength, new ByteArrayInputStream(data), data.length, null).join();
+                writtenData.write(data);
+                expectedLength += data.length;
+            }
+
+            // Check written data via a Read Operation, from every offset from 0 to length/2
+            byte[] expectedData = writtenData.toByteArray();
+            val readHandle = s.openRead(segmentName).join();
+            for (int startOffset = 0; startOffset < expectedLength / 2; startOffset++) {
+                int readLength = (int) (expectedLength - 2 * startOffset);
+                byte[] actualData = new byte[readLength];
+                int readBytes = s.read(readHandle, startOffset, actualData, 0, actualData.length, null).join();
+
+                Assert.assertEquals("Unexpected number of bytes read with start offset " + startOffset, actualData.length, readBytes);
+                AssertExtensions.assertArrayEquals("Unexpected data read back with start offset " + startOffset,
+                        expectedData, startOffset, actualData, 0, readLength);
+            }
+        }
+    }
+
+    /**
+     * Tests the case when the segment ownership changes while the read operation is on.
+     */
+    @Test
+    public void testRefreshHandleOffset() throws Exception {
+        String segmentName = "foo_open";
+        val rnd = new Random(0);
+        try (Storage s = createStorage();
+        Storage s2 = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            s2.initialize(DEFAULT_EPOCH + 1);
+
+            createSegment(segmentName, s);
+            SegmentHandle handle = s.openWrite(segmentName).join();
+
+            long expectedLength = 0;
+
+            ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+            for (int i = 0; i < WRITE_COUNT; i++) {
+                byte[] data = new byte[i + 1];
+                rnd.nextBytes(data);
+                s.write(handle, expectedLength, new ByteArrayInputStream(data), data.length, null).join();
+                writtenData.write(data);
+                expectedLength += data.length;
+            }
+
+            // Check written data via a Read Operation, from every offset from 0 to length/2
+            byte[] expectedData = writtenData.toByteArray();
+            val readHandle = s.openRead(segmentName).join();
+            for (int startOffset = 0; startOffset < expectedLength / 2; startOffset++) {
+                int readLength = (int) (expectedLength - 2 * startOffset);
+                byte[] actualData = new byte[readLength];
+                int readBytes = s.read(readHandle, startOffset, actualData, 0, actualData.length, null).join();
+
+                Assert.assertEquals("Unexpected number of bytes read with start offset " + startOffset, actualData.length, readBytes);
+                AssertExtensions.assertArrayEquals("Unexpected data read back with start offset " + startOffset,
+                        expectedData, startOffset, actualData, 0, readLength);
+                //Change ownership of the segment
+                s2.openWrite(segmentName).join();
+            }
+        }
+    }
+
+    // endregion
 
     //region RollingStorageTests
 
