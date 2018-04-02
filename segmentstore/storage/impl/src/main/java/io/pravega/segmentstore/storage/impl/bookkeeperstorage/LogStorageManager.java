@@ -59,7 +59,7 @@ class LogStorageManager {
 
     private final ConcurrentHashMap<String, LogStorage> ledgers;
     private BookKeeper bookkeeper;
-    private AtomicLong containerEpoch;
+    private AtomicLong containerEpoch = new AtomicLong();
 
     LogStorageManager(BookKeeperStorageConfig config, CuratorFramework zkClient) {
         Preconditions.checkNotNull(config, "config");
