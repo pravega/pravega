@@ -136,13 +136,13 @@ class SegmentAttributeIndex implements AttributeIndex {
         return Futures
                 .exceptionallyComposeExpecting(
                         this.storage.openWrite(attributeSegmentName)
-                                .thenCompose(handle -> this.storage
+                                .thenComposeAsync(handle -> this.storage
                                         .getStreamSegmentInfo(attributeSegmentName, timer.getRemaining())
-                                        .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength())))),
+                                        .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))), this.executor),
                         ex -> ex instanceof StreamSegmentNotExistsException,
                         () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
                                 .thenComposeAsync(si -> this.storage.openWrite(attributeSegmentName)
-                                        .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))))
+                                        .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))), this.executor)
                 )
                 .thenRun(() -> log.debug("{}: Initialized (Attribute Segment Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
     }
