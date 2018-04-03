@@ -299,7 +299,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
                 if (operations.isEmpty()) {
                     // We have processed all operations in the queue: this is a good time to report metrics.
-                    this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
+                    this.metrics.currentState(this.operationQueue.size() + count, this.state.getPendingCount());
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
