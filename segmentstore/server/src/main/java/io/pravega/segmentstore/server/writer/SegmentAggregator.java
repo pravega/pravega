@@ -1053,72 +1053,93 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     /**
-     * Attempts to reconcile the given Append Operation. Since Append Operations can be partially flushed, reconciliation
-     * may be for the full operation or for a part of it.
+     * Attempts to reconcile data and attributes for the given AggregatedAppendOperation. Since Append Operations can be partially
+     * flushed, reconciliation may be for the full operation or for a part of it.
      *
-     * @param op          The Operation (StreamSegmentAppendOperation or CachedStreamSegmentAppendOperation) to reconcile.
+     * @param op          The AggregatedAppendOperation to reconcile.
      * @param storageInfo The current state of the Segment in Storage.
      * @param timer       Timer for the operation.
      * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileAppendOperation(AggregatedAppendOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
-        CompletableFuture<Void> result;
-        AtomicInteger reconciledBytes = new AtomicInteger();
-        AtomicBoolean reconciledSuccessful = new AtomicBoolean(false);
+        CompletableFuture<Boolean> reconcileResult;
+        FlushResult flushResult = new FlushResult();
         if (op.getLength() > 0) {
-            // This operation has data. Read data from Storage, and compare byte-by-byte.
-            InputStream appendStream = this.dataSource.getAppendData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
-            if (appendStream == null) {
-                return Futures.failedFuture(new ReconciliationFailureException(
-                        String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
-            }
-
-            // Only read as much data as we need.
-            long readLength = Math.min(op.getLastStreamSegmentOffset(), storageInfo.getLength()) - op.getStreamSegmentOffset();
-            assert readLength > 0 : "Append Operation to be reconciled is beyond the Segment's StorageLength (" + storageInfo.getLength() + "): " + op;
-
-            // Read all data from storage.
-            byte[] storageData = new byte[(int) readLength];
-            result = Futures
-                    .loop(
-                            () -> reconciledBytes.get() < readLength,
-                            () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + reconciledBytes.get(), storageData, reconciledBytes.get(), (int) readLength - reconciledBytes.get(), timer.getRemaining()),
-                            bytesRead -> {
-                                assert bytesRead > 0 : String.format("Unable to make any read progress when reconciling operation '%s' after reading %s bytes.", op, reconciledBytes);
-                                reconciledBytes.addAndGet(bytesRead);
-                            },
-                            this.executor)
-                    .thenRunAsync(() -> {
-                        // Compare, byte-by-byte, the contents of the append.
-                        verifySame(appendStream, storageData, op, storageInfo);
-                        reconciledSuccessful.set(readLength >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength());
-                    }, this.executor);
+            // This operation has data. Reconcile that first.
+            reconcileResult = reconcileData(op, storageInfo, timer)
+                    .thenApply(reconciledBytes -> {
+                        flushResult.withFlushedBytes(reconciledBytes);
+                        return reconciledBytes >= op.getLength() && op.getLastStreamSegmentOffset() <= storageInfo.getLength();
+                    });
         } else {
             // No data to reconcile, so we consider this part done.
-            reconciledSuccessful.set(true);
-            result = CompletableFuture.completedFuture(null);
+            reconcileResult = CompletableFuture.completedFuture(true);
         }
 
         if (!op.attributes.isEmpty()) {
-            // This operation has Attributes. Reconcile them, but only if the data reconciliation succeeded.
-            result = result.thenComposeAsync(v -> {
-                if (reconciledSuccessful.get()) {
-                    return reconcileAttributes(op, timer);
+            // This operation has Attributes. Reconcile them, but only if the data reconciliation succeeded for the whole operation.
+            reconcileResult = reconcileResult.thenComposeAsync(fullyReconciledData -> {
+                if (fullyReconciledData) {
+                    return reconcileAttributes(op, timer)
+                            .thenApply(v -> {
+                                flushResult.withFlushedAttributes(op.attributes.size());
+                                return fullyReconciledData;
+                            });
                 } else {
-                    return CompletableFuture.completedFuture(null);
+                    return CompletableFuture.completedFuture(fullyReconciledData);
                 }
             }, this.executor);
         }
 
-        return result.thenApplyAsync(fullyReconciled -> {
-            if (reconciledSuccessful.get()) {
+        return reconcileResult.thenApplyAsync(fullyReconciled -> {
+            if (fullyReconciled) {
                 // Operation has been completely validated; pop it off the list.
                 StorageOperation removedOp = this.operations.removeFirst();
                 assert op == removedOp : "Reconciled operation is not the same as removed operation";
             }
-            return new FlushResult().withFlushedBytes(reconciledBytes.get()).withFlushedAttributes(op.attributes.size());
+            return flushResult;
         });
+    }
+
+    /**
+     * Attempts to reconcile the data for the given AggregatedAppendOperation. Since Append Operations can be partially
+     * flushed, reconciliation may be for the full operation or for a part of it.
+     *
+     * @param op          The AggregatedAppendOperation to reconcile.
+     * @param storageInfo The current state of the Segment in Storage.
+     * @param timer       Timer for the operation.
+     * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
+     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
+     */
+    private CompletableFuture<Integer> reconcileData(AggregatedAppendOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
+        InputStream appendStream = this.dataSource.getAppendData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
+        if (appendStream == null) {
+            return Futures.failedFuture(new ReconciliationFailureException(
+                    String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
+        }
+
+        // Only read as much data as we need.
+        long readLength = Math.min(op.getLastStreamSegmentOffset(), storageInfo.getLength()) - op.getStreamSegmentOffset();
+        assert readLength > 0 : "Append Operation to be reconciled is beyond the Segment's StorageLength (" + storageInfo.getLength() + "): " + op;
+
+        // Read all data from storage.
+        byte[] storageData = new byte[(int) readLength];
+        AtomicInteger reconciledBytes = new AtomicInteger();
+        return Futures
+                .loop(
+                        () -> reconciledBytes.get() < readLength,
+                        () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + reconciledBytes.get(), storageData, reconciledBytes.get(), (int) readLength - reconciledBytes.get(), timer.getRemaining()),
+                        bytesRead -> {
+                            assert bytesRead > 0 : String.format("Unable to make any read progress when reconciling operation '%s' after reading %s bytes.", op, reconciledBytes);
+                            reconciledBytes.addAndGet(bytesRead);
+                        },
+                        this.executor)
+                .thenApplyAsync(v -> {
+                    // Compare, byte-by-byte, the contents of the append.
+                    verifySame(appendStream, storageData, op, storageInfo);
+                    return reconciledBytes.get();
+                }, this.executor);
     }
 
     @SneakyThrows

@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -77,7 +78,7 @@ class SegmentAttributeIndex implements AttributeIndex {
      */
     private static final Retry.RetryAndThrowBase<Exception> APPEND_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
-            .retryWhen(ex -> Exceptions.unwrap(ex) instanceof BadOffsetException)
+            .retryingOn(BadOffsetException.class)
             .throwingOn(Exception.class);
 
     /**
@@ -87,7 +88,7 @@ class SegmentAttributeIndex implements AttributeIndex {
      */
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
-            .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentTruncatedException)
+            .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
 
     private final SegmentMetadata segmentMetadata;
@@ -131,25 +132,18 @@ class SegmentAttributeIndex implements AttributeIndex {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
         Preconditions.checkState(this.attributeSegment.get() == null, "SegmentAttributeIndex is already initialized.");
+        // Attempt to open the Attribute Segment; if it does not exist yet then create it.
         return Futures
-                .exceptionallyCompose(
+                .exceptionallyComposeExpecting(
                         this.storage.openWrite(attributeSegmentName)
-                                    .thenCompose(handle -> this.storage
-                                            .getStreamSegmentInfo(attributeSegmentName, timer.getRemaining())
-                                            .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength())))),
-                        ex -> {
-                            if (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) {
-                                // Attribute Segment does not exist yet. Create it now.
-                                return this.storage
-                                        .create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
-                                        .thenComposeAsync(si -> this.storage
-                                                .openWrite(attributeSegmentName)
-                                                .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))));
-                            }
-
-                            // Some other kind of exception.
-                            return Futures.failedFuture(ex);
-                        })
+                                .thenCompose(handle -> this.storage
+                                        .getStreamSegmentInfo(attributeSegmentName, timer.getRemaining())
+                                        .thenAccept(si -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength())))),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
+                                .thenComposeAsync(si -> this.storage.openWrite(attributeSegmentName)
+                                        .thenAccept(handle -> this.attributeSegment.set(new AttributeSegment(handle, si.getLength()))))
+                )
                 .thenRun(() -> log.debug("{}: Initialized (Attribute Segment Length = {}).", this.traceObjectId, this.attributeSegment.get().getLength()));
     }
 
@@ -499,6 +493,7 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Async reader for the Attribute Segment from Storage.
      */
+    @NotThreadSafe
     private static class AttributeSegmentReader implements AsyncReadResultHandler {
         private final ArrayList<InputStream> inputs = new ArrayList<>();
         private final CompletableFuture<AttributeCollection> result;

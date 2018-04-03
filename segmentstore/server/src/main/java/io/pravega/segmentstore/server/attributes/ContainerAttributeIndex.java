@@ -38,7 +38,7 @@ public interface ContainerAttributeIndex {
     CompletableFuture<Void> delete(SegmentMetadata metadata, Duration timeout);
 
     /**
-     * Removes all internal indices that point to the given StreamSegments.
+     * Removes all internal indices that point to the given StreamSegments from memory. This does not delete the data itself.
      *
      * @param segmentIds A Collection of SegmentIds for the Segments to clean up. If this is null, then all the Segment Ids
      *                   registered in this ContainerAttributeIndex are eligible for removal.
