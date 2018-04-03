@@ -38,6 +38,9 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -131,7 +134,7 @@ public class BoundedStreamReaderTest {
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
-                        new StreamCutImpl(Stream.of(SCOPE, STREAM1), ImmutableMap.of(new Segment(SCOPE, STREAM1, 0), 60L)))
+                        getStreamCut(STREAM1, 60L, 0))
                 .stream(Stream.of(SCOPE, STREAM2))
                 .build());
 
@@ -158,6 +161,84 @@ public class BoundedStreamReaderTest {
 
     }
 
+    @Test(timeout = 60000)
+    public void testBoundedStreamWithScaleTest() throws Exception {
+        createScope(SCOPE);
+        createStream(STREAM1);
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
+                EventWriterConfig.builder().build());
+        //Prep the stream with data.
+        //1.Write events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+
+        //2.Scale stream
+        Map<Double, Double> newKeyRanges = new HashMap<>();
+        newKeyRanges.put(0.0, 0.33);
+        newKeyRanges.put(0.33, 0.66);
+        newKeyRanges.put(0.66, 1.0);
+        scaleStream(STREAM1, newKeyRanges);
+
+        //3.Write three events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+
+        ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM1),
+                        //startStreamCut points to the current HEAD of stream
+                        StreamCut.UNBOUNDED,
+                        //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
+                        getStreamCut(STREAM1, 60L, 0))
+                .build();
+        ReaderGroup readerGroup = groupManager.createReaderGroup("group", readerGroupCfg1);
+
+        //Create a reader
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", "group", serializer,
+                ReaderConfig.builder().build());
+
+        //2. Verify if endStreamCut configuration is enforced.
+        readAndVerify(reader1, 1, 2);
+        //The following read should not return events 3, 4 due to the endStreamCut configuration.
+        Assert.assertNull("Null is expected", reader1.readNextEvent(2000).getEvent());
+
+        final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                             .stream(Stream.of(SCOPE, STREAM1),
+                                                                     getStreamCut(STREAM1, 60L, 0),
+                                                                     //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
+                                                                     getStreamCut(STREAM1, 90L, 1, 2, 3))
+                                                             .build();
+        readerGroup.resetReaderGroup(readerGroupCfg2);
+        verifyReinitializationRequiredException(reader1);
+
+        //Create a reader
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
+                ReaderConfig.builder().build());
+        readAndVerify(reader2, 3, 4, 5);
+        Assert.assertNull("Null is expected", reader2.readNextEvent(2000).getEvent());
+    }
+
+    /*
+     * Test method to create StreamCuts. In the real world StreamCuts are obtained via the Pravega client apis.
+     */
+    private StreamCut getStreamCut(String streamName, long offset, int... segmentNumbers) {
+        ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
+        Arrays.stream(segmentNumbers).forEach(seg -> {
+            builder.put(new Segment(SCOPE, streamName, seg), offset);
+        });
+
+        return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
+    }
+
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {
         ArrayList<String> results = new ArrayList<>(index.length);
         for (int i = 0; i < index.length; i++) {
@@ -182,5 +263,20 @@ public class BoundedStreamReaderTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         controller.createStream(config).get();
+    }
+
+    private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
+        Stream stream = Stream.of(SCOPE, streamName);
+        Controller controller = controllerWrapper.getController();
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
+    }
+
+    private void verifyReinitializationRequiredException(EventStreamReader<String> reader) {
+        try {
+            reader.readNextEvent(15000);
+            Assert.fail("Reinitialization Exception excepted");
+        } catch (ReinitializationRequiredException e) {
+            reader.close();
+        }
     }
 }

@@ -41,6 +41,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -213,36 +214,59 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         if (checkPointedPositions.isPresent()) {
             log.debug("Computing unread bytes based on the last checkPoint position");
-            return getUnreadBytes(checkPointedPositions.get(), metaFactory);
+            return getUnreadBytes(checkPointedPositions.get(), synchronizer.getState().getEndSegments(), metaFactory);
         } else {
             log.info("No checkpoints found, using the last known offset to compute unread bytes");
-            return getUnreadBytes(synchronizer.getState().getPositions(), metaFactory);
+            return getUnreadBytes(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments(), metaFactory);
         }
     }
 
-    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, SegmentMetadataClientFactory metaFactory) {
+    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
         log.debug("Compute unread bytes from position {}", positions);
         long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            StreamCut position = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
-            totalLength += getRemainingBytes(metaFactory, position);
+            StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
+            StreamCut toStreamCut = computeEndStreamCut( streamPosition.getKey(), endSegments);
+            totalLength += getRemainingBytes(metaFactory, fromStreamCut, toStreamCut);
         }
         return totalLength;
     }
 
-    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
+    private StreamCut computeEndStreamCut(Stream stream, Map<Segment, Long> endSegments) {
+        final Map<Segment, Long> toPositions = endSegments.entrySet().stream()
+                                                          .filter(e -> e.getKey().getStream().equals(stream))
+                                                          .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        return toPositions.isEmpty() ? StreamCut.UNBOUNDED : new StreamCutImpl(stream, toPositions);
+    }
+
+    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut fromStreamCut, StreamCut toStreamCut) {
         long totalLength = 0;
-        CompletableFuture<StreamSegmentSuccessors> unread = controller.getSuccessors(position);
-        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
-        for (Segment s : unreadVal.getSegments()) {
-            @Cleanup
-            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
-            totalLength += metadataClient.fetchCurrentSegmentLength();
+
+        //fetch StreamSegmentSuccesors
+        final CompletableFuture<StreamSegmentSuccessors> unread;
+        final Map<Segment, Long> endPositions;
+        if (toStreamCut.equals(StreamCut.UNBOUNDED)) {
+            unread = controller.getSuccessors(fromStreamCut);
+            endPositions = Collections.emptyMap();
+        } else {
+            unread = controller.getSegments(fromStreamCut, toStreamCut);
+            endPositions = toStreamCut.asImpl().getPositions();
         }
-        for (long bytesRead : position.asImpl().getPositions().values()) {
+        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
+        //compute remaining bytes.
+        for (Segment s : unreadVal.getSegments()) {
+            if (endPositions.containsKey(s)) {
+                totalLength += endPositions.get(s);
+            } else {
+                @Cleanup
+                SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
+                totalLength += metadataClient.fetchCurrentSegmentLength();
+            }
+        }
+        for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
             totalLength -= bytesRead;
         }
-        log.debug("Remaining bytes after position: {} is {}", position, totalLength);
+        log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);
         return totalLength;
     }
 
