@@ -10,15 +10,21 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import java.util.Collections;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +43,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long parentStreamSegmentId;
     private final int containerId;
     @GuardedBy("this")
-    private final Map<UUID, Long> attributes;
+    private final Map<UUID, Long> coreAttributes;
+    @GuardedBy("this")
+    private final Map<UUID, ExtendedAttributeValue> extendedAttributes;
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
@@ -101,7 +109,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.startOffset = 0;
         this.storageLength = -1;
         this.length = -1;
-        this.attributes = new HashMap<>();
+        this.coreAttributes = new HashMap<>();
+        this.extendedAttributes = new HashMap<>();
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
@@ -177,7 +186,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized Map<UUID, Long> getAttributes() {
-        return Collections.unmodifiableMap(this.attributes);
+        return new AttributesView();
     }
 
     @Override
@@ -267,11 +276,20 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized void updateAttributes(Map<UUID, Long> attributes) {
         for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
+            UUID key = av.getKey();
             long value = av.getValue();
-            if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                this.attributes.remove(av.getKey());
+            if (Attributes.isCoreAttribute(key)) {
+                if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                    this.coreAttributes.remove(av.getKey());
+                } else {
+                    this.coreAttributes.put(av.getKey(), value);
+                }
             } else {
-                this.attributes.put(av.getKey(), value);
+                if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                    this.extendedAttributes.remove(av.getKey());
+                } else {
+                    this.extendedAttributes.put(av.getKey(), new ExtendedAttributeValue(value, 0));
+                }
             }
         }
     }
@@ -329,4 +347,136 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     //endregion
+
+    //region ExtendedAttributeValue
+
+    private static class ExtendedAttributeValue {
+        private final long value;
+        private long lastTouchedSequenceNumber; // TODO: this is not available here. Perhaps use Length/StorageLength?
+
+        ExtendedAttributeValue(long value, long currentSequenceNumber) {
+            this.value = value;
+            this.lastTouchedSequenceNumber = currentSequenceNumber;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%d (SN=%d)", this.value, this.lastTouchedSequenceNumber);
+        }
+    }
+
+    //endregion
+
+    //region AttributesView
+
+    /**
+     * Read-only view of this SegmentMetadata's Attributes (combines Core and Extended Attributes into one single Map).
+     */
+    private class AttributesView implements Map<UUID, Long> {
+        @Override
+        public int size() {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.size() + extendedAttributes.size();
+            }
+        }
+
+        @Override
+        public boolean isEmpty() {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.isEmpty() && extendedAttributes.isEmpty();
+            }
+        }
+
+        @Override
+        public boolean containsKey(Object o) {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.containsKey(o) || extendedAttributes.containsKey(o);
+            }
+        }
+
+        @Override
+        public Long get(Object o) {
+            synchronized (StreamSegmentMetadata.this) {
+                Long result = coreAttributes.get(o);
+                if (result == null) {
+                    ExtendedAttributeValue r = extendedAttributes.get(o);
+                    if (r != null) {
+                        // TODO: update lastTouched. Should we also do it for containsKey/keySet/values/entrySet ?
+                        // TODO: how do we handle CAS operations, which operate on a different Map/Object.
+                        result = r.value;
+                    }
+                }
+                return result;
+            }
+        }
+
+        @Override
+        public Set<UUID> keySet() {
+            synchronized (StreamSegmentMetadata.this) {
+                return Sets.union(coreAttributes.keySet(), extendedAttributes.keySet());
+            }
+        }
+
+        @Override
+        public Collection<Long> values() {
+            synchronized (StreamSegmentMetadata.this) {
+                return Stream.concat(
+                        coreAttributes.values().stream(),
+                        extendedAttributes.values()
+                                .stream().map(eav -> eav.value))
+                        .collect(Collectors.toList());
+            }
+        }
+
+        @Override
+        public Set<Map.Entry<UUID, Long>> entrySet() {
+            synchronized (StreamSegmentMetadata.this) {
+                return Stream.concat(
+                        coreAttributes.entrySet().stream(),
+                        extendedAttributes.entrySet()
+                                .stream().map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue().value)))
+                        .collect(Collectors.toSet());
+            }
+        }
+
+        @Override
+        public String toString() {
+            synchronized (StreamSegmentMetadata.this) {
+                return String.format("Core: %s, Extended: %s", coreAttributes, extendedAttributes);
+            }
+        }
+
+        //region Unsupported Methods
+
+        @Override
+        public boolean containsValue(Object o) {
+            // Not a very useful one anyway.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Long put(UUID uuid, Long aLong) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Long remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends UUID, ? extends Long> map) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        //endregion
+    }
+
+    //endregion
+
 }
