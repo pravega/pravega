@@ -18,6 +18,9 @@ mkdocs {
     sourcesDir = "$rootDir/documentation/src"
     buildDir = "$rootDir/documentation/generated"
     updateSiteUrl = false
+    publish {
+        repoUri = "https://github.com/pravega/pravega.git"
+    }
 }
 
 remotes {
