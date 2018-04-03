@@ -46,6 +46,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.BlockJUnit4ClassRunner;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -431,7 +433,7 @@ public class EventProcessorTest {
         Assert.assertTrue(true);
     }
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testEventProcessorGroup() throws CheckpointStoreException, ReinitializationRequiredException {
         int count = 4;
         int initialCount = count / 2;
