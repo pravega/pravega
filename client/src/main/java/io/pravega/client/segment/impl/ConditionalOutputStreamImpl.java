@@ -13,7 +13,6 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -40,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 class ConditionalOutputStreamImpl implements ConditionalOutputStream {
-    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 9, 30000);
 
     private final UUID writerId;
     private final Segment segmentId;
@@ -53,6 +51,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     
     private final String delegationToken;
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
+    private final RetryWithBackoff retrySchedule;
     
 
     @Override
@@ -64,7 +63,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     public boolean write(ByteBuffer data, long expectedOffset) throws SegmentSealedException {
         synchronized (lock) { //Used to preserver order.
             long appendSequence = requestIdGenerator.get();
-            return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+            return retrySchedule.retryingOn(ConnectionFailedException.class)
                     .throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {

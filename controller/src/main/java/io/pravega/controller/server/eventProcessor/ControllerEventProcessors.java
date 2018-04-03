@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
+import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
@@ -81,7 +82,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final CheckpointStore checkpointStore;
     private final EventProcessorSystem system;
     private final Controller controller;
-    private final ClientFactoryImpl clientFactory;
+    private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;

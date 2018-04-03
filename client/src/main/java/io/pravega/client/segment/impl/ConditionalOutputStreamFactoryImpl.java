@@ -10,7 +10,10 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryWithBackoff;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 
@@ -21,8 +24,13 @@ public class ConditionalOutputStreamFactoryImpl implements ConditionalOutputStre
     private final ConnectionFactory cf;
     
     @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken) {
-        return new ConditionalOutputStreamImpl(UUID.randomUUID(), segment, controller, cf, delegationToken);
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
+        return new ConditionalOutputStreamImpl(UUID.randomUUID(), segment, controller, cf, delegationToken, getRetryFromConfig(config));
     }
 
+    private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {
+        return Retry.withExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+                                    config.getRetryAttempts(), config.getMaxBackoffMillis());
+    }
+    
 }

@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -40,7 +41,7 @@ public class ConditionalOutputStreamTest {
         MockController controller = new MockController("localhost", 0, connectionFactory);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token");
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -81,7 +82,7 @@ public class ConditionalOutputStreamTest {
         MockController controller = new MockController("localhost", 0, connectionFactory);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token");
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
         cOut.close();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> cOut.write(ByteBuffer.allocate(0), 0));
     }
@@ -92,7 +93,7 @@ public class ConditionalOutputStreamTest {
         MockController controller = new MockController("localhost", 0, connectionFactory);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token");
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -132,7 +133,7 @@ public class ConditionalOutputStreamTest {
         MockController controller = new MockController("localhost", 0, connectionFactory);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
-        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token");
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);

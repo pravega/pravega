@@ -247,7 +247,7 @@ public class AppendTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "");
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
         
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
     }

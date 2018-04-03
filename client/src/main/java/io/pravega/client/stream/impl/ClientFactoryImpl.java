@@ -164,7 +164,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 segment.getStreamName()), RuntimeException::new);
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
                 config.getEventWriterConfig(), delegationToken);
-        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken);
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
         return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
     }

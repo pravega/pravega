@@ -9,6 +9,8 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.stream.EventWriterConfig;
+
 /**
  * Creates {@link ConditionalOutputStream} for conditional appends on existing segments.
  */
@@ -21,8 +23,9 @@ public interface ConditionalOutputStreamFactory {
      *
      * @param segment The segment to create a conditional client for.
      * @param delegationToken token to be passed on to segmentstore for validation.
+     * @param config output writer configuration.
      * @return New instance of ConditionalOutputStream for the provided segment.
      */
-    ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken);
+    ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config);
 
 }

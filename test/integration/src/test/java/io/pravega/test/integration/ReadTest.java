@@ -217,7 +217,7 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "");
+        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
 
         @Cleanup("close")
