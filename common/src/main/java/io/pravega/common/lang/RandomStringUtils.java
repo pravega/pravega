@@ -9,8 +9,10 @@
  */
 package io.pravega.common.lang;
 
-public class RandomStringUtils {
+import io.pravega.common.hash.RandomFactory;
+import java.util.Random;
 
+public class RandomStringUtils {
     
     /**
      * <p>Creates a random string whose length is the number of characters
@@ -22,9 +24,22 @@ public class RandomStringUtils {
      * @param count  the length of random string to create
      * @return the random string
      */
-    @SuppressWarnings("deprecation")
     public static String randomAlphanumeric(final int count) {
-        return org.apache.commons.lang3.RandomStringUtils.randomAlphanumeric(count);
+        Random r = RandomFactory.create();
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            int randValue = r.nextInt(26 * 2 + 10);
+            char newChar;
+            if (randValue < 26) {
+                newChar = (char) ((int) 'a' + randValue);
+            } else if (randValue < 26 * 2) {
+                newChar = (char) ((int) 'A' + (randValue - 26));
+            } else {
+                newChar = (char) ((int) '0' + (randValue - 26 * 2));
+            }
+            sb.append(newChar);
+        }
+        return sb.toString();
     }
     
     /**
@@ -37,9 +52,20 @@ public class RandomStringUtils {
      * @param count  the length of random string to create
      * @return the random string
      */
-    @SuppressWarnings("deprecation")
     public static String randomAlphabetic(final int count) {
-        return org.apache.commons.lang3.RandomStringUtils.randomAlphabetic(count);
+        Random r = RandomFactory.create();
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            int randValue = r.nextInt(26 * 2);
+            char newChar;
+            if (randValue < 26) {
+                newChar = (char) ((int) 'a' + randValue);
+            } else {
+                newChar = (char) ((int) 'A' + (randValue - 26));
+            }
+            sb.append(newChar);
+        }
+        return sb.toString();
     }
     
 }
