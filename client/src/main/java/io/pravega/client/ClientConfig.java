@@ -20,7 +20,6 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class contains configuration that is passed on to Pravega client.
@@ -30,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 @Data
 @Beta
 @Builder(toBuilder = true)
-@Slf4j
 public class ClientConfig {
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
@@ -75,9 +73,6 @@ public class ClientConfig {
                 controllerURI = URI.create("tcp://localhost");
             }
             extractCredentials();
-            if (credentials == null) {
-                log.warn("No credentials were supplied OR extracted from environment. Continuing without credentials");
-            }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
 
