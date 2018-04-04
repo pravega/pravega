@@ -14,9 +14,6 @@ package io.pravega.segmentstore.contracts;
  * added anymore.
  */
 public class TooManyAttributesException extends StreamSegmentException {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**

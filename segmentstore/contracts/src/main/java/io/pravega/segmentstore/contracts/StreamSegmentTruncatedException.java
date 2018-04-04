@@ -13,9 +13,6 @@ package io.pravega.segmentstore.contracts;
  * An Exception that indicates a StreamSegment has been truncated and certain offsets cannot be accessed anymore.
  */
 public class StreamSegmentTruncatedException extends StreamSegmentException {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**

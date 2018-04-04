@@ -14,9 +14,6 @@ package io.pravega.segmentstore.contracts;
  * registered.
  */
 public class TooManyActiveSegmentsException extends ContainerException {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**
