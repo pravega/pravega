@@ -32,7 +32,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -113,8 +112,7 @@ public class UnreadBytesTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton("unreadbytes"));
+                .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),

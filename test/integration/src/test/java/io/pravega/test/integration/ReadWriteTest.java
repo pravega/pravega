@@ -24,6 +24,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
@@ -37,7 +38,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeSet;
@@ -155,8 +155,7 @@ public class ReadWriteTest {
             //create a reader group
             log.info("Creating Reader group : {}", readerGroupName);
 
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
-                    Collections.singleton(STREAM_NAME));
+            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
             log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
             log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
 

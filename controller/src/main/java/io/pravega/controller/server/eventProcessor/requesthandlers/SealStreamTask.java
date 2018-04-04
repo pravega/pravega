@@ -73,6 +73,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                             if (!cancelled) {
                                 // If transactions exist on the stream, we will throw OperationNotAllowed so that this task
                                 // is retried.
+                                log.debug("Found open transactions on stream {}/{}. Postponing its sealing.", scope, stream);
                                 throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
                                         "Found ongoing transactions. Abort transaction requested." +
                                                 "Sealing stream segments should wait until transactions are aborted.");
@@ -98,7 +99,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                         return CompletableFuture.completedFuture(true);
                     } else {
                         // abort transactions
-                        return Futures.allOfWithResults(activeTxns.entrySet().stream().map(txIdPair -> {
+                        return Futures.allOf(activeTxns.entrySet().stream().map(txIdPair -> {
                             CompletableFuture<Void> voidCompletableFuture;
                             if (txIdPair.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
                                 voidCompletableFuture = Futures.toVoid(streamTransactionMetadataTasks

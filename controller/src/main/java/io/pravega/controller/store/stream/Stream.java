@@ -138,6 +138,14 @@ interface Stream {
     CompletableFuture<State> getState(boolean ignoreCached);
 
     /**
+     * If state is matches the given state then reset it back to State.ACTIVE
+     *
+     * @param state state to compare
+     * @return Future which when completed has reset the state
+     */
+    CompletableFuture<Void> resetStateConditionally(State state);
+
+    /**
      * Fetches details of specified segment.
      *
      * @param number segment number.
@@ -213,29 +221,25 @@ interface Stream {
     CompletableFuture<Boolean> scaleTryDeleteEpoch(final int epoch);
 
     /**
-     * Called after new segment creation is complete and previous epoch is successfully deleted.
+     * Called after epochTransition entry is created. Implementation of this method should create new segments that are
+     * specified in epochTransition in stream metadata tables.
      *
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments created
-     * @param epoch
-     *@param scaleTimestamp scaling timestamp  @return future
+     * @return Future, which when completed will indicate that new segments are created in the metadata store or wouldl
+     * have failed with appropriate exception.
      */
-    CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
-                                                    final List<Integer> newSegments,
-                                                    final int epoch,
-                                                    final long scaleTimestamp);
+    CompletableFuture<Void> scaleCreateNewSegments();
+
+    /**
+     * Called after new segment creation is complete.
+     */
+    CompletableFuture<Void> scaleNewSegmentsCreated();
 
     /**
      * Called after sealing old segments is complete.
      *
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments created
-     * @param activeEpoch    activeEpoch
-     *@param scaleTimestamp scaling timestamp  @return future
+     * @param sealedSegmentSizes sealed segments with absolute sizes
      */
-    CompletableFuture<Void> scaleOldSegmentsSealed(final Map<Integer, Long> sealedSegments,
-                                                   final List<Integer> newSegments,
-                                                   int activeEpoch, final long scaleTimestamp);
+    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Integer, Long> sealedSegmentSizes);
 
     /**
      * Returns the latest sets of segments created and removed by doing a diff of last two epochs.

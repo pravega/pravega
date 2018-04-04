@@ -478,7 +478,7 @@ public class StreamTransactionMetadataTasksTest {
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
 
         ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class), any()))
+        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class)))
                 .then(invocation -> readerGroup);
 
         EventProcessorSystemImpl system = new EventProcessorSystemImpl("system", "host", SCOPE, clientFactory, readerGroupManager);
