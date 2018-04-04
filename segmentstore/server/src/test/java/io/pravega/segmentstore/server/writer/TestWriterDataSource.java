@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -264,7 +265,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                         }
                         try {
                             for (val e : attributes.entrySet()) {
-                                if (e.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                                if (e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
                                     segmentAttributes.remove(e.getKey());
                                 } else {
                                     segmentAttributes.put(e.getKey(), e.getValue());

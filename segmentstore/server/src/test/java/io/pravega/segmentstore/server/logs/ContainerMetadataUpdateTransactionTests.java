@@ -20,7 +20,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
-import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -275,89 +274,6 @@ public class ContainerMetadataUpdateTransactionTests {
         testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
-    /**
-     * Tests the ability of the ContainerMetadataUpdateTransaction to enforce the maximum attribute limit on Segments.
-     */
-    @Test
-    public void testMaxAttributeLimit() throws Exception {
-        // We check all operations that can update attributes.
-        val ops = new HashMap<String, Function<Collection<AttributeUpdate>, Operation>>();
-        ops.put("UpdateAttributes", u -> new UpdateAttributesOperation(SEGMENT_ID, u));
-        ops.put("Append", u -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, u));
-
-        // Set the maximum allowed number of attributes on a segment.
-        UpdateableContainerMetadata metadata = createMetadata();
-        val initialUpdates = new ArrayList<AttributeUpdate>(SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT);
-        val expectedValues = new HashMap<UUID, Long>();
-        for (int i = 0; i < SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT; i++) {
-            UUID attributeId;
-            do {
-                attributeId = UUID.randomUUID();
-            } while (expectedValues.containsKey(attributeId));
-
-            initialUpdates.add(new AttributeUpdate(attributeId, AttributeUpdateType.None, i));
-            expectedValues.put(attributeId, (long) i);
-        }
-
-        // And load them up into an UpdateTransaction.
-        val txn = createUpdateTransaction(metadata);
-        val initialOp = new UpdateAttributesOperation(SEGMENT_ID, initialUpdates);
-        txn.preProcessOperation(initialOp);
-        txn.acceptOperation(initialOp);
-
-        // Attempt to modify the set attributes using various operations and verify the expected behavior. This test only
-        // invokes preProcessOperation() - which is responsible with validation, so no changes are made to the UpdateTransaction.
-        for (val opGenerator : ops.entrySet()) {
-            // Value replacement.
-            val replacementUpdates = new ArrayList<AttributeUpdate>();
-            int i = 0;
-            for (val e : expectedValues.entrySet()) {
-                AttributeUpdate u;
-                switch ((i++) % 4) {
-                    case 0:
-                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfEquals, e.getValue() + 1, e.getValue());
-                        break;
-                    case 1:
-                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfGreater, e.getValue() + 1);
-                        break;
-                    case 2:
-                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.Accumulate, 1);
-                        break;
-                    default:
-                        u = new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, 1);
-                        break;
-                }
-                replacementUpdates.add(u);
-            }
-
-            // This should not throw anything.
-            txn.preProcessOperation(opGenerator.getValue().apply(replacementUpdates));
-
-            // Removal - this should not throw anything either.
-            val toRemoveId = initialUpdates.get(0).getAttributeId();
-            val toRemoveUpdate = new AttributeUpdate(toRemoveId, AttributeUpdateType.Replace, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            txn.preProcessOperation(opGenerator.getValue().apply(Collections.singleton(toRemoveUpdate)));
-
-            // Addition - this should throw.
-            UUID toAddId;
-            do {
-                toAddId = UUID.randomUUID();
-            } while (expectedValues.containsKey(toAddId));
-            val toAddUpdate = new AttributeUpdate(toAddId, AttributeUpdateType.None, 1);
-            AssertExtensions.assertThrows(
-                    "Too many attributes were accepted for operation " + opGenerator.getKey(),
-                    () -> txn.preProcessOperation(opGenerator.getValue().apply(Collections.singleton(toAddUpdate))),
-                    ex -> ex instanceof TooManyAttributesException);
-
-            // Removal+Addition+Replacement: this particular setup should not throw anything.
-            val mixedUpdates = Arrays.asList(
-                    new AttributeUpdate(toAddId, AttributeUpdateType.None, 1),
-                    new AttributeUpdate(toRemoveId, AttributeUpdateType.Replace, SegmentMetadata.NULL_ATTRIBUTE_VALUE),
-                    new AttributeUpdate(initialUpdates.get(1).getAttributeId(), AttributeUpdateType.Replace, 10));
-            txn.preProcessOperation(opGenerator.getValue().apply(mixedUpdates));
-        }
-    }
-
     private void testWithAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeAccumulate = UUID.randomUUID();
@@ -435,6 +351,7 @@ public class ContainerMetadataUpdateTransactionTests {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
         final UUID attributeReplaceIfEquals = UUID.randomUUID();
+        final UUID attributeReplaceIfEqualsNullValue = UUID.randomUUID();
 
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
@@ -454,11 +371,20 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2)); // Initial add, so it's ok.
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE));
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
 
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
         txn.acceptOperation(op);
+
+        // ReplaceIfEquals fails when the current attribute value is NULL_ATTRIBUTE_VALUE (this should not set the IsPreviousValueMissing flag).
+        attributeUpdates.clear();
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.ReplaceIfEquals, 1, 1));
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
+                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                ex -> exceptionChecker.apply(ex, false));
 
         // Append #2: Try to update attribute that cannot be updated.
         attributeUpdates.clear();
@@ -488,7 +414,8 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 2));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 2));
-        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfGreater, 2, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 2, 2));
+        attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE));
         verifyAttributeUpdates("after rejected operations", txn, attributeUpdates, expectedValues);
         txn.commit(metadata);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after commit.",
@@ -1126,8 +1053,15 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Checkpointing will remove all Extended Attributes. In order to facilitate the comparison, we should remove those
         // too, from the original metadata (after we've serialized the checkpoint).
-        metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId())
-                .updateAttributes(extendedAttributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, au -> SegmentMetadata.NULL_ATTRIBUTE_VALUE)));
+        val expectedCleared = extendedAttributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, au -> Attributes.NULL_ATTRIBUTE_VALUE));
+        metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).updateAttributes(expectedCleared);
+
+        // Now actually check the checkpointed metadata.
+        val checkpointedSm = checkpointedMetadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        for (val e : extendedAttributeUpdates) {
+            Assert.assertFalse("Extended attribute was serialized.", checkpointedSm.getAttributes().containsKey(e.getAttributeId()));
+        }
+        checkpointedMetadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).updateAttributes(expectedCleared);
         assertMetadataSame("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
     }
 

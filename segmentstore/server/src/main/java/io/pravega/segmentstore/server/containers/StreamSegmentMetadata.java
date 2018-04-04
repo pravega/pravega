@@ -279,17 +279,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             UUID key = av.getKey();
             long value = av.getValue();
             if (Attributes.isCoreAttribute(key)) {
-                if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                    this.coreAttributes.remove(av.getKey());
-                } else {
-                    this.coreAttributes.put(av.getKey(), value);
-                }
+                this.coreAttributes.put(av.getKey(), value);
             } else {
-                if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                    this.extendedAttributes.remove(av.getKey());
-                } else {
-                    this.extendedAttributes.put(av.getKey(), new ExtendedAttributeValue(value, 0));
-                }
+                this.extendedAttributes.put(av.getKey(), new ExtendedAttributeValue(value, 0));
             }
         }
     }

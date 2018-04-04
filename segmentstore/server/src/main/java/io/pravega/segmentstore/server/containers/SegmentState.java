@@ -88,7 +88,7 @@ class SegmentState {
             output.writeLong(s.startOffset);
 
             // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
-            output.writeMap(Attributes.getCoreAttributes(s.attributes), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+            output.writeMap(Attributes.getCoreNonNullAttributes(s.attributes), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private void read00(RevisionDataInput input, SegmentState.SegmentStateBuilder builder) throws IOException {

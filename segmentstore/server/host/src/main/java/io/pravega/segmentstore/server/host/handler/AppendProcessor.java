@@ -21,6 +21,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
@@ -28,8 +29,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.TooManyAttributesException;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -173,7 +172,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         if (u != null) {
                             handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
-                            long eventNumber = attributes.getOrDefault(writer, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                            long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
                             synchronized (lock) {
                                 latestEventNumbers.putIfAbsent(Pair.of(newSegment, writer), eventNumber);
                             }
@@ -345,10 +344,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
-            connection.send(new InvalidEventNumber(writerId, requestId));
-            connection.close();
-        } else if (u instanceof TooManyAttributesException) {
-            log.warn("Attribute limit would be exceeded by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else if (u instanceof AuthenticationException) {

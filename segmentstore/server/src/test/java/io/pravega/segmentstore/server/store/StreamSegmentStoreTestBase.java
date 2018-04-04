@@ -24,7 +24,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -379,16 +378,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
                 for (UUID attributeId : ATTRIBUTES) {
                     Assert.assertEquals("Unexpected attribute value from getAttributes().",
-                            EXPECTED_ATTRIBUTE_VALUE, (long) allAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                            EXPECTED_ATTRIBUTE_VALUE, (long) allAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
 
                     if (Attributes.isCoreAttribute(attributeId)) {
                         // Core attributes must always be available from getInfo
                         Assert.assertEquals("Unexpected core attribute value from getInfo().",
-                                EXPECTED_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                                EXPECTED_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                     } else {
-                        val extAttrValue = sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+                        val extAttrValue = sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
                         Assert.assertTrue("Unexpected extended attribute value from getInfo()",
-                                extAttrValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE || extAttrValue == EXPECTED_ATTRIBUTE_VALUE);
+                                extAttrValue == Attributes.NULL_ATTRIBUTE_VALUE || extAttrValue == EXPECTED_ATTRIBUTE_VALUE);
                     }
                 }
             }

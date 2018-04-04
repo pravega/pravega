@@ -66,7 +66,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
 
             val deserialized = ss.get(original.getSegmentName(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
-            val expectedAttributes = Attributes.getCoreAttributes(original.getAttributes());
+            val expectedAttributes = Attributes.getCoreNonNullAttributes(original.getAttributes());
             AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
         }
 
@@ -94,7 +94,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
         val deserialized = ss.get(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected segment id", state2.getSegmentId(), deserialized.getSegmentId());
         Assert.assertEquals("Unexpected segment name.", state2.getSegmentName(), deserialized.getSegmentName());
-        val expectedAttributes = Attributes.getCoreAttributes(state2.getAttributes());
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(state2.getAttributes());
         AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
     }
 

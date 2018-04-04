@@ -38,7 +38,7 @@ public class SegmentStateTests {
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
             Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());
-            val expectedAttributes = Attributes.getCoreAttributes(original.getAttributes());
+            val expectedAttributes = Attributes.getCoreNonNullAttributes(original.getAttributes());
             AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
         }
     }
