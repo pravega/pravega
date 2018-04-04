@@ -10,6 +10,7 @@
 package io.pravega.common.cluster;
 
 public class ClusterException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
 
     public enum Type {
         METASTORE
@@ -38,6 +39,11 @@ public class ClusterException extends RuntimeException {
     }
 
     public static class MetaStoreException extends ClusterException {
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
+
         public MetaStoreException(String message) {
             super(message);
         }

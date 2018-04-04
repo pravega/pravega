@@ -163,8 +163,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return new CheckpointImpl(checkpointName, map);
     }
 
-    @SuppressWarnings( "deprecation" )
+    /**
+     * Used to reset a reset a reader group to a checkpoint. This should be removed in time.
+     * @deprecated Use {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} to reset readers to a given Checkpoint.
+     */
     @Override
+    @Deprecated
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();

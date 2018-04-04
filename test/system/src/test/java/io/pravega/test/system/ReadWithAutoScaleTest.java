@@ -292,5 +292,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private class TxnCreationFailedException extends RuntimeException {
+
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
     }
 }

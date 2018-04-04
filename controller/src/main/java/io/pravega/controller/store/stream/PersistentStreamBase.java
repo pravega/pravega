@@ -1072,6 +1072,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
+    @Override
     public CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts() {
         return getRetentionSet()
                 .thenApply(data -> (RetentionRecord) SerializationUtils.deserialize(data.getData()))
@@ -1110,11 +1111,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
             }
             return null;
         });
-    }
-
-    private CompletableFuture<List<Segment>> getSegments(final List<Integer> segments) {
-        return Futures.allOfWithResults(segments.stream().map(this::getSegment)
-                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {

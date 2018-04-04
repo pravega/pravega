@@ -20,6 +20,11 @@ import java.util.Map;
 public abstract class StreamCutInternal implements StreamCut {
 
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Get {@link Stream} for the StreamCut.
      * @return The stream.
      */

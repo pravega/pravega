@@ -16,6 +16,11 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
  */
 public class StorageNotPrimaryException extends StreamSegmentException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the StorageNotPrimaryException class.
      *
      * @param streamSegmentName The name of the segment for which the Storage is no longer primary.

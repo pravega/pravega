@@ -325,6 +325,11 @@ public class DataFrameInputStream extends InputStream {
      * reached while processing a record.
      */
     static class NoMoreRecordsException extends IOException {
+
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
     }
 
     /**
@@ -333,6 +338,11 @@ public class DataFrameInputStream extends InputStream {
      * current record and proceed to the next.
      */
     static class RecordResetException extends IOException {
+
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
     }
 
     /**
@@ -341,6 +351,11 @@ public class DataFrameInputStream extends InputStream {
      * data has been successfully processed.
      */
     static class EndOfRecordException extends IOException {
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
+
         private EndOfRecordException(String message) {
             super(message);
         }

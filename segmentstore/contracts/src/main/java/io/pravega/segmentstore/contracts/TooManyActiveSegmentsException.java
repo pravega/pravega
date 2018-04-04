@@ -15,6 +15,11 @@ package io.pravega.segmentstore.contracts;
  */
 public class TooManyActiveSegmentsException extends ContainerException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the ContainerException class.
      *
      * @param containerId     The Id of the ContainerException.

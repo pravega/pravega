@@ -120,6 +120,7 @@ public class ServiceBuilderConfigTests {
                 if (Modifier.isStatic(f.getModifiers())
                         && f.getType().isAssignableFrom(Property.class)
                         && isSupportedType(f.getGenericType().getTypeName())) {
+                    @SuppressWarnings("rawtypes")
                     Property p = (Property) f.get(null);
                     if (p.getDefaultValue() != null && p.getDefaultValue() instanceof Boolean) {
                         configBuilder.with(p, nextValue.incrementAndGet() % 2 == 0);

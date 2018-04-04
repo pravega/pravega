@@ -236,6 +236,11 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     //region ProcessingException
 
     public static class ProcessingException extends IllegalStateException {
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
+
         private ProcessingException(String message, Throwable cause) {
             super(message, cause);
         }

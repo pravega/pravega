@@ -16,6 +16,11 @@ import java.io.IOException;
  */
 class SegmentFilesCorruptedException extends IOException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the SegmentFilesCorruptedException.
      *
      * @param segmentName The name of the segment.

@@ -15,6 +15,11 @@ package io.pravega.segmentstore.contracts;
  */
 public class TooManyAttributesException extends StreamSegmentException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the TooManyAttributesException class.
      * @param streamSegmentName The name of the Stream Segment
      * @param maxAttributeCount The maximum number of allowed attributes per Stream segment.

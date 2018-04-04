@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Assert;
@@ -132,13 +133,13 @@ public class RetentionTest {
 
     @Test
     public void retentionTest() throws Exception {
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
                 ClientConfig.builder().controllerURI(controllerURI).build())
                 .build(),
                  connectionFactory.getInternalExecutor());
-
+        @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 

@@ -14,6 +14,11 @@ package io.pravega.segmentstore.contracts;
  */
 public class StreamSegmentTruncatedException extends StreamSegmentException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the StreamSegmentTruncatedException class.
      *
      * @param segmentName Name of the truncated Segment.

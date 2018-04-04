@@ -27,6 +27,11 @@ import java.util.Set;
  */
 public abstract class PositionInternal implements Position {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Gets the set of segments currently being read, i.e., ownedSegments set.
      */
     abstract Set<Segment> getOwnedSegments();
