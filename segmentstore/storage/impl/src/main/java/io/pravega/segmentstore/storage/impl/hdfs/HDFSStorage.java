@@ -55,7 +55,7 @@ import org.apache.hadoop.io.IOUtils;
  * Example: Segment "foo" can have these files
  * <ol>
  * <li> foo_<epoch>: Segment file, owned by a segmentstore running under epoch "epoch".
- * <li> foo_<MAX_LONG>: A sealed segment.
+ * <li> foo_sealed: A sealed segment.
  * <p>
  * When a container fails over and needs to reacquire ownership of a segment, it renames the segment file as foo_<current_epoch>.
  * After creation of the file, the filename is checked again. If there exists any file with higher epoc, the current file is deleted
@@ -69,7 +69,8 @@ import org.apache.hadoop.io.IOUtils;
 class HDFSStorage implements SyncStorage {
     private static final String PART_SEPARATOR = "_";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s";
-    private static final String NUMBER_GLOB_REGEX = "[0-9]*";
+    private static final String SEALED = "sealed";
+    private static final String NUMBER_GLOB_REGEX = "{" + "[0-9]*" + "," + SEALED + "}";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<epoch>");
     private static final FsPermission READWRITE_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     private static final FsPermission READONLY_PERMISSION = new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ);
@@ -172,12 +173,12 @@ class HDFSStorage implements SyncStorage {
     @Override
     public boolean exists(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
-        FileStatus status;
+        FileStatus status = null;
         try {
             status = findStatusForSegment(streamSegmentName, false);
         } catch (IOException e) {
             // HDFS could not find the file. Returning false.
-            return false;
+            log.info("Got exception checking if file exists", e);
         }
         boolean exists = status != null;
         LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName, exists);
@@ -230,8 +231,8 @@ class HDFSStorage implements SyncStorage {
             return HDFSSegmentHandle.read(streamSegmentName);
         } catch (IOException e) {
             HDFSExceptionHelpers.throwException(streamSegmentName, e);
-            return null;
         }
+        return null;
     }
 
     @Override
@@ -299,7 +300,6 @@ class HDFSStorage implements SyncStorage {
         } catch (IOException ex) {
             HDFSExceptionHelpers.throwException(sourceSegment, ex);
         }
-
         LoggerHelpers.traceLeave(log, "concat", traceId, target, offset, sourceSegment);
     }
 
@@ -346,7 +346,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
 
         Timer timer = new Timer();
@@ -506,8 +506,8 @@ class HDFSStorage implements SyncStorage {
      * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
      */
     Path getFilePath(String segmentName, long epoch) {
-        assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
-        assert epoch >= 0 : "epoch must be non-negative " + epoch;
+        Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
+        Preconditions.checkState(epoch >= 0, "epoch must be non-negative " + epoch);
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), epoch));
     }
 
@@ -516,7 +516,7 @@ class HDFSStorage implements SyncStorage {
      */
     Path getSealedFilePath(String segmentName) {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
-        return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), MAX_EPOCH));
+        return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), SEALED));
     }
 
 
@@ -560,7 +560,7 @@ class HDFSStorage implements SyncStorage {
         if (pos2 <= 0) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
-        if ( pos2 == fileName.length() - 1) {
+        if ( pos2 == fileName.length() - 1 || fileName.regionMatches(pos2 +1, SEALED, 0, SEALED.length()) ) {
             //File is sealed. This is the final version
             return MAX_EPOCH;
         }
