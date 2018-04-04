@@ -12,6 +12,7 @@ package io.pravega.test.integration.selftest;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ class ProducerDataSource {
         this.state = state;
         this.store = store;
         this.eventGenerators = new ConcurrentHashMap<>();
-        this.appendSizeGenerator = new Random();
+        this.appendSizeGenerator = RandomFactory.create();
         this.lastCreatedTransaction = 0;
         this.appendSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Append);
         this.transactionsSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Transaction);

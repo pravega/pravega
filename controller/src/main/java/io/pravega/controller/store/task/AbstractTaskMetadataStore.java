@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.task;
 
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
@@ -109,7 +110,7 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
     @Override
     public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
         return hostIndex.getEntities(parent).thenApply(list -> list != null && list.size() > 0 ?
-                Optional.of(this.getTaggedResource(list.get(new Random().nextInt(list.size())))) : Optional.empty());
+                Optional.of(this.getTaggedResource(list.get(RandomFactory.create().nextInt(list.size())))) : Optional.empty());
     }
 
     @Override

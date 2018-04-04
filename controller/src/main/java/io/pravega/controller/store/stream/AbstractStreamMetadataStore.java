@@ -15,6 +15,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -606,7 +607,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
         return hostIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
-                Optional.of(this.getTxnResource(list.get(new Random().nextInt(list.size())))) : Optional.empty());
+                Optional.of(this.getTxnResource(list.get(RandomFactory.create().nextInt(list.size())))) : Optional.empty());
     }
 
     @Override
