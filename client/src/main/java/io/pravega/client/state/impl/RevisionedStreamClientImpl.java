@@ -197,6 +197,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             } catch (SegmentSealedException e) {
                 log.warn("Error closing segment writer {}", out);
             }
+            conditional.close();
             meta.close();
             in.close();
         }
