@@ -48,8 +48,9 @@ import lombok.SneakyThrows;
 class ClientReader implements StoreReader, AutoCloseable {
     //region Members
     private static final ReaderConfig READER_CONFIG = ReaderConfig.builder().build();
+    private static final int MAX_READ_ATTEMPTS = 4;
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
-            .withExpBackoff(1, 10, 4)
+            .withExpBackoff(1, 10, MAX_READ_ATTEMPTS)
             .retryingOn(ReinitializationRequiredException.class)
             .throwingOn(Exception.class);
     private final URI controllerUri;
@@ -196,15 +197,25 @@ class ClientReader implements StoreReader, AutoCloseable {
 
         @SneakyThrows
         private void readNextItem(Consumer<ReadItem> eventHandler) {
-            EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(ClientReader.this.testConfig.getTimeout().toMillis()));
-            if (readResult.getEvent() == null) {
-                // We are done.
-                close();
-                return;
+            int readAttempts = MAX_READ_ATTEMPTS;
+            long timeoutMillis = ClientReader.this.testConfig.getTimeout().toMillis();
+            while (readAttempts-- > 0) {
+                EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(timeoutMillis));
+                if (readResult.getEvent() == null && readAttempts > 0) {
+                    // EventStreamReader.readNextEvent() will return null if we get no new events within the given timeout.
+                    // Retry the read up to the maximum allowed number of times before giving up.
+                    Thread.sleep(timeoutMillis / MAX_READ_ATTEMPTS);
+                } else if (readResult.getEvent() == null) {
+                    // We are done.
+                    close();
+                    return;
+                } else {
+                    StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
+                    eventHandler.accept(readItem);
+                    return;
+                }
             }
 
-            StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
-            eventHandler.accept(readItem);
         }
 
         private StreamReadItem toReadItem(byte[] data, EventPointer address) {
