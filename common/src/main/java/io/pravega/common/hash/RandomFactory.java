@@ -14,16 +14,32 @@ import java.util.Random;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 
+/**
+ * Acts as a constructor for java.util.Random objects.
+ * This avoids the anti-pattern of
+ * <code>
+ * int randomInt = new Random().nextInt();
+ * </code>
+ * Which is not really random because the default seed is the current time.
+ * So this class provides the seed automatically from a master random number generator.
+ */
 public class RandomFactory {
 
     @GuardedBy("$LOCK")
     private static final SecureRandom SEED_GENERATOR = new SecureRandom();
     
+    /**
+     * Returns a new random number generator.
+     * @return
+     */
     @Synchronized
     public static Random create() {
         return new Random(SEED_GENERATOR.nextLong());
     }
     
+    /**
+     * Returns a good seed for a random number generator.
+     */
     @Synchronized
     public static long getSeed() {
         return SEED_GENERATOR.nextLong();
