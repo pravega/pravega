@@ -669,7 +669,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     private void testCreateAlreadyExists(String segmentName, BiFunction<StreamSegmentMapper, Collection<AttributeUpdate>, CompletableFuture<?>> createSegment) {
         final String stateSegmentName = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         final Map<UUID, Long> originalAttributes = ImmutableMap.of(UUID.randomUUID(), 123L, Attributes.EVENT_COUNT, 1L);
-        final Map<UUID, Long> expectedAttributes = Attributes.getCoreAttributes(originalAttributes);
+        final Map<UUID, Long> expectedAttributes = Attributes.getCoreNonNullAttributes(originalAttributes);
         final Collection<AttributeUpdate> correctAttributeUpdates =
                 originalAttributes.entrySet().stream()
                                  .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
@@ -779,7 +779,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         long segmentId = context.metadata.getStreamSegmentId(segmentName, false);
         Assert.assertEquals("Segment '" + segmentName + "' has been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
 
-        val attributes = Attributes.getCoreAttributes(attributeUpdates.stream()
+        val attributes = Attributes.getCoreNonNullAttributes(attributeUpdates.stream()
                 .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
         val actualAttributes = context.stateStore.get(segmentName, TIMEOUT).join().getAttributes();
         AssertExtensions.assertMapEquals("Wrong attributes.", attributes, actualAttributes);

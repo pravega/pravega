@@ -574,8 +574,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Map<UUID, Long> metadataAttributes = segmentMetadata.getAttributes();
         ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
         attributeIds.forEach(attributeId -> {
-            Long v = metadataAttributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            if (v != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+            Long v = metadataAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+            if (v != Attributes.NULL_ATTRIBUTE_VALUE) {
                 result.put(attributeId, v);
             } else if (!Attributes.isCoreAttribute(attributeId)) {
                 extendedAttributeIds.add(attributeId);
@@ -590,22 +590,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (cache && !segmentMetadata.isSealed() && extendedAttributeIds.size() > 0) {
             // Add them to the cache if requested.
             r = r.thenComposeAsync(extendedAttributes -> {
-                if (extendedAttributes.size() > 0) {
-                    // We were asked to cache them. Update the in-memory Segment Metadata using a conditional update, which
-                    // should complete IFF the attribute is not currently set. If it has a non-null value, then a concurrent
-                    // update must have changed it and we cannot update anymore.
-                    Collection<AttributeUpdate> updates = extendedAttributes.entrySet().stream()
-                            .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfEquals, e.getValue(), SegmentMetadata.NULL_ATTRIBUTE_VALUE))
-                            .collect(Collectors.toList());
+                // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
+                // complete IFF the attribute is not currently set). If it has some value value, then a concurrent update
+                // must have changed it and we cannot update anymore.
+                // Also make sure we insert (a NULL value) for those missing attributes as well).
+                ArrayList<AttributeUpdate> updates = new ArrayList<>();
+                extendedAttributes.forEach((id, value) -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, value)));
+                extendedAttributeIds.stream()
+                                    .filter(id -> !extendedAttributes.containsKey(id))
+                                    .forEach(id -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE)));
 
-                    // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
-                    // invoke this one again.
-                    return this.durableLog.add(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
-                            .thenApply(v -> extendedAttributes);
-                } else {
-                    // Nothing to cache.
-                    return CompletableFuture.completedFuture(extendedAttributes);
-                }
+                // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
+                // invoke this one again.
+                return this.durableLog.add(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
+                                      .thenApply(v -> extendedAttributes);
             }, this.executor);
         }
 

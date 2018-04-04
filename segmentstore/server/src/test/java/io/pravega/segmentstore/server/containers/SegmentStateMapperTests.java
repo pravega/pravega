@@ -61,7 +61,7 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
                         .thenCompose(v -> s.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT))).join();
         val expectedInfo = StreamSegmentInformation.from(info).startOffset(info.getLength() / 2).build();
         val allAttributes = createAttributes();
-        val expectedAttributes = Attributes.getCoreAttributes(allAttributes);
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(allAttributes);
         val attributes = allAttributes.entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                 .collect(Collectors.toList());
@@ -89,7 +89,7 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
         // Save some state.
         val sp = StreamSegmentInformation.builder().name("s").length(10).startOffset(4).sealed(true).build();
         val allAttributes = createAttributes();
-        val expectedAttributes = Attributes.getCoreAttributes(allAttributes);
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(allAttributes);
         val attributes = allAttributes.entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                 .collect(Collectors.toList());

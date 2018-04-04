@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -414,8 +415,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         int newAttributeCount = this.attributeValues.size();
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
-            long previousValue = this.attributeValues.getOrDefault(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
+            boolean hasValue = this.attributeValues.containsKey(u.getAttributeId());
+            long previousValue = hasValue ? this.attributeValues.get(u.getAttributeId()) : Attributes.NULL_ATTRIBUTE_VALUE;
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
@@ -429,7 +430,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case ReplaceIfEquals:
                     // Verify value against existing value, if any.
-                    if (u.getComparisonValue() != previousValue) {
+                    if (u.getComparisonValue() != previousValue || !hasValue) {
                         throw new BadAttributeUpdateException(this.name, u, !hasValue,
                                 String.format("Expected existing value to be '%s', actual '%s'.",
                                         u.getComparisonValue(), previousValue));
@@ -456,10 +457,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
 
-            if (previousValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+            if (previousValue == Attributes.NULL_ATTRIBUTE_VALUE && u.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
                 // This attribute did not exist and is about to be added.
                 newAttributeCount++;
-            } else if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+            } else if (previousValue != Attributes.NULL_ATTRIBUTE_VALUE && u.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
                 // This attribute existed and is about to be removed.
                 newAttributeCount--;
             }

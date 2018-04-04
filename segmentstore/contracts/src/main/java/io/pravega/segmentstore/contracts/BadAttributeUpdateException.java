@@ -36,11 +36,12 @@ public class BadAttributeUpdateException extends StreamSegmentException {
      * @param errorMessage         The Event Number that was given as part of the Operation.
      */
     public BadAttributeUpdateException(String streamSegmentName, AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {
-        super(streamSegmentName, getMessage(attributeUpdate, errorMessage));
+        super(streamSegmentName, getMessage(attributeUpdate, previousValueMissing, errorMessage));
         this.previousValueMissing = previousValueMissing;
     }
 
-    private static String getMessage(AttributeUpdate attributeUpdate, String errorMessage) {
-        return String.format("Bad Attribute Update (%s): %s.", attributeUpdate, errorMessage);
+    private static String getMessage(AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {
+        return String.format("Bad Attribute Update (%s): %s%s.", attributeUpdate, errorMessage,
+                previousValueMissing ? " (missing value)" : "");
     }
 }

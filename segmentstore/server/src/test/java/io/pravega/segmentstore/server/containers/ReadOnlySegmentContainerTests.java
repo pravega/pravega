@@ -81,7 +81,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected Length.", expectedInfo.getLength(), actual.getLength());
         Assert.assertEquals("Unexpected Sealed status.", expectedInfo.isSealed(), actual.isSealed());
         Assert.assertEquals("Unexpected Start Offset.", expectedInfo.getStartOffset(), actual.getStartOffset());
-        val expectedAttributes = Attributes.getCoreAttributes(expectedInfo.getAttributes());
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(expectedInfo.getAttributes());
         AssertExtensions.assertMapEquals("Unexpected Attributes.", expectedAttributes, actual.getAttributes());
     }
 

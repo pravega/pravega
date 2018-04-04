@@ -24,11 +24,6 @@ public interface SegmentMetadata extends SegmentProperties {
     int MAXIMUM_ATTRIBUTE_COUNT = 1024;
 
     /**
-     * Defines an attribute value that denotes a missing value.
-     */
-    long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
-
-    /**
      * Gets a value indicating the id of this StreamSegment.
      */
     long getId();

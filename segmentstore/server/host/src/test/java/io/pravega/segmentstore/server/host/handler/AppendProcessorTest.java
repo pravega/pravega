@@ -15,9 +15,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
@@ -319,11 +319,11 @@ public class AppendProcessorTest {
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         int eventCount = 100;
         when(store.append(streamSegmentName, data,
-                          updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
+                          updateEventNumber(clientId, 100, Attributes.NULL_ATTRIBUTE_VALUE, eventCount),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
         processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled.wrappedBuffer(data), null));
         verify(store).append(streamSegmentName, data,
-                             updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
+                             updateEventNumber(clientId, 100, Attributes.NULL_ATTRIBUTE_VALUE, eventCount),
                              AppendProcessor.TIMEOUT);
 
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
@@ -377,14 +377,14 @@ public class AppendProcessorTest {
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
         int eventCount = 100;
         when(store.append(streamSegmentName, data,
-                updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
+                updateEventNumber(clientId, 100, Attributes.NULL_ATTRIBUTE_VALUE, eventCount),
                 AppendProcessor.TIMEOUT)).thenReturn(result);
 
         //Trigger the first append, here the sending of DataAppended ack will be delayed/hung.
         nettyExecutor.submit(() -> processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled
                 .wrappedBuffer(data), null)));
         firstStoreAppendInvoked.await();
-        verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 100, SegmentMetadata
+        verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 100, Attributes
                 .NULL_ATTRIBUTE_VALUE, eventCount), AppendProcessor.TIMEOUT);
 
         /* Trigger the next append. This should be completed immediately and should not cause a store.append to be

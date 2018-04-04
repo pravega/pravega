@@ -206,8 +206,8 @@ class SegmentAttributeIndex implements AttributeIndex {
                 .thenApply(c -> {
                     ImmutableMap.Builder<UUID, Long> b = ImmutableMap.builder();
                     keys.forEach(attributeId -> {
-                        long value = c.attributes.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-                        if (value != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                        long value = c.attributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+                        if (value != Attributes.NULL_ATTRIBUTE_VALUE) {
                             b.put(attributeId, value);
                         }
                     });
@@ -230,7 +230,7 @@ class SegmentAttributeIndex implements AttributeIndex {
     @Override
     public CompletableFuture<Void> remove(Collection<UUID> keys, Duration timeout) {
         Preconditions.checkNotNull(keys, "keys");
-        return put(keys.stream().collect(Collectors.toMap(key -> key, key -> SegmentMetadata.NULL_ATTRIBUTE_VALUE)), timeout);
+        return put(keys.stream().collect(Collectors.toMap(key -> key, key -> Attributes.NULL_ATTRIBUTE_VALUE)), timeout);
     }
 
     @Override
@@ -599,7 +599,7 @@ class SegmentAttributeIndex implements AttributeIndex {
 
         private void mergeWith(AttributeCollection other) {
             other.attributes.forEach((attributeId, value) -> {
-                if (value == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                if (value == Attributes.NULL_ATTRIBUTE_VALUE) {
                     this.attributes.remove(attributeId);
                 } else {
                     this.attributes.put(attributeId, value);

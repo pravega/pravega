@@ -723,7 +723,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeLong(sm.getStartOffset());
 
             // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
-            output.writeMap(Attributes.getCoreAttributes(sm.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+            output.writeMap(Attributes.getCoreNonNullAttributes(sm.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {

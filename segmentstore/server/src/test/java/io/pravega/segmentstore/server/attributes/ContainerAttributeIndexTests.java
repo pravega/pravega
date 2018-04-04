@@ -20,7 +20,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
@@ -488,14 +487,14 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
 
         // 3. Remove all values.
         idx2.remove(expectedValues.keySet(), TIMEOUT).join();
-        expectedValues.replaceAll((key, v) -> SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+        expectedValues.replaceAll((key, v) -> Attributes.NULL_ATTRIBUTE_VALUE);
         checkIndex(idx2, expectedValues);
     }
 
     private void checkIndex(AttributeIndex index, Map<UUID, Long> expectedValues) {
         val actual = index.get(expectedValues.keySet(), TIMEOUT).join();
         val expected = expectedValues.entrySet().stream()
-                                     .filter(e -> e.getValue() != SegmentMetadata.NULL_ATTRIBUTE_VALUE)
+                                     .filter(e -> e.getValue() != Attributes.NULL_ATTRIBUTE_VALUE)
                                      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         AssertExtensions.assertMapEquals("Unexpected attributes in index.", expected, actual);
     }

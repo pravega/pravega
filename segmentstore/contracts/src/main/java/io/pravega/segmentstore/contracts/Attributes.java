@@ -25,6 +25,11 @@ import java.util.stream.Collectors;
  */
 public final class Attributes {
     /**
+     * Defines an attribute value that denotes a missing value.
+     */
+    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
+
+    /**
      * Prefix (Most Significant Bits) of the Id of all Core Attributes.
      */
     private static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
@@ -75,14 +80,15 @@ public final class Attributes {
     }
 
     /**
-     * Returns a new Map of Attribute Ids to Values containing only those Core Attributes from the given Map.
+     * Returns a new Map of Attribute Ids to Values containing only those Core Attributes from the given Map that do not
+     * have a null value.
      *
      * @param attributes The Map of Attribute Ids to Values to filter from.
      * @return A new Map containing only Core Attribute Ids and Values (from the original map).
      */
-    public static Map<UUID, Long> getCoreAttributes(Map<UUID, Long> attributes) {
+    public static Map<UUID, Long> getCoreNonNullAttributes(Map<UUID, Long> attributes) {
         return attributes.entrySet().stream()
-                .filter(e -> Attributes.isCoreAttribute(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                         .filter(e -> Attributes.isCoreAttribute(e.getKey()) && e.getValue() != NULL_ATTRIBUTE_VALUE)
+                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

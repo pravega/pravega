@@ -257,15 +257,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             // Verify all attribute values.
             Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeNoUpdate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeNoUpdate, Attributes.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeAccumulate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeAccumulate, Attributes.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplace + " for segment " + segmentName,
-                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplace, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplace, Attributes.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfGreater + " for segment " + segmentName,
-                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, Attributes.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfEquals + " for segment " + segmentName,
-                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfEquals, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                    expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfEquals, Attributes.NULL_ATTRIBUTE_VALUE));
         }
 
         checkActiveSegments(context.container, segmentNames.size());
@@ -393,9 +393,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             for (val attributeId : allAttributes) {
                 Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getInfo() for segment " + segmentName,
-                        expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                        expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getAttributes() for segment " + segmentName,
-                        expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                        expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
             }
         }
 
@@ -412,13 +412,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             for (val attributeId : allAttributes) {
                 Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getAttributes() after recovery for segment " + segmentName,
-                        expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                        expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 if (Attributes.isCoreAttribute(attributeId)) {
                     Assert.assertEquals("Expecting core attribute to be loaded in memory.",
-                            expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                            expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 } else {
                     Assert.assertEquals("Not expecting extended attribute to be loaded in memory.",
-                            SegmentMetadata.NULL_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                            Attributes.NULL_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 }
             }
 
@@ -430,7 +430,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
                 for (val attributeId : allAttributes) {
                     Assert.assertEquals("Expecting all attributes to be loaded in memory.",
-                            expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                            expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 }
             }
         }
@@ -514,7 +514,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             for (val attributeId : allAttributes) {
                 Assert.assertEquals("Unexpected value for attribute " + attributeId + " for segment " + segmentName,
-                        expectedAttributeValue.get(), (long) sp.getAttributes().getOrDefault(attributeId, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                        expectedAttributeValue.get(), (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
             }
         }
 
@@ -583,7 +583,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Verify all attribute values.
         Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
-                expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeAccumulate, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
+                expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeAccumulate, Attributes.NULL_ATTRIBUTE_VALUE));
 
         checkActiveSegments(context.container, 1);
 
@@ -1092,7 +1092,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Create segment with initial attributes and verify they were set correctly.
         val initialAttributes = createAttributeUpdates(attributes);
         applyAttributes(initialAttributes, expectedAttributes);
-        expectedAttributes = Attributes.getCoreAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
+        expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
         localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp);
@@ -1109,7 +1109,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        expectedAttributes = Attributes.getCoreAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
+        expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
 
         // Append again, and make sure we can append at the right offset.
@@ -1144,7 +1144,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                       .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        expectedAttributes = Attributes.getCoreAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
+        expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after deletion and re-creation.", expectedAttributes, sp);
     }
 
