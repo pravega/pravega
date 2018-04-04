@@ -174,6 +174,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Test(timeout = 5000)
+    @SuppressWarnings("unchecked")
     public void commitAbortTests() {
         // Create mock writer objects.
         final List<CompletableFuture<Void>> commitWriterResponses = getWriteResultSequence(5);

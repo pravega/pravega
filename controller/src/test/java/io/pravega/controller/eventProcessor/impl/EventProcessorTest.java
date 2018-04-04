@@ -209,6 +209,7 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    @SuppressWarnings("unchecked")
     public void testEventProcessorCell() throws CheckpointStoreException, ReinitializationRequiredException {
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
 
@@ -522,6 +523,7 @@ public class EventProcessorTest {
         return new SequenceAnswer<>(list);
     }
 
+    @SuppressWarnings("unchecked")
     private EventStreamReader<TestEvent> createMockReader(int[] input) throws ReinitializationRequiredException {
         List<MockEventRead<TestEvent>> inputEvents = new ArrayList<>(input.length);
         for (int i = 0; i < input.length; i++) {
