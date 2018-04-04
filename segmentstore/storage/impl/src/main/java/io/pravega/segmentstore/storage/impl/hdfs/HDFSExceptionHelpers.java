@@ -43,7 +43,7 @@ final class HDFSExceptionHelpers {
         } else if (e instanceof AclException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         } else {
-            Lombok.sneakyThrow(e);
+            throw Lombok.sneakyThrow(e);
         }
         throw retVal;
     }
