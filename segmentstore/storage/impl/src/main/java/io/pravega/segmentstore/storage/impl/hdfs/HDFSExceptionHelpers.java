@@ -37,15 +37,15 @@ final class HDFSExceptionHelpers {
         if (e instanceof RemoteException) {
             e = ((RemoteException) e).unwrapRemoteException();
         } else if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            retVal = new StreamSegmentNotExistsException(segmentName, e);
+            throw new StreamSegmentNotExistsException(segmentName, e);
         } else if (e instanceof FileAlreadyExistsException) {
-            retVal = new StreamSegmentExistsException(segmentName, e);
+            throw new StreamSegmentExistsException(segmentName, e);
         } else if (e instanceof AclException) {
-            retVal = new StreamSegmentSealedException(segmentName, e);
+            throw new StreamSegmentSealedException(segmentName, e);
         } else {
             throw Lombok.sneakyThrow(e);
         }
-        throw retVal;
+        return null;
     }
 
     /**

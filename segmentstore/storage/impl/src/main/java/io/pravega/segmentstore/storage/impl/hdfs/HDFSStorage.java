@@ -347,6 +347,7 @@ class HDFSStorage implements SyncStorage {
             }
         } catch (IOException e) {
              HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+             return;
         }
 
         Timer timer = new Timer();
