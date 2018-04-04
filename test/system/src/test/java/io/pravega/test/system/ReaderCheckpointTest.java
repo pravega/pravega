@@ -127,8 +127,10 @@ public class ReaderCheckpointTest {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        ReaderGroup readerGroup = readerGroupManager.createReaderGroup(READER_GROUP_NAME,
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME,
                 ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE, STREAM)).build());
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_NAME);
 
         int startInclusive = 1;
         int endExclusive = 100;

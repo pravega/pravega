@@ -120,8 +120,10 @@ public class StreamSeekTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
+        groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1)).stream(Stream.of(SCOPE, STREAM2)).build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
         //Prep the stream with data.
         //1.Write two events with event size of 30

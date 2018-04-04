@@ -60,10 +60,10 @@ public class ReaderGroupImplTest {
 
     @Before
     public void setUp() throws Exception {
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                                                   any(SynchronizerConfig.class))).thenReturn(synchronizer);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionFactory);
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
     }
 
     @Test(expected = IllegalArgumentException.class)

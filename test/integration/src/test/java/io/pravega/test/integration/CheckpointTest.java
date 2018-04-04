@@ -88,7 +88,9 @@ public class CheckpointTest {
                                                                          .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
-        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig);
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
@@ -174,7 +176,9 @@ public class CheckpointTest {
                                                                          .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
-        ReaderGroup readerGroup = streamManager.createReaderGroup(readerGroupName, groupConfig);
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
