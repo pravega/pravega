@@ -104,7 +104,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
                                           final String groupName,
                                           final ReaderGroupConfig groupConfig) {
-        return readerGroupManager.createReaderGroup(groupName, groupConfig);
+        readerGroupManager.createReaderGroup(groupName, groupConfig);
+        return readerGroupManager.getReaderGroup(groupName);
     }
 
     private List<String> createEventProcessors(final int count) throws CheckpointStoreException {
@@ -184,7 +185,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 } catch (CheckpointStoreException e) {
                     log.warn("Error removing reader group " + this.objectId, e);
                 }
-
+                readerGroup.close();
                 log.info("Shutdown of {} complete", this.toString());
             } finally {
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
