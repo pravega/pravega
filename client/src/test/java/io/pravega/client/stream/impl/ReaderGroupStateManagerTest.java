@@ -379,7 +379,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        ReaderGroupStateManager.initializeReaderGroup(state1, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments);
+        state1.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", state1, controller, clock::get);
         reader1.initializeReader(0);
