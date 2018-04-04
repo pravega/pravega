@@ -275,15 +275,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void updateAttributes(Map<UUID, Long> attributes) {
-        for (Map.Entry<UUID, Long> av : attributes.entrySet()) {
-            UUID key = av.getKey();
-            long value = av.getValue();
-            if (Attributes.isCoreAttribute(key)) {
-                this.coreAttributes.put(av.getKey(), value);
+        attributes.forEach((id, value) -> {
+            if (Attributes.isCoreAttribute(id)) {
+                this.coreAttributes.put(id, value);
             } else {
-                this.extendedAttributes.put(av.getKey(), new ExtendedAttributeValue(value, 0));
+                this.extendedAttributes.put(id, new ExtendedAttributeValue(value, 0));
             }
-        }
+        });
     }
 
     @Override
