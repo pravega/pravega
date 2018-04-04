@@ -16,9 +16,6 @@ import io.pravega.controller.retryable.RetryableException;
  */
 public class HostStoreException extends RuntimeException implements RetryableException {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**

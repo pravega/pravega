@@ -67,10 +67,6 @@ abstract class AbstractScaleTests {
     // Exception to indicate that the scaling operation did not happen.
     // We need to retry operation to check scaling on this exception.
     class ScaleOperationNotDoneException extends RuntimeException {
-
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
     }
 

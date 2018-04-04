@@ -25,9 +25,6 @@ public class JavaSerializerTest {
 
     @Data
     private static class Foo implements Serializable {
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
         final int x;
     }

@@ -18,9 +18,6 @@ import java.io.Serializable;
 @AllArgsConstructor
 @Data
 public class Host implements Serializable {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
     @NonNull
     private final String ipAddr;

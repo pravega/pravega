@@ -39,9 +39,6 @@ public class ClusterException extends RuntimeException {
     }
 
     public static class MetaStoreException extends ClusterException {
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
 
         public MetaStoreException(String message) {

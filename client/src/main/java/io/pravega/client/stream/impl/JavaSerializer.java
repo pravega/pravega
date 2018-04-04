@@ -26,9 +26,6 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode
 public class JavaSerializer<T extends Serializable> implements Serializer<T>, Serializable {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     @Override

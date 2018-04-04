@@ -20,9 +20,6 @@ import lombok.Data;
 @Data
 public class StreamImpl implements Stream {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String streamName;

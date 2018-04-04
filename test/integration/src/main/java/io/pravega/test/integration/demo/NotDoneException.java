@@ -10,9 +10,5 @@
 package io.pravega.test.integration.demo;
 
 class NotDoneException extends RuntimeException {
-
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 }

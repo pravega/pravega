@@ -26,9 +26,7 @@ import java.util.Set;
  * 2. for each segment s in ownedSegment, s.previous does not belongs to ownedSegments
  */
 public abstract class PositionInternal implements Position {
-    /**
-     * 
-     */
+
     private static final long serialVersionUID = 1L;
 
     /**

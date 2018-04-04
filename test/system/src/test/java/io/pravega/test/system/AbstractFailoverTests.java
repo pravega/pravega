@@ -674,10 +674,6 @@ abstract class AbstractFailoverTests {
     }
 
     static class TxnNotCompleteException extends RuntimeException {
-
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
     }
 

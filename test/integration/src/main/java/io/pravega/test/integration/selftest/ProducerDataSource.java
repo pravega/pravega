@@ -282,9 +282,6 @@ class ProducerDataSource {
      * created using it).
      */
     static class UnknownStreamException extends RuntimeException {
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
 
         private UnknownStreamException(String segmentName) {

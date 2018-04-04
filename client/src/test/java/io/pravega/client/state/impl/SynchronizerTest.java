@@ -55,9 +55,6 @@ public class SynchronizerTest {
     
     @Data
     private static class RegularUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl>, Serializable {
-        /**
-         * 
-         */
         private static final long serialVersionUID = 1L;
         private final String value;
         @Override

@@ -23,9 +23,6 @@ import io.pravega.client.stream.EventPointer;
  */
 public abstract class EventPointerInternal implements EventPointer {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**

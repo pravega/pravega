@@ -15,9 +15,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
  * Indicates that a particular Storage Instance is no longer the Primary Writer for a Segment.
  */
 public class StorageNotPrimaryException extends StreamSegmentException {
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**

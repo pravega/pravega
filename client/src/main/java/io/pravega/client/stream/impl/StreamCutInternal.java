@@ -19,9 +19,6 @@ import java.util.Map;
  */
 public abstract class StreamCutInternal implements StreamCut {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     /**
