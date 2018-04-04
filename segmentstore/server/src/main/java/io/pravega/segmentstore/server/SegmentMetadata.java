@@ -18,12 +18,6 @@ import java.util.HashMap;
  */
 public interface SegmentMetadata extends SegmentProperties {
     /**
-     * The maximum number of attributes that a single Segment can have at any given time. Due to serialization constraints
-     * there needs to be a hard limit as to how many attributes each segment can have.
-     */
-    int MAXIMUM_ATTRIBUTE_COUNT = 1024;
-
-    /**
      * Gets a value indicating the id of this StreamSegment.
      */
     long getId();
