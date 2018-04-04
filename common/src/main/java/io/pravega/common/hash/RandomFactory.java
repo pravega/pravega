@@ -17,15 +17,15 @@ import lombok.Synchronized;
 public class RandomFactory {
 
     @GuardedBy("$LOCK")
-    private static final SecureRandom seedGenerator = new SecureRandom();
+    private static final SecureRandom SEED_GENERATOR = new SecureRandom();
     
     @Synchronized
     public static Random create() {
-        return new Random(seedGenerator.nextLong());
+        return new Random(SEED_GENERATOR.nextLong());
     }
     
     @Synchronized
     public static long getSeed() {
-        return seedGenerator.nextLong();
+        return SEED_GENERATOR.nextLong();
     }
 }
