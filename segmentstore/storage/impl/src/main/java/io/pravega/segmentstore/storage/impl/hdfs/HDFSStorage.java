@@ -515,7 +515,7 @@ class HDFSStorage implements SyncStorage {
      * Gets the full HDFS path when sealed
      */
     Path getSealedFilePath(String segmentName) {
-        assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
+        Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), SEALED));
     }
 
@@ -545,9 +545,12 @@ class HDFSStorage implements SyncStorage {
         return result.get(result.size() -1);
     }
 
-    @SneakyThrows(FileNameFormatException.class)
     private int compareFileDescriptors(FileStatus f1, FileStatus f2) {
-        return Long.compare(getEpoc(f1), getEpoc(f2));
+        try {
+            return Long.compare(getEpoc(f1), getEpoc(f2));
+        } catch (FileNameFormatException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private long getEpoc(FileStatus status) throws FileNameFormatException {
