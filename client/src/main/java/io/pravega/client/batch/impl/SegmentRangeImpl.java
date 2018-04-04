@@ -58,7 +58,7 @@ public class SegmentRangeImpl implements SegmentRange {
 
     @Override
     public String getScopeName() {
-        return segment.getScopedName();
+        return segment.getScope();
     }
 
     @Override
