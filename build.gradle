@@ -24,7 +24,9 @@ buildscript {
     }
 }
 
-apply from: "$rootDir/gradle/mkdocs.gradle"
+if (project.hasProperty("enableMkdocs")) {
+    apply from: "$rootDir/gradle/mkdocs.gradle"
+}
 
 allprojects {
     apply plugin: 'idea'
