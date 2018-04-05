@@ -255,8 +255,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM))
+                                ServiceConfig.StorageType.INMEMORY.toString() :
+                                ServiceConfig.StorageType.FILESYSTEM.toString()))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
