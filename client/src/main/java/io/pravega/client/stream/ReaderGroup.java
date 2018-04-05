@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
  * calling {@link #readerOffline(String, Position)}
  */
-public interface ReaderGroup extends ReaderGroupNotificationListener {
+public interface ReaderGroup extends ReaderGroupNotificationListener, AutoCloseable {
 
     /**
      * Returns metrics for this reader group.
@@ -143,4 +143,10 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * @return Map of streams that this group is reading from to the corresponding cuts.
      */
     Map<Stream, StreamCut> getStreamCuts();
+    
+    /**
+     * Closes the reader group, freeing any resources associated with it.
+     */
+    @Override
+    public void close();
 }

@@ -128,7 +128,7 @@ public class BoundedStreamReaderTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
+        groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
@@ -198,8 +198,8 @@ public class BoundedStreamReaderTest {
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
                         getStreamCut(STREAM1, 60L, 0))
                 .build();
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", readerGroupCfg1);
-
+        groupManager.createReaderGroup("group", readerGroupCfg1);
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
         //Create a reader
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", "group", serializer,

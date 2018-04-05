@@ -272,7 +272,7 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @RequiredArgsConstructor
-    static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
         private static final long serialVersionUID = 1L;
 
         private final ReaderGroupConfig config;
