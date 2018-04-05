@@ -30,8 +30,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.baseStorage = new SharedStorage();
-        this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
+        initialize(null, executor);
     }
 
     public InMemoryStorageFactory() {
@@ -50,7 +49,9 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     @Override
     public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-
+        this.executor = executor;
+        this.baseStorage = new SharedStorage();
+        this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
     }
 
     @Override

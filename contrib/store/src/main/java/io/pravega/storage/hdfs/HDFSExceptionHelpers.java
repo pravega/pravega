@@ -17,6 +17,7 @@ import java.io.FileNotFoundException;
 import lombok.Lombok;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.PathNotFoundException;
+import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.ipc.RemoteException;
 
 /**
