@@ -10,17 +10,24 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import lombok.Data;
 
+/**
+ * This class is used to represent Stream information. It currently includes
+ *  - scope of stream.
+ *  - name of stream.
+ *  - {@link StreamCut} which represents the current TAIL of the stream.
+ *
+ *  In future this will include the following:
+ *  - isSealed
+ *  - length of the stream.
+ *  - creation time of the stream.
+ */
 @Beta
 @Data
 public class StreamInfo {
-
-    private final Stream stream;
-    private final long length;
-    private final long creationTime;
-    private final boolean isSealed;
-    private final Long endTime;
-
+    private final String scope;
+    private final String streamName;
+    private final StreamCut currentTailStreamCut;
 }

@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -63,16 +62,16 @@ public class BatchClientImpl implements BatchClient {
         this.controller = controller;
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        latestDelegationToken = new AtomicReference<String>();
+        latestDelegationToken = new AtomicReference<>();
     }
 
-    private StreamInfo getStreamInfo(Stream stream) {
-        // TODO: Implement this method and make it public
-        // Name from stream
-        // Length refector from ReaderGroupImpl perhaps move to controller.
-        // Creation time needs an added api? or perhaps modify the getsegmentAtTime api
-        // create a controller.getStreamSealTime() which returns null if open
-        throw new NotImplementedException("getStreamInfo");
+    @Override
+    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+        Preconditions.checkNotNull(stream, "stream");
+
+        //Fetch the stream cut representing the current TAIL of the stream.
+        return fetchTailStreamCut(stream).thenApply(streamCut -> new StreamInfo(stream.getScope(), stream.getStreamName(),
+                streamCut));
     }
 
     @Override

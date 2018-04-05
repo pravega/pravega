@@ -10,6 +10,7 @@
 package io.pravega.client.batch.impl;
 
 import io.pravega.client.batch.SegmentRange;
+import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -31,6 +32,7 @@ import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class BatchClientImplTest {
@@ -79,6 +81,48 @@ public class BatchClientImplTest {
         assertTrue(segments.hasNext());
         assertEquals(2, segments.next().asImpl().getSegment().getSegmentNumber());
         assertFalse(segments.hasNext());
+    }
+
+    @Test(timeout = 5000)
+    public void testStreamInfo() throws Exception {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                CreateSegment request = (CreateSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(CreateSegment.class));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                         false, false, 0, 0, 0));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
+        connectionFactory.provideConnection(location, connection);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
+                connectionFactory);
+        BatchClientImpl client = new BatchClientImpl(mockController, connectionFactory);
+        Stream stream = new StreamImpl("scope", "stream");
+        mockController.createScope("scope");
+        mockController.createStream(StreamConfiguration.builder()
+                                                       .scope("scope")
+                                                       .streamName("stream")
+                                                       .scalingPolicy(ScalingPolicy.fixed(3))
+                                                       .build()).join();
+
+        StreamInfo info = client.getStreamInfo(stream).join();
+        assertEquals(stream, info.getCurrentTailStreamCut().asImpl().getStream());
+        assertNotNull(info.getCurrentTailStreamCut());
+        assertEquals(3, info.getCurrentTailStreamCut().asImpl().getPositions().size());
     }
 
 }
