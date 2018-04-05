@@ -10,6 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ConfigSetup;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -292,6 +293,16 @@ class SegmentStoreAdapter extends StoreAdapter {
         public Storage createStorageAdapter() {
             Exceptions.checkNotClosed(this.closed.get(), this);
             return this.storage;
+        }
+
+        @Override
+        public String getName() {
+            return "SingletonStorageFactory";
+        }
+
+        @Override
+        public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
+
         }
 
         @Override

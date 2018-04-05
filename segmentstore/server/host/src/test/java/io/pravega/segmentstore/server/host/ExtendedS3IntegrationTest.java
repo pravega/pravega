@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
+import io.pravega.common.ConfigSetup;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -31,6 +32,7 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -126,6 +128,16 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), executorService());
+        }
+
+        @Override
+        public String getName() {
+            return "LocalExtendedStorageFactory";
+        }
+
+        @Override
+        public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
+
         }
     }
     //endregion

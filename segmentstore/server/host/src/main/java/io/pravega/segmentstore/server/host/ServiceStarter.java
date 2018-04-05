@@ -25,16 +25,9 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
-import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
-import io.pravega.storage.hdfs.HDFSStorageConfig;
-import io.pravega.storage.hdfs.HDFSStorageFactory;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -159,21 +152,9 @@ public final class ServiceStarter {
 
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
-            switch (this.serviceConfig.getStorageImplementation()) {
-                case HDFS:
-                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getStorageExecutor());
-                case FILESYSTEM:
-                    FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                    return new FileSystemStorageFactory(fsConfig, setup.getStorageExecutor());
-                case EXTENDEDS3:
-                    ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getStorageExecutor());
-                case INMEMORY:
-                    return new InMemoryStorageFactory(setup.getStorageExecutor());
-                default:
-                    throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getStorageImplementation());
-            }
+            StorageLoader loader = new StorageLoader();
+            return loader.load(setup, this.serviceConfig.getStorageImplementation(), setup.getStorageExecutor());
+
         });
     }
 

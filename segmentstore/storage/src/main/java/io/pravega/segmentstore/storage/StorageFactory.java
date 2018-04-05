@@ -9,6 +9,9 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.ConfigSetup;
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * Defines a Factory for Storage Adapters.
  */
@@ -17,4 +20,8 @@ public interface StorageFactory {
      * Creates a new instance of a Storage adapter.
      */
     Storage createStorageAdapter();
+
+    String getName();
+
+    void initialize(ConfigSetup setup, ScheduledExecutorService executor);
 }

@@ -38,7 +38,7 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.INMEMORY);
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", "InMemory");
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
     public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
@@ -177,7 +177,7 @@ public class ServiceConfig {
      * The Type of Storage Implementation to use.
      */
     @Getter
-    private final StorageType storageImplementation;
+    private final String storageImplementation;
 
     /**
      * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
@@ -246,7 +246,7 @@ public class ServiceConfig {
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
-        this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.keyFile = properties.get(KEY_FILE);

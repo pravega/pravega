@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.ConfigSetup;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -36,6 +37,16 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     @Override
     public Storage createStorageAdapter() {
         return new AsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
+    }
+
+    @Override
+    public String getName() {
+        return "InMemory";
+    }
+
+    @Override
+    public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
+
     }
 
     @Override
