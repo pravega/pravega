@@ -76,8 +76,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private static final Retry.RetryAndThrowBase<Exception> CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException)
             .throwingOn(Exception.class);
+    protected final StreamSegmentContainerMetadata metadata;
     private final String traceObjectId;
-    private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
     private final ContainerAttributeIndex attributeIndex;

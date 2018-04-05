@@ -1259,6 +1259,7 @@ public class ContainerMetadataUpdateTransactionTests {
         operations.add(createMerge());
         operations.add(createSeal());
 
+        // This is a change we make only to the baseMetadata. This should not propagate to the targetMetadata.
         baseMetadata.getStreamSegmentMetadata(SEGMENT_ID).updateAttributes(Collections.singletonMap(Attributes.CREATION_TIME, 0L));
         val txn = createUpdateTransaction(baseMetadata);
         long expectedLastUsedParent = -1;
@@ -1292,7 +1293,8 @@ public class ContainerMetadataUpdateTransactionTests {
         SegmentMetadata transactionMetadata = targetMetadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
         Assert.assertTrue("Unexpected value for isSealed in Transaction metadata after commit.", transactionMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in Transaction metadata after commit.", transactionMetadata.isMerged());
-        Assert.assertEquals("Unexpected number of attributes for parent segment.", appendAttributeCount + 1, parentMetadata.getAttributes().size());
+        int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0);
+        Assert.assertEquals("Unexpected number of attributes for parent segment.", expectedParentAttributeCount, parentMetadata.getAttributes().size());
         Assert.assertEquals("Unexpected number of attributes for transaction.", 0, transactionMetadata.getAttributes().size());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Transaction after commit.", expectedLastUsedTransaction, transactionMetadata);
     }

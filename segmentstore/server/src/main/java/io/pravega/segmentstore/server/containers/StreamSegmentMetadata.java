@@ -20,13 +20,16 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -331,8 +334,48 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         return this.active;
     }
 
+    /**
+     * Marks this SegmentMetadata as inactive.
+     */
     synchronized void markInactive() {
         this.active = false;
+    }
+
+    /**
+     * Evicts those Extended Attributes from memory that have a LastUsed value prior to the given cutoff.
+     *
+     * @param maximumAttributeCount The maximum number of Extended Attributes per Segment. Cleanup will only be performed
+     *                              if there are at least this many Extended Attributes in memory.
+     * @param lastUsedCutoff        The cutoff value for LastUsed. Any Extended attributes with a value smaller than this
+     *                              will be removed.
+     * @return The number of removed attributes.
+     */
+    synchronized int cleanupAttributes(int maximumAttributeCount, long lastUsedCutoff) {
+        if (this.extendedAttributes.size() <= maximumAttributeCount) {
+            // Haven't reached the limit yet.
+            return 0;
+        }
+
+        // Collect candidates and order them by lastUsed (oldest to newest).
+        val candidates = this.extendedAttributes.entrySet().stream()
+                                                .filter(e -> e.getValue().lastUsed < lastUsedCutoff)
+                                                .sorted(Comparator.comparingLong(e -> e.getValue().lastUsed))
+                                                .collect(Collectors.toList());
+
+        // Start evicting candidates, beginning from the oldest, until we have either evicted all of them or brought the
+        // total count to an acceptable limit.
+        int count = 0;
+        for (val e : candidates) {
+            if (this.extendedAttributes.size() <= maximumAttributeCount) {
+                break;
+            }
+
+            this.extendedAttributes.remove(e.getKey());
+            count++;
+        }
+
+        log.debug("{}: Evicted {} attribute(s).", this.traceObjectId, count);
+        return count;
     }
 
     //endregion
@@ -478,5 +521,4 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     //endregion
-
 }
