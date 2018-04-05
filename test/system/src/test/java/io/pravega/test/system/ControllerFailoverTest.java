@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -179,6 +180,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Connect to another controller instance.
+        @Cleanup
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
                                     .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())

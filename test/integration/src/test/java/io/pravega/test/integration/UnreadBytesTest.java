@@ -36,7 +36,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -46,7 +45,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@Slf4j
 public class UnreadBytesTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -59,7 +57,6 @@ public class UnreadBytesTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-    private ScheduledExecutorService executorChkpoint;
 
     @Before
     public void setUp() throws Exception {
@@ -111,8 +108,9 @@ public class UnreadBytesTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),

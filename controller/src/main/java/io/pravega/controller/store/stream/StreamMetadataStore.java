@@ -406,24 +406,30 @@ public interface StreamMetadataStore {
                                                             final Executor executor);
 
     /**
+     * Method to create new segments in stream metadata.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return future
+     */
+    CompletableFuture<Void> scaleCreateNewSegments(final String scope,
+                                                   final String name,
+                                                   final OperationContext context,
+                                                   final Executor executor);
+
+    /**
      * Called after new segments are created in SSS.
      *
      * @param scope          stream scope
      * @param name           stream name.
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments that were created as part of startScale
-     * @param activeEpoch    scale epoch
-     * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
                                                     final String name,
-                                                    final List<Integer> sealedSegments,
-                                                    final List<Segment> newSegments,
-                                                    final int activeEpoch,
-                                                    final long scaleTimestamp,
                                                     final OperationContext context,
                                                     final Executor executor);
 
@@ -432,21 +438,30 @@ public interface StreamMetadataStore {
      *
      * @param scope          stream scope
      * @param name           stream name.
-     * @param sealedSegments segments to be sealed
-     * @param newSegments    segments that were created as part of startScale
-     * @param activeEpoch    scale epoch
-     * @param scaleTimestamp timestamp at which scale was requested
+     * @param sealedSegmentSizes sealed segments with size at the time of sealing
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
-                                                final Map<Integer, Long> sealedSegments,
-                                                final List<Segment> newSegments,
-                                                final int activeEpoch,
-                                                final long scaleTimestamp,
+                                                final Map<Integer, Long> sealedSegmentSizes,
                                                 final OperationContext context,
                                                 final Executor executor);
+
+    /**
+     * If the state of the stream in the store matches supplied state, reset.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param state          state to match
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return future of completion of state update
+     */
+    CompletableFuture<Void> resetStateConditionally(final String scope, final String name,
+                                                    final State state,
+                                                    final OperationContext context,
+                                                    final Executor executor);
 
     /**
      * Method to delete epoch if scale operation is ongoing.
@@ -714,16 +729,6 @@ public interface StreamMetadataStore {
      * @return currently active segments
      */
     CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final OperationContext context, final Executor executor);
-
-    /**
-     * Method to count number of splits and merges.
-     *
-     * @param scopeName     stream scope
-     * @param streamName    stream name
-     * @param executor      callers executor
-     * @return              SimpleEntry, number of splits as Key and number of merges as value
-     */
-    CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
 
     /**
      * Method to register listener for changes to bucket's ownership.

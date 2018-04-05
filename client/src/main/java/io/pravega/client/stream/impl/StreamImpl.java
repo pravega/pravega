@@ -17,6 +17,7 @@ import lombok.Data;
 @Data
 public class StreamImpl extends StreamInternal implements Serializable {
 
+    private static final long serialVersionUID = 1L;
     private final String scope;
     private final String streamName;
 

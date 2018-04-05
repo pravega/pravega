@@ -9,33 +9,27 @@
  */
 package io.pravega.client.stream.notifications;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.stream.impl.ReaderGroupState;
+import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
+import io.pravega.test.common.InlineExecutor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import io.pravega.client.state.StateSynchronizer;
-import io.pravega.client.stream.impl.ReaderGroupImpl;
-import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
-import io.pravega.test.common.InlineExecutor;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(MockitoJUnitRunner.class)
 public class NotificationFrameworkTest {
 
     private final ScheduledExecutorService executor = new InlineExecutor();
-    @Spy
-    private final ReaderGroupImpl readerGroup = new ReaderGroupImpl("testScope", "rg1", null, null, null,
-            null, null, null);
-    private final NotificationSystem notificationSystem = readerGroup.getNotificationSystem();
+
+    private final NotificationSystem notificationSystem = new NotificationSystem();
     @Mock
     private StateSynchronizer<ReaderGroupState> sync;
 

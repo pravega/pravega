@@ -24,6 +24,8 @@ import java.io.Serializable;
  */
 public abstract class EventPointerInternal implements EventPointer, Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     /**
      * Get the segment object to fetch the event from.
      *
