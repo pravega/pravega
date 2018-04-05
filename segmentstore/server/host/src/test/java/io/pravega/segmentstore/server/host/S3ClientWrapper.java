@@ -25,7 +25,7 @@ import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
-import io.pravega.segmentstore.storage.impl.extendeds3.S3ImplBase;
+import io.pravega.storage.extendeds3.S3ImplBase;
 import java.io.InputStream;
 import lombok.Synchronized;
 

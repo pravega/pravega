@@ -62,7 +62,7 @@ public class Utils {
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
         URI hdfsUri = null;
         if (DOCKER_BASED) {
-            Service hdfsService = new HDFSDockerService("hdfs");
+            Service hdfsService = new HDFSDockerService("io.pravega.storage.hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }

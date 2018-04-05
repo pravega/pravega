@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.extendeds3;
+package io.pravega.storage.extendeds3;
 
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
@@ -17,8 +17,10 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
+import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
+import io.pravega.storage.IdempotentStorageTestBase;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.List;
@@ -30,8 +32,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
  * Unit tests for ExtendedS3Storage.
@@ -71,9 +71,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                .build();
         String segmentName = "foo_open";
         try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
-            s.initialize(DEFAULT_EPOCH);
+            s.initialize(StorageTestBase.DEFAULT_EPOCH);
             s.create(segmentName, null).join();
-            assertThrows("create() did not throw for existing StreamSegment.",
+            AssertExtensions.assertThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
                     ex -> ex instanceof StreamSegmentExistsException);
         }

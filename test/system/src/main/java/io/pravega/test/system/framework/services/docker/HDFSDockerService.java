@@ -20,14 +20,14 @@ import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
 @Slf4j
@@ -76,13 +76,13 @@ public class HDFSDockerService extends DockerBasedService {
                         .build())
                 .build();
         List<PortConfig> portConfigs = new ArrayList<>();
-        PortConfig port1 = PortConfig.builder().publishedPort(8020).targetPort(8020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs").build();
-        PortConfig port2 = PortConfig.builder().publishedPort(50090).targetPort(50090).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-secondary").build();
-        PortConfig port3 = PortConfig.builder().publishedPort(50010).targetPort(50010).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode").build();
-        PortConfig port4 = PortConfig.builder().publishedPort(50020).targetPort(50020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode-ipc").build();
-        PortConfig port5 = PortConfig.builder().publishedPort(50075).targetPort(50075).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode-http").build();
-        PortConfig port6 = PortConfig.builder().publishedPort(50070).targetPort(50070).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-web").build();
-        PortConfig port7 = PortConfig.builder().publishedPort(2222).targetPort(2222).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-ssh").build();
+        PortConfig port1 = PortConfig.builder().publishedPort(8020).targetPort(8020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs").build();
+        PortConfig port2 = PortConfig.builder().publishedPort(50090).targetPort(50090).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-secondary").build();
+        PortConfig port3 = PortConfig.builder().publishedPort(50010).targetPort(50010).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-datanode").build();
+        PortConfig port4 = PortConfig.builder().publishedPort(50020).targetPort(50020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-datanode-ipc").build();
+        PortConfig port5 = PortConfig.builder().publishedPort(50075).targetPort(50075).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-datanode-http").build();
+        PortConfig port6 = PortConfig.builder().publishedPort(50070).targetPort(50070).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-web").build();
+        PortConfig port7 = PortConfig.builder().publishedPort(2222).targetPort(2222).publishMode(PortConfig.PortConfigPublishMode.HOST).name("io.pravega.storage.hdfs-ssh").build();
         portConfigs.add(port1);
         portConfigs.add(port2);
         portConfigs.add(port3);

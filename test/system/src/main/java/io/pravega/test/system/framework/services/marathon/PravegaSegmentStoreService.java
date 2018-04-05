@@ -22,11 +22,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -131,7 +131,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
-                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+                setSystemProperty("io.pravega.storage.hdfs.replaceDataNodesOnFailure", "false");
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
@@ -153,7 +153,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
             });
         } else {
             // Set HDFS as the default for Tier2.
-            map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+            map.put("HDFS_URL", "io.pravega.storage.hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
             map.put("TIER2_STORAGE", "HDFS");
         }
     }
