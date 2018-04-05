@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -217,7 +218,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
     }
 
     private byte[] populateSegment(Storage storage) {
-        Random random = new Random();
+        Random random = RandomFactory.create();
         int length = MIN_SEGMENT_LENGTH + random.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);

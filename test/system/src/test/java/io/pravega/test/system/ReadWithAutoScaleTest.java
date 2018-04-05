@@ -25,6 +25,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -34,7 +35,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -60,7 +60,7 @@ import static org.junit.Assert.assertTrue;
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     private final static String STREAM_NAME = "testTxnScaleUpWithRead";
-    private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final static String READER_GROUP_NAME = "testReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     //Initial number of segments is 2.
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 2);
@@ -292,5 +292,6 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     private class TxnCreationFailedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 }

@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
  * An implementation of {@link Serializer} that converts byte arrays.
  */
 public class ByteArraySerializer implements Serializer<byte[]>, Serializable {
+    private static final long serialVersionUID = 1L;
     @Override
     public ByteBuffer serialize(byte[] value) {
         return ByteBuffer.wrap(value);

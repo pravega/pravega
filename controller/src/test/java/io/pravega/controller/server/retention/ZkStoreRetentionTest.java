@@ -49,6 +49,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
+    @Override
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -61,6 +62,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         super.setup();
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

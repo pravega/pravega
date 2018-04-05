@@ -30,6 +30,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -39,7 +40,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -59,7 +59,7 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ReadWriteTest {
 
-    private static final String STREAM_NAME = "testMultiReaderWriterStream" + new Random().nextInt(Integer.MAX_VALUE);
+    private static final String STREAM_NAME = "testMultiReaderWriterStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
     private static final long TOTAL_NUM_EVENTS = 20000;
@@ -162,7 +162,7 @@ public class ReadWriteTest {
             //create readers
             log.info("Creating {} readers", NUM_READERS);
             List<CompletableFuture<Void>> readerList = new ArrayList<>();
-            String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
+            String readerName = "reader" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
             //start reading events
             for (int i = 0; i < NUM_READERS; i++) {
                 log.info("Starting reader{}", i);
