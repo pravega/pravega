@@ -49,7 +49,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicLong;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -59,8 +58,8 @@ public class MetricsTest {
 
     private static final String STREAM_NAME = "testMetricsStream" + new Random().nextInt(Integer.MAX_VALUE);
     private static final long TOTAL_NUM_EVENTS = 100;
-    String scope = "testMultiReaderWriterScope";
-    String readerGroupName = "testMultiReaderWriterReaderGroup";
+    String scope = "testMetricsScope";
+    String readerGroupName = "testMetricsReaderGroup";
     ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
     StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
@@ -71,9 +70,8 @@ public class MetricsTest {
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
     private StatsProvider statsProvider;
-    private AtomicLong eventData = new AtomicLong();
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("statsLogger");
-    final OpStatsLogger segmentReadBytes = statsLogger.createStats(SEGMENT_READ_BYTES);
+    private final OpStatsLogger segmentReadBytes = statsLogger.createStats(SEGMENT_READ_BYTES);
 
 
     @Before
@@ -106,7 +104,8 @@ public class MetricsTest {
 
         // 4. Start Metrics service
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1).build());
+        MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
+               .build());
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
         log.info("Metrics Stats provider is started");
@@ -218,6 +217,10 @@ public class MetricsTest {
             }
             log.info("Closing reader {}", reader2);
             reader2.close();
+
+            log.info("Deleting readergroups");
+            readerGroupManager.deleteReaderGroup(readerGroupName1);
+            readerGroupManager.deleteReaderGroup(readerGroupName2);
 
         }
         log.info("Metrics Time based Cache Eviction test succeeds");
