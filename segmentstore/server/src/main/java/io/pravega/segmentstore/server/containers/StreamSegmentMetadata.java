@@ -10,8 +10,9 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import io.pravega.common.Exceptions;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -23,8 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -279,7 +278,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             if (Attributes.isCoreAttribute(id)) {
                 this.coreAttributes.put(id, value);
             } else {
-                this.extendedAttributes.put(id, new ExtendedAttributeValue(value, 0));
+                this.extendedAttributes.put(id, new ExtendedAttributeValue(value));
             }
         });
     }
@@ -340,18 +339,34 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     //region ExtendedAttributeValue
 
-    private static class ExtendedAttributeValue {
+    /**
+     * Wrapper for the value of an Extended Attribute, which also keeps track of the last time this Attribute was used
+     * (updated or retrieved).
+     */
+    private class ExtendedAttributeValue {
         private final long value;
-        private long lastTouchedSequenceNumber; // TODO: this is not available here. Perhaps use Length/StorageLength?
 
-        ExtendedAttributeValue(long value, long currentSequenceNumber) {
+        // We fetch the value from the SegmentMetadata's LastUsed field, which accurately keeps track of the Sequence Number
+        // of the last Operation that either touched this Segment or requested information about it.
+        @GuardedBy("StreamSegmentMetadata.this")
+        private long lastUsed;
+
+        ExtendedAttributeValue(long value) {
             this.value = value;
-            this.lastTouchedSequenceNumber = currentSequenceNumber;
+            this.lastUsed = StreamSegmentMetadata.this.getLastUsed();
+        }
+
+        @GuardedBy("StreamSegmentMetadata.this")
+        long getValueAndTouch() {
+            this.lastUsed = StreamSegmentMetadata.this.getLastUsed();
+            return this.value;
         }
 
         @Override
         public String toString() {
-            return String.format("%d (SN=%d)", this.value, this.lastTouchedSequenceNumber);
+            synchronized (StreamSegmentMetadata.this) {
+                return String.format("%d (LastUsed=%d)", this.value, this.lastUsed);
+            }
         }
     }
 
@@ -391,11 +406,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
                 if (result == null) {
                     ExtendedAttributeValue r = extendedAttributes.get(o);
                     if (r != null) {
-                        // TODO: update lastTouched. Should we also do it for containsKey/keySet/values/entrySet ?
-                        // TODO: how do we handle CAS operations, which operate on a different Map/Object.
-                        result = r.value;
+                        result = r.getValueAndTouch();
                     }
                 }
+
                 return result;
             }
         }
@@ -403,29 +417,25 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         @Override
         public Set<UUID> keySet() {
             synchronized (StreamSegmentMetadata.this) {
-                return Sets.union(coreAttributes.keySet(), extendedAttributes.keySet());
+                return CollectionHelpers.joinSets(coreAttributes.keySet(), extendedAttributes.keySet());
             }
         }
 
         @Override
         public Collection<Long> values() {
             synchronized (StreamSegmentMetadata.this) {
-                return Stream.concat(
-                        coreAttributes.values().stream(),
-                        extendedAttributes.values()
-                                .stream().map(eav -> eav.value))
-                        .collect(Collectors.toList());
+                return CollectionHelpers.joinCollections(
+                        coreAttributes.values(), Callbacks::identity,
+                        extendedAttributes.values(), e -> e.value);
             }
         }
 
         @Override
         public Set<Map.Entry<UUID, Long>> entrySet() {
             synchronized (StreamSegmentMetadata.this) {
-                return Stream.concat(
-                        coreAttributes.entrySet().stream(),
-                        extendedAttributes.entrySet()
-                                .stream().map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue().value)))
-                        .collect(Collectors.toSet());
+                return CollectionHelpers.joinSets(
+                        coreAttributes.entrySet(), Callbacks::identity,
+                        extendedAttributes.entrySet(), e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue().value));
             }
         }
 
