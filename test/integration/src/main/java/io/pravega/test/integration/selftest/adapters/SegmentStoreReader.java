@@ -49,6 +49,10 @@ import lombok.val;
 class SegmentStoreReader implements StoreReader {
     //region Members
 
+    // We don't want to immediately truncate the Segment in Storage as that may interfere with the normal functioning of
+    // the StorageWriter and cause unintended errors. We are giving it a grace buffer and only truncate it at this delta
+    // below the currently read segment offset.
+    private static final int TRUNCATE_BUFFER_BYTES = 32 * 1024 * 1024;
     private final TestConfig testConfig;
     private final StreamSegmentStore store;
     private final ReadOnlyStorage storage;
@@ -201,9 +205,10 @@ class SegmentStoreReader implements StoreReader {
         private CompletableFuture<Void> truncateIfPossible(long offset) {
             if (SegmentStoreReader.this.storage instanceof Storage) {
                 Storage s = (Storage) SegmentStoreReader.this.storage;
-                if (s.supportsTruncation()) {
+                long truncateOffset = offset - TRUNCATE_BUFFER_BYTES;
+                if (s.supportsTruncation() && truncateOffset > 0) {
                     return s.openWrite(this.segmentName)
-                            .thenCompose(handle -> s.truncate(handle, offset, SegmentStoreReader.this.testConfig.getTimeout()));
+                            .thenCompose(handle -> s.truncate(handle, truncateOffset, SegmentStoreReader.this.testConfig.getTimeout()));
                 }
             }
 

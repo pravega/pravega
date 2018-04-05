@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
@@ -96,11 +95,6 @@ public class ReaderGroupStateManager {
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         fetchStateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
-    }
-
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
-                                      ReaderGroupConfig config, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
 
     /**
@@ -312,15 +306,15 @@ public class ReaderGroupStateManager {
         Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return Collections.EMPTY_MAP;
+                return Collections.emptyMap();
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return Collections.EMPTY_MAP;
+                return Collections.emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return Collections.EMPTY_MAP;
+                return Collections.emptyMap();
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);

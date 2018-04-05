@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -486,7 +487,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Part 4: large appends (larger than MaxFlushSize).
-        Random random = new Random();
+        Random random = RandomFactory.create();
         for (int i = 0; i < appendCount; i++) {
             // Add another operation and record its length.
             byte[] largeAppendData = new byte[config.getMaxFlushSizeBytes() * 10 + 1];

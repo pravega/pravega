@@ -41,7 +41,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
-    private final ConcurrentMap<Stream, CompletableFuture> retentionFutureMap;
+    private final ConcurrentMap<Stream, CompletableFuture<Void>> retentionFutureMap;
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
     private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
@@ -172,7 +172,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     }
 
     @VisibleForTesting
-    Map<Stream, CompletableFuture> getRetentionFutureMap() {
+    Map<Stream, CompletableFuture<Void>> getRetentionFutureMap() {
         return Collections.unmodifiableMap(retentionFutureMap);
     }
 }

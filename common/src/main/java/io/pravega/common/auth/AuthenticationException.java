@@ -13,6 +13,7 @@ package io.pravega.common.auth;
  * Exception thrown when there is any error during authentication/authorization.
  */
 public class AuthenticationException extends Exception {
+    private static final long serialVersionUID = 1L;
     public AuthenticationException(String message) {
         super(message);
     }

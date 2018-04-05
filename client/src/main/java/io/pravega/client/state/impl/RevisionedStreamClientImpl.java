@@ -9,9 +9,9 @@
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -21,7 +21,6 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -51,8 +50,6 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
-    private final Controller controller;
-    private final String delegationToken;
 
     private final Object lock = new Object();
 

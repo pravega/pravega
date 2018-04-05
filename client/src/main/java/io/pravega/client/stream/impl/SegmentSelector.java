@@ -16,6 +16,7 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,7 +45,7 @@ public class SegmentSelector {
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
     @GuardedBy("$lock")
-    private final Random random = new Random();
+    private final Random random = RandomFactory.create();
     @GuardedBy("$lock")
     private StreamSegments currentSegments;
     @GuardedBy("$lock")
