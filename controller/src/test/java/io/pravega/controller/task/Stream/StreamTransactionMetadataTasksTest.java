@@ -15,7 +15,6 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -478,8 +477,6 @@ public class StreamTransactionMetadataTasksTest {
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
 
         ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class)))
-                .then(invocation -> readerGroup);
 
         EventProcessorSystemImpl system = new EventProcessorSystemImpl("system", "host", SCOPE, clientFactory, readerGroupManager);
 
