@@ -312,12 +312,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(data.getData());
 
         CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> copy = updatedCopy(data);
         synchronized (lock) {
             if (segmentIndex == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Segment index for stream: " + getName()));
             } else if (segmentIndex.getVersion().equals(data.getVersion())) {
-                segmentIndex = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
+                segmentIndex = copy;
                 result.complete(null);
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -367,12 +368,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(data.getData());
 
         CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> copy = updatedCopy(data);
         synchronized (lock) {
             if (segmentTable == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Segment table for stream: " + getName()));
             } else if (segmentTable.getVersion().equals(data.getVersion())) {
-                segmentTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
+                segmentTable = copy;
                 result.complete(null);
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -387,9 +389,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(data.getData());
 
+        Data<Integer> copy = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
         synchronized (lock) {
             if (historyIndex == null) {
-                historyIndex = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
+                this.historyIndex = copy;
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -416,12 +419,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(updated.getData());
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> copy = updatedCopy(updated);
         synchronized (lock) {
             if (historyIndex == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Indextable for stream: " + getName()));
             } else if (historyIndex.getVersion().equals(updated.getVersion())) {
-                historyIndex = new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
+                this.historyIndex = copy;
                 result.complete(null);
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -436,11 +440,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(data.getData());
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
+        Data<Integer> copy = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
         synchronized (lock) {
             if (historyTable == null) {
-                historyTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
+                this.historyTable = copy;
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -452,13 +455,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(updated.getData());
 
         CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> copy = updatedCopy(updated);
         synchronized (lock) {
             if (historyTable == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Historytable for stream: " + getName()));
             } else {
                 if (historyTable.getVersion().equals(updated.getVersion())) {
-                    historyTable = new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
+                    this.historyTable = copy;
                     result.complete(null);
                 } else {
                     result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -662,6 +666,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> next = updatedCopy(data);
         synchronized (markersLock) {
             if (!markers.containsKey(segmentNumber)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
@@ -670,7 +675,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 markers.compute(segmentNumber, (x, y) -> {
                     if (y.getVersion().equals(data.getVersion())) {
                         result.complete(null);
-                        return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
+                        return next;
                     } else {
                         result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
                                 "Stream: " + getName() + " Segment number: " + segmentNumber));
@@ -748,12 +753,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(retention.getData());
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
+        Data<Integer> next = updatedCopy(retention);
         synchronized (lock) {
             if (retentionSet == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "retentionSet for stream: " + getName()));
             } else if (retentionSet.getVersion().equals(retention.getVersion())) {
-                retentionSet = new Data<>(Arrays.copyOf(retention.getData(), retention.getData().length), retention.getVersion() + 1);
+                this.retentionSet = next;
                 result.complete(null);
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -827,14 +833,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> updateSealedSegmentsRecord(Data<Integer> sealedSegments) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(sealedSegments.getData());
-
+        Data<Integer> update = updatedCopy(sealedSegments);
         synchronized (lock) {
             if (this.sealedSegments == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "sealedSegments for stream: " + getName()));
             } else if (this.sealedSegments.getVersion().equals(sealedSegments.getVersion())) {
-                this.sealedSegments = new Data<>(Arrays.copyOf(sealedSegments.getData(), sealedSegments.getData().length),
-                        sealedSegments.getVersion() + 1);
+                this.sealedSegments = update;
                 return CompletableFuture.completedFuture(null);
             } else {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT,
@@ -845,5 +850,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     private Data<Integer> copy(Data<Integer> input) {
         return new Data<>(Arrays.copyOf(input.getData(), input.getData().length), input.getVersion());
+    }
+
+    private Data<Integer> updatedCopy(Data<Integer> input) {
+        return new Data<>(Arrays.copyOf(input.getData(), input.getData().length), input.getVersion() + 1);
     }
 }

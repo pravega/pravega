@@ -515,7 +515,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         return CompletableFuture.completedFuture(null);
                     }
                 })
-                .thenApply(x -> cache.invalidateCache(segmentIndexPath));
+                .thenRun(() -> cache.invalidateCache(segmentIndexPath));
     }
 
     @Override

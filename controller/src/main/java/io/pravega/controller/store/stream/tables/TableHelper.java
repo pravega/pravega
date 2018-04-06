@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.Lombok;
@@ -94,7 +95,7 @@ public class TableHelper {
     public static List<Integer> getActiveSegments(final byte[] historyIndex, final byte[] historyTable) {
         final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyIndex, historyTable, true);
 
-        return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
+        return record.isPresent() ? record.get().getSegments() : Collections.emptyList();
     }
 
     /**
@@ -137,9 +138,9 @@ public class TableHelper {
 
                 segments.addAll(fromStreamCut);
                 // put remaining segments as those that dont overlap with ones taken from streamCut.
-                segments.addAll(record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
+                record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
                         getSegment(x, segmentIndex, segmentTable).overlaps(getSegment(y, segmentIndex, segmentTable))))
-                        .collect(Collectors.toList()));
+                        .forEach(segments::add);
             }
         }
         return segments;
@@ -302,14 +303,14 @@ public class TableHelper {
 
         // segment information not in history table
         if (!creationRecordOpt.isPresent()) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
 
         final HistoryRecord latest = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
 
         if (latest.getSegments().contains(segment.getNumber())) {
             // Segment is not sealed yet so there cannot be a successor.
-            return new ArrayList<>();
+            return Collections.emptyList();
         } else {
             // segment is definitely sealed, we should be able to find it by doing binary search to find the respective epoch.
             return findSegmentSealedEvent(
@@ -343,7 +344,7 @@ public class TableHelper {
         Optional<HistoryRecord> historyRecordOpt = HistoryRecord.readRecord(segment.getEpoch(), historyIndex, historyTable, false);
         if (!historyRecordOpt.isPresent()) {
             // cant compute predecessors because the segment creation entry is not present in history table yet.
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
 
         final HistoryRecord record = historyRecordOpt.get();
@@ -351,7 +352,7 @@ public class TableHelper {
         final Optional<HistoryRecord> previous = HistoryRecord.fetchPrevious(record, historyIndex, historyTable);
 
         if (!previous.isPresent()) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         } else {
             assert !previous.get().getSegments().contains(segment.getNumber());
             return previous.get().getSegments();
@@ -418,9 +419,10 @@ public class TableHelper {
                         x -> {
                             try {
                                 int offset = segmentStream.size();
-                                segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
+                                ArrayView arrayView = new SegmentRecord(startingSegmentNumber + x,
                                         timeStamp, newEpoch, newRanges.get(x).getKey(), newRanges.get(x).getValue())
-                                        .toByteArray());
+                                        .toArrayView();
+                                segmentStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
                                 indexStream.write(new SegmentIndexRecord(startingSegmentNumber + x,
                                         offset).toByteArray());
                             } catch (IOException e) {
@@ -448,7 +450,8 @@ public class TableHelper {
 
         historyStream.write(historyTable);
         HistoryRecord record = new HistoryRecord(last.get().getEpoch() + 1, newActiveSegments);
-        historyStream.write(record.toByteArray());
+        ArrayView arrayView = record.toArrayView();
+        historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
         return historyStream.toByteArray();
     }
 
@@ -468,13 +471,14 @@ public class TableHelper {
         Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyIndex, historyTable, false);
         assert record.isPresent() && record.get().isPartial() && record.get().getEpoch() == partialHistoryRecord.getEpoch();
 
-        HistoryRecord previous = HistoryRecord.fetchPrevious(record.get(), historyIndex, historyTable).get();
         HistoryIndexRecord indexRecord = HistoryIndexRecord.readLatestRecord(historyIndex).get();
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
         historyStream.write(historyTable, 0, indexRecord.getHistoryOffset());
-        historyStream.write(new HistoryRecord(partialHistoryRecord.getEpoch(), partialHistoryRecord.getSegments(),
-                timestamp).toByteArray());
+        HistoryRecord historyRecord = new HistoryRecord(partialHistoryRecord.getEpoch(), partialHistoryRecord.getSegments(),
+                timestamp);
+        ArrayView arrayView = historyRecord.toArrayView();
+        historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
         return historyStream.toByteArray();
     }
 
@@ -490,7 +494,8 @@ public class TableHelper {
                                             final List<Integer> newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
-        historyStream.write(new HistoryRecord(0, newActiveSegments, timestamp).toByteArray());
+        ArrayView arrayView = new HistoryRecord(0, newActiveSegments, timestamp).toArrayView();
+        historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
         return historyStream.toByteArray();
     }
 

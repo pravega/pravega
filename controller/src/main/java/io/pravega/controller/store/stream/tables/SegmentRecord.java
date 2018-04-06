@@ -11,12 +11,14 @@ package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.tables.serializers.SegmentRecordSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 
@@ -78,15 +80,20 @@ public class SegmentRecord {
         return Optional.empty();
     }
 
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     private static SegmentRecord parse(final byte[] table, final int offset) {
         InputStream bas = new ByteArrayInputStream(table, offset, table.length - offset);
         return SERIALIZER.deserialize(bas);
     }
 
-    @SneakyThrows
+    @SneakyThrows(IOException.class)
     byte[] toByteArray() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    @SneakyThrows(IOException.class)
+    public ArrayView toArrayView() {
+        return SERIALIZER.serialize(this);
     }
 
     public static class SegmentRecordBuilder implements ObjectBuilder<SegmentRecord> {
