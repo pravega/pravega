@@ -278,6 +278,7 @@ public class ReaderGroupStateManager {
     private void compactIfNeeded() {
         //Make sure it has been a while, and compaction are staggered.
         if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
+            log.debug("Compacting reader group state {}", sync.getState());
             sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }
