@@ -163,11 +163,10 @@ class HDFSStorage implements SyncStorage {
                 return result;
             });
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, e);
         } catch (RetriesExhaustedException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e.getCause());
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, e.getCause());
         }
-        return null;
     }
 
     @Override
@@ -214,11 +213,10 @@ class HDFSStorage implements SyncStorage {
                             return totalBytesRead;
                         });
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         } catch (RetriesExhaustedException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e.getCause());
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e.getCause());
         }
-        return -1;
     }
 
     @Override
@@ -230,9 +228,8 @@ class HDFSStorage implements SyncStorage {
             LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
             return HDFSSegmentHandle.read(streamSegmentName);
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, e);
         }
-        return null;
     }
 
     @Override
@@ -251,7 +248,7 @@ class HDFSStorage implements SyncStorage {
                 this.fileSystem.rename(lastHandleFile.getPath(), sealedPath);
             }
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
         LoggerHelpers.traceLeave(log, "seal", traceId, handle);
     }
@@ -267,7 +264,7 @@ class HDFSStorage implements SyncStorage {
             makeWrite(status);
             this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
         LoggerHelpers.traceLeave(log, "unseal", traceId, handle);
     }
@@ -298,7 +295,7 @@ class HDFSStorage implements SyncStorage {
             makeWrite(sourceFile);
             this.fileSystem.concat(fileStatus.getPath(), new Path[]{sourceFile.getPath()});
         } catch (IOException ex) {
-            HDFSExceptionHelpers.throwException(sourceSegment, ex);
+            throw HDFSExceptionHelpers.throwException(sourceSegment, ex);
         }
         LoggerHelpers.traceLeave(log, "concat", traceId, target, offset, sourceSegment);
     }
@@ -314,7 +311,7 @@ class HDFSStorage implements SyncStorage {
             }
             this.fileSystem.delete(statusForSegment.getPath(), true);
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
@@ -346,8 +343,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
         } catch (IOException e) {
-             HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
-             return;
+             throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), e);
         }
 
         Timer timer = new Timer();
@@ -379,7 +375,7 @@ class HDFSStorage implements SyncStorage {
 
             stream.flush();
         } catch (IOException ex) {
-            HDFSExceptionHelpers.throwException(handle.getSegmentName(), ex);
+            throw HDFSExceptionHelpers.throwException(handle.getSegmentName(), ex);
         }
 
         HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
@@ -417,7 +413,7 @@ class HDFSStorage implements SyncStorage {
                 findStatusForSegment(streamSegmentName, true);
                 return HDFSSegmentHandle.write(streamSegmentName);
             } catch (IOException e) {
-                HDFSExceptionHelpers.throwException(streamSegmentName, e);
+                throw HDFSExceptionHelpers.throwException(streamSegmentName, e);
             }
         } while (fencedCount < MAX_ATTEMPT_COUNT);
         LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
@@ -432,11 +428,11 @@ class HDFSStorage implements SyncStorage {
         try {
             existingFiles = findAllRaw(streamSegmentName);
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, e);
         }
         if (existingFiles != null && existingFiles.length > 0) {
             // Segment already exists; don't bother with anything else.
-            HDFSExceptionHelpers.throwException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
         }
 
         // Create the first file in the segment.
@@ -447,7 +443,7 @@ class HDFSStorage implements SyncStorage {
                     this.config.getBlockSize(), null).close();
             log.debug("Created '{}'.", fullPath);
         } catch (IOException e) {
-            HDFSExceptionHelpers.throwException(streamSegmentName, e);
+            throw HDFSExceptionHelpers.throwException(streamSegmentName, e);
         }
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return StreamSegmentInformation.builder().name(streamSegmentName).build();

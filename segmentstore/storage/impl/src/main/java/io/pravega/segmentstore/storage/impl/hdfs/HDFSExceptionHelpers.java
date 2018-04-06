@@ -32,20 +32,21 @@ final class HDFSExceptionHelpers {
      * @param e           The exception to be translated.
      * @return  The exception to be thrown.
      */
-    static <T> T throwException(String segmentName, Throwable e) throws StreamSegmentException {
+    static <T> StreamSegmentException throwException(String segmentName, Throwable e) {
         StreamSegmentException retVal = null;
         if (e instanceof RemoteException) {
             e = ((RemoteException) e).unwrapRemoteException();
-        } else if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            throw new StreamSegmentNotExistsException(segmentName, e);
+        }
+
+        if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
+            return new StreamSegmentNotExistsException(segmentName, e);
         } else if (e instanceof FileAlreadyExistsException) {
-            throw new StreamSegmentExistsException(segmentName, e);
+            return new StreamSegmentExistsException(segmentName, e);
         } else if (e instanceof AclException) {
-            throw new StreamSegmentSealedException(segmentName, e);
+            return new StreamSegmentSealedException(segmentName, e);
         } else {
             throw Lombok.sneakyThrow(e);
         }
-        return null;
     }
 
     /**
