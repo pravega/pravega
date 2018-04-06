@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -55,14 +56,16 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class BoundedStreamReaderTest {
 
     private static final String SCOPE = "testScope";
-    private static final String STREAM1 = "testStreamSeek1";
-    private static final String STREAM2 = "testStreamSeek2";
+    private static final String STREAM1 = "testStream1";
+    private static final String STREAM2 = "testStream2";
+    private static final String STREAM3 = "testStream3";
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private final String serviceHost = "localhost";
@@ -227,6 +230,68 @@ public class BoundedStreamReaderTest {
         Assert.assertNull("Null is expected", reader2.readNextEvent(2000).getEvent());
     }
 
+    @Test(timeout = 60000)
+    public void testBoundedStreamWithTruncationTest() throws Exception {
+        createScope(SCOPE);
+        createStream(STREAM3);
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM3, serializer,
+                EventWriterConfig.builder().build());
+        //Prep the stream with data.
+        //1.Write events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        StreamCut offset30SC = getStreamCut(STREAM3, 30L, 0); // Streamcut pointing to event 2.
+        StreamCut offset60SC = getStreamCut(STREAM3, 60L, 0);
+        groupManager.createReaderGroup("group", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM3),
+                        //startStreamCut points to second event in the stream.
+                        offset30SC,
+                        //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
+                        offset60SC)
+                .build());
+
+        final ReaderGroup rg = groupManager.getReaderGroup("group");
+
+        //Create a reader
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
+                ReaderConfig.builder().build());
+
+        //2. Verify if endStreamCut configuration is enforced.
+        readAndVerify(reader, 2);
+        //The following read should not return events 3, 4 due to the endStreamCut configuration.
+        Assert.assertNull("Null is expected", reader.readNextEvent(2000).getEvent());
+
+        truncateStream(STREAM3, offset60SC);
+
+        //Truncation should not affect the reader as it is already post the truncation point.
+        Assert.assertNull("Null is expected", reader.readNextEvent(2000).getEvent());
+
+        //Reset RG with startStreamCut which is already truncated.
+        rg.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                             .stream(Stream.of(SCOPE, STREAM3), offset30SC, StreamCut.UNBOUNDED)
+                                             .build());
+
+        verifyReinitializationRequiredException(reader);
+
+        //Create a reader
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
+                ReaderConfig.builder().build());
+        EventRead<String> res = reader2.readNextEvent(10000);
+        assertNull("Null is expected since the stream is already truncated", res.getEvent());
+    }
+
     /*
      * Test method to create StreamCuts. In the real world StreamCuts are obtained via the Pravega client apis.
      */
@@ -269,6 +334,11 @@ public class BoundedStreamReaderTest {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
         assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
+    }
+
+    private void truncateStream(final String streamName, final StreamCut streamCut) throws Exception {
+        Controller controller = controllerWrapper.getController();
+        assertTrue(controller.truncateStream(SCOPE, streamName, streamCut).join());
     }
 
     private void verifyReinitializationRequiredException(EventStreamReader<String> reader) {

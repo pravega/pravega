@@ -208,11 +208,10 @@ public class ReaderGroupConfig implements Serializable {
                                              .stream().collect(summarizingInt(Segment::getSegmentNumber));
            val toSCSummary = endPositions.keySet()
                                          .stream().collect(summarizingInt(Segment::getSegmentNumber));
-           //basic check to
            Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
-                   "Overlapping StreamCuts cannot be provided");
+                   "Start stream cut must precede end stream cut.");
            Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
-                   "Overlapping StreamCuts cannot be provided");
+                   "Start stream cut must precede end stream cut.");
        }
 
        private void validateStreamCut(Map<Stream, StreamCut> streamCuts) {

@@ -47,7 +47,7 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 @Slf4j
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
-    private  final String scope;
+    private final String scope;
     private final ClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
