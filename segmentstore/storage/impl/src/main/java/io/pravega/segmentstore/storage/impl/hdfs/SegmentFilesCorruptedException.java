@@ -15,6 +15,9 @@ import java.io.IOException;
  * Exception that indicates the set of files representing a Segment is corrupted.
  */
 class SegmentFilesCorruptedException extends IOException {
+
+    private static final long serialVersionUID = 1L;
+
     /**
      * Creates a new instance of the SegmentFilesCorruptedException.
      *

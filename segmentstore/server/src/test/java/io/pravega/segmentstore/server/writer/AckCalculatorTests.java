@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import io.pravega.common.hash.RandomFactory;
 import java.util.ArrayList;
 import java.util.Random;
 import lombok.val;
@@ -34,7 +35,7 @@ public class AckCalculatorTests {
         final int resetCount = 5;
         WriterState state = new WriterState();
         AckCalculator calc = new AckCalculator(state);
-        Random random = new Random();
+        Random random = RandomFactory.create();
 
         ArrayList<TestProcessor> processors = new ArrayList<>();
         for (int i = 0; i < processorCount; i++) {

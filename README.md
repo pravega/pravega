@@ -85,7 +85,7 @@ The Pravega documentation of is hosted on the website:
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
 [Here](documentation/src/docs/contributing.md) we describe how to contribute to Pravega!
-You can see the roadmap document [here](documentation/src/docs/roadmap.md).
+You can see the roadmap document [here](documentation/src/docs/roadmap.md)
 
 ## About
 

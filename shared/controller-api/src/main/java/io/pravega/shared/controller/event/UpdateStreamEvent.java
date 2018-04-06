@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Data
 public class UpdateStreamEvent implements ControllerEvent {
+    private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
 

@@ -87,6 +87,7 @@ public class EventProcessorConfig<T extends ControllerEvent> {
             return new EventProcessorConfig<>(this.config, this.exceptionHandler, this.serializer, this.supplier);
         }
 
+        @Override
         public String toString() {
             return "Props.PropsBuilder(config=" + this.config + ", exceptionHandler=" + this.exceptionHandler + ", serializer=" +
                     this.serializer + ", supplier=" + this.supplier + ")";

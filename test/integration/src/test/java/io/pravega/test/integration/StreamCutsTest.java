@@ -122,8 +122,10 @@ public class StreamCutsTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("cuts", ReaderGroupConfig
+        groupManager.createReaderGroup("cuts", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream("test/test").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("cuts");
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "cuts", new JavaSerializer<>(),
                 ReaderConfig.builder().build());

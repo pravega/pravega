@@ -14,8 +14,6 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.Credentials;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -29,6 +27,7 @@ import java.io.FileWriter;
 import java.net.URI;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,7 +45,6 @@ public class PravegaAuthManagerTest {
             responseObserver.onNext(Controller.CreateScopeStatus.newBuilder().build());
         }
     };
-    private ControllerImpl client;
 
     private File file;
 
@@ -93,15 +91,14 @@ public class PravegaAuthManagerTest {
         server.build().start();
 
         InlineExecutor executor = new InlineExecutor();
-        Credentials creds = new DefaultCredentials("1111_aaaa", "admin");
-
+        @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create("tcp://localhost:" + port)).build())
                 .retryAttempts(1).build(),
                 executor);
 
-        MultivaluedMap<String, String> map = new MultivaluedHashMap();
+        MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
 
         //Without specifying a valid handler.
         assertThrows(AuthenticationException.class, () ->

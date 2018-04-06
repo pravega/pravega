@@ -518,7 +518,6 @@ class BookKeeperLog implements DurableDataLog {
      * @param ctx     Write Context. In our case, the Write we were writing.
      */
     private void addCallback(int rc, LedgerHandle handle, long entryId, Object ctx) {
-        @SuppressWarnings("unchecked")
         Write write = (Write) ctx;
         try {
             assert handle.getId() == write.getWriteLedger().ledger.getId()
