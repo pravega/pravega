@@ -141,6 +141,7 @@ public class ScaleRequestHandlerTest {
         executor.shutdown();
     }
 
+    @SuppressWarnings("unchecked")
     @Test(timeout = 20000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);

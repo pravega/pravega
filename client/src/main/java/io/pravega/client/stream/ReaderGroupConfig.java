@@ -29,12 +29,13 @@ import static java.util.stream.Collectors.summarizingInt;
 @Builder
 public class ReaderGroupConfig implements Serializable {
 
-   private final long groupRefreshTimeMillis;
-   @Getter
-   private final long automaticCheckpointIntervalMillis;
+    private static final long serialVersionUID = 1L;
+    private final long groupRefreshTimeMillis;
+    @Getter
+    private final long automaticCheckpointIntervalMillis;
 
-   private final Map<Stream, StreamCut> startingStreamCuts;
-   private final Map<Stream, StreamCut> endingStreamCuts;
+    private final Map<Stream, StreamCut> startingStreamCuts;
+    private final Map<Stream, StreamCut> endingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -207,7 +208,7 @@ public class ReaderGroupConfig implements Serializable {
                                              .stream().collect(summarizingInt(Segment::getSegmentNumber));
            val toSCSummary = endPositions.keySet()
                                          .stream().collect(summarizingInt(Segment::getSegmentNumber));
-           //basic check to 
+           //basic check to
            Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
                    "Overlapping StreamCuts cannot be provided");
            Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),

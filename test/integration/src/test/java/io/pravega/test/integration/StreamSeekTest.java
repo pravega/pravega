@@ -25,6 +25,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -66,7 +67,7 @@ public class StreamSeekTest {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private final Serializer<String> serializer = new JavaSerializer<>();
-    private final Random random = new Random();
+    private final Random random = RandomFactory.create();
     private final Supplier<String> keyGenerator = () -> String.valueOf(random.nextInt());
     private final Function<Integer, String> getEventData = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
     private TestingServer zkTestServer;

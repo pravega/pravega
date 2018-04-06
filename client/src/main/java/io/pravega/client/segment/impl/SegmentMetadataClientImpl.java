@@ -95,6 +95,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @SneakyThrows(ConnectionFailedException.class)
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {

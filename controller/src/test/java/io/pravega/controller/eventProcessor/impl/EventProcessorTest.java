@@ -494,7 +494,6 @@ public class EventProcessorTest {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
     private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
                                                       final SequenceAnswer<EventStreamReader<TestEvent>> readers,
                                                       final EventStreamWriter<TestEvent> writer,

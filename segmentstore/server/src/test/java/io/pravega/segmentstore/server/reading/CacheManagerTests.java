@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -44,7 +45,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         final int clientCount = 10;
         final int cycleCount = 12345;
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
-        Random random = new Random();
+        Random random = RandomFactory.create();
 
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy, executorService());

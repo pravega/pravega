@@ -49,6 +49,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -207,7 +208,7 @@ public class TaskTest {
     }
 
     @Test(timeout = 10000)
-    public void testStreamTaskSweeping() {
+    public void testStreamTaskSweeping() throws Exception {
         final String stream = "testPartialCreationStream";
         final String deadHost = "deadHost";
         final int initialSegments = 2;
@@ -221,6 +222,7 @@ public class TaskTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));
 
         // Create objects.
+        @Cleanup
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  false, "");
         mockStreamTasks.setCreateIndexOnlyMode();
@@ -305,7 +307,8 @@ public class TaskTest {
     }
 
     @Test
-    public void testLocking() {
+    public void testLocking() throws Exception {
+        @Cleanup
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
 
         CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);
