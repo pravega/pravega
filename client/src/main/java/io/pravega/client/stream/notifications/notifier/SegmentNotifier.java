@@ -54,8 +54,8 @@ public class SegmentNotifier extends AbstractPollingNotifier<SegmentNotification
         int newNumberOfSegments = state.getNumberOfSegments();
         checkState(newNumberOfSegments > 0, "Number of segments cannot be zero");
 
-        //Trigger a notification with the initial number of segments, subsequent notifications are triggered only if there
-        //is a change in the number of segments.
+        //Trigger a notification with the initial number of segments.
+        //Subsequent notifications are triggered only if there is a change in the number of segments.
         if (this.numberOfSegments != newNumberOfSegments) {
             this.numberOfSegments = newNumberOfSegments;
             SegmentNotification notification = SegmentNotification.builder().numOfSegments(state.getNumberOfSegments())
