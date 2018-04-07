@@ -116,7 +116,7 @@ public class MetricsTest {
         // 4. Start Metrics service
         log.info("Initializing metrics provider ...");
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
-               .build());
+                .build());
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
         log.info("Metrics Stats provider is started");
@@ -202,13 +202,13 @@ public class MetricsTest {
 
             log.info(csv(
                     "t,count",
-                    timer.getElapsedNanos() +",200"
+                    timer.getElapsedNanos() + ",200"
             ));
 
             Assert.assertTrue(fileContents("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter.csv")
                     .equals(csv(
                             "t,count",
-                            timer.getElapsed().toString() +",200"
+                            timer.getElapsed().toString() + ",200"
                     )));
 
             Exceptions.handleInterrupted(() -> Thread.sleep(90 * 1000));
@@ -236,7 +236,7 @@ public class MetricsTest {
             Assert.assertTrue(fileContents("/pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter.csv")
                     .equals(csv(
                             "t,count",
-                            timer.getElapsed().toString()  +",200"
+                            timer.getElapsed().toString() + ",200"
                     )));
 
             Map<Double, Double> map = new HashMap<>();
@@ -276,7 +276,7 @@ public class MetricsTest {
             Assert.assertTrue(fileContents("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter.csv")
                     .equals(csv(
                             "t,count",
-                            timer.getElapsed().toString()  +",200"
+                            timer.getElapsed().toString() + ",200"
                     )));
 
         }
@@ -296,6 +296,10 @@ public class MetricsTest {
                 builder.append(buf);
                 buf.clear();
             }
+            reader.close();
+            bufferedReader.close();
+        } catch (IOException e) {
+            log.info("io exception", e);
         } finally {
             input.close();
         }
@@ -303,7 +307,7 @@ public class MetricsTest {
     }
 
 
-    String csv(String... lines) {
+    private String csv(String... lines) {
         final StringBuilder builder = new StringBuilder();
         for (String line : lines) {
             builder.append(line).append(String.format("%n"));
