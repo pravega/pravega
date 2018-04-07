@@ -18,6 +18,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
@@ -371,7 +372,9 @@ public class ReaderGroupStateManager {
         }
         sync.updateState((s, u) -> {
             if (!s.hasOngoingCheckpoint()) {
-                u.add(new CreateCheckpoint());
+                CreateCheckpoint newCp = new CreateCheckpoint();
+                u.add(newCp);
+                u.add(new ClearCheckpointsBefore(newCp.getCheckpointId()));
             }
         });
         checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
