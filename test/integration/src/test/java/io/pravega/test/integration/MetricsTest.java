@@ -31,7 +31,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -48,12 +47,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.CharBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -62,7 +55,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertTrue;
 
 
 @Slf4j
@@ -76,14 +71,13 @@ public class MetricsTest {
     StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
-    Timer timer = new Timer();
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
-    private StatsProvider statsProvider;
-    private File dataDirectory;
+    private StatsProvider statsProvider = null;
+
 
     @Before
     public void setup() throws Exception {
@@ -95,7 +89,6 @@ public class MetricsTest {
 
         // 1. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
-        log.info("Starting Zk server");
 
         // 2. Start Pravega SegmentStore service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -104,14 +97,12 @@ public class MetricsTest {
 
         this.server = new PravegaConnectionListener(false, servicePort, store);
         this.server.startListening();
-        log.info("Starting Pravega SegmentStore server");
 
         // 3. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
-        log.info("Starting Pravega Controller server");
 
         // 4. Start Metrics service
         log.info("Initializing metrics provider ...");
@@ -120,12 +111,17 @@ public class MetricsTest {
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
         log.info("Metrics Stats provider is started");
-        this.dataDirectory = new File("/tmp/csv", "pravega");
     }
 
 
     @After
     public void tearDown() throws Exception {
+
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+            log.info("Metrics statsProvider is now closed.");
+        }
 
         if (this.controllerWrapper != null) {
             this.controllerWrapper.close();
@@ -139,15 +135,11 @@ public class MetricsTest {
             this.zkTestServer.close();
             this.zkTestServer = null;
         }
-        if (this.statsProvider != null) {
-            statsProvider.close();
-            statsProvider = null;
-            log.info("Metrics statsProvider is now closed.");
-        }
+
     }
 
     @Test
-    public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException, IOException {
+    public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException {
 
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
 
@@ -167,7 +159,9 @@ public class MetricsTest {
                     new JavaSerializer<String>(),
                     EventWriterConfig.builder().build());
 
-            String event = "event";
+            String event = "12345";
+            long bytesWritten = TOTAL_NUM_EVENTS * event.length() * 4;
+
             for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
                 try {
                     log.info("Writing event {}", event);
@@ -200,18 +194,13 @@ public class MetricsTest {
 
             }
 
-            log.info(csv(
-                    "t,count",
-                    timer.getElapsedNanos() + ",200"
-            ));
+            long initialCount = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter").getCount();
 
-            Assert.assertTrue(fileContents("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter.csv")
-                    .equals(csv(
-                            "t,count",
-                            timer.getElapsed().toString() + ",200"
-                    )));
+            Assert.assertEquals(bytesWritten, initialCount);
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(90 * 1000));
+            Exceptions.handleInterrupted(() -> Thread.sleep(70 * 1000));
+
+            //Count is reset to 0 after cache eviction duration
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
@@ -233,34 +222,37 @@ public class MetricsTest {
                 }
             }
 
-            Assert.assertTrue(fileContents("/pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter.csv")
-                    .equals(csv(
-                            "t,count",
-                            timer.getElapsed().toString() + ",200"
-                    )));
+            long countAfterCacheEvicted = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter").getCount();
+
+            //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
+            Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
 
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 1.0);
 
-            CompletableFuture<Boolean> scaleStatus = this.controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
+            //Seal segment 0, create segment 1
+            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
                     Collections.singletonList(0),
                     map,
                     executorService).getFuture();
             Assert.assertTrue(scaleStatus.get());
 
-            String event1 = "event1";
+            EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM_NAME,
+                    new JavaSerializer<String>(),
+                    EventWriterConfig.builder().build());
+
             for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
                 try {
-                    log.info("Writing event {}", event1);
-                    writer1.writeEvent("", event1);
-                    writer1.flush();
+                    log.info("Writing event {}", event);
+                    writer2.writeEvent("", event);
+                    writer2.flush();
                 } catch (Throwable e) {
                     log.warn("Test exception writing events: {}", e);
                     break;
                 }
             }
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(90 * 1000));
+            Exceptions.handleInterrupted(() -> Thread.sleep(70 * 1000));
 
             for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
 
@@ -273,46 +265,29 @@ public class MetricsTest {
 
             }
 
-            Assert.assertTrue(fileContents("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter.csv")
-                    .equals(csv(
-                            "t,count",
-                            timer.getElapsed().toString() + ",200"
-                    )));
+            long countFromSecondSegment = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter").getCount();
 
+            Assert.assertEquals(bytesWritten, countFromSecondSegment);
+
+            //Count remains same for segment 0, as it is sealed
+            Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
+
+            readerGroupManager.deleteReaderGroup(readerGroupName1);
+            readerGroupManager.deleteReaderGroup(readerGroupName2);
+
+            CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+            log.info("Sealing stream {}", STREAM_NAME);
+            assertTrue(sealStreamStatus.get());
+
+            CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+            log.info("Deleting stream {}", STREAM_NAME);
+            assertTrue(deleteStreamStatus.get());
+
+            CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+            log.info("Deleting scope {}", scope);
+            assertTrue(deleteScopeStatus.get());
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
     }
-
-    private String fileContents(String filename) throws IOException {
-        final StringBuilder builder = new StringBuilder();
-        final FileInputStream input = new FileInputStream(new File(dataDirectory, filename));
-        try {
-            final InputStreamReader reader = new InputStreamReader(input);
-            final BufferedReader bufferedReader = new BufferedReader(reader);
-            final CharBuffer buf = CharBuffer.allocate(1024);
-            while (bufferedReader.read(buf) != -1) {
-                buf.flip();
-                builder.append(buf);
-                buf.clear();
-            }
-            reader.close();
-            bufferedReader.close();
-        } catch (IOException e) {
-            log.info("io exception", e);
-        } finally {
-            input.close();
-        }
-        return builder.toString();
-    }
-
-
-    private String csv(String... lines) {
-        final StringBuilder builder = new StringBuilder();
-        for (String line : lines) {
-            builder.append(line).append(String.format("%n"));
-        }
-        return builder.toString();
-    }
-
 }
