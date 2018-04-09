@@ -449,6 +449,8 @@ project('controller') {
         doLast {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
     applicationDistribution.from('src/conf') {
