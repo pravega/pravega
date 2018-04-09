@@ -41,6 +41,7 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
@@ -164,10 +165,11 @@ public class ScaleRequestHandlerTest {
         double end = 1.0;
         double middle = (start + end) / 2;
         assertEquals(2, scaleOpEvent.getNewRanges().size());
-        assertTrue(scaleOpEvent.getNewRanges().get(0).getKey() == start);
-        assertTrue(scaleOpEvent.getNewRanges().get(0).getValue() == middle);
-        assertTrue(scaleOpEvent.getNewRanges().get(1).getKey() == middle);
-        assertTrue(scaleOpEvent.getNewRanges().get(1).getValue() == end);
+        double delta = 0.0000000000001;
+        assertEquals(start, scaleOpEvent.getNewRanges().get(0).getKey(), delta);
+        assertEquals(middle, scaleOpEvent.getNewRanges().get(0).getValue(), delta);
+        assertEquals(middle, scaleOpEvent.getNewRanges().get(1).getKey(), delta);
+        assertEquals(end, scaleOpEvent.getNewRanges().get(1).getValue(), delta);
         assertEquals(1, scaleOpEvent.getSegmentsToSeal().size());
         assertTrue(scaleOpEvent.getSegmentsToSeal().contains(2));
 
@@ -202,8 +204,8 @@ public class ScaleRequestHandlerTest {
         assertTrue(event instanceof ScaleOpEvent);
         scaleOpEvent = (ScaleOpEvent) event;
         assertEquals(1, scaleOpEvent.getNewRanges().size());
-        assertTrue(scaleOpEvent.getNewRanges().get(0).getKey() == start);
-        assertTrue(scaleOpEvent.getNewRanges().get(0).getValue() == end);
+        assertEquals(start, scaleOpEvent.getNewRanges().get(0).getKey(), delta);
+        assertEquals(end, scaleOpEvent.getNewRanges().get(0).getValue(), delta);
         assertEquals(2, scaleOpEvent.getSegmentsToSeal().size());
         assertTrue(scaleOpEvent.getSegmentsToSeal().contains(3));
         assertTrue(scaleOpEvent.getSegmentsToSeal().contains(4));
