@@ -146,10 +146,10 @@ public class MetricsTest {
 
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
 
-            Boolean createScopeStatus = streamManager.createScope(scope);
+            boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
 
-            Boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
+            boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
             log.info("Create stream status {}", createStreamStatus);
 
         }
@@ -215,10 +215,6 @@ public class MetricsTest {
 
             for (int q = 0; q < TOTAL_NUM_EVENTS; q++) {
                 try {
-                    //Metric is evicted from Cache, after cache eviction duration
-                    if (q == 0) {
-                        Assert.assertEquals(null, MetricsProvider.getMetric("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter"));
-                    }
                     String eventRead2 = reader2.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", eventRead2);
                 } catch (ReinitializationRequiredException e) {
@@ -229,6 +225,7 @@ public class MetricsTest {
 
             long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
 
+            //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
             Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
 
@@ -273,7 +270,6 @@ public class MetricsTest {
             long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter");
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
-            Assert.assertEquals(null, MetricsProvider.getMetric("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter"));
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);
