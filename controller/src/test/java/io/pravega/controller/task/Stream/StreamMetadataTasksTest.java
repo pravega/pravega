@@ -835,13 +835,19 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("Scale should not be allowed as stream is already sealed",
                 processEvent(requestEventWriter), e -> e instanceof StoreException.IllegalStateException);
         requestEventWriter.eventQueue.take();
+    }
+
+    @Test(timeout = 30000)
+    public void sealStreamWithTxnTest() throws Exception {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        String streamWithTxn = "streamWithTxn";
 
         // region seal a stream with transactions
         long start = System.currentTimeMillis();
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy).build();
+        final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(streamWithTxn).scalingPolicy(policy).build();
 
-        String streamWithTxn = "streamWithTxn";
         streamStorePartialMock.createStream(SCOPE, streamWithTxn, config, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
@@ -893,7 +899,6 @@ public class StreamMetadataTasksTest {
         assertTrue(activeTxns.isEmpty());
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-
         // endregion
     }
 

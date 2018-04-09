@@ -68,9 +68,9 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                         throw new TaskExceptions.StartException("Seal stream task not started yet.");
                     }
                 })
-                .thenCompose(x -> cancelTransactions(context, scope, stream)
-                        .thenAccept(cancelled -> {
-                            if (!cancelled) {
+                .thenCompose(x -> abortTransaction(context, scope, stream)
+                        .thenAccept(noTransactions -> {
+                            if (!noTransactions) {
                                 // If transactions exist on the stream, we will throw OperationNotAllowed so that this task
                                 // is retried.
                                 log.debug("Found open transactions on stream {}/{}. Postponing its sealing.", scope, stream);
@@ -92,7 +92,16 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                 });
     }
 
-    private CompletableFuture<Boolean> cancelTransactions(OperationContext context, String scope, String stream) {
+    /**
+     * A method that issues abort request for all outstanding transactions on the stream, which are processed asynchronously.
+     * This method returns false if it found transactions to abort, true otherwise.
+     * @param context operation context
+     * @param scope scope
+     * @param stream stream
+     * @return CompletableFuture which when complete will contain a boolean indicating if there are transactions of the
+     * stream or not.
+     */
+    private CompletableFuture<Boolean> abortTransaction(OperationContext context, String scope, String stream) {
         return streamMetadataStore.getActiveTxns(scope, stream, context, executor)
                 .thenCompose(activeTxns -> {
                     if (activeTxns == null || activeTxns.isEmpty()) {

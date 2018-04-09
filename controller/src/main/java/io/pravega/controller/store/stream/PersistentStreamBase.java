@@ -481,8 +481,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             boolean runOnlyIfStarted) {
-        return verifyNotSealed()
-            .thenCompose(v -> getHistoryTableFromStore()
+        return verifyNotSealed().thenCompose(v -> getHistoryTableFromStore()
                 .thenCompose(historyTable -> getSegmentTableFromStore()
                         .thenCompose(segmentTable -> {
                             if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentTable.getData())) {
