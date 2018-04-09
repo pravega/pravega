@@ -9,6 +9,8 @@
  */
 package io.pravega.test.integration;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -55,7 +57,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
 
@@ -106,7 +107,9 @@ public class MetricsTest {
 
         // 4. Start Metrics service
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
+        MetricsProvider.initialize(MetricsConfig.builder()
+                .with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
+                .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build());
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
@@ -194,13 +197,11 @@ public class MetricsTest {
 
             }
 
-            long initialCount = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter").getCount();
+            long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
 
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(70 * 1000));
-
-            //Count is reset to 0 after cache eviction duration
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
@@ -214,6 +215,10 @@ public class MetricsTest {
 
             for (int q = 0; q < TOTAL_NUM_EVENTS; q++) {
                 try {
+                    //Metric is evicted from Cache, after cache eviction duration
+                    if (q == 0) {
+                        Assert.assertEquals(null, MetricsProvider.getMetric("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter"));
+                    }
                     String eventRead2 = reader2.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", eventRead2);
                 } catch (ReinitializationRequiredException e) {
@@ -222,7 +227,7 @@ public class MetricsTest {
                 }
             }
 
-            long countAfterCacheEvicted = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter").getCount();
+            long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
 
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
             Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
@@ -265,12 +270,10 @@ public class MetricsTest {
 
             }
 
-            long countFromSecondSegment = MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter").getCount();
+            long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter");
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
-
-            //Count remains same for segment 0, as it is sealed
-            Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
+            Assert.assertEquals(null, MetricsProvider.getMetric("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter"));
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);
@@ -289,5 +292,15 @@ public class MetricsTest {
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
+    }
+
+    private long getCounter(String metricsName) {
+        Metric metric = MetricsProvider.getMetric(metricsName);
+        if (metric == null) {
+            log.info("No metric reported");
+            return 0;
+        }
+        Counter counter = (Counter) metric;
+        return counter.getCount();
     }
 }
