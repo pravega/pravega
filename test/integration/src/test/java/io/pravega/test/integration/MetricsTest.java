@@ -79,7 +79,6 @@ public class MetricsTest {
     private Controller controller = null;
     private StatsProvider statsProvider = null;
 
-
     @Before
     public void setup() throws Exception {
 
@@ -106,16 +105,19 @@ public class MetricsTest {
         this.controller = controllerWrapper.getController();
 
         // 4. Start Metrics service
+
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(MetricsConfig.builder()
-                .with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
+
+        MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                .build());
+                .build();
+        metricsConfig.setDynamicCacheEvictionDurationMs(5000);
+
+        MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start();
         log.info("Metrics Stats provider is started");
     }
-
 
     @After
     public void tearDown() throws Exception {
@@ -138,7 +140,6 @@ public class MetricsTest {
             this.zkTestServer.close();
             this.zkTestServer = null;
         }
-
     }
 
     @Test
@@ -201,7 +202,7 @@ public class MetricsTest {
 
             Assert.assertEquals(bytesWritten, initialCount);
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(70 * 1000));
+            Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
@@ -254,7 +255,7 @@ public class MetricsTest {
                 }
             }
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(70 * 1000));
+            Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
 
             for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
 

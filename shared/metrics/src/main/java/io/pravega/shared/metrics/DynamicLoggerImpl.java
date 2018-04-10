@@ -41,10 +41,10 @@ public class DynamicLoggerImpl implements DynamicLogger {
         this.metrics = metrics;
         this.underlying = statsLogger;
         this.cacheSize = metricsConfig.getDynamicCacheSize();
-        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDuration();
+        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMs();
 
         countersCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MINUTES).
+                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
@@ -59,7 +59,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 build();
 
         gaugesCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MINUTES).
+                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
@@ -74,7 +74,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 build();
 
         metersCache = CacheBuilder.newBuilder().
-            maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MINUTES).
+            maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
             removalListener(new RemovalListener<String, Meter>() {
                 @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {

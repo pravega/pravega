@@ -9,11 +9,13 @@
  */
 package io.pravega.shared.metrics;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
+import java.time.Duration;
 
 /**
  * General configuration for Metrics.
@@ -22,7 +24,7 @@ public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
-    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDuration", 30);
+    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMs", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
     public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
@@ -60,8 +62,9 @@ public class MetricsConfig {
     /**
      * Cache eviction duration for dynamic metrics.
      */
+
     @Getter
-    private final int dynamicCacheEvictionDuration;
+    private long dynamicCacheEvictionDurationMs;
 
     /**
      * Gets a value indicating output frequency in seconds.
@@ -171,7 +174,7 @@ public class MetricsConfig {
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
         this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
-        this.dynamicCacheEvictionDuration = properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES);
+        this.dynamicCacheEvictionDurationMs = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES)).toMillis();
         this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
@@ -197,6 +200,12 @@ public class MetricsConfig {
      */
     public static ConfigBuilder<MetricsConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, MetricsConfig::new);
+    }
+
+
+    @VisibleForTesting
+    public void setDynamicCacheEvictionDurationMs(long duration) {
+        this.dynamicCacheEvictionDurationMs = duration;
     }
 
     //endregion
