@@ -69,11 +69,11 @@ public class BatchClientImpl implements BatchClient {
     public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
         Preconditions.checkNotNull(stream, "stream");
 
-        //Fetch the stream cut representing the current TAIL of the stream.
+        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = fetchTailStreamCut(stream);
-        CompletableFuture<StreamCut> currentHeadStreamCut = fetchStreamCut(stream, 0L);
-        return currentTailStreamCut.thenApply(streamCut -> new StreamInfo(stream.getScope(), stream.getStreamName(),
-                streamCut));
+        CompletableFuture<StreamCut> currentHeadStreamCut = fetchStreamCut(stream, new Date(0L));
+        return currentTailStreamCut.thenCombine(currentHeadStreamCut,
+                (tailSC, headSC) -> new StreamInfo(stream.getScope(), stream.getStreamName(), tailSC, headSC));
     }
 
     @Override

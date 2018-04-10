@@ -34,13 +34,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class BatchClientImplTest {
 
     @Test(timeout = 5000)
     public void testSegmentIterator() throws ConnectionFailedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -86,7 +87,7 @@ public class BatchClientImplTest {
     @Test(timeout = 5000)
     public void testStreamInfo() throws Exception {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -97,6 +98,7 @@ public class BatchClientImplTest {
                 return null;
             }
         }).when(connection).send(Mockito.any(CreateSegment.class));
+
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -120,9 +122,15 @@ public class BatchClientImplTest {
                                                        .build()).join();
 
         StreamInfo info = client.getStreamInfo(stream).join();
-        assertEquals(stream, info.getCurrentTailStreamCut().asImpl().getStream());
-        assertNotNull(info.getCurrentTailStreamCut());
-        assertEquals(3, info.getCurrentTailStreamCut().asImpl().getPositions().size());
-    }
 
+        //validate results.
+        assertEquals("scope", info.getScope());
+        assertEquals("stream", info.getStreamName());
+        assertNotNull(info.getTailStreamCut());
+        assertEquals(stream, info.getTailStreamCut().asImpl().getStream());
+        assertEquals(3, info.getTailStreamCut().asImpl().getPositions().size());
+        assertNotNull(info.getHeadStreamCut());
+        assertEquals(stream, info.getHeadStreamCut().asImpl().getStream());
+        assertEquals(3, info.getHeadStreamCut().asImpl().getPositions().size());
+    }
 }

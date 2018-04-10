@@ -14,20 +14,33 @@ import io.pravega.client.stream.StreamCut;
 import lombok.Data;
 
 /**
- * This class is used to represent Stream information. It currently includes
- *  - scope of stream.
- *  - name of stream.
- *  - {@link StreamCut} which represents the current TAIL of the stream.
+ * This class is used to represent Stream information. It currently includes:
  *
- *  In future this will include the following:
- *  - isSealed
- *  - length of the stream.
- *  - creation time of the stream.
+ *  <li> - scope of stream.
+ *  <li> - name of stream.
+ *  <li> - {@link StreamCut} which represents the current TAIL of the stream.
+ *  <li> - {@link StreamCut} which represents the current HEAD of the stream.
  */
 @Beta
 @Data
 public class StreamInfo {
+    /**
+     * Scope name of the stream.
+     */
     private final String scope;
+
+    /**
+     * Stream name.
+     */
     private final String streamName;
-    private final StreamCut currentTailStreamCut;
+
+    /**
+     * {@link StreamCut} representing the current TAIL of the stream.
+     */
+    private final StreamCut tailStreamCut;
+
+    /**
+     * {@link StreamCut} representing the current HEAD of the stream.
+     */
+    private final StreamCut headStreamCut;
 }
