@@ -86,6 +86,10 @@ public class BatchClientImplTest {
 
     @Test(timeout = 5000)
     public void testStreamInfo() throws Exception {
+        final String scope = "scope";
+        final String streamName = "stream";
+        final Stream stream = new StreamImpl(scope, streamName);
+
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
@@ -113,19 +117,19 @@ public class BatchClientImplTest {
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory);
         BatchClientImpl client = new BatchClientImpl(mockController, connectionFactory);
-        Stream stream = new StreamImpl("scope", "stream");
-        mockController.createScope("scope");
+
+        mockController.createScope(scope);
         mockController.createStream(StreamConfiguration.builder()
-                                                       .scope("scope")
-                                                       .streamName("stream")
+                                                       .scope(scope)
+                                                       .streamName(streamName)
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build()).join();
 
         StreamInfo info = client.getStreamInfo(stream).join();
 
         //validate results.
-        assertEquals("scope", info.getScope());
-        assertEquals("stream", info.getStreamName());
+        assertEquals(scope, info.getScope());
+        assertEquals(streamName, info.getStreamName());
         assertNotNull(info.getTailStreamCut());
         assertEquals(stream, info.getTailStreamCut().asImpl().getStream());
         assertEquals(3, info.getTailStreamCut().asImpl().getPositions().size());

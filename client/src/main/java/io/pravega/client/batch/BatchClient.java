@@ -33,6 +33,7 @@ public interface BatchClient {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
+     *
      * @param stream the stream.
      * @return stream information.
      */
