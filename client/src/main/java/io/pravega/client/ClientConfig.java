@@ -73,6 +73,9 @@ public class ClientConfig {
                 controllerURI = URI.create("tcp://localhost");
             }
             extractCredentials();
+            if (credentials == null) {
+                log.info("The credentials are not specified/could not be extracted");
+            }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
 
