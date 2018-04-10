@@ -68,15 +68,19 @@ public class PravegaAuthManager {
      * @param paramMap  Custom headers used for authentication.
      * @param level    Expected level of access.
      * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
-     * @throws AuthenticationException Exception faced during authentication/authorization.
+     *                 Returns false if the entity does not have access.
+     * @throws AuthenticationException Exception faced during authentication.
      */
     public boolean authenticate(String resource, Map<String, String> paramMap, AuthHandler.Permissions level) throws AuthenticationException {
         boolean retVal = false;
         try {
             String method = paramMap.get("method");
             AuthHandler handler = getHandler(method);
-            retVal = handler.authenticate(paramMap) &&
-                    handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
+
+            if (!handler.authenticate(paramMap)) {
+                throw new AuthenticationException("Authentication failure");
+            }
+            retVal = handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
         } catch (RuntimeException e) {
             throw new AuthenticationException(e);
         }
