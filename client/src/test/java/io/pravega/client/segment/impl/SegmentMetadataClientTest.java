@@ -51,6 +51,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
+        @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
@@ -128,6 +129,7 @@ public class SegmentMetadataClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
+        @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
