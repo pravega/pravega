@@ -81,7 +81,6 @@ public class MetricsTest {
 
     @Before
     public void setup() throws Exception {
-
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
@@ -105,7 +104,6 @@ public class MetricsTest {
         this.controller = controllerWrapper.getController();
 
         // 4. Start Metrics service
-
         log.info("Initializing metrics provider ...");
 
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -121,7 +119,6 @@ public class MetricsTest {
 
     @After
     public void tearDown() throws Exception {
-
         if (this.statsProvider != null) {
             statsProvider.close();
             statsProvider = null;
@@ -144,25 +141,20 @@ public class MetricsTest {
 
     @Test
     public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException {
-
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
-
             boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
 
             boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
             log.info("Create stream status {}", createStreamStatus);
-
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
-
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<String>(),
                     EventWriterConfig.builder().build());
-
             String event = "12345";
             long bytesWritten = TOTAL_NUM_EVENTS * event.length() * 4;
 
@@ -188,18 +180,15 @@ public class MetricsTest {
                     ReaderConfig.builder().build());
 
             for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
-
                 try {
                     String eventRead1 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", eventRead1);
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                 }
-
             }
 
             long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
-
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -220,7 +209,6 @@ public class MetricsTest {
                     log.info("Reading event {}", eventRead2);
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
-
                 }
             }
 
@@ -258,14 +246,12 @@ public class MetricsTest {
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
 
             for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
-
                 try {
                     String eventRead2 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", eventRead2);
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                 }
-
             }
 
             long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter");
