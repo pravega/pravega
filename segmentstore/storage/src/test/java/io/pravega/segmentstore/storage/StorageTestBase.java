@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -461,7 +462,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     protected SegmentHandle createInexistentSegmentHandle(Storage s, boolean readOnly) {
-        Random rnd = new Random();
+        Random rnd = RandomFactory.create();
         String segmentName = "Inexistent_" + MathHelpers.abs(rnd.nextInt());
         createSegment(segmentName, s);
         return (readOnly ? s.openRead(segmentName) : s.openWrite(segmentName))

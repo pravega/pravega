@@ -64,6 +64,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -84,6 +85,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static java.util.stream.Collectors.summarizingInt;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -622,47 +624,90 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(final StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        HashSet<Segment> unread = new HashSet<>(from.asImpl().getPositions().keySet());
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
                 RuntimeException::new);
 
         String delegationToken = currentSegments.getDelegationToken();
-        unread.addAll(computeKnownUnreadSegments(currentSegments, from));
-        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : from.asImpl().getPositions().keySet()) {
-            if (!unread.contains(toFetch)) {
-                toFetchSuccessors.add(toFetch);
-            }
-        }
-        unread.addAll(currentSegments.getSegments());
-        while (!toFetchSuccessors.isEmpty()) {
-            Segment segment = toFetchSuccessors.remove();
-            Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new).getSegmentToPredecessor()
-                                                                                                           .keySet();
-            for (Segment successor : successors) {
-                if (!unread.contains(successor)) {
-                    unread.add(successor);
-                    toFetchSuccessors.add(successor);
-                }
-            }
-        }
+
+        final Set<Segment> unread = getSegmentsInRange(from.asImpl(), currentSegments.getSegments());
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
         return CompletableFuture.completedFuture(new StreamSegmentSuccessors(unread, delegationToken));
     }
 
-    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
-        int highestCut = from.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
-        int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+    @Override
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(final StreamCut fromStreamCut, final StreamCut toStreamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(fromStreamCut, "fromStreamCut");
+        Preconditions.checkNotNull(toStreamCut, "toStreamCut");
+        Preconditions.checkArgument(fromStreamCut.asImpl().getStream().equals(toStreamCut.asImpl().getStream()),
+                "Ensure streamCuts for the same stream is passed");
+
+        final Stream stream = fromStreamCut.asImpl().getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
+        CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
+        final Set<Segment> segments = getSegmentsInRange(fromStreamCut, toStreamCut.asImpl().getPositions().keySet());
+        LoggerHelpers.traceLeave(log, "getSegments", traceId);
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments,
+                getAndHandleExceptions(token, RuntimeException::new)));
+    }
+
+    private Set<Segment> getSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
+        //input validation.
+        val fromSCSummary = lowerBound.asImpl().getPositions().keySet()
+                                      .stream().collect(summarizingInt(Segment::getSegmentNumber));
+        val toSCSummary = upperBound.stream().collect(summarizingInt(Segment::getSegmentNumber));
+        Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
+                "Overlapping StreamCuts cannot be provided");
+        Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
+                "Overlapping StreamCuts cannot be provided");
+
+        final HashSet<Segment> segments = new HashSet<>(upperBound);
+        segments.addAll(getKnownSegmentsInRange(lowerBound, upperBound));
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
+        for (Segment toFetch : lowerBound.asImpl().getPositions().keySet()) {
+            if (!segments.contains(toFetch)) {
+                toFetchSuccessors.add(toFetch);
+            }
+        }
+        segments.addAll(lowerBound.asImpl().getPositions().keySet());
+        while (!toFetchSuccessors.isEmpty()) {
+            Segment segment = toFetchSuccessors.remove();
+            Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new)
+                    .getSegmentToPredecessor().keySet();
+            for (Segment successor : successors) {
+                //Successor segment number can never be larger than the highest segment number in upperBound.
+                Preconditions.checkArgument(successor.getSegmentNumber() <= toSCSummary.getMax(),
+                        "Overlapping streamCuts, lowerBound streamCut should be strictly lower than the upperBound StreamCut.");
+                if (!segments.contains(successor)) {
+                    segments.add(successor);
+                    toFetchSuccessors.add(successor);
+                }
+            }
+        }
+        return segments;
+    }
+
+    /*
+     * This method fetches the segments of a stream which definitely reside between the segments represented by
+     * lowerBound and the upperBound using the invariant that segment numbers monotonically increase.
+     *
+     * @param lowerBound StreamCut representing the segments of the starting point.
+     * @param upperBound Segments representing the ending point.
+     * @return Segments which reside between fromStreamCut and currentSegments.
+     */
+    private List<Segment> getKnownSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
+        int highestCut = lowerBound.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int lowestCurrent = upperBound.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }
-        List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
+        final List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
         for (int num = highestCut + 1; num < lowestCurrent; num++) {
-            result.add(new Segment(from.asImpl().getStream().getScope(), from.asImpl().getStream().getStreamName(), num));
+            result.add(new Segment(lowerBound.asImpl().getStream().getScope(), lowerBound.asImpl().getStream().getStreamName(), num));
         }
         return result;
     }

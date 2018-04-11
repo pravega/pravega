@@ -56,6 +56,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> retentionSet;
     @GuardedBy("lock")
     private Data<Integer> sealedSegments;
+    @GuardedBy("lock")
+    private Data<Integer> epochTransition;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -308,7 +310,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setSegmentTable(Data<Integer> data) {
+    CompletableFuture<Void> updateSegmentTable(Data<Integer> data) {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(data.getData());
 
@@ -349,6 +351,11 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             }
             return CompletableFuture.completedFuture(copy(indexTable));
         }
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getIndexTableFromStore() {
+        return getIndexTable();
     }
 
     @Override
@@ -702,6 +709,45 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             }
         }
         return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createEpochTransitionNode(byte[] epochTransitionData) {
+        Preconditions.checkNotNull(epochTransitionData);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.epochTransition != null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "epoch transition exists"));
+            } else {
+                this.epochTransition = new Data<>(epochTransitionData, 0);
+                result.complete(null);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getEpochTransitionNode() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.epochTransition == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "epoch transition not found"));
+            } else {
+                result.complete(copy(epochTransition));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> deleteEpochTransitionNode() {
+        synchronized (lock) {
+            this.epochTransition = null;
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

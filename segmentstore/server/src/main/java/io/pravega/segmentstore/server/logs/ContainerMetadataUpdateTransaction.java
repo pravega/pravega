@@ -32,10 +32,8 @@ import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -314,31 +312,30 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             if (segmentMetadata.isDeleted()) {
                 throw new StreamSegmentNotExistsException(segmentMetadata.getName());
             }
+            if (operation instanceof StreamSegmentAppendOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
+            } else if (operation instanceof StreamSegmentSealOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
+            } else if (operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
+                transactionMetadata.preProcessAsTransactionSegment(mbe);
+                segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
+            } else if (operation instanceof UpdateAttributesOperation) {
+                segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
+            }
         }
 
-        if (operation instanceof StreamSegmentAppendOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
-        } else if (operation instanceof StreamSegmentSealOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
-        } else if (operation instanceof MergeTransactionOperation) {
-            MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
-            SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
-            transactionMetadata.preProcessAsTransactionSegment(mbe);
-            segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
-        } else if (operation instanceof StreamSegmentMapOperation) {
-            preProcessMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof TransactionMapOperation) {
-            preProcessMetadataOperation((TransactionMapOperation) operation);
-        } else if (operation instanceof UpdateAttributesOperation) {
-            segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
-        } else if (operation instanceof MetadataCheckpointOperation) {
+        if (operation instanceof MetadataCheckpointOperation) {
             // MetadataCheckpointOperations do not require preProcess and accept; they can be handled in a single stage.
             processMetadataOperation((MetadataCheckpointOperation) operation);
         } else if (operation instanceof StorageMetadataCheckpointOperation) {
             // StorageMetadataCheckpointOperation do not require preProcess and accept; they can be handled in a single stage.
             processMetadataOperation((StorageMetadataCheckpointOperation) operation);
-        } else if (operation instanceof StreamSegmentTruncateOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
+        } else if (operation instanceof StreamSegmentMapOperation) {
+            preProcessMetadataOperation((StreamSegmentMapOperation) operation);
         }
     }
 
@@ -357,47 +354,41 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         if (operation instanceof SegmentOperation) {
             segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             segmentMetadata.setLastUsed(operation.getSequenceNumber());
+            if (operation instanceof StreamSegmentAppendOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
+            } else if (operation instanceof StreamSegmentSealOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
+            } else if (operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mto = (MergeTransactionOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
+                transactionMetadata.acceptAsTransactionSegment(mto);
+                transactionMetadata.setLastUsed(operation.getSequenceNumber());
+                segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
+            } else if (operation instanceof UpdateAttributesOperation) {
+                segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
+            }
         }
 
-        if (operation instanceof StreamSegmentAppendOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
-        } else if (operation instanceof StreamSegmentSealOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
-        } else if (operation instanceof MergeTransactionOperation) {
-            MergeTransactionOperation mto = (MergeTransactionOperation) operation;
-            SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
-            transactionMetadata.acceptAsTransactionSegment(mto);
-            transactionMetadata.setLastUsed(operation.getSequenceNumber());
-            segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
-        } else if (operation instanceof MetadataCheckpointOperation) {
+        if (operation instanceof MetadataCheckpointOperation) {
             // A MetadataCheckpointOperation represents a valid truncation point. Record it as such.
             this.newTruncationPoints.add(operation.getSequenceNumber());
         } else if (operation instanceof StreamSegmentMapOperation) {
             acceptMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof TransactionMapOperation) {
-            acceptMetadataOperation((TransactionMapOperation) operation);
-        } else if (operation instanceof UpdateAttributesOperation) {
-            segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
-        } else if (operation instanceof StreamSegmentTruncateOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
         }
     }
 
-    private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException {
-        // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
-        // segment id as the one the operation is trying to set.
-        checkExistingMapping(operation);
-        assignUniqueSegmentId(operation);
-    }
-
-    private void preProcessMetadataOperation(TransactionMapOperation operation) throws ContainerException {
-        // Verify Parent Segment Exists.
-        SegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
-        if (parentMetadata == null) {
-            throw new MetadataUpdateException(this.containerId,
-                    String.format("Operation %d wants to map a Segment to a Parent Segment Id that does " +
-                                    "not exist. Parent SegmentId = %d, Transaction Name = %s.",
-                            operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
+    private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException, StreamSegmentException {
+        if (operation.isTransaction()) {
+            // Verify Parent Segment Exists.
+            SegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
+            if (parentMetadata == null) {
+                throw new MetadataUpdateException(this.containerId,
+                        String.format("Operation %d wants to map a Segment to a Parent Segment Id that does " +
+                                        "not exist. Parent SegmentId = %d, Transaction Name = %s.",
+                                operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
+            }
         }
 
         // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
@@ -457,23 +448,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         // Create or reuse an existing Segment Metadata.
         UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
-                operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
+                operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
         updateMetadata(operation, segmentMetadata);
     }
 
-    private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
-        if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            throw new MetadataUpdateException(this.containerId,
-                    "TransactionMapOperation does not have a SegmentId assigned: " + operation);
-        }
-
-        // Create or reuse an existing Transaction Metadata.
-        UpdateableSegmentMetadata transactionMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
-                operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
-        updateMetadata(operation, transactionMetadata);
-    }
-
-    private void updateMetadata(StreamSegmentMapping mapping, UpdateableSegmentMetadata metadata) {
+    private void updateMetadata(StreamSegmentMapOperation mapping, UpdateableSegmentMetadata metadata) {
         metadata.setStorageLength(mapping.getLength());
 
         // Length must be at least StorageLength.
@@ -498,7 +477,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     //region Helpers
 
-    private void checkExistingMapping(StreamSegmentMapping operation) throws MetadataUpdateException {
+    private void checkExistingMapping(StreamSegmentMapOperation operation) throws MetadataUpdateException {
         long existingSegmentId = getStreamSegmentId(operation.getStreamSegmentName(), false);
         if (existingSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID
                 && existingSegmentId != operation.getStreamSegmentId()) {
@@ -508,7 +487,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
     }
 
-    private void assignUniqueSegmentId(StreamSegmentMapping mapping) throws TooManyActiveSegmentsException {
+    private void assignUniqueSegmentId(StreamSegmentMapOperation mapping) throws TooManyActiveSegmentsException {
         if (!this.recoveryMode) {
             if (getActiveSegmentCount() >= this.maximumActiveSegmentCount) {
                 throw new TooManyActiveSegmentsException(this.containerId, this.maximumActiveSegmentCount);

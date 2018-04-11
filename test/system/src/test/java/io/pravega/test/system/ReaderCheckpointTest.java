@@ -26,6 +26,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -33,10 +34,8 @@ import io.pravega.test.system.framework.services.Service;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IntSummaryStatistics;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
@@ -61,7 +60,7 @@ import static org.junit.Assert.fail;
 public class ReaderCheckpointTest {
 
     private static final long READ_TIMEOUT = SECONDS.toMillis(30);
-    private static final int RANDOM_SUFFIX = new Random().nextInt(Integer.MAX_VALUE);
+    private static final int RANDOM_SUFFIX = RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE = "scope" + RANDOM_SUFFIX;
     private static final String STREAM = "checkPointTestStream";
     private static final String READER_GROUP_NAME = "checkpointTest" + RANDOM_SUFFIX;
@@ -71,7 +70,6 @@ public class ReaderCheckpointTest {
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
-    private final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "checkPointExecutor");
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(NUMBER_OF_READERS)).build();
@@ -129,8 +127,10 @@ public class ReaderCheckpointTest {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        ReaderGroup readerGroup = readerGroupManager.createReaderGroup(READER_GROUP_NAME, readerGroupConfig,
-                Collections.singleton(STREAM));
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME,
+                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE, STREAM)).build());
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_NAME);
 
         int startInclusive = 1;
         int endExclusive = 100;
@@ -149,7 +149,7 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset to check point 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
         readEventsAndVerify(100, endExclusive);
 
         //initiate checkpoint200
@@ -163,11 +163,11 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //reset back to checkpoint 200
-        readerGroup.resetReadersToCheckpoint(checkPoint200);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint200).build());
         readEventsAndVerify(200, endExclusive);
 
         //reset back to checkpoint 100
-        readerGroup.resetReadersToCheckpoint(checkPoint100);
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
         readEventsAndVerify(100, endExclusive);
 
         readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up

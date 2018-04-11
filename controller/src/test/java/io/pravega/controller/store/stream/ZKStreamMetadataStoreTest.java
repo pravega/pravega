@@ -134,24 +134,26 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 2);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
-        assertTrue(scaleIncidents.get(1).getSegments().size() == 3);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
+        assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
 
         // scale again
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
+        scale(scope, stream, scaleIncidents.get(1).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 3);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(2).getSegments().size() == 2);
 
         // scale again
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges);
+        scale(scope, stream, scaleIncidents.get(2).getSegments(), newRanges);
         scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleIncidents.size() == 4);
-        assertTrue(scaleIncidents.get(0).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(0).getSegments().size() == 3);
         assertTrue(scaleIncidents.get(1).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(2).getSegments().size() == 2);
+        assertTrue(scaleIncidents.get(3).getSegments().size() == 2);
     }
-
 
     @Test
     public void testSplitsMerges() throws Exception {
@@ -169,7 +171,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         // time t0, total segments 2, S0 {0.0 - 0.5} S1 {0.5 - 1.0}
         List<ScaleMetadata> scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
         assertTrue(scaleRecords.size() == 1);
-        SimpleEntry<Long, Long> simpleEntrySplitsMerges = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertTrue(scaleRecords.get(0).getSegments().size() == 2);
+        assertTrue(scaleRecords.get(0).getSplits() == 0L);
+        assertTrue(scaleRecords.get(0).getMerges() == 0L);
+
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges = findSplitsAndMerges(scope, stream);
+
         assertEquals("Number of splits ", new Long(0), simpleEntrySplitsMerges.getKey());
         assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges.getValue());
 
@@ -184,8 +191,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         List<SimpleEntry<Double, Double>> newRanges1 = Arrays.asList(segment2, segment3, segment4, segment5, segment6);
         scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges1);
         scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
-        assertTrue(scaleRecords.size() == 2);
-        SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals(scaleRecords.size(), 2);
+        assertEquals(scaleRecords.get(1).getSegments().size(), 5);
+        assertEquals(scaleRecords.get(1).getSplits(), 2L);
+        assertEquals(scaleRecords.get(1).getMerges(), 0L);
+        assertEquals(scaleRecords.size(), 2);
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = findSplitsAndMerges(scope, stream);
         assertEquals("Number of splits ", new Long(2), simpleEntrySplitsMerges1.getKey());
         assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges1.getValue());
 
@@ -197,9 +208,14 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment9 = new SimpleEntry<>(0.7, 0.8);
         SimpleEntry<Double, Double> segment10 = new SimpleEntry<>(0.8, 1.0);
         List<SimpleEntry<Double, Double>> newRanges2 = Arrays.asList(segment7, segment8, segment9, segment10);
-        scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges2);
+        scale(scope, stream, scaleRecords.get(1).getSegments(), newRanges2);
         scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
-        SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals(scaleRecords.size(), 3);
+        assertEquals(scaleRecords.get(2).getSegments().size(), 4);
+        assertEquals(scaleRecords.get(2).getSplits(), 1L);
+        assertEquals(scaleRecords.get(2).getMerges(), 2L);
+
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = findSplitsAndMerges(scope, stream);
         assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges2.getKey());
         assertEquals("Number of merges", new Long(2), simpleEntrySplitsMerges2.getValue());
 
@@ -209,10 +225,23 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment11 = new SimpleEntry<>(0.0, 0.7);
         SimpleEntry<Double, Double> segment12 = new SimpleEntry<>(0.7, 1.0);
         List<SimpleEntry<Double, Double>> newRanges3 = Arrays.asList(segment11, segment12);
-        scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges3);
-        SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = store.findNumSplitsMerges(scope, stream, executor).get();
+        scale(scope, stream, scaleRecords.get(2).getSegments(), newRanges3);
+        scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertEquals(scaleRecords.size(), 4);
+        assertEquals(scaleRecords.get(3).getSegments().size(), 2);
+        assertEquals(scaleRecords.get(3).getSplits(), 0L);
+        assertEquals(scaleRecords.get(3).getMerges(), 2L);
+
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
         assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
         assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
+    }
+
+    private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {
+        return store.getScaleMetadata(scope, stream, null, executor).get()
+                .stream().reduce(new SimpleEntry<>(0L, 0L),
+                        (x, y) -> new SimpleEntry<>(x.getKey() + y.getSplits(), x.getValue() + y.getMerges()),
+                        (x, y) -> new SimpleEntry<>(x.getKey() + y.getKey(), x.getValue() + y.getValue()));
     }
 
     private void scale(String scope, String stream, List<Segment> segments,
@@ -224,9 +253,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 scaleTimestamp, false, null, executor).join();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         store.setState(scope, stream, State.SCALING, null, executor).join();
-        store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
-                scaleTimestamp, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), segmentsCreated, response.getActiveEpoch(),
-                scaleTimestamp, null, executor).join();
+        store.scaleCreateNewSegments(scope, stream, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                null, executor).join();
     }
 }

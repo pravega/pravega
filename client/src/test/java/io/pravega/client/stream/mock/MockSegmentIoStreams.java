@@ -10,7 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -71,7 +71,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength(String delegationToken) {
+    public long fetchCurrentSegmentLength() {
         return writeOffset;
     }
 
@@ -152,7 +152,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue, String delegationToken) {
+    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
         return attributes.replace(attribute, expectedValue, newValue);
     }
@@ -163,13 +163,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo(String delegationToken) {
+    public SegmentInfo getSegmentInfo() {
         return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
     }
 
     @Override
     @Synchronized
-    public void truncateSegment(Segment segment, long offset, String delegationToken) {
+    public void truncateSegment(Segment segment, long offset) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;

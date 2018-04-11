@@ -82,7 +82,7 @@ public class PravegaInterceptor implements ServerInterceptor {
         if (interceptor != null) {
             return interceptor.getDelegationToken();
         } else {
-            Map<String, Object> claims = new HashMap();
+            Map<String, Object> claims = new HashMap<>();
 
             claims.put("*", String.valueOf(READ_UPDATE));
 
@@ -97,7 +97,7 @@ public class PravegaInterceptor implements ServerInterceptor {
 
     public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
         if (AUTH_ENABLED) {
-            Map<String, Object> claims = new HashMap();
+            Map<String, Object> claims = new HashMap<>();
 
             claims.put(resource, String.valueOf(expectedLevel));
 

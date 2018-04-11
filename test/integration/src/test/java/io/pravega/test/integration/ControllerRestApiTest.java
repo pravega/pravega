@@ -17,6 +17,7 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
@@ -36,17 +37,18 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.integration.utils.SetupUtils;
 import java.net.URI;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import lombok.Cleanup;
@@ -199,6 +201,16 @@ public class ControllerRestApiTest {
                 .getScalingPolicy().getMinSegments().intValue());
         log.info("Update stream successful");
 
+        // Test scaling event list GET /v1/scopes/scope1/streams/stream1
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1 + "/scaling-events")
+                .toString();
+        response = client.target(resourceURl).queryParam("from", 0L).
+                queryParam("to", System.currentTimeMillis()).request().get();
+        List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
+                new GenericType<List<ScaleMetadata>>() { });
+        assertEquals(1, scaleMetadataListResponse.size());
+        assertEquals(2, scaleMetadataListResponse.get(0).getSegments().size());
+
         // Test getStream
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
         response = client.target(resourceURl).request().get();
@@ -260,10 +272,14 @@ public class ControllerRestApiTest {
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
-            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
-                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
-            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),
-                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
+            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()
+                                                                                    .stream(Stream.of(testScope, testStream1))
+                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .build());
+            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder()
+                                                                                    .stream(Stream.of(testScope, testStream1))
+                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .build());
             clientFactory.createReader(reader1, readerGroupName1, new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             clientFactory.createReader(reader2, readerGroupName1, new JavaSerializer<Long>(),

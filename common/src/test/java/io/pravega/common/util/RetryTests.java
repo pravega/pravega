@@ -50,10 +50,12 @@ public class RetryTests {
     long duration;
 
     private static class RetryableException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
 
     }
 
     private static class NonretryableException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
 
     }
 

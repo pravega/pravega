@@ -9,7 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -45,7 +45,7 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 CreateSegment request = (CreateSegment) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                                 .segmentCreated(new SegmentCreated(request.getRequestId(), request.getSegment()));
+                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
         }).when(connection).send(Mockito.any(CreateSegment.class));
@@ -54,9 +54,8 @@ public class BatchClientImplTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
-                                 .streamSegmentInfo(new StreamSegmentInfo(request.getRequestId(),
-                                                                          request.getSegmentName(), true, false, false,
-                                                                          0, 0, 0));
+                                 .process(new StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                                                false, false, 0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
@@ -72,13 +71,13 @@ public class BatchClientImplTest {
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build())
                       .join();
-        Iterator<SegmentInfo> segments = client.listSegments(stream);
+        Iterator<SegmentRange> segments = client.getSegments(stream, null, null).getIterator();
         assertTrue(segments.hasNext());
-        assertEquals(0, segments.next().getSegment().getSegmentNumber());
+        assertEquals(0, segments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());
-        assertEquals(1, segments.next().getSegment().getSegmentNumber());
+        assertEquals(1, segments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(segments.hasNext());
-        assertEquals(2, segments.next().getSegment().getSegmentNumber());
+        assertEquals(2, segments.next().asImpl().getSegment().getSegmentNumber());
         assertFalse(segments.hasNext());
     }
 
