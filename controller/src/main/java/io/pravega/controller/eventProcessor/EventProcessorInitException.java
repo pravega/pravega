@@ -16,6 +16,8 @@ import io.pravega.controller.server.ControllerServerException;
  */
 public class EventProcessorInitException extends ControllerServerException {
 
+    private static final long serialVersionUID = 1L;
+
     public EventProcessorInitException(final String message) {
         super(message);
     }

@@ -36,6 +36,7 @@ import java.net.URI;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -104,10 +105,12 @@ public class ConnectionFactoryImplTest {
 
     @Test
     public void establishConnection() throws ConnectionFailedException {
+        @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
                                                                               .trustStore("../config/cert.pem")
                                                                               .build());
+        @Cleanup
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {

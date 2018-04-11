@@ -24,11 +24,12 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Builder
 public class ReaderGroupConfig implements Serializable {
 
-   private final long groupRefreshTimeMillis;
-   @Getter
-   private final long automaticCheckpointIntervalMillis;
+    private static final long serialVersionUID = 1L;
+    private final long groupRefreshTimeMillis;
+    @Getter
+    private final long automaticCheckpointIntervalMillis;
 
-   private final Map<Stream, StreamCut> startingStreamCuts;
+    private final Map<Stream, StreamCut> startingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value

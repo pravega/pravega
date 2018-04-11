@@ -11,12 +11,13 @@ package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
+import java.io.Serializable;
 
 /**
  * This is used to represent range bounded portion of a Segment.
  */
 @Beta
-public interface SegmentRange {
+public interface SegmentRange extends Serializable {
 
     /**
      * Returns the segment number of Segment.

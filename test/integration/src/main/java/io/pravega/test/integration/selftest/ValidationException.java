@@ -15,6 +15,7 @@ import lombok.Getter;
  * Exception thrown whenever a validation error occurred.
  */
 class ValidationException extends Exception {
+    private static final long serialVersionUID = 1L;
     @Getter
     private final String target;
 

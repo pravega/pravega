@@ -159,6 +159,7 @@ public class ControllerClusterListenerTest {
     }
 
     @Test(timeout = 60000L)
+    @SuppressWarnings("unchecked")
     public void clusterListenerStarterTest() throws InterruptedException, ExecutionException {
         String hostName = "localhost";
         Host host = new Host(hostName, 10, "originalhost");

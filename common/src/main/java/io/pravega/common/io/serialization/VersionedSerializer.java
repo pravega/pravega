@@ -626,7 +626,7 @@ public abstract class VersionedSerializer<T> {
      */
     public static abstract class MultiType<BaseType> extends VersionedSerializer<BaseType> {
         private final Map<Byte, SerializerInfo> serializersById;
-        private final Map<Class, SerializerInfo> serializersByType;
+        private final Map<Class<?>, SerializerInfo> serializersByType;
 
         /**
          * Creates a new instance of the MultiType class.
@@ -692,14 +692,14 @@ public abstract class VersionedSerializer<T> {
 
         @RequiredArgsConstructor
         private static class SerializerInfo {
-            final Class type;
+            final Class<?> type;
             final byte id;
             final VersionedSerializer.WithBuilder serializer;
         }
 
         protected final class Builder {
             private final ImmutableMap.Builder<Byte, SerializerInfo> builderById = ImmutableMap.builder();
-            private final ImmutableMap.Builder<Class, SerializerInfo> builderByType = ImmutableMap.builder();
+            private final ImmutableMap.Builder<Class<?>, SerializerInfo> builderByType = ImmutableMap.builder();
 
             /**
              * Registers a new serializer for the given class.
