@@ -52,12 +52,12 @@ public class SegmentRangeImpl implements SegmentRange {
     }
 
     @Override
-    public String getStreamName() {
+    public String getStream() {
         return segment.getStreamName();
     }
 
     @Override
-    public String getScopeName() {
+    public String getScope() {
         return segment.getScope();
     }
 

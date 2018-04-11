@@ -28,13 +28,13 @@ public interface SegmentRange {
      * Returns the stream name the segment is associated with.
      * @return The stream name.
      */
-    String getStreamName();
+    String getStream();
 
     /**
      * Returns the scope name.
      * @return The scope name.
      */
-    String getScopeName();
+    String getScope();
 
     /**
      * Returns the start offset of the segment.

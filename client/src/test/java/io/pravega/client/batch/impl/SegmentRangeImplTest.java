@@ -35,5 +35,7 @@ public class SegmentRangeImplTest {
         assertEquals(0L, segmentRange.getStartOffset());
         assertEquals(20L, segmentRange.getEndOffset());
         assertEquals(new Segment("scope", "stream", 0), segmentRange.getSegment());
+        assertEquals("scope", segmentRange.getScope());
+        assertEquals("stream", segmentRange.getStream());
     }
 }
