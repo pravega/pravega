@@ -76,7 +76,7 @@ public class ClientConfig {
             }
             extractCredentials();
             if (credentials == null) {
-                log.info("The credentials are not specified/could not be extracted");
+                log.warn("The credentials are not specified or could not be extracted.");
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
