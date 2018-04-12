@@ -254,15 +254,15 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
-        private void validateProperties(String stage, String segmentName, SegmentProperties sp, long expectedLength, boolean expectedSealed) {
-            Assert.assertNotNull("No result from GetInfoOperation (" + stage + ").", sp);
-            Assert.assertEquals("Unexpected name (" + stage + ").", segmentName, sp.getName());
-            Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
-            Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
-        }
+    private void validateProperties(String stage, String segmentName, SegmentProperties sp, long expectedLength, boolean expectedSealed) {
+        Assert.assertNotNull("No result from GetInfoOperation (" + stage + ").", sp);
+        Assert.assertEquals("Unexpected name (" + stage + ").", segmentName, sp.getName());
+        Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
+        Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
+    }
 
     /**
-     * Tests the ExistsOperation in various scenarios.
+     * Tests the exists API.
      */
     @Test
     public void testExists() throws Exception {
@@ -275,8 +275,7 @@ public class HDFSStorageTest extends StorageTestBase {
             createSegment(segmentName, s);
 
             // Not exists.
-            Assert.assertFalse("Unexpected result for missing segment (no files).",
-                    s.exists("nonexistent", null).join());
+            Assert.assertFalse("Unexpected result for missing segment (no files).", s.exists("nonexistent", null).join());
         }
     }
 

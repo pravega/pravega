@@ -26,14 +26,13 @@ import org.apache.hadoop.ipc.RemoteException;
 final class HDFSExceptionHelpers {
 
     /**
-     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions and re-throws them as such.
+     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions.
      *
      * @param segmentName Name of the stream segment on which the exception occurs.
      * @param e           The exception to be translated.
      * @return  The exception to be thrown.
      */
-    static <T> StreamSegmentException throwException(String segmentName, Throwable e) {
-        StreamSegmentException retVal = null;
+    static <T> StreamSegmentException convertException(String segmentName, Throwable e) {
         if (e instanceof RemoteException) {
             e = ((RemoteException) e).unwrapRemoteException();
         }
