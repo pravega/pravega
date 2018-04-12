@@ -10,23 +10,23 @@
 package io.pravega.common.auth;
 
 /**
- * Exception thrown when there is any error during authentication.
+ * Exception thrown when there is any error during authorization.
  */
-public class AuthenticationException extends AuthException {
+public class AuthorizationException extends AuthException {
     private static final long serialVersionUID = 1L;
-    public AuthenticationException(String message) {
+    public AuthorizationException(String message) {
         this(message, 401);
     }
 
-    public AuthenticationException(String message, int responseCode) {
+    public AuthorizationException(String message, int responseCode) {
         super(message, responseCode);
     }
 
-    public AuthenticationException(Exception e) {
-        this(e, 401);
+    public AuthorizationException(Exception e) {
+        this(e, 403);
     }
 
-    public AuthenticationException(Exception e, int responseCode) {
+    public AuthorizationException(Exception e, int responseCode) {
         super(e, responseCode);
     }
 }
