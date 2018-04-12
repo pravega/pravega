@@ -27,7 +27,7 @@ import io.pravega.client.stream.ReaderGroupMetrics;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
@@ -127,7 +127,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private Checkpoint completeCheckpoint(String checkpointName) {
         ReaderGroupState state = synchronizer.getState();
         Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
-        synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
+        synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkpointName));
         if (map == null) {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
         }
