@@ -12,8 +12,12 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
-import java.io.ObjectStreamException;
-import lombok.Data;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.IOException;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 
 /**
@@ -27,6 +31,7 @@ public class EventPointerImpl extends EventPointerInternal {
     private final long eventStartOffset;
     private final int eventLength;
 
+    @Builder(builderClassName="EventPointerBuilder")
     EventPointerImpl(Segment segment, long eventStartOffset, int eventLength) {
         this.segment = segment;
         this.eventStartOffset = eventStartOffset;
@@ -66,16 +71,36 @@ public class EventPointerImpl extends EventPointerInternal {
     public String toString() {
         return segment.getScopedName() + ":" + eventStartOffset + "-" + eventLength;
     }
-    
-    private Object writeReplace() throws ObjectStreamException {
-        return new SerializedForm(toString());
+
+    private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
     }
     
-    @Data
-    private static class SerializedForm  {
-        private final String value;
-        Object readResolve() throws ObjectStreamException {
-            return EventPointer.fromString(value);
+    public class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
+        @Override
+        protected EventPointerBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, EventPointerBuilder builder) throws IOException {
+            builder.segment(Segment.fromScopedName(revisionDataInput.readUTF()));
+            builder.eventStartOffset(revisionDataInput.readCompactLong());
+            builder.eventLength(revisionDataInput.readCompactInt());
+        }
+
+        private void write00(EventPointerImpl pointer, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(pointer.getSegment().getScopedName());
+            revisionDataOutput.writeCompactLong(pointer.eventStartOffset);
+            revisionDataOutput.writeCompactInt(pointer.getEventLength());
         }
     }
 }
