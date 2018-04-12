@@ -227,6 +227,12 @@ public final class ServiceStarter {
 
         try {
             serviceStarter.get().start();
+        } catch (Throwable e) {
+            log.error("Could not start the Service, Aborting.", e);
+            System.exit(1);
+        }
+
+        try {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 log.info("Caught interrupt signal...");
                 serviceStarter.get().shutdown();
@@ -237,6 +243,7 @@ public final class ServiceStarter {
             log.info("Caught interrupt signal...");
         } finally {
             serviceStarter.get().shutdown();
+            System.exit(0);
         }
     }
 
