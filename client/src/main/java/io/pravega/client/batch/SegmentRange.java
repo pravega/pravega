@@ -28,7 +28,7 @@ public interface SegmentRange {
      * Returns the stream name the segment is associated with.
      * @return The stream name.
      */
-    String getStream();
+    String getStreamName();
 
     /**
      * Returns the scope name of the stream the segment is associated with.

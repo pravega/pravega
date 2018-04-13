@@ -15,6 +15,7 @@ import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.segment.impl.Segment;
 import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
@@ -25,6 +26,7 @@ import lombok.ToString;
 @Beta
 @Builder
 @ToString
+@EqualsAndHashCode
 public class SegmentRangeImpl implements SegmentRange {
 
     /**
@@ -52,7 +54,7 @@ public class SegmentRangeImpl implements SegmentRange {
     }
 
     @Override
-    public String getStream() {
+    public String getStreamName() {
         return segment.getStreamName();
     }
 
