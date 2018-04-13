@@ -306,13 +306,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {}", segmentIsSealed);
             if (state.sealEncountered.compareAndSet(false, true)) {
-                Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
-                                                 retrySchedule.getMaxDelay(),
-                                                 t -> log.error(writerId + " to invoke sealed callback: ", t))
-                     .runInExecutor(() -> {
-                         log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
-                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionFactory.getInternalExecutor());
+                log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
+                callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
             }
         }
 
