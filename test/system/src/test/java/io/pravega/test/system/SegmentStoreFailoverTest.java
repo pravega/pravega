@@ -27,17 +27,15 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.common.cluster.Host;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,36 +43,44 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import static io.pravega.test.system.AbstractFailoverTests.WAIT_AFTER_FAILOVER_MILLIS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class SegmentStoreFailoverTest {
-
     private static final String STREAM = "testSegmentStoreFailoverStream";
     private static final String SCOPE = "testSegmentStoreFailoverScope" + new Random().nextInt(Integer.MAX_VALUE);
     public  Service segService;
-    Service zkService;
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 1, 2);
+    private final String testString = "Event\n";
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
     private URI controllerURI;
     private StreamManager streamManager;
-    private MockHostControllerStore mockHostControllerStore = new MockHostControllerStore();
-    private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private Service zkService;
+    private TestState testState;
+    private Segment segment;
 
-
+    static class TestState {
+        //append flags
+        final AtomicBoolean stopAppendFlag = new AtomicBoolean(false);
+        final AtomicLong appendCount = new AtomicLong();
+        //read flags
+        final AtomicLong readCount = new AtomicLong();
+        final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
+    }
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -84,35 +90,33 @@ public class SegmentStoreFailoverTest {
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
 
-        //1. check if zk is running, if not start it
+        //1. Start Zookeeper
         Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
-
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
+
+        //2. Start Bookkeeper
         Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
-
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("Bookkeeper service details: {}", bkUris);
 
-        //3. start controller
+        //3. Start Pravega Controller
         Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
-
         List<URI> conUris = conService.getServiceDetails();
         log.debug("Pravega controller service details: {}", conUris);
 
-        //4.start segmentstore
+        //4.Start  Pravega SegmentStore
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -121,13 +125,12 @@ public class SegmentStoreFailoverTest {
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega segmentstore service details: {}", segUris);
-
     }
-
 
     @Before
     public void setup() {
         zkService = Utils.createZookeeperService();
+
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
@@ -137,89 +140,81 @@ public class SegmentStoreFailoverTest {
         streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
+        segment = Segment.fromScopedName(SCOPE+ "/" + STREAM + "/0");
+
+        testState = new TestState();
     }
 
-
-
     @Test
-    public void segmentStoreFailoverTest() throws InterruptedException, ExecutionException, TimeoutException, EndOfSegmentException, SegmentTruncatedException {
-
+    public void segmentStoreFailoverTest() throws InterruptedException, ExecutionException {
         //connection factory
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        SegmentHelper segmentHelper = new SegmentHelper();
 
-        //create segment
-        CompletableFuture<Boolean> segmentCreated = segmentHelper.createSegment(SCOPE, STREAM, 2, scalingPolicy, mockHostControllerStore, connectionFactory, "");
-        assertTrue(segmentCreated.get(5, TimeUnit.SECONDS));
-        log.info("Segment number 2 created");
-
-        //appends
-        String testString = "First Event\n";
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
                 ClientConfig.builder().controllerURI(controllerURI).build())
                 .build(),
                 connectionFactory.getInternalExecutor());
 
+        //appends
         SegmentOutputStreamFactoryImpl segmentOutputClient = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-
-        Segment segment = Segment.fromScopedName(SCOPE+ "/" + STREAM + "/2");
-
         SegmentOutputStream out = segmentOutputClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
-
-        CompletableFuture<Boolean> ack = new CompletableFuture<>();
-
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
-        assertTrue(ack.get(5, TimeUnit.SECONDS));
-
-        log.info("Event appended to segment");
+        final CompletableFuture<Void> appendFuture = append(out);
+        Futures.exceptionListener(appendFuture, t -> log.error("Exception while  appending events to segment:", t));
 
         //Kill 1 segmentstore instance
         Futures.getAndHandleExceptions(segService.scaleService(1), ExecutionException::new);
+        log.info("Scaling down segmentstore instances from 2 to 1");
 
-        //create txn segment
-        CompletableFuture<UUID> transactionSegment = segmentHelper.createTransaction(SCOPE, STREAM, 2, UUID.randomUUID(),
-                mockHostControllerStore, connectionFactory, "");
-        transactionSegment.get();
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        log.info("Transaction segment created");
-
-        //merge txn segment
-        CompletableFuture<Controller.TxnStatus> commitTxn = segmentHelper.commitTransaction(SCOPE, STREAM, 2, transactionSegment.get(),
-                mockHostControllerStore, connectionFactory, "");
-
-        assertEquals(0, commitTxn.get().getStatus().getNumber());
-        log.info("Transaction committed");
+        testState.stopAppendFlag.set(true);
+        //Wait for append futures to return
+        appendFuture.get();
 
         //reads
         SegmentInputStreamFactoryImpl segmentInputClient = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-
         SegmentInputStream in = segmentInputClient.createInputStreamForSegment(segment);
-        assertEquals(ByteBuffer.wrap(testString.getBytes()), in.read());
+        final CompletableFuture<Void> readFuture = read(in);
+        Futures.exceptionListener(readFuture, t -> log.error("Exception while reading events from segment:", t));
 
+        testState.stopReadFlag.set(true);
+        //Wait for read futures to return
+        readFuture.get();
+
+        //match append and read count
+        log.info("Append count = {} Read count = {}", testState.appendCount.get(), testState.readCount.get());
+        Assert.assertEquals(testState.appendCount.get(), testState.readCount.get());
+        log.info("SegmentStore Failover test passes");
     }
 
-
-    private class MockHostControllerStore implements HostControllerStore {
-
-        @Override
-        public Map<Host, Set<Integer>> getHostContainersMap() {
-            return null;
+    private CompletableFuture<Void> append(SegmentOutputStream segmentOutputStream) {
+        CompletableFuture<Boolean> ack = new CompletableFuture<>();
+        return CompletableFuture.runAsync(() -> {
+        while (!testState.stopAppendFlag.get()) {
+            segmentOutputStream.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
+            log.info("Event {} appended to segment", testString);
+            try {
+                assertTrue(ack.get(5, TimeUnit.SECONDS));
+                testState.appendCount.incrementAndGet();
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                e.printStackTrace();
+            }
         }
-
-        @Override
-        public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
-
-        }
-
-        @Override
-        public int getContainerCount() {
-            return 0;
-        }
-
-        @Override
-        public Host getHostForSegment(String scope, String stream, int segmentNumber) {
-            return new Host(segService.getServiceDetails().get(0).getHost(), 12345, "");
-        }
+        });
     }
 
+    private CompletableFuture<Void> read(SegmentInputStream segmentInputStream) {
+        return CompletableFuture.runAsync(() -> {
+            while (!(testState.stopReadFlag.get() && testState.readCount.get() == testState.appendCount.get())) {
+                try {
+                    assertEquals(ByteBuffer.wrap(testString.getBytes()), segmentInputStream.read());
+                    log.info("Reading event: {}", testString);
+                    testState.readCount.incrementAndGet();
+                } catch (EndOfSegmentException | SegmentTruncatedException e) {
+                    e.printStackTrace();
+                }
+            }
+            segmentInputStream.close();
+        });
+    }
 }
