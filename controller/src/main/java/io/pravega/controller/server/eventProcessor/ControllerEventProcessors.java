@@ -102,9 +102,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this(host, config, controller, checkpointStore, streamMetadataStore, hostControllerStore, segmentHelper, connectionFactory,
-                streamMetadataTasks, null, executor);
+                streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 
     @VisibleForTesting
@@ -117,6 +118,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final EventProcessorSystem system,
                                      final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
@@ -129,7 +131,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
-                new SealStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 executor);
