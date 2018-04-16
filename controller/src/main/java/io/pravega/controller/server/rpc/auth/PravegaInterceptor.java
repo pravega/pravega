@@ -21,6 +21,7 @@ import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
+import io.pravega.common.auth.AuthenticationException;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
@@ -69,6 +70,8 @@ public class PravegaInterceptor implements ServerInterceptor {
                 context = context.withValue(AUTH_CONTEXT_PARAMS, paramMap);
                 context = context.withValue(INTERCEPTOR_OBJECT, this);
             }
+        } else {
+            throw new RuntimeException(new AuthenticationException("Handler not specified"));
         }
         return Contexts.interceptCall(context, call, headers, next);
     }
