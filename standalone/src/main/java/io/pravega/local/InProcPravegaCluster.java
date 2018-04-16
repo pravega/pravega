@@ -101,6 +101,11 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private String zkUrl;
     private boolean startRestServer = true;
+    private String userName;
+    private String passwd;
+    private String certFile;
+    private String keyFile;
+    private String passwdFile;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
@@ -108,8 +113,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 boolean isInProcController, int controllerCount, String controllerURI,
                                 boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
                                 boolean startRestServer, int restServerPort, boolean enableMetrics, boolean enableAuth,
-                                boolean enableTls) {
-
+                                boolean enableTls, String userName, String passwd, String certFile, String keyFile, String passwdFile) {
         //Check for valid combinations of flags
         //For ZK
         Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
@@ -143,6 +147,11 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.enableMetrics = enableMetrics;
         this.enableAuth = enableAuth;
         this.enableTls = enableTls;
+        this.userName = userName;
+        this.passwd = passwd;
+        this.certFile = certFile;
+        this.keyFile = keyFile;
+        this.passwdFile = passwdFile;
     }
 
     @Synchronized
@@ -249,8 +258,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
-                        .with(ServiceConfig.KEY_FILE, "../config/key.pem")
-                        .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
+                        .with(ServiceConfig.KEY_FILE, this.keyFile)
+                        .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
@@ -266,12 +275,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
-                                         .with(AutoScalerConfig.AUTH_USERNAME, "admin")
-                                         .with(AutoScalerConfig.AUTH_PASSWORD, "1111_aaaa")
+                                         .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
+                                         .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, "../config/cert.pem"))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
@@ -324,10 +333,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
-                .tlsTrustStore("../config/cert.pem")
-                .tlsCertFile("../config/cert.pem")
-                .tlsKeyFile("../config/key.pem")
-                .userPasswordFile("../config/passwd")
+                .tlsTrustStore(this.certFile)
+                .tlsCertFile(this.certFile)
+                .tlsKeyFile(this.keyFile)
+                .userPasswordFile(this.passwdFile)
                 .tokenSigningKey("secret")
                 .build();
 

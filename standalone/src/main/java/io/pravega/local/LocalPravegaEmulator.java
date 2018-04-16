@@ -9,7 +9,6 @@
  */
 package io.pravega.local;
 
-
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,7 +21,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
-    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort, boolean enableAuth, boolean enableTls) {
+    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort,
+                                 boolean enableAuth, boolean enableTls, String certFile, String passwd, String userName,
+                                 String passwdFile, String keyFile) {
         inProcPravegaCluster = InProcPravegaCluster
                 .builder()
                 .isInProcZK(true)
@@ -39,6 +40,11 @@ public class LocalPravegaEmulator implements AutoCloseable {
                 .enableMetrics(false)
                 .enableAuth(enableAuth)
                 .enableTls(enableTls)
+                .certFile(certFile)
+                .keyFile(keyFile)
+                .passwdFile(passwdFile)
+                .userName(userName)
+                .passwd(passwd)
                 .build();
         inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
         inProcPravegaCluster.setSegmentStorePorts(new int[] {segmentStorePort});
@@ -59,6 +65,11 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .restServerPort(conf.getRestServerPort())
                     .enableAuth(true)
                     .enableTls(true)
+                    .certFile(conf.getCertFile())
+                    .keyFile(conf.getKeyFile())
+                    .passwdFile(conf.getPasswdFile())
+                    .userName(conf.getUserName())
+                    .passwd(conf.getPasswd())
                     .build();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {
