@@ -15,6 +15,7 @@ import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.segment.impl.Segment;
 import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.ToString;
@@ -25,6 +26,7 @@ import lombok.ToString;
 @Beta
 @Builder
 @ToString
+@EqualsAndHashCode
 public class SegmentRangeImpl implements SegmentRange {
     private static final long serialVersionUID = 1L;
 
@@ -58,8 +60,8 @@ public class SegmentRangeImpl implements SegmentRange {
     }
 
     @Override
-    public String getScopeName() {
-        return segment.getScopedName();
+    public String getScope() {
+        return segment.getScope();
     }
 
     @Override

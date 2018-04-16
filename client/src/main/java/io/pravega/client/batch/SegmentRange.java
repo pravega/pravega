@@ -32,10 +32,10 @@ public interface SegmentRange extends Serializable {
     String getStreamName();
 
     /**
-     * Returns the scope name.
+     * Returns the scope name of the stream the segment is associated with.
      * @return The scope name.
      */
-    String getScopeName();
+    String getScope();
 
     /**
      * Returns the start offset of the segment.
