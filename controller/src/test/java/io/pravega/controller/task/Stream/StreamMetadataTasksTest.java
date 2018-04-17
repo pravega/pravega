@@ -892,6 +892,20 @@ public class StreamMetadataTasksTest {
         txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.COMMITTING);
 
+        // Mock getActiveTransactions call such that we return some non existent transaction id so that DataNotFound is simulated.
+        // returning a random transaction with list of active txns such that when its abort is attempted, Data Not Found Exception gets thrown
+        retVal = new HashMap<>();
+        retVal.put(UUID.randomUUID(), new ActiveTxnRecord(1L, 1L, 1L, 1L, TxnStatus.OPEN));
+
+        doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
+                eq(SCOPE), eq(streamWithTxn), any(), any());
+
+        AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
+                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        reset(streamStorePartialMock);
+
+        // Now complete all existing transactions and verify that seal completes
         streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, 0, openTxn.getId(), null, executor).join();
         streamStorePartialMock.commitTransaction(SCOPE, streamWithTxn, 0, committingTxn.getId(), null, executor).join();
 
