@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
+import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -64,9 +65,15 @@ class LedgerData {
     }
 
     synchronized void increaseLengthBy(int size) {
+        Preconditions.checkArgument(size >= 0, "Size can not be negative");
         this.length += size;
     }
 
+    /**
+     * Returns the nearest entry id before a given offset. If it is not possible, returns 0 (first entry id).
+     * @param offset The offset.
+     * @return Known entry id nearest to the offset.
+     */
     synchronized long getNearestEntryIDToOffset(long offset) {
         if (this.lastReadOffset < offset) {
             return lastReadEntry;
@@ -74,7 +81,7 @@ class LedgerData {
         return 0;
     }
 
-    synchronized void saveLastReadOffset(long offset, long entryId) {
+    synchronized void setLastReadOffset(long offset, long entryId) {
         this.lastReadOffset = offset;
         this.lastReadEntry = entryId;
     }

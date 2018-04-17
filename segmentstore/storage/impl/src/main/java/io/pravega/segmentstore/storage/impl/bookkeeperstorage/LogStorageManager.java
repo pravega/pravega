@@ -562,7 +562,7 @@ class LogStorageManager {
                     }
                     lengthRemaining -= dataRead;
                     if (lengthRemaining == 0) {
-                        ledgerData.saveLastReadOffset(offset + length - ledgerData.getStartOffset(), entry.getEntryId());
+                        ledgerData.setLastReadOffset(offset + length - ledgerData.getStartOffset(), entry.getEntryId());
                         readingDone = true;
                     }
                     currentBufferOffset += dataRead;
