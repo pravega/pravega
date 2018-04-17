@@ -23,6 +23,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -114,13 +115,28 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                                         .abortTxn(scope, stream, txIdPair.getKey(), null, context)
                                         .exceptionally(e -> {
                                             Throwable cause = Exceptions.unwrap(e);
-                                            log.debug("Exception thrown during seal stream while trying to abort transaction " +
-                                                    "on stream {}/{}", scope, stream, cause);
-                                            // Note: we can ignore this error because if there are transactions found on a stream,
-                                            // seal stream reposts the event back into request stream.
-                                            // So in subsequent iteration it will reattempt to abort all active transactions.
-                                            // This is a valid course of action because it is important to understand that
-                                            // all transactions are completable (either via abort of commit).
+                                            if (cause instanceof StoreException.IllegalStateException ||
+                                                    cause instanceof StoreException.WriteConflictException ||
+                                                    cause instanceof StoreException.DataNotFoundException) {
+                                                // IllegalStateException : The transaction is already in the process of being
+                                                // completed. Ignore
+                                                // WriteConflictException : Another thread is updating the transaction record.
+                                                // ignore. We will effectively retry cleaning up the transaction if it is not
+                                                // already being aborted.
+                                                // DataNotFoundException: If transaction metadata is cleaned up after reading list
+                                                // of active segments
+                                                log.debug("A known exception thrown during seal stream while trying to abort transaction " +
+                                                        "on stream {}/{}", scope, stream, cause);
+                                            } else {
+                                                // throw the original exception
+                                                // Note: we can ignore this error because if there are transactions found on a stream,
+                                                // seal stream reposts the event back into request stream.
+                                                // So in subsequent iteration it will reattempt to abort all active transactions.
+                                                // This is a valid course of action because it is important to understand that
+                                                // all transactions are completable (either via abort of commit).
+                                                log.warn("Exception thrown during seal stream while trying to abort transaction " +
+                                                        "on stream {}/{}", scope, stream, cause);
+                                            }
                                             return null;
                                         }));
                             } else {
