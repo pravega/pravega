@@ -9,6 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
+import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.segment.impl.Segment;
 import org.junit.Test;
 
@@ -30,10 +31,12 @@ public class SegmentRangeImplTest {
 
     @Test
     public void testValid() {
-        SegmentRangeImpl segmentRange = SegmentRangeImpl.builder().endOffset(20L).segment(new Segment("scope", "stream",
+        SegmentRange segmentRange = SegmentRangeImpl.builder().endOffset(20L).segment(new Segment("scope", "stream",
                 0)).build();
         assertEquals(0L, segmentRange.getStartOffset());
         assertEquals(20L, segmentRange.getEndOffset());
-        assertEquals(new Segment("scope", "stream", 0), segmentRange.getSegment());
+        assertEquals(new Segment("scope", "stream", 0), ((SegmentRangeImpl) segmentRange).getSegment());
+        assertEquals("scope", segmentRange.getScope());
+        assertEquals("stream", segmentRange.getStreamName());
     }
 }
