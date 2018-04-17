@@ -26,6 +26,7 @@ import lombok.ToString;
 @Builder
 @ToString
 public class SegmentRangeImpl implements SegmentRange {
+    private static final long serialVersionUID = 1L;
 
     /**
      * Segment to which the metadata relates to.

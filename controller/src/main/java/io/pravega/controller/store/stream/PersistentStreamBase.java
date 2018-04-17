@@ -492,7 +492,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             boolean runOnlyIfStarted) {
-        return getHistoryIndexFromStore()
+        return verifyNotSealed().thenCompose(v -> getHistoryIndexFromStore()
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(historyTable -> getSegmentIndexFromStore()
                                 .thenCompose(segmentIndex -> getSegmentTableFromStore()
@@ -513,7 +513,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                         scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
                                             });
                                             return new StartScaleResponse(epochTransition.getActiveEpoch(), newSegments);
-                                        }))));
+                                        })))));
     }
 
     private CompletableFuture<EpochTransitionRecord> startScale(List<Integer> segmentsToSeal, List<SimpleEntry<Double, Double>> newRanges,
@@ -567,6 +567,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 });
                     }
                 });
+    }
+
+
+    private CompletableFuture<Void> verifyNotSealed() {
+        return getState(false).thenApply(state -> {
+            if (state.equals(State.SEALING) || state.equals(State.SEALED)) {
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "Stream: " + getName() + " State: " + state.name());
+            }
+            return null;
+        });
     }
 
     @Override

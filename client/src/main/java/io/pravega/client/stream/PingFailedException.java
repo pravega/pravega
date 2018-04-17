@@ -17,6 +17,8 @@ package io.pravega.client.stream;
  */
 public class PingFailedException extends Exception {
 
+    private static final long serialVersionUID = 1L;
+
     public PingFailedException() {
         super();
     }

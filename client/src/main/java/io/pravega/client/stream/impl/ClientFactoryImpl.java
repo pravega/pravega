@@ -156,7 +156,7 @@ public class ClientFactoryImpl implements ClientFactory {
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
                 config.getEventWriterConfig(), delegationToken);
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
-        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer, controller, delegationToken);
+        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
     }
 
     @Override

@@ -25,7 +25,7 @@ public class NotificationSystem {
     @GuardedBy("$lock")
     private final Multimap<String, ListenerWithExecutor<Notification>> map = ArrayListMultimap.create();
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Synchronized
     public <T extends Notification> void addListeners(final String type,
                                                       final Listener<T> listener,

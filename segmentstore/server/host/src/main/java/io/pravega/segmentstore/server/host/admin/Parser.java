@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
 import lombok.AccessLevel;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +33,7 @@ final class Parser {
      * @return A new instance of the Command class.
      */
     static Command parse(String s) {
+        @Cleanup
         Scanner scanner = new Scanner(s);
         String component = scanner.findInLine(SCANNER_PATTERN);
         String command = scanner.findInLine(SCANNER_PATTERN);

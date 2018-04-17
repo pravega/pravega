@@ -24,7 +24,9 @@ buildscript {
     }
 }
 
-apply from: "$rootDir/gradle/mkdocs.gradle"
+if (project.hasProperty("enableMkdocs")) {
+    apply from: "$rootDir/gradle/mkdocs.gradle"
+}
 
 allprojects {
     apply plugin: 'idea'
@@ -50,6 +52,12 @@ allprojects {
         mavenLocal()
     }
 
+    gradle.projectsEvaluated {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        }
+    }
+    
     version = pravegaVersion
     group = "io.pravega"
 
@@ -91,7 +99,7 @@ project('common') {
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
-project('authplugin') {
+project('shared:authplugin') {
     dependencies {
     }
 
@@ -161,7 +169,6 @@ project('client') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile project(':common')
-   //     compile project(':authplugin')/
         compile project(':shared')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
@@ -262,7 +269,7 @@ project('segmentstore:server:host') {
 
     dependencies {
         compile project(':common')
-        compile project(":authplugin")
+        compile project(":shared:authplugin")
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
@@ -461,7 +468,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:controller-api")
-        compile project(":authplugin")
+        compile project(":shared:authplugin")
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -814,8 +821,8 @@ distributions {
     client {
         baseName = "pravega-client"
         contents {
-            from { project(":authplugin").configurations.runtime }
-            from { project(":authplugin").configurations.runtime.allArtifacts.files }
+            from { project(":shared:authplugin").configurations.runtime }
+            from { project(":shared:authplugin").configurations.runtime.allArtifacts.files }
             from { project(":client").configurations.runtime }
             from { project(":client").configurations.runtime.allArtifacts.files }
         }
