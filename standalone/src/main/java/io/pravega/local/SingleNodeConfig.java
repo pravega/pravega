@@ -25,6 +25,9 @@ public class SingleNodeConfig {
     public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "../config/passwd");
     public final static Property<String> USER_NAME = Property.named("userName", "admin");
     public final static Property<String> PASSWD = Property.named("passwd", "1111_aaaa");
+    public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
+    public final static String PROPERTY_FILE = "singlenode.configurationFile";
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
@@ -85,6 +88,18 @@ public class SingleNodeConfig {
     @Getter
     private String passwd;
 
+    /**
+     * Flag to enable TLS.
+     */
+    @Getter
+    private boolean enableTls;
+
+    /**
+     * Flag to enable auth.
+     */
+    @Getter
+    private boolean enableAuth;
+
     //end region
 
     //region constructor
@@ -98,6 +113,8 @@ public class SingleNodeConfig {
         this.passwdFile = properties.get(PASSWD_FILE);
         this.userName = properties.get(USER_NAME);
         this.passwd = properties.get(PASSWD);
+        this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.enableAuth = properties.getBoolean(ENABLE_AUTH);
     }
 
     /**
@@ -108,5 +125,6 @@ public class SingleNodeConfig {
     public static ConfigBuilder<SingleNodeConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, SingleNodeConfig::new);
     }
+
     //end region
 }

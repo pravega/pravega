@@ -112,11 +112,6 @@ configure_standalone() {
     add_system_property "singlenode.zkPort" "2181"
     add_system_property "singlenode.controllerPort" "9090"
     add_system_property "singlenode.segmentstorePort" "12345"
-    add_system_property "singlenode.certFile" "./config/cert.pem"
-    add_system_property "singlenode.keyFile" "./config/key.pem"
-    add_system_property "singlenode.passwdFile" "./config/passwd"
-    add_system_property "singlenode.userName" "admin"
-    add_system_property "singlenode.passwd" "1111_aaaa"
 
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }

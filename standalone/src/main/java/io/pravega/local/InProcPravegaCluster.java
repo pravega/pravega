@@ -274,7 +274,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
+                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tcp" : "tls") + "://localhost:"
+                                                                                + controllerPorts[0])
                                          .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
                                          .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")

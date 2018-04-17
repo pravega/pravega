@@ -54,6 +54,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
         try {
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
+                    .include(System.getProperty(SingleNodeConfig.PROPERTY_FILE, "./config/standalone-config.properties"))
                     .include(System.getProperties())
                     .build();
             SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);
@@ -63,8 +64,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .segmentStorePort(conf.getSegmentStorePort())
                     .zkPort(conf.getZkPort())
                     .restServerPort(conf.getRestServerPort())
-                    .enableAuth(true)
-                    .enableTls(true)
+                    .enableAuth(conf.isEnableAuth())
+                    .enableTls(conf.isEnableTls())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
                     .passwdFile(conf.getPasswdFile())
