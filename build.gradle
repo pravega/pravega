@@ -422,8 +422,7 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-all:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
     }
 
     javadoc {
@@ -488,8 +487,7 @@ project('controller') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile 'io.jsonwebtoken:jjwt:0.9.0'
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
 
     }
 
@@ -549,8 +547,7 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
