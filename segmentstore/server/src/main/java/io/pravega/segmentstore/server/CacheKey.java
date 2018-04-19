@@ -107,9 +107,5 @@ public class CacheKey extends Cache.Key {
         return String.format("SegmentId = %d, Offset = %d", this.streamSegmentId, this.offset);
     }
 
-    private int calculateHash() {
-        return Long.hashCode(this.streamSegmentId) * 31 + Long.hashCode(this.offset);
-    }
-
     //endregion
 }

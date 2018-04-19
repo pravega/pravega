@@ -58,7 +58,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final AtomicBoolean stop = new AtomicBoolean(false);
     private final Comparator<PositionCounter> positionCounterComparator = Comparator.comparingLong(o -> o.counter);
     private final Semaphore semaphore;
-    private final ScheduledFuture periodicCheckpoint;
+    private final ScheduledFuture<?> periodicCheckpoint;
     private final Checkpointer checkpointer;
     private final Writer<R> internalWriter;
 

@@ -9,15 +9,7 @@
  */
 package io.pravega.test.integration;
 
-import java.net.URI;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.Checkpoint;
@@ -39,14 +31,20 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.net.URI;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@Slf4j
 public class UnreadBytesTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -59,7 +57,6 @@ public class UnreadBytesTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-    private ScheduledExecutorService executorChkpoint;
 
     @Before
     public void setUp() throws Exception {
@@ -104,16 +101,16 @@ public class UnreadBytesTest {
         controller.createStream(config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", controllerUri);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton("unreadbytes"));
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),

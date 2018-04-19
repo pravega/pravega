@@ -9,8 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.batch.SegmentInfo;
-
 /**
  * A client for looking at and editing the metadata related to a specific segment.
  */
@@ -18,7 +16,7 @@ public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
      * Returns info for the current segment.
-     * 
+     *
      * @return Metadata about the segment.
      */
     abstract SegmentInfo getSegmentInfo();
@@ -50,7 +48,7 @@ public interface SegmentMetadataClient extends AutoCloseable {
     /**
      * Deletes all data before the offset of the provided segment.
      * This data will no longer be readable. Existing offsets are not affected by this operations. 
-     * The new startingOffset will be reflected in {@link SegmentMetadataClient#getSegmentInfo().startingOffset}.
+     * The new startingOffset will be reflected in {@link SegmentMetadataClient#getSegmentInfo(String).startingOffset}.
      * @param segment The segment to truncate.
      * @param offset The offset the segment should be truncated at.
      */

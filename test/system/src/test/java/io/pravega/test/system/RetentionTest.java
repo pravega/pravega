@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -22,16 +23,25 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.io.Serializable;
+import java.net.URI;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Assert;
@@ -40,14 +50,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import java.io.Serializable;
-import java.net.URI;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -56,8 +59,8 @@ import static org.junit.Assert.assertTrue;
 public class RetentionTest {
 
     private static final String STREAM = "testRetentionStream";
-    private static final String SCOPE = "testRetentionScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private static final String READER_GROUP = "testRetentionReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private static final String SCOPE = "testRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String READER_GROUP = "testRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
@@ -130,11 +133,13 @@ public class RetentionTest {
 
     @Test
     public void retentionTest() throws Exception {
-
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        ControllerImpl controller = new ControllerImpl(controllerURI,
-                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
-
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
+                ClientConfig.builder().controllerURI(controllerURI).build())
+                .build(),
+                 connectionFactory.getInternalExecutor());
+        @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
@@ -154,8 +159,7 @@ public class RetentionTest {
 
         //create a reader
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
-                Collections.singleton(STREAM));
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),

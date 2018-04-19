@@ -13,6 +13,7 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.client.stream.Stream;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -32,7 +33,6 @@ import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
-import java.util.Collections;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -78,7 +78,7 @@ public class TransactionTest {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
+        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
@@ -173,7 +173,7 @@ public class TransactionTest {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().build(), Collections.singleton(streamName));
+        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),

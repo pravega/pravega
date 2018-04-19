@@ -10,12 +10,12 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.impl.StreamCut;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.NameUtils;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
@@ -23,15 +23,19 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamImpl;
-import java.util.Set;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.NameUtils;
+import java.net.URI;
+import java.util.Map;
 import java.util.stream.Collectors;
-
+import lombok.Cleanup;
 import lombok.Getter;
-import org.apache.commons.lang3.NotImplementedException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -43,7 +47,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
         this.controller = new MockController(endpoint, port, connectionFactory);
         this.clientFactory = new MockClientFactory(scope, controller);
     }
@@ -127,18 +131,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames) {
+    public void createReaderGroup(String groupName, ReaderGroupConfig config) {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
-                           StreamConfiguration.builder()
-                                              .scope(scope)
-                                              .streamName(NameUtils.getStreamForReaderGroup(groupName))
-                                              .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
-        result.initializeGroup(config, streamNames);
-        return result;
+                StreamConfiguration.builder()
+                                   .scope(scope)
+                                   .streamName(NameUtils.getStreamForReaderGroup(groupName))
+                                   .scalingPolicy(ScalingPolicy.fixed(1)).build());
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                                              new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
+        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
 
     public Position getInitialPosition(String stream) {
@@ -149,7 +153,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException("getReaderGroup");
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
+        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
+                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
     }
 
     @Override

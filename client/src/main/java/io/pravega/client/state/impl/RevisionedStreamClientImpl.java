@@ -9,9 +9,9 @@
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -50,6 +50,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
+
     private final Object lock = new Object();
 
     @Override
@@ -148,10 +149,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                     data = in.read();
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException(
-                            "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
-                } catch (SegmentTruncatedException e) {
-                    throw new TruncatedDataException(e);
-                }
+                        "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
+            } catch (SegmentTruncatedException e) {
+                throw new TruncatedDataException(e);
+            }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);
             }
@@ -181,7 +182,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long startingOffset = meta.getSegmentInfo().getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
-    
+
     @Override
     public void truncateToRevision(Revision newStart) {
         meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());

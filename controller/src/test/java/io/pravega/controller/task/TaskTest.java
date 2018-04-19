@@ -9,20 +9,21 @@
  */
 package io.pravega.controller.task;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.controller.store.stream.StartScaleResponse;
-import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StartScaleResponse;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
@@ -31,22 +32,10 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.TestTasks;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestingServerStarter;
 import java.io.Serializable;
+import java.net.URI;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,6 +49,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -101,7 +103,10 @@ public class TaskTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(false));
+                executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                          .controllerURI(URI.create("tcp://localhost"))
+                                                                          .build()),
+                false, "");
     }
 
     @Before
@@ -129,9 +134,9 @@ public class TaskTest {
         StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
-                segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+        streamStore.scaleCreateNewSegments(SCOPE, stream1, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
@@ -140,9 +145,9 @@ public class TaskTest {
         response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
         segmentsCreated = response .getSegmentsCreated();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments1, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
-                segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+                null, executor).get();
         // endregion
     }
 
@@ -203,7 +208,7 @@ public class TaskTest {
     }
 
     @Test(timeout = 10000)
-    public void testStreamTaskSweeping() {
+    public void testStreamTaskSweeping() throws Exception {
         final String stream = "testPartialCreationStream";
         final String deadHost = "deadHost";
         final int initialSegments = 2;
@@ -217,8 +222,9 @@ public class TaskTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));
 
         // Create objects.
+        @Cleanup
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class));
+                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  false, "");
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
@@ -301,7 +307,8 @@ public class TaskTest {
     }
 
     @Test
-    public void testLocking() {
+    public void testLocking() throws Exception {
+        @Cleanup
         TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
 
         CompletableFuture<Void> first = testTasks.testStreamLock(SCOPE, stream1);

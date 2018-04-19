@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -20,6 +21,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -31,7 +33,6 @@ import io.pravega.test.system.framework.services.Service;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -42,6 +43,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -125,9 +127,11 @@ public class PravegaTest {
 
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        ControllerImpl controller = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
+                                    .build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());
@@ -148,7 +152,7 @@ public class PravegaTest {
         URI controllerUri = ctlURIs.get(0);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
@@ -162,9 +166,8 @@ public class PravegaTest {
             Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
-                                       Collections.singleton(STREAM_NAME));
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),

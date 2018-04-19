@@ -17,6 +17,7 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.TruncatedDataException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
@@ -130,11 +131,23 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
 
     @Override
-    public void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator) {
+    public void updateState(UpdateGenerator<StateT> updateGenerator) {
         conditionallyWrite(state -> {
-            List<? extends Update<StateT>> update = updateGenerator.apply(state);
-            return (update == null || update.isEmpty()) ? null : new UpdateOrInit<>(update);
+            List<Update<StateT>> update = new ArrayList<>();
+            updateGenerator.accept(state, update);
+            return update.isEmpty() ? null : new UpdateOrInit<>(update);
         });
+    }
+
+    @Override
+    public <ReturnT> ReturnT updateState(UpdateGeneratorFunction<StateT, ReturnT> updateGenerator) {
+        AtomicReference<ReturnT> result = new AtomicReference<>();
+        conditionallyWrite(state -> {
+            List<Update<StateT>> update = new ArrayList<>();
+            result.set(updateGenerator.apply(state, update));
+            return update.isEmpty() ? null : new UpdateOrInit<>(update);
+        });
+        return result.get();
     }
 
     @Override
@@ -157,6 +170,15 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         } else {
             updateCurrentState(initial.create(segment.getScopedStreamName(), result));
         }
+    }
+    
+    @Override
+    public long bytesWrittenSinceCompaction() {
+        Revision mark = client.getMark();
+        StateT state = getState();
+        long compaction = (mark == null) ? 0 : mark.asImpl().getOffsetInSegment();
+        long current = (state == null) ? 0 : state.getRevision().asImpl().getOffsetInSegment();
+        return Math.max(0, current - compaction);
     }
 
     @Override
@@ -228,5 +250,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         log.info("Closing stateSynchronizer ", this);
         client.close();
     }
+
 
 }

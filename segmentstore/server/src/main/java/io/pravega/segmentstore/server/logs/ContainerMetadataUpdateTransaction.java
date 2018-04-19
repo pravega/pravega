@@ -11,14 +11,15 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
-import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -31,13 +32,9 @@ import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,8 +42,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -61,7 +56,8 @@ import lombok.val;
 class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     // region Members
 
-    private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+    private static final MetadataCheckpointSerializer METADATA_CHECKPOINT_SERIALIZER = new MetadataCheckpointSerializer();
+    private static final StorageCheckpointSerializer STORAGE_CHECKPOINT_SERIALIZER = new StorageCheckpointSerializer();
     /**
      * Pointer to the real (live) ContainerMetadata. Used when needing access to live information (such as Storage Info).
      */
@@ -316,31 +312,30 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             if (segmentMetadata.isDeleted()) {
                 throw new StreamSegmentNotExistsException(segmentMetadata.getName());
             }
+            if (operation instanceof StreamSegmentAppendOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
+            } else if (operation instanceof StreamSegmentSealOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
+            } else if (operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
+                transactionMetadata.preProcessAsTransactionSegment(mbe);
+                segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
+            } else if (operation instanceof UpdateAttributesOperation) {
+                segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
+            }
         }
 
-        if (operation instanceof StreamSegmentAppendOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
-        } else if (operation instanceof StreamSegmentSealOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
-        } else if (operation instanceof MergeTransactionOperation) {
-            MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
-            SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
-            transactionMetadata.preProcessAsTransactionSegment(mbe);
-            segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
-        } else if (operation instanceof StreamSegmentMapOperation) {
-            preProcessMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof TransactionMapOperation) {
-            preProcessMetadataOperation((TransactionMapOperation) operation);
-        } else if (operation instanceof UpdateAttributesOperation) {
-            segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
-        } else if (operation instanceof MetadataCheckpointOperation) {
+        if (operation instanceof MetadataCheckpointOperation) {
             // MetadataCheckpointOperations do not require preProcess and accept; they can be handled in a single stage.
             processMetadataOperation((MetadataCheckpointOperation) operation);
         } else if (operation instanceof StorageMetadataCheckpointOperation) {
             // StorageMetadataCheckpointOperation do not require preProcess and accept; they can be handled in a single stage.
             processMetadataOperation((StorageMetadataCheckpointOperation) operation);
-        } else if (operation instanceof StreamSegmentTruncateOperation) {
-            segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
+        } else if (operation instanceof StreamSegmentMapOperation) {
+            preProcessMetadataOperation((StreamSegmentMapOperation) operation);
         }
     }
 
@@ -359,47 +354,41 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         if (operation instanceof SegmentOperation) {
             segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             segmentMetadata.setLastUsed(operation.getSequenceNumber());
+            if (operation instanceof StreamSegmentAppendOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
+            } else if (operation instanceof StreamSegmentSealOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
+            } else if (operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mto = (MergeTransactionOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
+                transactionMetadata.acceptAsTransactionSegment(mto);
+                transactionMetadata.setLastUsed(operation.getSequenceNumber());
+                segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
+            } else if (operation instanceof UpdateAttributesOperation) {
+                segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
+            }
         }
 
-        if (operation instanceof StreamSegmentAppendOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
-        } else if (operation instanceof StreamSegmentSealOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
-        } else if (operation instanceof MergeTransactionOperation) {
-            MergeTransactionOperation mto = (MergeTransactionOperation) operation;
-            SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
-            transactionMetadata.acceptAsTransactionSegment(mto);
-            transactionMetadata.setLastUsed(operation.getSequenceNumber());
-            segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
-        } else if (operation instanceof MetadataCheckpointOperation) {
+        if (operation instanceof MetadataCheckpointOperation) {
             // A MetadataCheckpointOperation represents a valid truncation point. Record it as such.
             this.newTruncationPoints.add(operation.getSequenceNumber());
         } else if (operation instanceof StreamSegmentMapOperation) {
             acceptMetadataOperation((StreamSegmentMapOperation) operation);
-        } else if (operation instanceof TransactionMapOperation) {
-            acceptMetadataOperation((TransactionMapOperation) operation);
-        } else if (operation instanceof UpdateAttributesOperation) {
-            segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
-        } else if (operation instanceof StreamSegmentTruncateOperation) {
-            segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
         }
     }
 
-    private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException {
-        // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
-        // segment id as the one the operation is trying to set.
-        checkExistingMapping(operation);
-        assignUniqueSegmentId(operation);
-    }
-
-    private void preProcessMetadataOperation(TransactionMapOperation operation) throws ContainerException {
-        // Verify Parent Segment Exists.
-        SegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
-        if (parentMetadata == null) {
-            throw new MetadataUpdateException(this.containerId,
-                    String.format("Operation %d wants to map a Segment to a Parent Segment Id that does " +
-                                    "not exist. Parent SegmentId = %d, Transaction Name = %s.",
-                            operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
+    private void preProcessMetadataOperation(StreamSegmentMapOperation operation) throws ContainerException, StreamSegmentException {
+        if (operation.isTransaction()) {
+            // Verify Parent Segment Exists.
+            SegmentMetadata parentMetadata = getExistingMetadata(operation.getParentStreamSegmentId());
+            if (parentMetadata == null) {
+                throw new MetadataUpdateException(this.containerId,
+                        String.format("Operation %d wants to map a Segment to a Parent Segment Id that does " +
+                                        "not exist. Parent SegmentId = %d, Transaction Name = %s.",
+                                operation.getSequenceNumber(), operation.getParentStreamSegmentId(), operation.getStreamSegmentName()));
+            }
         }
 
         // Verify that the segment is not already mapped. If it is mapped, then it needs to have the exact same
@@ -424,12 +413,15 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
                 log.info("{}: Recovering MetadataCheckpointOperation with SequenceNumber {}.", this.traceObjectId, operation.getSequenceNumber());
                 clear();
-                deserializeFrom(operation);
+
+                // This is not retrieved from serialization, but rather from the operation itself.
+                setOperationSequenceNumber(operation.getSequenceNumber());
+                METADATA_CHECKPOINT_SERIALIZER.deserialize(operation.getContents(), this);
                 this.processedCheckpoint = true;
             } else {
                 // In non-Recovery Mode, a MetadataCheckpointOperation means we need to serialize the current state of
                 // the Metadata, both the base Container Metadata and the current Transaction.
-                serializeTo(operation);
+                operation.setContents(METADATA_CHECKPOINT_SERIALIZER.serialize(this));
             }
         } catch (IOException ex) {
             throw new MetadataUpdateException(this.containerId, "Unable to process MetadataCheckpointOperation " + operation, ex);
@@ -439,9 +431,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private void processMetadataOperation(StorageMetadataCheckpointOperation operation) throws MetadataUpdateException {
         try {
             if (this.recoveryMode) {
-                updateFrom(operation);
+                STORAGE_CHECKPOINT_SERIALIZER.deserialize(operation.getContents(), this);
             } else {
-                serializeTo(operation);
+                operation.setContents(STORAGE_CHECKPOINT_SERIALIZER.serialize(this));
             }
         } catch (IOException ex) {
             throw new MetadataUpdateException(this.containerId, "Unable to process StorageMetadataCheckpointOperation " + operation, ex);
@@ -456,23 +448,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         // Create or reuse an existing Segment Metadata.
         UpdateableSegmentMetadata segmentMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
-                operation.getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID);
+                operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
         updateMetadata(operation, segmentMetadata);
     }
 
-    private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
-        if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            throw new MetadataUpdateException(this.containerId,
-                    "TransactionMapOperation does not have a SegmentId assigned: " + operation);
-        }
-
-        // Create or reuse an existing Transaction Metadata.
-        UpdateableSegmentMetadata transactionMetadata = getOrCreateSegmentUpdateTransaction(operation.getStreamSegmentName(),
-                operation.getStreamSegmentId(), operation.getParentStreamSegmentId());
-        updateMetadata(operation, transactionMetadata);
-    }
-
-    private void updateMetadata(StreamSegmentMapping mapping, UpdateableSegmentMetadata metadata) {
+    private void updateMetadata(StreamSegmentMapOperation mapping, UpdateableSegmentMetadata metadata) {
         metadata.setStorageLength(mapping.getLength());
 
         // Length must be at least StorageLength.
@@ -497,7 +477,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     //region Helpers
 
-    private void checkExistingMapping(StreamSegmentMapping operation) throws MetadataUpdateException {
+    private void checkExistingMapping(StreamSegmentMapOperation operation) throws MetadataUpdateException {
         long existingSegmentId = getStreamSegmentId(operation.getStreamSegmentName(), false);
         if (existingSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID
                 && existingSegmentId != operation.getStreamSegmentId()) {
@@ -507,7 +487,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
     }
 
-    private void assignUniqueSegmentId(StreamSegmentMapping mapping) throws TooManyActiveSegmentsException {
+    private void assignUniqueSegmentId(StreamSegmentMapOperation mapping) throws TooManyActiveSegmentsException {
         if (!this.recoveryMode) {
             if (getActiveSegmentCount() >= this.maximumActiveSegmentCount) {
                 throw new TooManyActiveSegmentsException(this.containerId, this.maximumActiveSegmentCount);
@@ -642,237 +622,146 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     //endregion
 
-    //region Serialization
+    //region StorageCheckpointSerializer
 
-    /**
-     * Deserializes the Metadata from the given stream.
-     *
-     * @param operation The MetadataCheckpointOperation to deserialize from.
-     * @throws IOException            If the stream threw one.
-     * @throws SerializationException If the given Stream is an invalid metadata serialization.
-     * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
-     */
-    private void deserializeFrom(MetadataCheckpointOperation operation) throws IOException {
-        Preconditions.checkState(this.recoveryMode, "Cannot deserialize Metadata in non-recovery mode.");
-
-        DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
-
-        // 1. Version.
-        byte version = stream.readByte();
-        if (version != CURRENT_SERIALIZATION_VERSION) {
-            throw new SerializationException(String.format("Unsupported version: %d.", version));
+    private static class StorageCheckpointSerializer extends VersionedSerializer.Direct<ContainerMetadataUpdateTransaction> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
         }
 
-        // 2. Container id.
-        int containerId = stream.readInt();
-        if (this.containerId != containerId) {
-            throw new SerializationException(String.format("Invalid ContainerId. Expected '%d', actual '%d'.", this.containerId, containerId));
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
         }
 
-        // This is not retrieved from serialization, but rather from the operation itself.
-        setOperationSequenceNumber(operation.getSequenceNumber());
-
-        // 3. Stream Segments (unchanged).
-        int segmentCount = stream.readInt();
-        for (int i = 0; i < segmentCount; i++) {
-            deserializeSegmentMetadata(stream);
+        private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
+            val toSerialize = t.realMetadata.getAllStreamSegmentIds().stream()
+                                            .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
+            output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
 
-        // 4. Stream Segments (updated).
-        segmentCount = stream.readInt();
-        for (int i = 0; i < segmentCount; i++) {
-            deserializeSegmentMetadata(stream);
+        private void read00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
+            input.readCollection(s -> readSegmentMetadata00(s, t));
         }
 
-        // 5. New Stream Segments.
-        segmentCount = stream.readInt();
-        for (int i = 0; i < segmentCount; i++) {
-            deserializeSegmentMetadata(stream);
+        private void writeSegmentMetadata00(RevisionDataOutput output, SegmentMetadata sm) throws IOException {
+            output.writeLong(sm.getId());
+            output.writeLong(sm.getStorageLength());
+            output.writeBoolean(sm.isSealedInStorage());
+            output.writeBoolean(sm.isDeleted());
+        }
+
+        @SneakyThrows(MetadataUpdateException.class)
+        private SegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
+            long segmentId = input.readLong();
+            SegmentMetadataUpdateTransaction metadata = t.getSegmentUpdateTransaction(segmentId);
+            long storageLength = input.readLong();
+            boolean sealedInStorage = input.readBoolean();
+            boolean deleted = input.readBoolean();
+            metadata.updateStorageState(storageLength, sealedInStorage, deleted);
+            return metadata;
         }
     }
 
-    /**
-     * Applies the updates stored in the given StorageMetadataCheckpointOperation.
-     *
-     * @param operation The StorageMetadataCheckpointOperation to update from.
-     * @throws IOException            If the stream threw one.
-     * @throws SerializationException If the given Stream is an invalid metadata serialization.
-     * @throws IllegalStateException  If the Metadata is not in Recovery Mode.
-     */
-    private void updateFrom(StorageMetadataCheckpointOperation operation) throws IOException, MetadataUpdateException {
-        Preconditions.checkState(this.recoveryMode, "Cannot bulk-update Metadata in non-recovery mode.");
+    //endregion
 
-        DataInputStream stream = new DataInputStream(new GZIPInputStream(operation.getContents().getReader()));
+    //region MetadataCheckpointSerializer
 
-        // 1. Version.
-        byte version = stream.readByte();
-        if (version != CURRENT_SERIALIZATION_VERSION) {
-            throw new SerializationException(String.format("Unsupported version: %d.", version));
+    private static class MetadataCheckpointSerializer extends VersionedSerializer.Direct<ContainerMetadataUpdateTransaction> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
         }
 
-        // 2. Segments
-        int segmentCount = stream.readInt();
-        for (int i = 0; i < segmentCount; i++) {
-            deserializeStorageSegmentMetadata(stream);
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
         }
-    }
 
-    private void serializeTo(MetadataCheckpointOperation operation) throws IOException {
-        assert operation != null : "operation is null";
-        Preconditions.checkState(!this.recoveryMode, "Cannot serialize Metadata in recovery mode.");
+        private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
+            // Intentionally skipping over the Sequence Number. There is no need for that here; it will be set on the
+            // operation anyway when it gets serialized.
+            output.writeCompactInt(t.containerId);
 
-        EnhancedByteArrayOutputStream byteStream = new EnhancedByteArrayOutputStream();
-        GZIPOutputStream zipStream = new GZIPOutputStream(byteStream);
-        DataOutputStream stream = new DataOutputStream(zipStream);
+            val toSerialize = new ArrayList<SegmentMetadata>();
 
-        // 1. Version.
-        stream.writeByte(CURRENT_SERIALIZATION_VERSION);
+            // Unchanged segments.
+            t.baseMetadata.getAllStreamSegmentIds().stream()
+                          .filter(segmentId -> !t.segmentUpdates.containsKey(segmentId))
+                          .forEach(segmentId -> toSerialize.add(t.baseMetadata.getStreamSegmentMetadata(segmentId)));
 
-        // 2. Container Id.
-        stream.writeInt(this.containerId);
+            // New Segments.
+            t.newSegments.values().stream()
+                         .filter(sm -> !t.segmentUpdates.containsKey(sm.getId()))
+                         .forEach(toSerialize::add);
 
-        // Intentionally skipping over the Sequence Number. There is no need for that here; it will be set on the
-        // operation anyway when it gets serialized.
-
-        // 3. Unchanged Segment Metadata.
-        Collection<Long> unchangedSegmentIds = this.baseMetadata
-                .getAllStreamSegmentIds().stream()
-                .filter(segmentId -> !this.segmentUpdates.containsKey(segmentId))
-                .collect(Collectors.toList());
-        stream.writeInt(unchangedSegmentIds.size());
-        unchangedSegmentIds.forEach(segmentId -> serializeSegmentMetadata(this.baseMetadata.getStreamSegmentMetadata(segmentId), stream));
-
-        // 4. New Segments.
-        Collection<UpdateableSegmentMetadata> newSegments = this.newSegments
-                .values().stream()
-                .filter(sm -> !this.segmentUpdates.containsKey(sm.getId()))
-                .collect(Collectors.toList());
-        stream.writeInt(newSegments.size());
-        newSegments.forEach(sm -> serializeSegmentMetadata(sm, stream));
-
-        // 5. Changed Segment Metadata.
-        stream.writeInt(this.segmentUpdates.size());
-        this.segmentUpdates.values().forEach(sm -> serializeSegmentMetadata(sm, stream));
-
-        zipStream.finish();
-        operation.setContents(byteStream.getData());
-    }
-
-    private void serializeTo(StorageMetadataCheckpointOperation operation) throws IOException {
-        assert operation != null : "operation is null";
-        Preconditions.checkState(!this.recoveryMode, "Cannot serialize Metadata in recovery mode.");
-
-        EnhancedByteArrayOutputStream byteStream = new EnhancedByteArrayOutputStream();
-        GZIPOutputStream zipStream = new GZIPOutputStream(byteStream);
-        DataOutputStream stream = new DataOutputStream(zipStream);
-
-        // 1. Version.
-        stream.writeByte(CURRENT_SERIALIZATION_VERSION);
-
-        // 2. Segment Metadata. We want to snapshot the actual metadata, and not this transaction. Hence we use realMetadata here.
-        Collection<Long> segmentIds = this.realMetadata.getAllStreamSegmentIds();
-        stream.writeInt(segmentIds.size());
-        segmentIds.forEach(segmentId -> serializeStorageSegmentMetadata(this.realMetadata.getStreamSegmentMetadata(segmentId), stream));
-
-        zipStream.finish();
-        operation.setContents(byteStream.getData());
-    }
-
-    @SneakyThrows(IOException.class)
-    private void serializeSegmentMetadata(SegmentMetadata sm, DataOutputStream stream) {
-        // S1. SegmentId.
-        stream.writeLong(sm.getId());
-        // S2. ParentId.
-        stream.writeLong(sm.getParentId());
-        // S3. Name.
-        stream.writeUTF(sm.getName());
-        // S4. Length.
-        stream.writeLong(sm.getLength());
-        // S5. StorageLength.
-        stream.writeLong(sm.getStorageLength());
-        // S6. Merged.
-        stream.writeBoolean(sm.isMerged());
-        // S7. Sealed.
-        stream.writeBoolean(sm.isSealed());
-        // S8. SealedInStorage.
-        stream.writeBoolean(sm.isSealedInStorage());
-        // S9. Deleted.
-        stream.writeBoolean(sm.isDeleted());
-        // S10. LastModified.
-        stream.writeLong(sm.getLastModified().getTime());
-        // S11. StartOffset
-        stream.writeLong(sm.getStartOffset());
-        // S12. Attributes.
-        AttributeSerializer.serialize(sm.getAttributes(), stream);
-    }
-
-    private void deserializeSegmentMetadata(DataInputStream stream) throws IOException {
-        // S1. SegmentId.
-        long segmentId = stream.readLong();
-        // S2. ParentId.
-        long parentId = stream.readLong();
-        // S3. Name.
-        String name = stream.readUTF();
-
-        UpdateableSegmentMetadata metadata = getOrCreateSegmentUpdateTransaction(name, segmentId, parentId);
-
-        // S4. Length.
-        metadata.setLength(stream.readLong());
-        // S5. StorageLength.
-        metadata.setStorageLength(stream.readLong());
-        // S6. Merged.
-        boolean isMerged = stream.readBoolean();
-        if (isMerged) {
-            metadata.markMerged();
+            // 5. Changed Segment Metadata.
+            toSerialize.addAll(t.segmentUpdates.values());
+            output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
-        // S7. Sealed.
-        boolean isSealed = stream.readBoolean();
-        if (isSealed) {
-            metadata.markSealed();
-        }
-        // S8. SealedInStorage.
-        boolean isSealedInStorage = stream.readBoolean();
-        if (isSealedInStorage) {
-            metadata.markSealedInStorage();
-        }
-        // S9. Deleted.
-        boolean isDeleted = stream.readBoolean();
-        if (isDeleted) {
-            metadata.markDeleted();
-        }
-        // S10. LastModified.
-        ImmutableDate lastModified = new ImmutableDate(stream.readLong());
-        metadata.setLastModified(lastModified);
-        // S11. StartOffset
-        metadata.setStartOffset(stream.readLong());
-        // S12. Attributes.
-        val attributes = AttributeSerializer.deserialize(stream);
-        metadata.updateAttributes(attributes);
-    }
 
-    @SneakyThrows(IOException.class)
-    private void serializeStorageSegmentMetadata(SegmentMetadata sm, DataOutputStream stream) {
-        // S1. SegmentId.
-        stream.writeLong(sm.getId());
-        // S2. StorageLength.
-        stream.writeLong(sm.getStorageLength());
-        // S3. SealedInStorage.
-        stream.writeBoolean(sm.isSealedInStorage());
-        // S4. Deleted.
-        stream.writeBoolean(sm.isDeleted());
-    }
+        private void read00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
+            int containerId = input.readCompactInt();
+            if (t.containerId != containerId) {
+                throw new SerializationException(String.format("Invalid ContainerId. Expected '%d', actual '%d'.", t.containerId, containerId));
+            }
 
-    private void deserializeStorageSegmentMetadata(DataInputStream stream) throws IOException, MetadataUpdateException {
-        // S1. SegmentId.
-        long segmentId = stream.readLong();
-        SegmentMetadataUpdateTransaction metadata = getSegmentUpdateTransaction(segmentId);
-        // S2. StorageLength.
-        long storageLength = stream.readLong();
-        // S3. SealedInStorage.
-        boolean sealedInStorage = stream.readBoolean();
-        // S4. Deleted.
-        boolean deleted = stream.readBoolean();
-        metadata.updateStorageState(storageLength, sealedInStorage, deleted);
+            input.readCollection(s -> readSegmentMetadata00(s, t));
+        }
+
+        private void writeSegmentMetadata00(RevisionDataOutput output, SegmentMetadata sm) throws IOException {
+            output.writeLong(sm.getId());
+            output.writeLong(sm.getParentId());
+            output.writeUTF(sm.getName());
+            output.writeLong(sm.getLength());
+            output.writeLong(sm.getStorageLength());
+            output.writeBoolean(sm.isMerged());
+            output.writeBoolean(sm.isSealed());
+            output.writeBoolean(sm.isSealedInStorage());
+            output.writeBoolean(sm.isDeleted());
+            output.writeLong(sm.getLastModified().getTime());
+            output.writeLong(sm.getStartOffset());
+            output.writeMap(sm.getAttributes(), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+        }
+
+        private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
+            long segmentId = input.readLong();
+            long parentId = input.readLong();
+            String name = input.readUTF();
+
+            UpdateableSegmentMetadata metadata = t.getOrCreateSegmentUpdateTransaction(name, segmentId, parentId);
+
+            metadata.setLength(input.readLong());
+            metadata.setStorageLength(input.readLong());
+            boolean isMerged = input.readBoolean();
+            if (isMerged) {
+                metadata.markMerged();
+            }
+
+            boolean isSealed = input.readBoolean();
+            if (isSealed) {
+                metadata.markSealed();
+            }
+
+            boolean isSealedInStorage = input.readBoolean();
+            if (isSealedInStorage) {
+                metadata.markSealedInStorage();
+            }
+
+            boolean isDeleted = input.readBoolean();
+            if (isDeleted) {
+                metadata.markDeleted();
+            }
+
+            ImmutableDate lastModified = new ImmutableDate(input.readLong());
+            metadata.setLastModified(lastModified);
+            metadata.setStartOffset(input.readLong());
+
+            val attributes = input.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
+            metadata.updateAttributes(attributes);
+            return metadata;
+        }
     }
 
     //endregion

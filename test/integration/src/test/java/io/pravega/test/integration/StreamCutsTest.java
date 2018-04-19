@@ -9,7 +9,7 @@
  */
 package io.pravega.test.integration;
 
-
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -25,11 +25,11 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamCut;
-import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -37,13 +37,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,6 +45,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -111,7 +110,7 @@ public class StreamCutsTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
@@ -123,9 +122,10 @@ public class StreamCutsTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("cuts", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton("test"));
+        groupManager.createReaderGroup("cuts", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().stream("test/test").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("cuts");
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "cuts", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -141,7 +141,7 @@ public class StreamCutsTest {
         validateCuts(readerGroup, cuts, Collections.singleton("test/test/0"));
 
         // Scale the stream to verify that we get more segments in the cut.
-        Stream stream = new StreamImpl("test", "test");
+        Stream stream = Stream.of("test", "test");
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
@@ -201,7 +201,7 @@ public class StreamCutsTest {
         Set<String> streamNames = group.getStreamNames();
         cuts.forEach((s, c) -> {
                 assertTrue(streamNames.contains(s.getStreamName()));
-                assertTrue(c.validate(segmentNames));
+                assertTrue(((StreamCutImpl) c).validate(segmentNames));
         });
     }
 }

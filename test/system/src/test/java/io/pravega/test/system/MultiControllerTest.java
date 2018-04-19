@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
@@ -35,6 +36,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 
 @Slf4j
@@ -43,8 +45,9 @@ public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private Service controllerService1 = null;
-    private AtomicReference<URI> controllerURIDirect = new AtomicReference();
-    private AtomicReference<URI> controllerURIDiscover = new AtomicReference();
+    private ControllerImpl controllerClient = null;
+    private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
+    private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
     @Environment
     public static void setup() throws MarathonException, ExecutionException {
@@ -68,9 +71,6 @@ public class MultiControllerTest {
         final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
     }
 
     @Before
@@ -97,6 +97,14 @@ public class MultiControllerTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
+        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
+        controllerClient = new ControllerImpl(ControllerImplConfig.builder()
+                                                                  .clientConfig(ClientConfig.builder()
+                                                                                            .controllerURI(controllerURI)
+                                                                                            .build())
+                                                                  .build(),
+                                              EXECUTOR_SERVICE);
     }
 
     @After
@@ -105,6 +113,7 @@ public class MultiControllerTest {
         if (controllerService1 != null && controllerService1.isRunning()) {
             controllerService1.stop();
             controllerService1.clean();
+            controllerClient.close();
         }
     }
 
@@ -150,12 +159,12 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
+                controllerClient.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
                 throwable -> throwable instanceof RetriesExhaustedException);
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                    createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
+                    controllerClient.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
                     throwable -> throwable instanceof RetriesExhaustedException);
         }
         log.info("multiControllerTest execution completed");
@@ -178,12 +187,6 @@ public class MultiControllerTest {
         return Retry.withExpBackoff(500, 2, 10, 5000)
                 .retryingOn(Exception.class)
                 .throwingOn(IllegalArgumentException.class)
-                .runAsync(() -> createScope(scopeName, controllerURI), EXECUTOR_SERVICE);
-    }
-
-    CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
-        return controllerClient.createScope(scopeName);
+                .runAsync(() -> controllerClient.createScope(scopeName), EXECUTOR_SERVICE);
     }
 }

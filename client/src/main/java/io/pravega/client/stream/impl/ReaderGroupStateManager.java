@@ -9,18 +9,17 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
-import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
@@ -28,19 +27,18 @@ import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.hash.HashHelper;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -64,10 +62,13 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
  * successor to that segment.
  */
+@Slf4j
 public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
+    private static final double COMPACTION_PROBABILITY = 0.05;
+    private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 512 * 1024;
     private final Object decisionLock = new Object();
     private final HashHelper hashHelper;
     @Getter
@@ -78,6 +79,9 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer acquireTimer;
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
+    @Getter
+    @GuardedBy("this")
+    private String latestDelegationToken;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -96,25 +100,20 @@ public class ReaderGroupStateManager {
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
-                                      ReaderGroupConfig config, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
-    }
-
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader(long initialAllocationDelay) {
-        AtomicBoolean alreadyAdded = new AtomicBoolean(false);
-        sync.updateState(state -> {
+        boolean alreadyAdded = sync.updateState((state, updates) -> {
             if (state.getSegments(readerId) == null) {
-                return Collections.singletonList(new AddReader(readerId));
+                log.debug("Adding reader {} to reader grop. CurrentState is: {}", readerId, state);
+                updates.add(new AddReader(readerId));
+                return false;
             } else {
-                alreadyAdded.set(true);
-                return null;
+                return true;
             }
         });
-        if (alreadyAdded.get()) {
+        if (alreadyAdded) {
             throw new IllegalStateException("The requested reader: " + readerId
                     + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
         }
@@ -135,17 +134,18 @@ public class ReaderGroupStateManager {
      * @param lastPosition The last position the reader successfully read from.
      */
     static void readerShutdown(String readerId, Position lastPosition, StateSynchronizer<ReaderGroupState> sync) {
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             Set<Segment> segments = state.getSegments(readerId);
             if (segments == null) {
-                return null;
+                return;
             }
+            log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
             if (lastPosition != null && !lastPosition.asImpl().getOwnedSegments().containsAll(segments)) {
                 throw new IllegalArgumentException(
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
                                 + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
             }
-            return Collections.singletonList(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
+            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
         });
     }
     
@@ -158,13 +158,18 @@ public class ReaderGroupStateManager {
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+        synchronized (this) {
+            latestDelegationToken = successors.getDelegationToken();
+        }
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return null;
+            } else {
+                log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
+                reinitRequired.set(false);
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
             }
-            return Collections.singletonList(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
         });
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
@@ -185,6 +190,7 @@ public class ReaderGroupStateManager {
                 segment = findSegmentToRelease();
                 if (segment != null) {
                     releaseTimer.reset(UPDATE_WINDOW);
+                    acquireTimer.reset(UPDATE_WINDOW);
                 }
             }
         }
@@ -226,26 +232,25 @@ public class ReaderGroupStateManager {
      * @throws ReinitializationRequiredException If the reader has been declared offline.
      */
     boolean releaseSegment(Segment segment, long lastOffset, long timeLag) throws ReinitializationRequiredException {
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             Set<Segment> segments = state.getSegments(readerId);
-            if (segments == null || !segments.contains(segment) || state.getCheckpointForReader(readerId) != null
-                    || !doesReaderOwnTooManySegments(state)) {
-                return null;
+            if (segments != null && segments.contains(segment) && state.getCheckpointForReader(readerId) == null
+                    && doesReaderOwnTooManySegments(state)) {
+                updates.add(new ReleaseSegment(readerId, segment, lastOffset));
+                updates.add(new UpdateDistanceToTail(readerId, timeLag));
             }
-            List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
-            result.add(new ReleaseSegment(readerId, segment, lastOffset));
-            result.add(new UpdateDistanceToTail(readerId, timeLag));
-            return result;
         });
         ReaderGroupState state = sync.getState();
-        releaseTimer.reset(calculateReleaseTime(state));
+        releaseTimer.reset(calculateReleaseTime(readerId, state));
+        acquireTimer.reset(calculateAcquireTime(readerId, state));
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
         return !state.getSegments(readerId).contains(segment);
     }
 
-    private Duration calculateReleaseTime(ReaderGroupState state) {
+    @VisibleForTesting
+    static Duration calculateReleaseTime(String readerId, ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(1 + state.getRanking(readerId));
     }
 
@@ -267,47 +272,59 @@ public class ReaderGroupStateManager {
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
             fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
+            compactIfNeeded();
+        }
+    }
+    
+    private void compactIfNeeded() {
+        //Make sure it has been a while, and compaction are staggered.
+        if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
+            log.debug("Compacting reader group state {}", sync.getState());
+            sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }
     
     private boolean shouldAcquireSegment() throws ReinitializationRequiredException {
         synchronized (decisionLock) {
-            if (!sync.getState().isReaderOnline(readerId)) {
+            ReaderGroupState state = sync.getState();
+            if (!state.isReaderOnline(readerId)) {
                 throw new ReinitializationRequiredException();
             }
             if (acquireTimer.hasRemaining()) {
                 return false;
             }
-            if (sync.getState().getNumberOfUnassignedSegments() == 0) {
+            if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
-            if (sync.getState().getCheckpointForReader(readerId) != null) {
+            if (state.getNumberOfUnassignedSegments() == 0) {
+                if (doesReaderOwnTooManySegments(state)) {
+                    acquireTimer.reset(calculateAcquireTime(readerId, state));
+                }
                 return false;
             }
             acquireTimer.reset(UPDATE_WINDOW);
+            releaseTimer.reset(UPDATE_WINDOW);
             return true;
         }
     }
 
     private Map<Segment, Long> acquireSegment(long timeLag) throws ReinitializationRequiredException {
-        AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
-        AtomicBoolean reinitRequired = new AtomicBoolean(false);
-        sync.updateState(state -> {
-            result.set(Collections.emptyMap());
+        AtomicBoolean reinitRequired = new AtomicBoolean();
+        Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return null;
+                return Collections.emptyMap();
             }
+            reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return null;
+                return Collections.emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return null;
+                return Collections.emptyMap();
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);
-            List<ReaderGroupStateUpdate> updates = new ArrayList<>(toAcquire);
             Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAcquire; i++) {
                 assert iter.hasNext();
@@ -316,14 +333,14 @@ public class ReaderGroupStateManager {
                 updates.add(new AcquireSegment(readerId, segment.getKey()));
             }
             updates.add(new UpdateDistanceToTail(readerId, timeLag));
-            result.set(acquired);
-            return updates;
+            return acquired;
         });
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
         }
-        acquireTimer.reset(calculateAcquireTime(sync.getState()));
-        return result.get();
+        releaseTimer.reset(calculateReleaseTime(readerId, sync.getState()));
+        acquireTimer.reset(calculateAcquireTime(readerId, sync.getState()));
+        return result;
     }
     
     private int calculateNumSegmentsToAcquire(ReaderGroupState state) {
@@ -339,7 +356,8 @@ public class ReaderGroupStateManager {
         return Math.max(Math.max(equallyDistributed, fairlyDistributed), 1);
     }
 
-    private Duration calculateAcquireTime(ReaderGroupState state) {
+    @VisibleForTesting
+    static Duration calculateAcquireTime(String readerId, ReaderGroupState state) {
         return TIME_UNIT.multipliedBy(state.getNumberOfReaders() - state.getRanking(readerId));
     }
     
@@ -358,19 +376,27 @@ public class ReaderGroupStateManager {
         if (automaticCpInterval <= 0 || checkpointTimer.hasRemaining() || state.hasOngoingCheckpoint()) {
             return null;
         }
-        sync.updateState(s -> s.hasOngoingCheckpoint() ? null : ImmutableList.of(new CreateCheckpoint()));
+        sync.updateState((s, u) -> {
+            if (!s.hasOngoingCheckpoint()) {
+                CreateCheckpoint newCp = new CreateCheckpoint();
+                u.add(newCp);
+                u.add(new ClearCheckpointsBefore(newCp.getCheckpointId()));
+                log.debug("Created new checkpoint: {} currentState is: {}", newCp, s);
+            }
+        });
         checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
         return state.getCheckpointForReader(readerId);
     }
     
     void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return null;
+            } else {
+                reinitRequired.set(false);
+                updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
             }
-            return Collections.singletonList(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
         });
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();

@@ -10,7 +10,9 @@
 package io.pravega.client.netty.impl;
 
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -29,8 +31,10 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -41,34 +45,38 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
-    private static final Integer POOL_SIZE = Integer.valueOf(
-            System.getProperty("pravega.client.internal.threadpool.size",
-                    String.valueOf(Runtime.getRuntime().availableProcessors())));
-    private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
+    private final ClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
-                                                                                                    "clientInternal");
+    private final ScheduledExecutorService executor;
     private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     /**
      * Actual implementation of ConnectionFactory interface.
-     *
-     * @param ssl Whether connection should use SSL or not.
+     * @param clientConfig Configuration object holding details about connection to the segmentstore.
      */
-    public ConnectionFactoryImpl(boolean ssl) {
-        this.ssl = ssl;
+    public ConnectionFactoryImpl(ClientConfig clientConfig) {
+        this(clientConfig, null);
+    }
+
+    @VisibleForTesting
+    public ConnectionFactoryImpl(ClientConfig clientConfig, Integer numThreadsInPool) {
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(getNumThreads(numThreadsInPool), "clientInternal");
+        this.clientConfig = clientConfig;
         try {
             this.group = new EpollEventLoopGroup();
         } catch (ExceptionInInitializerError | UnsatisfiedLinkError | NoClassDefFoundError e) {
@@ -78,17 +86,33 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         }
     }
 
+    private int getNumThreads(Integer numThreadsInPool) {
+        if (numThreadsInPool != null) {
+            return numThreadsInPool;
+        }
+        String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
+        if (configuredThreads != null) {
+            return Integer.parseInt(configuredThreads);
+        }
+        return Runtime.getRuntime().availableProcessors();
+    }
+    
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location);
         Exceptions.checkNotClosed(closed.get(), this);
         final SslContext sslCtx;
-        if (ssl) {
+        if (clientConfig.isEnableTls()) {
             try {
-                sslCtx = SslContextBuilder.forClient()
-                                          .trustManager(FingerprintTrustManagerFactory
-                                                  .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
-                                          .build();
+                SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
+                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
+                    sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
+                                                      .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
+                } else {
+                    sslCtxFactory = SslContextBuilder.forClient()
+                                              .trustManager(new File(clientConfig.getTrustStore()));
+                }
+                sslCtx = sslCtxFactory.build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
@@ -106,7 +130,15 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort()));
+                     SslHandler sslHandler = sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort());
+
+                     if (clientConfig.isValidateHostName()) {
+                         SSLEngine sslEngine = sslHandler.engine();
+                         SSLParameters sslParameters = sslEngine.getSSLParameters();
+                         sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+                         sslEngine.setSSLParameters(sslParameters);
+                     }
+                     p.addLast(sslHandler);
                  }
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),

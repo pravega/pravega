@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -138,8 +140,10 @@ public class ControllerFailoverTest {
         long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
-        final Controller controller1 = new ControllerImpl(controllerURIDirect,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+        final Controller controller1 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -176,8 +180,11 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Connect to another controller instance.
-        final Controller controller2 = new ControllerImpl(controllerURIDirect,
-                ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
+        @Cleanup
+        final Controller controller2 = new ControllerImpl(
+                ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

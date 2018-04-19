@@ -28,7 +28,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -709,7 +708,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 

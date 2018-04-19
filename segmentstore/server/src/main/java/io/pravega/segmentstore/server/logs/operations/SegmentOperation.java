@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.server.LogItem;
+import io.pravega.common.util.SequencedItemList;
 
 /**
  * Defines a Log Operation that deals with a Segment.
  */
-public interface SegmentOperation extends LogItem {
+public interface SegmentOperation extends SequencedItemList.Element {
     /**
      * Gets a value indicating the Id of the StreamSegment this operation relates to.
      */

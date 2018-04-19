@@ -36,6 +36,7 @@ service ControllerService {
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+    rpc getDelegationToken(StreamInfo) returns (DelegationToken);
 }
 
 message ServerRequest {
@@ -194,6 +195,7 @@ message SegmentsAtTime {
         int64 offset = 2;
     }
     repeated SegmentLocation segments = 1;
+    string delegationToken = 2;
 }
 
 message TxnId {
@@ -210,6 +212,7 @@ message CreateTxnRequest {
 message CreateTxnResponse {
     TxnId txnId = 1;
     repeated SegmentRange activeSegments = 2;
+    string delegationToken = 3;
 }
 
 message TxnRequest {
@@ -229,6 +232,7 @@ message SuccessorResponse {
         repeated int32 value = 2;
     }
     repeated SegmentEntry segments = 1;
+    string delegationToken = 2;
 }
 
 message ScaleRequest {
@@ -271,6 +275,7 @@ message ScaleStatusResponse {
 
 message SegmentRanges {
     repeated SegmentRange segmentRanges = 1;
+    string delegationToken = 2;
 }
 
 message GetSegmentsRequest {
@@ -281,3 +286,7 @@ message GetSegmentsRequest {
 message SegmentValidityResponse {
     bool response = 1;
 }
+
+message DelegationToken {
+    string delegationToken = 1;
+ }

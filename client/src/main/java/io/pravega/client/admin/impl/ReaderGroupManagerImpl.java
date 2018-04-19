@@ -9,9 +9,12 @@
  */
 package io.pravega.client.admin.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
@@ -25,11 +28,12 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
-import java.net.URI;
 import java.util.Arrays;
-import java.util.Set;
+import java.util.Map;
+import lombok.Cleanup;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,10 +51,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
-    public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
+
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
@@ -71,21 +76,22 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
-    
+
     @Override
-    public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
-        log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName, Arrays.toString(streams.toArray()), config);
+    public void createReaderGroup(String groupName, ReaderGroupConfig config) {
+        log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
+                Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scope(scope)
                                                                                   .streamName(getStreamForReaderGroup(groupName))
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
-        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                                                     new JavaSerializer<>(), clientFactory, controller, connectionFactory);
-        result.initializeGroup(config, streams);
-        return result;
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                                              new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
+        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
     }
 
     @Override

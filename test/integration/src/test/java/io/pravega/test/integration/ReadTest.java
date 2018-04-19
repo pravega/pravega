@@ -14,6 +14,7 @@ import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -32,7 +33,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -52,19 +53,19 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.TestUtils;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,9 +74,12 @@ import static org.junit.Assert.fail;
 
 public class ReadTest {
 
+    private static final int TIMEOUT_MILLIS = 30000;
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    @Rule
+    public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
 
     @Before
     public void setup() throws Exception {
@@ -93,7 +97,7 @@ public class ReadTest {
     }
 
     @Test
-    public void testReadDirectlyFromStore() throws InterruptedException, ExecutionException, IOException {
+    public void testReadDirectlyFromStore() throws Exception {
         String segmentName = "testReadFromStore";
         final int entries = 10;
         final byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -108,10 +112,11 @@ public class ReadTest {
         while (result.hasNext()) {
             ReadResultEntry entry = result.next();
             ReadResultEntryType type = entry.getType();
-            assertEquals(ReadResultEntryType.Cache, type);
+            assertTrue(type == ReadResultEntryType.Cache || type == ReadResultEntryType.Future);
 
             // Each ReadResultEntryContents may be of an arbitrary length - we should make no assumptions.
-            ReadResultEntryContents contents = entry.getContent().get();
+            // Also put a timeout when fetching the response in case we get back a Future read and it never completes.
+            ReadResultEntryContents contents = entry.getContent().get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             byte next;
             while ((next = (byte) contents.getData().read()) != -1) {
                 byte expected = data[index % data.length];
@@ -135,19 +140,30 @@ public class ReadTest {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000));
+        ByteBuffer actual = ByteBuffer.allocate(entries * data.length);
+        while (actual.position() < actual.capacity()) {
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, ""));
 
-        assertEquals(result.getSegment(), segmentName);
-        assertEquals(result.getOffset(), 0);
-        assertTrue(result.isAtTail());
-        assertFalse(result.isEndOfSegment());
+            assertEquals(segmentName, result.getSegment());
+            assertEquals(result.getOffset(), actual.position());
+            assertTrue(result.isAtTail());
+            assertFalse(result.isEndOfSegment());
+            actual.put(result.getData());
+            if (actual.position() < actual.capacity()) {
+                // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
+                // before trying again.
+                Thread.sleep(10);
+            }
+        }
 
         ByteBuffer expected = ByteBuffer.allocate(entries * data.length);
         for (int i = 0; i < entries; i++) {
             expected.put(data);
         }
+
         expected.rewind();
-        assertEquals(expected, result.getData());
+        actual.rewind();
+        assertEquals(expected, actual);
     }
 
     @Test
@@ -161,7 +177,7 @@ public class ReadTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
         controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
@@ -174,7 +190,7 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
@@ -208,10 +224,10 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
@@ -241,11 +257,10 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
-                                                                   .disableAutomaticCheckpoints().build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
