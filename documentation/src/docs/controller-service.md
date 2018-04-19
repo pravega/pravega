@@ -18,7 +18,7 @@ You may obtain a copy of the License at
     - [Service Endpoints    ](#serviceEndpoints)
     - [Controller Service    ](#controllerService)
     - [Stream Metadata Store    ](#streamStore)
-        - [Stream-Segment Metadata    ](#streamSegmentMetadata)
+        - [Stream Metadata    ](#streamSegmentMetadata)
         - [Stream Store Caching    ](#streamStoreCaching)
     - [Stream Buckets    ](#streamBuckets)
     - [Controller Cluster Listener    ](#controllerClusterListener)
@@ -474,7 +474,7 @@ the cluster listener invokes all registered failover sweepers to
 optimistically try to sweep all the orphaned work previously owned by
 the failed controller host.
 
-### Host Store<a name="hostStore"></a>
+##### Host Store<a name="hostStore"></a>
 
 Host store interface is used to store Segment Container to Segment Store
 node mapping. It exposes APIs like getHostForSegment where it computes
@@ -890,6 +890,8 @@ Each segment store periodically polls this znode to look for changes and
 if changes are found, it shuts down and relinquishes containers it no
 longer owns and attempts to acquire ownership of containers that are
 assigned to it.
+
+The details about implementation, esp with respect to how the metadata is stored and managed is already discussed [here](#controllerClusterListener).
 
 Resources<a name="resources"></a>
 ---------
