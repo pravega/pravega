@@ -11,20 +11,18 @@ You may obtain a copy of the License at
 ========================================================================================================================
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
-    - [Controller as Stream Manager    ](#controllerAsStreamManager) 
-    - [Controller as Container Mapper    ](#controllerAsContainerMapper)
+    - [Stream Management    ](#controllerAsStreamManager) 
+    - [Cluster Management    ](#controllerAsContainerMapper)
 * [System Diagram    ](#systemDiagram)
 * [Components    ](#components)
     - [Service Endpoints    ](#serviceEndpoints)
-        - [Client-Controller Endpoint    ](#clientControllerEP)
-        - [Administrative API Endpoint    ](#administrativeApiEP)
     - [Controller Service    ](#controllerService)
     - [Stream Metadata Store    ](#streamStore)
         - [Stream-Segment Metadata    ](#streamSegmentMetadata)
         - [Stream Store Caching    ](#streamStoreCaching)
-    - [Host Store    ](#hostStore)
     - [Stream Buckets    ](#streamBuckets)
     - [Controller Cluster Listener    ](#controllerClusterListener)
+    - [Host Store    ](#hostStore)
     - [Background workers    ](#backgroundWorkers)
 * [Roles and Responsibilities    ](#rolesAndResponsibilities)
     - [Stream Operations    ](#streamOperations)
@@ -56,9 +54,9 @@ various operations performed in the cluster, mainly divided into two
 categories: 1) stream management 2) cluster management.
 
 The controller service, referred to simply as controller henceforth, is
-responsible for providing the abstraction of a *stream*, which is the
+responsible for providing the abstraction of a [stream](http://pravega.io/docs/latest/pravega-concepts/#streams), which is the
 main abstraction that Pravega exposes to applications. A stream
-comprises one or more *segments*. Each segment is an append-only data
+comprises one or more [segments](http://pravega.io/docs/latest/pravega-concepts/#http://pravega.io/docs/latest/pravega-concepts/#stream-segments). Each segment is an append-only data
 structure that stores a sequence of bytes. A segment on its own is
 agnostic to presence of other segments and is not aware of its logical
 relationship with its peer segments. The segment store, which owns and
@@ -70,7 +68,7 @@ orchestrates all lifecycle operations on a stream while ensuring that
 the abstraction stays consistent.
 
 The controller plays a central role in the lifecycle of a stream:
-creation, modification, scaling, and deletion. It does these by
+creation, modification, [scaling](http://pravega.io/docs/latest/pravega-concepts/#autoscaling-the-number-of-stream-segments-can-vary-over-time), and deletion. It does these by
 maintaining metadata per stream and performs requisite operations on
 segments as and when necessary. For example, as part of stream’s
 lifecycle, new segments can be created and existing segments sealed. The
@@ -83,7 +81,7 @@ Architecture <a name="architecture"></a>
 The *Controller Service* is made up of one or more instances of
 stateless worker nodes. Each new controller instance can be brought up
 independently and to become part of pravega cluster it merely needs to
-point to the same zookeeper. For high availability it is advised to have
+point to the same [Apache Zookeeper](https://zookeeper.apache.org/). For high availability it is advised to have
 more than one instance of controller service per cluster.
 
 Each controller instance is capable of working independently and uses a
@@ -93,7 +91,7 @@ store for persisting all metadata consistently.  Each instance comprises
 various subsystems which are responsible for performing specific
 operations on different categories of metadata. These subsystems include
 different API endpoints, metadata store handles, policy managers and
-background workers  
+background workers.
 
 The controller exposes two endpoints which can be used to interact with
 a controller service. The first port is for providing programmatic
@@ -101,31 +99,33 @@ access for pravega clients and is implemented as an RPC using gRPC. The
 other endpoint is for administrative operations and is implemented as a
 REST endpoint.
 
-Each endpoint calls into a subsystem christened *Controller Service*
-which has the actual implementation for various create, read, update and
-delete (CRUD) operations on entities owned and managed by controller.
+### Stream Management <a name="controllerAsStreamManager"></a>
 
-We broadly have two categories of entities that controller owns and
-manages:
-1. Streams
-2. Segment Container mapping
-
-### Controller as a Stream Manager <a name="controllerAsStreamManager"></a>
-
-Streams are logical abstractions composed using individual segments such
-that a predefined set of logically consistent stream invariants are
-satisfied. The controller owns and manages the concept of stream and is
+The controller owns and manages the concept of stream and is
 responsible for maintaining metadata and lifecycle for each stream.
 Specifically, it is responsible for creating, updating, scaling,
 truncating, sealing and deleting streams.
 
+The Stream Management can be broadly divided into three categories:
+1. Stream Abstraction  
 A stream can be viewed as a series of dynamically changing segment sets
 where the stream transitions from one set of consistent segments to the
-next. This transition is governed by user-defined policies that the
+next. Controller is the place for creating and managing this stream abstraction. 
+Controller decides when and how a stream transitions from one state to another and is responsible 
+for performing these transitions while keeping the state of the stream consistent and available. 
+These transitions are governed user-defined policies that the
 controller enforces. Consequently, as part of stream management, the
 controller also performs roles of Policy Manager for policies like
 retention and scale.
 
+2. Automated policy Management  
+Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
+have two policies that users can define, namely [Scaling Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
+[Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java). 
+Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments. 
+Retention policy describes a policy about how much data to retain within a stream. 
+
+3. [Transaction](http://pravega.io/docs/latest/pravega-concepts/#transactions) Management  
 Implementing transactions requires the manipulation of segments. With
 each transaction, Pravega creates a set of transaction segments, which
 are later merged onto the stream segments upon commit or discarded upon
@@ -135,12 +135,10 @@ Upon creating transactions, controller also tracks transaction timeouts
 and aborts transactions whose timeouts have elapsed. Details of
 transaction management can be found later in the document.
 
-### Controller as a Container Mapper <a name="controllerAsContainerMapper"></a>
+### Cluster Management <a name="controllerAsContainerMapper"></a>
 
-The controller is responsible for managing mapping of Segment Containers
-to Segment Store nodes. One controller instance is chosen as a leader
-using zookeeper based leader election recipe. The leader monitors
-lifecycle of segment store nodes as they are added to/removed from the
+The controller is responsible for managing segment store cluster. Controller manages 
+life cycle of segment store nodes as they are added to/removed from the
 cluster and performs redistribution of segment containers across
 available segment store nodes.
 
@@ -160,28 +158,31 @@ Components <a name="components"></a>
 ### Service Endpoints <a name="serviceEndpoints"></a>
 
 There are two ports exposed by controller: client-controller APIs and
-admin APIs. The client controller communication is exposed as RPC which
+administration APIs. The client controller communication is implemented as RPC which
 exposes APIs to perform all stream related control plane operations.
 Apart from this controller also exposes an administrative API set
-implemented as REST.
+implemented as REST. 
 
-#### Client-Controller API<a name="clientControllerEP"></a>
+Each endpoint performs appropriate call to the *Controller Service backend subsystem*
+which has the actual implementation for various create, read, update and
+delete (CRUD) operations on entities owned and managed by controller.
 
-Client Controller communication endpoint is implemented as a gRPC
+ ##### gRPC  
+Client Controller communication endpoint is implemented as a [gRPC](https://grpc.io/)
 interface. The complete list of APIs can be found
 [here](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto).
 This exposes APIs used by Pravega clients (readers, writers and stream
 manager) and enables stream management. Requests enabled by this API
 include creating, modifying, and deleting streams.
-
+The underlying gRPC framework provides both synchronous and asynchronous programming models. 
+We use the asynchronous model in our client controller interactions so that the client thread does not block on the response from the server.  
 To be able to append to and read data from streams, writers and readers
 query controller to get active segment sets, successor and predecessor
 segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
-
-#### Administration API <a name="administrativeApiEP"></a>
-
+ 
+ ##### REST  
 For administration, the controller implements and exposes a REST
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
@@ -193,11 +194,11 @@ can be found
 
 This is the backend layer behind the controller endpoints (gRPC and
 REST). All the business logic required to serve controller API calls are
-implemented here. This has a handle the various store implementations
-(stream store, host store and checkpoint store) which it uses to serve
-all read queries. Update queries on metadata require background
-processing and this layer posts the work for asynchronous processing,
-tracks its progress and delivers results back to the caller.
+implemented here. This layer contains handles to all other subsystems like the various store implementations
+(stream store, host store and checkpoint store) and background processing frameworks (task framework, event processor framework). 
+Stores are interfaces that provide access to various types of metadata managed by Controller. Background
+processing frameworks are used to perform asynchronous processing that typically implement workflows involving metadata updates 
+and requests to segment store.
 
 ### Stream Metadata Store<a name="streamStore"></a>
 
@@ -262,7 +263,7 @@ information, segment predecessors and successors. Refer to stream
 metadata interface for details about APIs exposed by stream metadata
 store.
 
-#### Stream Segment Metadata<a name="streamSegmentMetadata"></a>
+#### Stream Metadata<a name="streamSegmentMetadata"></a>
 
 Clients need information about what segments constitute a stream to
 start their processing and they obtain it from the epoch information the
@@ -273,7 +274,7 @@ the other hand always append to the tail of the stream.
 
 Clients need ability to query and find segments at any of the three
 cases efficiently. To enable such queries, the stream store provides API
-calls like getInitialSegments, getSegmentsAtTime and getCurrentSegments.
+calls to get `Initial set of Segments`, get `Segments At Specific Time` and get `Current set of Segments`.
 
 As mentioned earlier, a stream can transition from one set of segments
 (epoch) to another set of segments that constitute the stream. A stream
@@ -286,23 +287,17 @@ clients to query for the next segments, the stream store exposes via the
 controller service efficient queries for finding immediate successors
 and predecessors for any arbitrary segment.  
 
+To enable serving queries like those mentioned above, we need to efficiently store a time series of these segment transitions and index them against time. 
+We store this information about the current and historical state of a stream-segments in a set of tables which are designed to optimize on aforementioned queries. 
+Apart from segment specific metadata record, the current state of stream comprises of other metadata types that are described henceforth.
+ 
+##### Tables  
 To efficiently store and query the segment information, we have split
 segment data into three append only tables, namely, segment-table,
 history-table and index-table.
 
-So the three tables are:
-1.  Segment Table: segment-info: ⟨segmentid, time, keySpace-start,
-    keySpace-end⟩
-2.  History Table: epoch: ⟨time, list-of-segments-in-epoch⟩
-3.  Index Table: index: ⟨time, offset-in-history-table⟩
-
-##### Segment Table<a name="segmentTable"></a>
-
-The Segment Table stores metadata for each segment. This includes:
-1.  Segment id
-2.  Key space
-3.  Creation time.
-
+* Segment Table <a name="segmentTable"></a>  
+segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩  
 The controller stores the segment table in an append-only table with
 i-*th* row corresponding to metadata for segment id *i*. It is important
 to note that each row in the segment table is of fixed size. As new
@@ -311,8 +306,8 @@ increasing order. So this table is very efficient in creating new
 segments and querying segment information response with O(1) processing
 for both these operations.
 
-##### History Table <a name="historyTable"></a>
-
+* History Table <a name="historyTable"></a>  
+epoch: ⟨time, list-of-segments-in-epoch⟩  
 The History Table stores a series of active segments as they transition
 from one epoch to another. Each row in the history table stores an epoch
 which captures a logically consistent (as defined earlier) set of
@@ -324,36 +319,26 @@ of segments that form the stream - initial set of segments, current set
 of segments and segments at any arbitrary time.  First two queries are
 very efficiently answered in O(1) time because they correspond to first
 and last rows in the table.
-
 Since rows in the table are sorted by increasing order of time and
 capture time series of streams segment set changes, so we could easily
 perform binary search to find row which corresponds to segment sets at
 any arbitrary time.
 
-##### Index Table<a name="indexTable"></a>
-
+* Index Table<a name="indexTable"></a>  
+index: ⟨time, offset-in-history-table⟩  
 Since history rows are of variable length, we index history rows for
 timestamps in the index table. This enables us to navigate the history
 table and perform binary search to efficiently answer queries to get
 segment set at any arbitrary time. We also perform binary searches on
 history table to determine successors of any given segment.
 
-##### Other Stream Metadata<a name="otherSreamMetadata"></a>
-
-Apart from the tables, we have the following additional metadata stored
-per stream:
-
-1. ###### Stream Configuration
-
+##### Stream Configuration
  Znode under which stream configuration is serialized and persisted. A
  stream configuration contains stream policies that need to be
- enforced. Presently, we have two policies, namely *ScalingPolicy* and
- *RetentionPolicy.*
-
+ enforced. 
  Scaling policy and Retention policy are supplied by the application at
  the time of stream creation and enforced by controller by monitoring
  the rate and size of data in the stream.
-
  Scaling policy describes if and when to automatically scale based on
  incoming traffic conditions into the stream. The policy supports two
  flavours - traffic as rate of events per second and traffic as rate of
@@ -361,15 +346,13 @@ per stream:
  rates into each segment by means of scaling policy and the supplied
  value is chosen to compute thresholds that determine when to scale a
  given stream.
-
  Retention Policy describes the amount of data that needs to be
  retained into pravega cluster for this stream. We support a time based
  and a size based retention policy where applications can choose
  whether they want to retain data in the stream by size or by time by
  choosing the appropriate policy and supplying their desired values.
 
-2. ###### Stream State<a name="streamState"></a>
-
+##### Stream State<a name="streamState"></a>
  Znode which captures the state of the stream. It is an enum with
  values from Creating, Active, Updating, Scaling, Truncating, Sealing,
  and Sealed*.* Once Active, a stream transitions between performing a
@@ -377,7 +360,6 @@ per stream:
  defined in the
  [State](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/tables/State.java)
  class which allows and prohibits various state transitions.
-
  Stream state describes the current state of the stream. It transitions
  from ACTIVE to respective action based on the action being performed
  on the stream. For example, during scaling the state of the stream
@@ -389,64 +371,33 @@ per stream:
  transitions are allowed and any attempt for disallowed transition
  results in appropriate exception.
 
-3. ###### Truncation Record
-
+##### Truncation Record
  This corresponds to the stream cut which was last used to truncate the
  given stream. All stream segment queries superimpose the truncation
  record and return segments that are strictly greater than or equal to
  the stream cut in truncation record.
 
-4. ###### Sealed Segments Record
-
+##### Sealed Segments Record
  Since the segment table is append only, any additional information
  that we need to persist when a segment is sealed is stored in sealed
  segments record. Presently, it simple contains a map of segment number
  to its sealed size.
 
-5. ###### Active Transactions
-
+Transaction Related metadata records:
+##### Active Transactions
  Each new transaction is created under this Znode. This stores metadata
  corresponding to each transaction as *ActiveTransactionRecord*. Once a
  transaction is completed, a new node is created under the global
  Completed Transaction Znode and removed from under the stream specific
  active transaction node.
 
-##### Buckets
-
-1. ###### Bucket
-
- To enable some scenarios, we may need our background workers to
- periodically work on each of the streams in our cluster to perform
- some specific action on them. We bring in a notion of a bucket to
- distribute this periodic background work across all available
- controller instances. For this we hash each stream into one of the
- predefined buckets and then distribute buckets across available
- controller instances.
-
- Number of buckets for a cluster is a fixed (configurable) value for
- the lifetime of a cluster.
-
-2. ###### Scoped-Stream-Names
-
- Created directly under a specific bucket Znode. Each stream has a
- corresponding Znode under one of the buckets in the system.
-
-3. ###### Retention Set
-
- One retention set per stream is stored under the corresponding
- bucket/stream Znode. As we compute stream-cuts periodically, we keep
- preserving them under this Znode. As some automatic truncation is
- performed, the stream-cuts that are no longer valid are purged from
- this set.
-
 ##### Completed Transactions
-
  All completed transactions for all streams are moved under this single
  znode upon completion (via either commit or abort paths). We can
  subsequently garbage collect these values periodically following any
  collection scheme we deem fit. We have not implemented any scheme at
  this point though.
-
+ 
 #### Stream Store Caching<a name="streamStoreCaching"></a>
 
 Since there could be multiple concurrent requests for a given stream
@@ -466,15 +417,18 @@ value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
 on the stream get the new value for their subsequent steps.  
 
-### Host Store<a name="hostStore"></a>
-
-Host store interface is used to store Segment Container to Segment Store
-node mapping. It exposes APIs like getHostForSegment where it computes
-consistent hash of segment id to compute the owner Segment Container.
-Then based on the container-host mapping, it returns the appropriate Uri
-to the caller.
-
 ### Stream Buckets<a name="streamBuckets"></a>
+
+To enable some scenarios, we may need our background workers to
+periodically work on each of the streams in our cluster to perform
+some specific action on them. We bring in a notion of a bucket to
+distribute this periodic background work across all available
+controller instances. For this we hash each stream into one of the
+predefined buckets and then distribute buckets across available
+controller instances.
+
+Number of buckets for a cluster is a fixed (configurable) value for
+the lifetime of a cluster.
 
 Controller instances map all available streams in the system into
 buckets and distribute buckets amongst themselves so that all long
@@ -487,7 +441,14 @@ are transferred as surviving nodes compete to acquire ownership of
 orphaned buckets. The controller instance which owns a bucket is
 responsible for all long running scheduled background work corresponding
 to all nodes under the bucket. Presently this entails running periodic
-workflows to capture stream-cuts for each stream at desired frequencies.
+workflows to capture stream-cuts (called Retention-Set) for each stream at desired frequencies.
+
+##### Retention Set
+ One retention set per stream is stored under the corresponding
+ bucket/stream Znode. As we compute stream-cuts periodically, we keep
+ preserving them under this Znode. As some automatic truncation is
+ performed, the stream-cuts that are no longer valid are purged from
+ this set.
 
 ### Controller Cluster Listener<a name="controllerClusterListener"></a>
 
@@ -512,6 +473,14 @@ controller instance is identified to have been removed from the cluster,
 the cluster listener invokes all registered failover sweepers to
 optimistically try to sweep all the orphaned work previously owned by
 the failed controller host.
+
+### Host Store<a name="hostStore"></a>
+
+Host store interface is used to store Segment Container to Segment Store
+node mapping. It exposes APIs like getHostForSegment where it computes
+consistent hash of segment id to compute the owner Segment Container.
+Then based on the container-host mapping, it returns the appropriate Uri
+to the caller.
 
 ### Background workers<a name="backgroundWorkers"></a>
 
@@ -649,8 +618,7 @@ interface.
 Controller also provides workflows to modify state and behavior of the
 stream. These workflows include create, scale, truncation, update, seal,
 and delete. These workflows are invoked both via direct APIs and in some
-cases as applicable via background  
-policy manager (auto-scale and retention).
+cases as applicable via background policy manager (auto-scale and retention).
 
 <img src="./img/RequestProcessing.png" width="624" height="338" />
 
@@ -759,17 +727,8 @@ segments are deleted successfully, the stream metadata corresponding to
 this stream is cleaned up.
 
 ### Stream Policy Manager<a name="streamPolicyManager"></a>
-
-Controller is not just the store for stream policy but it actively
-enforces those user-defined policies for their streams. Presently we
-have two policies that users can define, namely scaling policy and
-retention policy. Controller provides elaborate scaling infrastructure
-that actively monitors traffic for streams and based on requested
-policies decides on automatic scaling of segments.
-
-Similarly, users can define retention policies and controller
-periodically monitors data in streams and decides when and where to
-truncate automatically based on user-defined policy.
+As described earlier, there are two types of user defined policies that controller is responsible for enforcing, namely Automatic Scaling and Automatic Retention. 
+Controller is not just the store for stream policy but it actively enforces those user-defined policies for their streams. 
 
 #### Scaling infrastructure<a name="scalingInfra"></a>
 
@@ -837,38 +796,41 @@ enforced.
 Transaction Management Diagram
 
 Client calls into controller process to create, ping commit or abort
-transactions. Each of these flows is described in detail below.
+transactions. Each of these requests is received on controller and handled by the Transaction Utility module which 
+implements the business logic for processing each request. 
 
 #### Create transaction<a name="createTxn"></a>
 
-Writers interact with Controller to create new transactions. Controller
-looks at active segments and requests segment store to create special
-transaction segments that are inherently linked to the parent active
-segments. While creating transactions, controller ensures that parent
-segments are not sealed as we attempt to create a transaction. And
-during the lifespan of a transaction, should a scale commence, it should
-wait for transactions on older epoch to finish before the scale proceeds
-to seal segments from old epoch.   
+Writers interact with Controller to create new transactions. Controller Service passes the create transaction request to Transaction Utility module.
+The create transaction function in the module performs follows steps in order to create a transaction:
+1. Generates a unique UUID for the transaction. 
+2. It fetches current active set of segments for the stream from metadata store and its corresponding epoch identifier from the history. 
+3. It creates a new transaction record in the zookeeper using the metadata store interface. 
+4. It then requests segment store to create special transaction segments that are inherently linked to the parent active
+segments. 
+
+While creating transactions, controller ensures that parent segments are not sealed as we attempt to create corresponding transaction segments. 
+And during the lifespan of a transaction, should a scale commence, it should wait for transactions on older epoch to finish before the scale proceeds
+to seal segments from old epoch. 
 
 #### Commit Transaction<a name="commitTxn"></a>
 
-Upon receiving request to commit a transaction, controller first marks
-the transaction for commit in the transaction specific metadata.
+Upon receiving request to commit a transaction, Controller Service passes the request to Transaction Utility module. 
+This module first tries to mark the transaction for commit in the transaction specific metadata record via metadata store.
 Following this, it posts a commit event in the internal Commit Stream.
 Commit transaction workflow is implemented on commit event processor and
-it checks for eligibility of transaction to be committed, and if true,
+thereby processed asynchronously. The commit transaction workflow checks for eligibility of transaction to be committed, and if true,
 it performs the commit workflow with indefinite retries until it
 succeeds. If the transaction is not eligible for commit, which typically
 happens if transaction is created on a new epoch while the old epoch is
 still active, then such events are reposted into the internal stream to
 be picked later.
 
-Once a transaction is committed successfully, the node for the
+Once a transaction is committed successfully, the record for the
 transaction is removed from under its epoch root. Then if there is an
 ongoing scale, then it calls to attempt to complete the ongoing scale.
 Trying to complete scale hinges on ability to delete old epoch which can
-be deleted if and only if the tree under it is empty, meaning there is
-no outstanding transaction on old epoch (refer to scale workflow).   
+be deleted if and only if there are no outstanding active transactions against the said epoch (refer to scale workflow for more details).   
 
 #### Abort Transaction<a name="abortTxn"></a>
 
@@ -876,7 +838,7 @@ Abort, like commit, can be requested explicitly by the application.
 However, abort can also be initiated automatically if the transaction’s
 timeout elapses. Controller tracks the timeout for each and every
 transaction in the system and whenever timeout elapses, or upon explicit
-user request, controller marks the transaction for abort in its
+user request, transaction utility module marks the transaction for abort in its
 respective metadata. Post this, the event is picked for processing by
 abort event processor and transactions abort is immediately attempted.
 There is no ordering requirement for abort transaction and hence it is
