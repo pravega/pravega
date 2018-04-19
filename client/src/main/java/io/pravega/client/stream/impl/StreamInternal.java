@@ -1,9 +1,8 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.Stream;
-import java.io.Serializable;
 
-public abstract class StreamInternal implements Stream, Serializable {
+public interface StreamInternal extends Stream {
 
     /**
      * Gets the scoped name of this stream.
@@ -11,7 +10,7 @@ public abstract class StreamInternal implements Stream, Serializable {
      * @return String a fully scoped stream name
      */
     @Override
-    public String getScopedName() {
+    default String getScopedName() {
         StringBuffer sb = new StringBuffer();
         String scope = getScope();
         if (scope != null) {
