@@ -51,24 +51,29 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 @Slf4j
+@Builder
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final int THREADPOOL_SIZE = 20;
-    private final boolean isInMemStorage;
+    private boolean isInMemStorage;
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
+    @Builder.Default
     private boolean enableMetrics = false;
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
+    @Builder.Default
     private boolean enableAuth = false;
+    @Builder.Default
     private boolean enableTls = false;
 
     /*Controller related variables*/
     private boolean isInProcController;
     private int controllerCount;
+    @Builder.Default
     private int[] controllerPorts = null;
-
+    @Builder.Default
     private String controllerURI = null;
 
     /*REST server related variables*/
@@ -76,7 +81,9 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /*SegmentStore related variables*/
     private boolean isInProcSegmentStore;
+    @Builder.Default
     private int segmentStoreCount = 0;
+    @Builder.Default
     private int[] segmentStorePorts = null;
 
 
@@ -92,14 +99,17 @@ public class InProcPravegaCluster implements AutoCloseable {
 
 
     /* SegmentStore configuration*/
+    @Builder.Default
     private int containerCount = 4;
-    private ServiceStarter[] nodeServiceStarter = new ServiceStarter[segmentStoreCount];
+    private ServiceStarter[] nodeServiceStarter;
 
     private LocalHDFSEmulator localHdfs;
     @GuardedBy("$lock")
     private ControllerServiceMain[] controllerServers;
 
     private String zkUrl;
+
+    @Builder.Default
     private boolean startRestServer = true;
     private String userName;
     private String passwd;
@@ -107,51 +117,30 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String keyFile;
     private String passwdFile;
 
-    @Builder
-    public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
-                                boolean isInProcHDFS,
-                                boolean isInProcController, int controllerCount, String controllerURI,
-                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
-                                boolean startRestServer, int restServerPort, boolean enableMetrics, boolean enableAuth,
-                                boolean enableTls, String userName, String passwd, String certFile, String keyFile, String passwdFile) {
-        //Check for valid combinations of flags
-        //For ZK
-        Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
+    public static final class InProcPravegaClusterBuilder {
+        public InProcPravegaCluster build() {
+            //Check for valid combinations of flags
+            //For ZK
+            Preconditions.checkState(isInProcZK || zkUrl != null, "ZkUrl must be specified");
 
-        //For controller
-        Preconditions.checkState( isInProcController || controllerURI != null,
-                "ControllerURI should be defined for external controller");
-        Preconditions.checkState(isInProcController || this.controllerPorts != null,
-                "Controller ports not present");
+            //For controller
+            Preconditions.checkState(isInProcController || controllerURI != null,
+                    "ControllerURI should be defined for external controller");
+            Preconditions.checkState(isInProcController || this.controllerPorts != null,
+                    "Controller ports not present");
 
-        //For SegmentStore
-        Preconditions.checkState(  isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
+            //For SegmentStore
+            Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
-        this.isInMemStorage = isInMemStorage;
-        if ( isInMemStorage ) {
-            this.isInProcHDFS = false;
-        } else {
-            this.isInProcHDFS = isInProcHDFS;
+            if (this.isInMemStorage) {
+                this.isInProcHDFS = false;
+            }
+            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls,
+                    isInProcController, controllerCount, controllerPorts, controllerURI,
+                    restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
+                    zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
+                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
         }
-        this.isInProcZK = isInProcZK;
-        this.zkUrl = zkUrl;
-        this.zkPort = zkPort;
-        this.isInProcController = isInProcController;
-        this.controllerURI = controllerURI;
-        this.controllerCount = controllerCount;
-        this.isInProcSegmentStore = isInProcSegmentStore;
-        this.segmentStoreCount = segmentStoreCount;
-        this.containerCount = containerCount;
-        this.startRestServer = startRestServer;
-        this.restServerPort = restServerPort;
-        this.enableMetrics = enableMetrics;
-        this.enableAuth = enableAuth;
-        this.enableTls = enableTls;
-        this.userName = userName;
-        this.passwd = passwd;
-        this.certFile = certFile;
-        this.keyFile = keyFile;
-        this.passwdFile = passwdFile;
     }
 
     @Synchronized

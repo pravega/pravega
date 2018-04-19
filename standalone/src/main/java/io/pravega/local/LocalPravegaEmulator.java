@@ -15,39 +15,53 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Builder
 public class LocalPravegaEmulator implements AutoCloseable {
+
+    private int zkPort;
+    private int controllerPort;
+    private int segmentStorePort;
+    private int restServerPort;
+    private boolean enableAuth;
+    private boolean enableTls;
+    private String certFile;
+    private String passwd;
+    private String userName;
+    private String passwdFile;
+    private String keyFile;
 
     @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
 
-    @Builder
-    private LocalPravegaEmulator(int zkPort, int controllerPort, int segmentStorePort, int restServerPort,
-                                 boolean enableAuth, boolean enableTls, String certFile, String passwd, String userName,
-                                 String passwdFile, String keyFile) {
-        inProcPravegaCluster = InProcPravegaCluster
-                .builder()
-                .isInProcZK(true)
-                .zkUrl("localhost:" + zkPort)
-                .zkPort(zkPort)
-                .isInMemStorage(true)
-                .isInProcController(true)
-                .controllerCount(1)
-                .isInProcSegmentStore(true)
-                .segmentStoreCount(1)
-                .containerCount(4)
-                .startRestServer(true)
-                .restServerPort(restServerPort)
-                .enableMetrics(false)
-                .enableAuth(enableAuth)
-                .enableTls(enableTls)
-                .certFile(certFile)
-                .keyFile(keyFile)
-                .passwdFile(passwdFile)
-                .userName(userName)
-                .passwd(passwd)
-                .build();
-        inProcPravegaCluster.setControllerPorts(new int[] {controllerPort});
-        inProcPravegaCluster.setSegmentStorePorts(new int[] {segmentStorePort});
+    public static final class LocalPravegaEmulatorBuilder {
+        public LocalPravegaEmulator build() {
+            this.inProcPravegaCluster = InProcPravegaCluster
+                    .builder()
+                    .isInProcZK(true)
+                    .zkUrl("localhost:" + zkPort)
+                    .zkPort(zkPort)
+                    .isInMemStorage(true)
+                    .isInProcController(true)
+                    .controllerCount(1)
+                    .isInProcSegmentStore(true)
+                    .segmentStoreCount(1)
+                    .containerCount(4)
+                    .startRestServer(true)
+                    .restServerPort(restServerPort)
+                    .enableMetrics(false)
+                    .enableAuth(enableAuth)
+                    .enableTls(enableTls)
+                    .certFile(certFile)
+                    .keyFile(keyFile)
+                    .passwdFile(passwdFile)
+                    .userName(userName)
+                    .passwd(passwd)
+                    .build();
+            this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
+            this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
+            return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableAuth, enableTls,
+                    certFile, passwd, userName, passwdFile, keyFile, inProcPravegaCluster);
+        }
     }
 
     public static void main(String[] args) {

@@ -112,7 +112,6 @@ configure_standalone() {
     add_system_property "singlenode.zkPort" "2181"
     add_system_property "singlenode.controllerPort" "9090"
     add_system_property "singlenode.segmentstorePort" "12345"
-
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
