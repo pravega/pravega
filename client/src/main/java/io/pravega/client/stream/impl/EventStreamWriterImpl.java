@@ -166,9 +166,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
          * Using segmentSealedLock prevents concurrent segmentSealedCallback for different segments
          * from being invoked concurrently.
          * 
-         * By calling flush when while the write lock is held we can ensure that any inflight
+         * By calling flush while the write lock is held we can ensure that any inflight
          * entries that will succeed in being written to a new segment are written and any
-         * segmentSealedCallbacks will be be called happen before the next write is invoked.
+         * segmentSealedCallbacks that will be called happen before the next write is invoked.
          */
         writeFlushLock.readLock().lock();
         Retry.indefinitelyWithExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
