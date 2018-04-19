@@ -11,6 +11,7 @@ package io.pravega.controller.store.checkpoint;
 
 import io.pravega.common.util.Retry;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -40,12 +41,21 @@ class ZKCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
-    private final JavaSerializer<Position> positionSerializer;
+    private final Serializer<Position> positionSerializer;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
 
     ZKCheckpointStore(CuratorFramework client) {
         this.client = client;
-        this.positionSerializer = new JavaSerializer<>();
+        this.positionSerializer = new Serializer<Position>() {
+            @Override
+            public ByteBuffer serialize(Position value) {
+                return value.toBytes();
+            }
+            @Override
+            public Position deserialize(ByteBuffer serializedValue) {
+                return Position.fromBytes(serializedValue);
+            }
+        };
         this.groupDataSerializer = new JavaSerializer<>();
     }
 

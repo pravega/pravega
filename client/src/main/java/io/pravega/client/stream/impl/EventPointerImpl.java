@@ -16,9 +16,12 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
+import lombok.SneakyThrows;
 
 /**
  * Implementation of the EventPointer interface. We use
@@ -27,6 +30,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = false)
 public class EventPointerImpl extends EventPointerInternal {
+    private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
     private final Segment segment;
     private final long eventStartOffset;
     private final int eventLength;
@@ -75,7 +79,7 @@ public class EventPointerImpl extends EventPointerInternal {
     private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
     }
     
-    public class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
+    public static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
         @Override
         protected EventPointerBuilder newBuilder() {
             return builder();
@@ -102,5 +106,17 @@ public class EventPointerImpl extends EventPointerInternal {
             revisionDataOutput.writeCompactLong(pointer.eventStartOffset);
             revisionDataOutput.writeCompactInt(pointer.getEventLength());
         }
+    }
+    
+    @Override
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+    
+    @SneakyThrows(IOException.class)
+    public static EventPointerInternal fromBytes(byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 }

@@ -11,20 +11,27 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Position;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
-import java.io.ObjectStreamException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.Data;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
+import lombok.SneakyThrows;
 
 @EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
-    private static final long serialVersionUID = 1L;
+    private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
     private final Map<Segment, Long> ownedSegments;
 
     /**
@@ -32,6 +39,7 @@ public class PositionImpl extends PositionInternal {
      *
      * @param ownedSegments Current segments that the position refers to.
      */
+    @Builder(builderClassName="PositionBuilder")
     public PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }
@@ -73,21 +81,47 @@ public class PositionImpl extends PositionInternal {
     public String toString() {
         return ToStringUtils.mapToString(ownedSegments);
     }
-    
-    public static Position fromString(String string) {
-       return new PositionImpl(ToStringUtils.stringToMap(string, Segment::fromScopedName, Long::parseLong));
+
+    private static class PositionBuilder implements ObjectBuilder<PositionImpl> {
     }
     
-    
-    private Object writeReplace() throws ObjectStreamException {
-        return new SerializedForm(toString());
-    }
-    
-    @Data
-    private static class SerializedForm  {
-        private final String value;
-        Object readResolve() throws ObjectStreamException {
-            return Position.fromString(value);
+    public static class EventPointerSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
+        @Override
+        protected PositionBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), in -> in.readCompactLong());
+            builder.ownedSegments(map);
+        }
+
+        private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()) , (out, offset) -> out.writeCompactLong(offset));
         }
     }
+
+    @Override
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+    
+    @SneakyThrows(IOException.class)
+    public static Position fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
+
 }
