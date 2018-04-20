@@ -18,6 +18,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -417,6 +418,14 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        // Creates a file with the lowest possible epoch (0).
+        // There is a possible race during create where more than one segmentstore may be trying to create a streamsegment.
+        // If one create is delayed till long time, it is possible that other segmentstore will be able to create the file with
+        // epoch (0) and then rename it to its owned version (segment_<epoch>).
+        //
+        // To fix this, the create code checks whether a file with higher epoch exists.
+        // If it does, it tries to remove the created file, and throws SegmentExistsException.
+
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         // Create the segment using our own epoch.
         FileStatus[] status = null;
@@ -430,8 +439,8 @@ class HDFSStorage implements SyncStorage {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
         }
 
-        // Create the file for the segment.
-        Path fullPath = getFilePath(streamSegmentName, this.epoch);
+        // Create the file for the segment with epoch 0.
+        Path fullPath = getFilePath(streamSegmentName, 0);
         try {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
             this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
@@ -439,6 +448,17 @@ class HDFSStorage implements SyncStorage {
             log.debug("Created '{}'.", fullPath);
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
+        }
+
+        //If there is a race during creation, delete the file with epoch 0 and throw exception.
+        try {
+            status = findAllRaw(streamSegmentName);
+            if (status != null && status.length > 1) {
+                this.fileSystem.delete(fullPath, true);
+                throw new StreamSegmentExistsException(streamSegmentName);
+            }
+        } catch (IOException e) {
+            log.warn("Exception while deleting a file with epoc 0.", e);
         }
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return StreamSegmentInformation.builder().name(streamSegmentName).build();
