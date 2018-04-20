@@ -83,6 +83,8 @@ public class MembershipSynchronizer extends AbstractService {
     @Data
     private static class LiveInstances
             implements Revisioned, Comparable<LiveInstances>, Serializable, InitialUpdate<LiveInstances> {
+
+        private static final long serialVersionUID = 1L;
         private final String scopedStreamName;
         private final Revision revision;
         private final Map<String, Long> liveInstances;
@@ -160,10 +162,12 @@ public class MembershipSynchronizer extends AbstractService {
     }
 
     private abstract class HeartbeatUpdate implements Update<LiveInstances>, Serializable {
+        private static final long serialVersionUID = 1L;
     }
 
     @RequiredArgsConstructor
     private final class HeartBeat extends HeartbeatUpdate {
+        private static final long serialVersionUID = 1L;
         private final String name;
         private final long timestamp;
 
@@ -181,6 +185,7 @@ public class MembershipSynchronizer extends AbstractService {
 
     @RequiredArgsConstructor
     private final class DeclareDead extends HeartbeatUpdate {
+        private static final long serialVersionUID = 1L;
         private final String name;
 
         @Override

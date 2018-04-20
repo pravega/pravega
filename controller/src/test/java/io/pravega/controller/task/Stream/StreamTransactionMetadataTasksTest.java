@@ -66,6 +66,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -219,7 +220,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Test
-    public void failOverTests() throws CheckpointStoreException, InterruptedException {
+    public void failOverTests() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
@@ -238,6 +239,7 @@ public class StreamTransactionMetadataTasksTest {
                 streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
 
         // Set up txn task for creating transactions from a failedHost.
+        @Cleanup
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelperMock, executor, "failedHost", connectionFactory, false, "");
         failedTxnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
@@ -498,6 +500,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {
+        @Override
         @Before
         public void setup() {
             this.authEnabled = true;

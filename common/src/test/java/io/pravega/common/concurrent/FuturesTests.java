@@ -9,6 +9,7 @@
  */
 package io.pravega.common.concurrent;
 
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.util.ArrayList;
@@ -17,7 +18,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -510,7 +510,7 @@ public class FuturesTests {
     }
 
     private void failRandomFuture(List<CompletableFuture<Integer>> futures) {
-        int index = new Random().nextInt(futures.size());
+        int index = RandomFactory.create().nextInt(futures.size());
         futures.get(index).completeExceptionally(new IntentionalException());
     }
 

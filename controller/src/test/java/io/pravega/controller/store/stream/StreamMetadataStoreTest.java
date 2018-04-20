@@ -440,6 +440,7 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> scale3SealedSegments = Arrays.asList(4, 5, 6);
         long scaleTs3 = System.currentTimeMillis();
 
+        @SuppressWarnings("unchecked")
         PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);
 
@@ -485,6 +486,7 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> segmentsToSeal = Arrays.asList(0, 1);
         long scaleTs = System.currentTimeMillis();
 
+        @SuppressWarnings("unchecked")
         PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store)
                 .getStream(scope, stream, null);
         PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);

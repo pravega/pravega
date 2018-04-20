@@ -188,4 +188,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             startingOffset = offset;
         }
     }
+
+    @Override
+    public String getScopedSegmentName() {
+        return segment.getScopedName();
+    }
 }

@@ -14,13 +14,11 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.EpochTransitionRecordSerializer;
+import java.util.AbstractMap;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.AbstractMap;
 
 /**
  * Transient record that is created while epoch transition takes place and captures the transition. This record is deleted
@@ -29,7 +27,6 @@ import java.util.AbstractMap;
 @Data
 @Builder
 @AllArgsConstructor
-@Slf4j
 public class EpochTransitionRecord {
     public static final VersionedSerializer.WithBuilder<EpochTransitionRecord, EpochTransitionRecordBuilder> SERIALIZER
             = new EpochTransitionRecordSerializer();

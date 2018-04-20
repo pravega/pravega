@@ -13,6 +13,7 @@ package io.pravega.segmentstore.storage;
  * Exception that is thrown whenever a Cache operation could not be completed.
  */
 public class CacheException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
     /**
      * Creates a new instance of the CacheException class.
      *
