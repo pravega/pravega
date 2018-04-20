@@ -27,7 +27,7 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.Async;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.InlineExecutor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -231,8 +231,8 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
         answerSuccess(connection);
         cf.getProcessor(uri).connectionDropped();
-        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
-                           () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
+        TestUtils.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
+                               () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
         output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
         
         Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
@@ -292,7 +292,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked.isDone());
-        Async.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
+        TestUtils.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
         assertEquals(false, acked.isCompletedExceptionally());
         assertEquals(true, acked.isDone());
         verify(connection, Mockito.atMost(1)).send(new WireCommands.KeepAlive());
@@ -323,7 +323,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked1));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked1.isDone());
-        Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
+        TestUtils.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -332,7 +332,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked2));
         order.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked2.isDone());
-        Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2, 1)));
+        TestUtils.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2, 1)));
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -361,7 +361,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked1));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked1.isDone());
-        Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
+        TestUtils.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -401,7 +401,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked1));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, acked1.isDone());
-        Async.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
+        TestUtils.testBlocking(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -457,7 +457,7 @@ public class SegmentOutputStreamTest {
             }
         }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
         
-        Async.testBlocking(() -> {            
+        TestUtils.testBlocking(() -> {            
             output.write(new PendingEvent(null, data, acked));
             output.write(new PendingEvent(null, data, acked2));
         }, () -> {            
@@ -517,7 +517,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, acked));
         inOrder.verify(connection).send(append);
         //Verify behavior
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             output.close();
         }, () -> {            
             cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
@@ -609,7 +609,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, ack));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
@@ -651,7 +651,7 @@ public class SegmentOutputStreamTest {
                 return null;
             }
         }).when(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             output.flush();
         }, () -> {
             cf.getProcessor(uri).connectionDropped();
@@ -703,7 +703,7 @@ public class SegmentOutputStreamTest {
         }).when(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
         
         cf.getProcessor(uri).connectionDropped();
-        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
+        TestUtils.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
                            () -> {
                                cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
                            });
@@ -762,7 +762,7 @@ public class SegmentOutputStreamTest {
                 return null;
             }
         }).when(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));

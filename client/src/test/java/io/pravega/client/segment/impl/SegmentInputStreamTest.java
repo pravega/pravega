@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.junit.Test;
 
-import static io.pravega.test.common.Async.testBlocking;
+import static io.pravega.test.common.TestUtils.testBlocking;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;

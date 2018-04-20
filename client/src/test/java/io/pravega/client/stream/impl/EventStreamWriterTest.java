@@ -22,8 +22,8 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
-import io.pravega.test.common.Async;
 import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -479,7 +479,7 @@ public class EventStreamWriterTest {
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             writer.flush(); // blocking on flush.
         }, () -> {
             outputStream.releaseFlush(); // trigger release with a segmentSealedException.
@@ -522,7 +522,7 @@ public class EventStreamWriterTest {
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
-        Async.testBlocking(() -> {
+        TestUtils.testBlocking(() -> {
             writer.close(); // closed invokes flush internally; this call is blocking on flush.
         }, () -> {
             outputStream.releaseFlush(); // trigger release with a segmentSealedException.
