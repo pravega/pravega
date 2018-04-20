@@ -25,15 +25,12 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -1281,6 +1278,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
     }
 
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     private void updateMetadataForTransactionPostMerger(UpdateableSegmentMetadata transactionMetadata) {
         // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is marked as deleted.
         transactionMetadata.markDeleted();
@@ -1409,21 +1407,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         @Override
         public long getLength() {
             return this.length.get();
-        }
-
-        @Override
-        protected OperationType getOperationType() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void serializeContent(DataOutputStream target) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void deserializeContent(DataInputStream source) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

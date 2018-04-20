@@ -518,7 +518,6 @@ class BookKeeperLog implements DurableDataLog {
      * @param ctx     Write Context. In our case, the Write we were writing.
      */
     private void addCallback(int rc, LedgerHandle handle, long entryId, Object ctx) {
-        @SuppressWarnings("unchecked")
         Write write = (Write) ctx;
         try {
             assert handle.getId() == write.getWriteLedger().ledger.getId()
@@ -679,7 +678,7 @@ class BookKeeperLog implements DurableDataLog {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
-            LogMetadata result = LogMetadata.deserialize(serializedMetadata);
+            LogMetadata result = LogMetadata.SERIALIZER.deserialize(serializedMetadata);
             result.withUpdateVersion(storingStatIn.getVersion());
             return result;
         } catch (KeeperException.NoNodeException nne) {
@@ -748,15 +747,14 @@ class BookKeeperLog implements DurableDataLog {
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
+            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             if (create) {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.create()
                              .creatingParentsIfNeeded()
                              .forPath(this.logNodePath, serializedMetadata);
                 // Set version to 0 as that will match the ZNode's version.
                 metadata.withUpdateVersion(0);
             } else {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.setData()
                              .withVersion(metadata.getUpdateVersion())
                              .forPath(this.logNodePath, serializedMetadata);

@@ -20,6 +20,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.Futures;
@@ -29,7 +30,6 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.io.Serializable;
 import java.net.URI;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -187,8 +187,7 @@ public class MultiSegmentStoreTest {
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(readerGroup,
-                ReaderGroupConfig.builder().disableAutomaticCheckpoints().startingTime(0).build(),
-                Collections.singleton(stream));
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, stream)).build());
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

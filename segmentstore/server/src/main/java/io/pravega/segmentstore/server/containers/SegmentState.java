@@ -9,15 +9,15 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.AttributeSerializer;
-import io.pravega.segmentstore.server.DataCorruptionException;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
+import lombok.Builder;
 import lombok.Getter;
 
 /**
@@ -26,7 +26,7 @@ import lombok.Getter;
 class SegmentState {
     //region Members
 
-    private static final byte SERIALIZATION_VERSION = 1;
+    static final VersionedSerializer.WithBuilder<SegmentState, SegmentState.SegmentStateBuilder> SERIALIZER = new Serializer();
     @Getter
     private final String segmentName;
     @Getter
@@ -50,6 +50,7 @@ class SegmentState {
         this(segmentId, segmentProperties.getName(), segmentProperties.getStartOffset(), segmentProperties.getAttributes());
     }
 
+    @Builder
     private SegmentState(long segmentId, String segmentName, long startOffset, Map<UUID, Long> attributes) {
         this.segmentId = segmentId;
         this.segmentName = segmentName;
@@ -61,49 +62,37 @@ class SegmentState {
 
     //region Serialization
 
-    /**
-     * Serializes this instance of the SegmentState to the given DataOutputStream.
-     *
-     * @param target The DataOutputStream to serialize to.
-     * @throws IOException If an exception occurred.
-     */
-    public void serialize(DataOutputStream target) throws IOException {
-        target.writeByte(SERIALIZATION_VERSION);
-        target.writeLong(this.segmentId);
-        target.writeUTF(this.segmentName);
-        target.writeLong(this.startOffset);
-        AttributeSerializer.serialize(this.attributes, target);
+    static class SegmentStateBuilder implements ObjectBuilder<SegmentState> {
     }
 
-    /**
-     * Deserializes a new instance of the SegmentState class from the given DataInputStream.
-     *
-     * @param source The DataInputStream to deserialize from.
-     * @return The deserialized SegmentState.
-     * @throws IOException If an exception occurred.
-     * @throws DataCorruptionException If the given InputStream cannot be parsed into a SegmentState object.
-     */
-    public static SegmentState deserialize(DataInputStream source) throws IOException, DataCorruptionException {
-        try {
-            // TODO: implement a more elegant versioned deserializer (https://github.com/pravega/pravega/issues/1956)
-            byte version = source.readByte();
-            if (version == SERIALIZATION_VERSION) {
-                // Up-to-date.
-                long segmentId = source.readLong();
-                String segmentName = source.readUTF();
-                long startOffset = source.readLong();
-                Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
-                return new SegmentState(segmentId, segmentName, startOffset, attributes);
-            } else if (version == 0) {
-                long segmentId = source.readLong();
-                String segmentName = source.readUTF();
-                Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
-                return new SegmentState(segmentId, segmentName, 0L, attributes);
-            } else {
-                throw new DataCorruptionException(String.format("Unsupported State File version: %d.", version));
-            }
-        } catch (EOFException ex) {
-            throw new DataCorruptionException("Corrupted State File.", ex);
+    private static class Serializer extends VersionedSerializer.WithBuilder<SegmentState, SegmentState.SegmentStateBuilder> {
+        @Override
+        protected SegmentStateBuilder newBuilder() {
+            return SegmentState.builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void write00(SegmentState s, RevisionDataOutput output) throws IOException {
+            output.writeLong(s.segmentId);
+            output.writeUTF(s.segmentName);
+            output.writeLong(s.startOffset);
+            output.writeMap(s.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+        }
+
+        private void read00(RevisionDataInput input, SegmentState.SegmentStateBuilder builder) throws IOException {
+            builder.segmentId(input.readLong());
+            builder.segmentName(input.readUTF());
+            builder.startOffset(input.readLong());
+            builder.attributes(input.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong));
         }
     }
 

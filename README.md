@@ -63,11 +63,11 @@ The latest pravega releases can be found on the [Github Release](https://github.
 
 ## Quick Start
 
-Read [Getting Started](docs/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
+Read [Getting Started](documentation/src/docs/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Running Pravega
 
-Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](docs/deployment/deployment.md) guide.
+Pravega can be installed locally or in a distributed environment. The installation and deployment of pravega is covered in the [Running Pravega](documentation/src/docs/deployment/deployment.md) guide.
 
 ## Support
 
@@ -78,14 +78,14 @@ Issues](https://github.com/pravega/pravega/issues)
 ## Documentation
 
 The Pravega documentation of is hosted on the website:
-<http://pravega.io/docs> or in the [docs/](docs) directory of the source code.
+<http://pravega.io/docs/latest> or in the [documentation/src/docs/](docs) directory of the source code.
 
 ## Contributing
 
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-[Here](docs/contributing.md) we describe how to contribute to Pravega!
-You can see the roadmap document [here](docs/roadmap.md)
+[Here](documentation/src/docs/contributing.md) we describe how to contribute to Pravega!
+You can see the roadmap document [here](documentation/src/docs/roadmap.md)
 
 ## About
 

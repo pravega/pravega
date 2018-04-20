@@ -25,7 +25,7 @@ We have written a couple of applications, ConsoleReader and ConsoleWriter that
 help illustrate reading and writing data with Pravega and in particular to
 illustrate the Transaction facility in the Pravega programming model.  You can
 find those applications
-[here](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/com/emc/pravega/example/consolerw).
+[here](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/io/pravega/example/consolerw).
 
 ### ConsoleReader
 
@@ -44,9 +44,9 @@ below:
 **ConsoleWriter Help text**
 ```
 Enter one of the following commands at the command line prompt:
- 
+
 If no command is entered, the line is treated as a parameter to the WRITE_EVENT command.
- 
+
 WRITE_EVENT {event} - write the {event} out to the Stream or the current Transaction.
 WRITE_EVENT_RK <<{routingKey}>> , {event} - write the {event} out to the Stream or the current Transaction using {routingKey}. Note << and >> around {routingKey}.
 BEGIN [{transactionTimeout}] [, {maxExecutionTime}] [, {scaleGracePeriod}] begin a Transaction. Only one Transaction at a time is supported by the CLI.
@@ -58,7 +58,7 @@ ABORT - abort the Transaction (if a Transaction is running)
 STATUS - check the status of the Transaction(if a Transaction is running)
 HELP - print out a list of commands.
 QUIT - terminate the program.
- 
+
 examples/someStream >
 ```
 

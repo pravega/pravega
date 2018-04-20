@@ -168,7 +168,6 @@ public class StreamSegmentReadResultTests {
 
         firstEntry.complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
         ReadResultEntry secondEntry = r.next();
-        ReadResultEntryBase x;
         Assert.assertEquals("Unexpected result from nextEntry.", nextEntry.get(), secondEntry);
     }
 

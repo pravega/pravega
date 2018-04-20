@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 /**
@@ -51,9 +53,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
     private static final String INDEX_PATH = STREAM_PATH + "/index";
+    private static final String EPOCH_TRANSITION_PATH = STREAM_PATH + "/epochTransition";
     private static final String RETENTION_PATH = STREAM_PATH + "/retention";
     private static final String SEALED_SEGMENTS_PATH = STREAM_PATH + "/sealedSegments";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -63,6 +67,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String segmentPath;
     private final String historyPath;
     private final String indexPath;
+    private final String epochTransitionPath;
     private final String retentionPath;
     private final String sealedSegmentsPath;
     private final String activeTxRoot;
@@ -86,6 +91,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
         indexPath = String.format(INDEX_PATH, scopeName, streamName);
+        epochTransitionPath = String.format(EPOCH_TRANSITION_PATH, scopeName, streamName);
         retentionPath = String.format(RETENTION_PATH, scopeName, streamName);
         sealedSegmentsPath = String.format(SEALED_SEGMENTS_PATH, scopeName, streamName);
         activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
@@ -213,6 +219,23 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    CompletableFuture<Void> createEpochTransitionNode(byte[] epochTransition) {
+        return store.createZNode(epochTransitionPath, epochTransition)
+                .thenApply(x -> cache.invalidateCache(epochTransitionPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getEpochTransitionNode() {
+        cache.invalidateCache(epochTransitionPath);
+        return cache.getCachedData(epochTransitionPath);
+    }
+
+    @Override
+    CompletableFuture<Void> deleteEpochTransitionNode() {
+        return store.deleteNode(epochTransitionPath);
+    }
+
+    @Override
     CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
@@ -310,8 +333,17 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
                         .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                                Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))
-                        )));
+                                Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))
+                                       .exceptionally(e -> {
+                                           if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                                               return EMPTY_DATA;
+                                           } else {
+                                               throw new CompletionException(e);
+                                           }
+                                       })))
+                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(EMPTY_DATA))
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                        ));
     }
 
     @Override
@@ -496,7 +528,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setSegmentTable(final Data<Integer> data) {
+    CompletableFuture<Void> updateSegmentTable(final Data<Integer> data) {
         return store.setData(segmentPath, data)
                 .whenComplete((r, e) -> cache.invalidateCache(segmentPath));
     }
@@ -529,6 +561,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    public CompletableFuture<Data<Integer>> getIndexTableFromStore() {
+        cache.invalidateCache(indexPath);
+        return cache.getCachedData(indexPath);
+    }
+
+    @Override
     CompletableFuture<Void> updateIndexTable(final Data<Integer> updated) {
         return store.setData(indexPath, updated)
                 .whenComplete((r, e) -> cache.invalidateCache(indexPath));
@@ -537,7 +575,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     // endregion
 
     // region private helpers
-    private String getActiveTxPath(final long epoch, final String txId) {
+    @VisibleForTesting
+    String getActiveTxPath(final long epoch, final String txId) {
         return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Long.toString(epoch)), txId);
     }
 

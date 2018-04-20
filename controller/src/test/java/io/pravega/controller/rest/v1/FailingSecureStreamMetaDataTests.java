@@ -25,6 +25,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
+    protected int expectedResult = 401;
+
     @Override
     @Before
     public void setup() {
@@ -45,7 +47,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
     public void testCreateStream() {
         String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
         Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
-        assertEquals("Create Stream Status", 401, response.getStatus());
+        assertEquals("Create Stream Status", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -55,7 +57,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/state";
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(streamState)).invoke();
-        assertEquals("Update Stream State response code", 401, response.getStatus());
+        assertEquals("Update Stream State response code", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -66,7 +68,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to delete a scope.
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
-        assertEquals("Delete Scope response code", 401, response.getStatus());
+        assertEquals("Delete Scope response code", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -78,7 +80,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to get existent scope
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
-        assertEquals("Get existent scope", 401, response.getStatus());
+        assertEquals("Get existent scope", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -90,7 +92,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to create a new scope.
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildPost(Entity.json(createScopeRequest)).invoke();
-        assertEquals("Create Scope response code", 401, response.getStatus());
+        assertEquals("Create Scope response code", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -101,7 +103,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to update an existing stream
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest)).invoke();
-        assertEquals("Update Stream Status", 401, response.getStatus());
+        assertEquals("Update Stream Status", expectedResult, response.getStatus());
     }
 
     @Override
@@ -109,7 +111,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
     public void testListReaderGroups() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups";
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
-        assertEquals("List Reader Groups response code", 401, response.getStatus());
+        assertEquals("List Reader Groups response code", expectedResult, response.getStatus());
     }
 
     @Override
@@ -119,7 +121,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to delete a sealed stream
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildDelete().invoke();
-        assertEquals("Delete Stream response code", 401, response.getStatus());
+        assertEquals("Delete Stream response code", expectedResult, response.getStatus());
         response.close();
     }
 
@@ -141,7 +143,7 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         // Test to get an existing stream
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
-        assertEquals("Get Stream Config Status", 401, response.getStatus());
+        assertEquals("Get Stream Config Status", expectedResult, response.getStatus());
     }
 
     @Override
@@ -150,6 +152,6 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams";
 
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
-        assertEquals("List Streams response code", 401, response.getStatus());
+        assertEquals("List Streams response code", expectedResult, response.getStatus());
     }
 }
