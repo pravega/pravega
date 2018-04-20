@@ -130,7 +130,7 @@ public class SegmentSelector {
                                                         Consumer<Segment> segmentSealedCallback) {
         currentSegments = newStreamSegments;
         createMissingWriters(segmentSealedCallback, newStreamSegments.getDelegationToken());
-        log.debug("Fetch unacked events for segment :{}", sealedSegment);
+        log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, newStreamSegments);
         List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
         writers.remove(sealedSegment); //remove this sealed segment writer.
         return toResend;
