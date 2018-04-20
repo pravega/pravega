@@ -52,6 +52,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.TestUtils;
@@ -71,6 +72,7 @@ import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -210,13 +212,13 @@ public class ReadTest {
         assertEquals(in.read().capacity(), 150000);
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void readConditionalData() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
         int port = TestUtils.getAvailableListenPort();
-        String testString = "Hello world\n";
+        byte[] testString = "Hello world\n".getBytes();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
@@ -235,14 +237,18 @@ public class ReadTest {
 
         @Cleanup("close")
         ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
-        assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
+        assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
         @Cleanup("close")
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
-        assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
-
-        //TODO: read / writer more data
+        assertEquals(ByteBuffer.wrap(testString), result);
+        assertNull(in.read(100));
+        assertFalse(out.write(ByteBuffer.wrap(testString), 0));
+        assertTrue(out.write(ByteBuffer.wrap(testString), testString.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
+        result = in.read();
+        assertEquals(ByteBuffer.wrap(testString), result);
+        assertNull(in.read(100));
     }
 
     @Test
