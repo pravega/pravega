@@ -178,6 +178,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                  // Running in the shrinking pool as this operation is infrequent and slow.
                  return CompletableFuture.runAsync(() -> {
                      segmentSealedLock.lock();
+                     log.info("Handling sealed segment {}", segment);
                      try {
                          resend(selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack));
                      } finally {
@@ -200,12 +201,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         while (!toResend.isEmpty()) {
             List<PendingEvent> unsent = new ArrayList<>();
             boolean sendFailed = false;
+            log.info("Resending {} events", toResend.size());
             for (PendingEvent event : toResend) {
                 if (sendFailed) {
                     unsent.add(event);
                 } else {
                     SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
                     if (segmentWriter == null) {
+                        log.info("No writer for segment during resend.");
                         unsent.addAll(selector.refreshSegmentEventWriters(segmentSealedCallBack));
                         sendFailed = true;
                     } else {

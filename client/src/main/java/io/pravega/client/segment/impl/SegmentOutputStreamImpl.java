@@ -571,7 +571,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public List<PendingEvent> getUnackedEventsOnSeal() {
         // close connection and update the exception to SegmentSealed, this ensures future writes receive a
         // SegmentSealedException.
-        log.trace("GetUnackedEventsOnSeal called on {}", writerId);
+        log.debug("GetUnackedEventsOnSeal called on {}", writerId);
         synchronized (writeOrderLock) {   
             state.failConnection(new SegmentSealedException(this.segmentName));
             return Collections.unmodifiableList(state.getAllInflightEvents());
