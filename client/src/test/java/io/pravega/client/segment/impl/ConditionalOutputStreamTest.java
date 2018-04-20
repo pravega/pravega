@@ -21,7 +21,9 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -47,16 +49,7 @@ public class ConditionalOutputStreamTest {
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, mock);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                SetupAppend argument = (SetupAppend) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new AppendSetup(argument.getRequestId(), segment.getScopedName(),
-                                                              argument.getWriterId(), 0));
-                return null;
-            }
-        }).when(mock).send(any(SetupAppend.class));
+        setupAppend(connectionFactory, segment, mock, location);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -99,16 +92,7 @@ public class ConditionalOutputStreamTest {
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, mock);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                SetupAppend argument = (SetupAppend) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new AppendSetup(argument.getRequestId(), segment.getScopedName(),
-                                                              argument.getWriterId(), 0));
-                return null;
-            }
-        }).when(mock).send(any(SetupAppend.class));
+        setupAppend(connectionFactory, segment, mock, location);
         final AtomicLong count = new AtomicLong(0);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -126,6 +110,20 @@ public class ConditionalOutputStreamTest {
         assertTrue(cOut.write(data, 0));
         assertEquals(3, count.get());
     }
+
+    private void setupAppend(MockConnectionFactoryImpl connectionFactory, Segment segment, ClientConnection mock,
+                             PravegaNodeUri location) throws ConnectionFailedException {
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                SetupAppend argument = (SetupAppend) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new AppendSetup(argument.getRequestId(), segment.getScopedName(),
+                                                              argument.getWriterId(), 0));
+                return null;
+            }
+        }).when(mock).send(any(SetupAppend.class));
+    }
     
     @Test(timeout = 10000)
     public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
@@ -139,16 +137,7 @@ public class ConditionalOutputStreamTest {
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, mock);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                SetupAppend argument = (SetupAppend) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new AppendSetup(argument.getRequestId(), segment.getScopedName(),
-                                                              argument.getWriterId(), 0));
-                return null;
-            }
-        }).when(mock).send(any(SetupAppend.class));
+        setupAppend(connectionFactory, segment, mock, location);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -159,6 +148,51 @@ public class ConditionalOutputStreamTest {
             }
         }).when(mock).send(any(ConditionalAppend.class));
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> cOut.write(data, 0));
+    }
+    
+    /**
+     * It is necessary to only have one outstanding conditional append per writerId to make sure the status can be resolved in the event of a reconnect.
+     */
+    @Test(timeout = 10000)
+    public void testOnlyOneWriteAtATime() throws ConnectionFailedException, SegmentSealedException {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);       
+        ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+        ClientConnection mock = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, mock);
+        setupAppend(connectionFactory, segment, mock, location);
+        LinkedBlockingQueue<Boolean> replies = new LinkedBlockingQueue<>();
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+                if (replies.take()) {                    
+                    processor.process(new WireCommands.DataAppended(argument.getWriterId(), argument.getEventNumber(), 0));
+                } else {
+                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber()));
+                }
+                return null;
+            }
+        }).when(mock).send(any(ConditionalAppend.class));
+        replies.add(true);
+        replies.add(false);
+        assertTrue(cOut.write(data, 0));
+        assertFalse(cOut.write(data, 1));
+        TestUtils.testBlocking(() -> {
+            assertTrue(cOut.write(data, 2));
+        }, () -> {
+            replies.add(true);
+        });
+        TestUtils.testBlocking(() -> {
+            assertFalse(cOut.write(data, 3));
+        }, () -> {
+            replies.add(false);
+        });
     }
     
 }
