@@ -55,7 +55,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     
 
     @Override
-    public String getSegmentName() {
+    public String getScopedSegmentName() {
         return segmentId.getScopedName();
     }
 
@@ -141,6 +141,4 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
             }
         }
     }
-
-
 }

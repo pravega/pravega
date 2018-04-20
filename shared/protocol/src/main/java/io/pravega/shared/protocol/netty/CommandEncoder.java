@@ -181,7 +181,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
         segmentBeingAppendedTo = null;
     }
-    
+
     @SneakyThrows(IOException.class)
     private int serializeEvent(Event event, OutputStream out) {
         int result = event.getData().readableBytes() + TYPE_PLUS_LENGTH_SIZE;
@@ -190,7 +190,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         dout.flush();
         return result;
     }
-
 
     @SneakyThrows(IOException.class)
     private void writeMessage(AppendBlock block, ByteBuf out) {

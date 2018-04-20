@@ -12,17 +12,17 @@ package io.pravega.client.segment.impl;
 import java.nio.ByteBuffer;
 
 /**
- * Defines an ConditionalOutputStream for a segment.
+ * Defines a ConditionalOutputStream for a segment.
  * Allows data to be conditionally appended to the end of the segment
  */
 public interface ConditionalOutputStream extends AutoCloseable {
 
     /**
-     * Returns the name of the segment associated to this output stream.
+     * Returns the scoped name of the segment associated to this output stream.
      *
      * @return The name of the segment associated to this output stream.
      */
-    public String getSegmentName();
+    public String getScopedSegmentName();
     
     /**
      * Writes the provided data to the SegmentOutputStream. The data will be written only if the
