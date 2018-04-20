@@ -193,6 +193,26 @@ public class ConditionalOutputStreamTest {
         }, () -> {
             replies.add(false);
         });
+        TestUtils.testBlocking(() -> {
+            assertTrue(cOut.write(data, 4));
+        }, () -> {
+            TestUtils.testBlocking(() -> {
+                assertFalse(cOut.write(data, 5));
+            }, () -> {
+                replies.add(true);
+                replies.add(false);
+            });
+        });
+        TestUtils.testBlocking(() -> {
+            assertFalse(cOut.write(data, 6));
+        }, () -> {
+            TestUtils.testBlocking(() -> {
+                assertTrue(cOut.write(data, 7));
+            }, () -> {
+                replies.add(false);
+                replies.add(true);
+            });
+        });
     }
     
 }
