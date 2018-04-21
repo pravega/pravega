@@ -257,9 +257,6 @@ class HDFSStorage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
-            if (!isSealed(status.getPath())) {
-                throw new StorageNotPrimaryException(handle.getSegmentName());
-            }
             makeWrite(status);
             this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
         } catch (IOException e) {
@@ -458,7 +455,7 @@ class HDFSStorage implements SyncStorage {
                 throw new StreamSegmentExistsException(streamSegmentName);
             }
         } catch (IOException e) {
-            log.warn("Exception while deleting a file with epoc 0.", e);
+            log.warn("Exception while deleting a file with epoch 0.", e);
         }
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
         return StreamSegmentInformation.builder().name(streamSegmentName).build();
