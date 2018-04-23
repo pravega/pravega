@@ -45,7 +45,7 @@ public class ReaderGroupStateTest {
     @Before
     public void setup() {
         readerState = new ReaderGroupState("stream", revision, readerConf,
-                getOffsetMap(1L, Arrays.asList("S1", "S2")));
+                getOffsetMap(1L, Arrays.asList("S1", "S2")), Collections.emptyMap());
     }
     
 
