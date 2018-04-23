@@ -272,7 +272,7 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @RequiredArgsConstructor
-    static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
+    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
         private static final long serialVersionUID = 1L;
 
         private final ReaderGroupConfig config;
@@ -532,6 +532,7 @@ public class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
+        @Getter
         private final String checkpointId;
         
         CreateCheckpoint() {
@@ -548,16 +549,16 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @RequiredArgsConstructor
-    static class ClearCheckpoints extends ReaderGroupStateUpdate {
+    static class ClearCheckpointsBefore extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
-        private final String clearUpThroughCheckpoint;
+        private final String clearUpToCheckpoint;
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.clearCheckpointsThrough(clearUpThroughCheckpoint);
+            state.checkpointState.clearCheckpointsBefore(clearUpToCheckpoint);
         }
     }
 

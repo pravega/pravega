@@ -19,7 +19,6 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
@@ -495,7 +494,6 @@ public class EventProcessorTest {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
     private EventProcessorSystemImpl createMockSystem(final String name, final String processId, final String scope,
                                                       final SequenceAnswer<EventStreamReader<TestEvent>> readers,
                                                       final EventStreamWriter<TestEvent> writer,
@@ -510,8 +508,7 @@ public class EventProcessorTest {
         Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
 
         ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
-        Mockito.when(readerGroupManager.createReaderGroup(anyString(), any(ReaderGroupConfig.class)))
-                .then(invocation -> readerGroup);
+        Mockito.when(readerGroupManager.getReaderGroup(anyString())).then(invocation -> readerGroup);
 
         return new EventProcessorSystemImpl(name, processId, scope, clientFactory, readerGroupManager);
     }

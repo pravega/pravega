@@ -28,7 +28,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OFFSET_REACHED;
 
 /**
- * Manages buffering and provides a synchronous to {@link AsyncSegmentInputStream}
+ * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
  * 
  * @see SegmentInputStream
  */
@@ -36,6 +36,7 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 @ToString
 class SegmentInputStreamImpl implements SegmentInputStream {
     private static final int DEFAULT_READ_LENGTH = 64 * 1024;
+    private static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
     static final int DEFAULT_BUFFER_SIZE = 2 * SegmentInputStreamImpl.DEFAULT_READ_LENGTH;
 
     private final AsyncSegmentInputStream asyncInput;
@@ -56,7 +57,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
-        this(asyncInput, startOffset, Long.MAX_VALUE, DEFAULT_BUFFER_SIZE);
+        this(asyncInput, startOffset, UNBOUNDED_END_OFFSET, DEFAULT_BUFFER_SIZE);
     }
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int bufferSize) {
@@ -223,7 +224,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private int computeReadLength(long currentFetchOffset, int currentReadLength) {
         Preconditions.checkState(endOffset >= currentFetchOffset,
                 "Current offset up to to which events are fetched should be less than the configured end offset");
-        if (Long.MAX_VALUE == endOffset) { //endOffset is Long.MAX_VALUE if the endOffset is not set.
+        if (UNBOUNDED_END_OFFSET == endOffset) { //endOffset is UNBOUNDED_END_OFFSET if the endOffset is not set.
             return currentReadLength;
         }
         long numberOfBytesRemaining = endOffset - currentFetchOffset;

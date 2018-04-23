@@ -55,7 +55,7 @@ public class TokenVerifierImplTest {
             finalTokenVerifier.verifyToken("xyz", null, READ);
         });
 
-        Map<String, Object> claims = new HashMap();
+        Map<String, Object> claims = new HashMap<>();
 
         claims.put("*", String.valueOf(READ_UPDATE));
 

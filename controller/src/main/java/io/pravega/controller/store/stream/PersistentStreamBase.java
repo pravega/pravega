@@ -481,7 +481,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             boolean runOnlyIfStarted) {
-        return getHistoryTableFromStore()
+        return verifyNotSealed().thenCompose(v -> getHistoryTableFromStore()
                 .thenCompose(historyTable -> getSegmentTableFromStore()
                         .thenCompose(segmentTable -> {
                             if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentTable.getData())) {
@@ -499,7 +499,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         x.getValue().getKey(), x.getValue().getValue()));
                             });
                             return new StartScaleResponse(epochTransition.getActiveEpoch(), newSegments);
-                        }));
+                        })));
     }
 
     private CompletableFuture<EpochTransitionRecord> startScale(List<Integer> segmentsToSeal,
@@ -590,6 +590,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         }
                                     })));
                 });
+    }
+
+    private CompletableFuture<Void> verifyNotSealed() {
+        return getState(false).thenApply(state -> {
+            if (state.equals(State.SEALING) || state.equals(State.SEALED)) {
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "Stream: " + getName() + " State: " + state.name());
+            }
+            return null;
+        });
     }
 
     private CompletableFuture<Void> isEpochTransitionConsistent(Data<T> historyTable, Data<T> segmentTable,
@@ -1072,6 +1082,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
+    @Override
     public CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts() {
         return getRetentionSet()
                 .thenApply(data -> (RetentionRecord) SerializationUtils.deserialize(data.getData()))
@@ -1110,11 +1121,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
             }
             return null;
         });
-    }
-
-    private CompletableFuture<List<Segment>> getSegments(final List<Integer> segments) {
-        return Futures.allOfWithResults(segments.stream().map(this::getSegment)
-                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {

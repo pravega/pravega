@@ -9,9 +9,11 @@
  */
 package io.pravega.test.integration;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -21,9 +23,12 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -32,11 +37,11 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -46,7 +51,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@Slf4j
 public class UnreadBytesTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -59,7 +63,6 @@ public class UnreadBytesTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-    private ScheduledExecutorService executorChkpoint;
 
     @Before
     public void setUp() throws Exception {
@@ -111,8 +114,9 @@ public class UnreadBytesTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
@@ -142,5 +146,73 @@ public class UnreadBytesTest {
         writer.writeEvent("0", "data of size 30").get();
         unreadBytes = readerGroup.getMetrics().unreadBytes();
         assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 30);
+    }
+
+
+    @Test(timeout = 50000)
+    public void testUnreadBytesWithEndStreamCuts() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scope("unreadbytes")
+                                                        .streamName("unreadbytes")
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
+
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("unreadbytes").get();
+        controller.createStream(config).get();
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        //Write just 2 events to simplify simulating a checkpoint.
+        writer.writeEvent("0", "data of size 30").get();
+        writer.writeEvent("0", "data of size 30").get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        //create a bounded reader group.
+        groupManager.createReaderGroup("group", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes", StreamCut.UNBOUNDED,
+                        getStreamCut("unreadbytes", 90L, 0)).build());
+
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+
+        EventRead<String> firstEvent = reader.readNextEvent(15000);
+        EventRead<String> secondEvent = reader.readNextEvent(15000);
+        assertNotNull(firstEvent);
+        assertEquals("data of size 30", firstEvent.getEvent());
+        assertNotNull(secondEvent);
+        assertEquals("data of size 30", secondEvent.getEvent());
+
+        // trigger a checkpoint.
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
+        assertEquals("test", chkpointEvent.getCheckpointName());
+        chkPointResult.join();
+
+        //Writer events, to ensure 120Bytes are written.
+        writer.writeEvent("0", "data of size 30").get();
+        writer.writeEvent("0", "data of size 30").get();
+
+        long unreadBytes = readerGroup.getMetrics().unreadBytes();
+        //Ensure the endoffset of 90 Bytes is taken into consideration when computing unread
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 30);
+    }
+
+    /*
+     * Test method to create StreamCuts. In the real world StreamCuts are obtained via the Pravega client apis.
+     */
+    private StreamCut getStreamCut(String streamName, long offset, int... segmentNumbers) {
+        ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
+        Arrays.stream(segmentNumbers).forEach(seg -> {
+            builder.put(new Segment("unreadbytes", streamName, seg), offset);
+        });
+
+        return new StreamCutImpl(Stream.of("unreadbytes", streamName), builder.build());
     }
 }

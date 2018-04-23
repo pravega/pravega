@@ -30,12 +30,13 @@ import static java.util.stream.Collectors.summarizingInt;
 @Builder
 public class ReaderGroupConfig implements Serializable {
 
-   private final long groupRefreshTimeMillis;
-   @Getter
-   private final long automaticCheckpointIntervalMillis;
+    private static final long serialVersionUID = 1L;
+    private final long groupRefreshTimeMillis;
+    @Getter
+    private final long automaticCheckpointIntervalMillis;
 
-   private final Map<String, StreamCut> startingStreamCuts;
-   private final Map<String, StreamCut> endingStreamCuts;
+    private final Map<String, StreamCut> startingStreamCuts;
+    private final Map<String, StreamCut> endingStreamCuts;
 
    public static class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -190,11 +191,11 @@ public class ReaderGroupConfig implements Serializable {
        private void validateStartAndEndStreamCuts(Map<String, StreamCut> startStreamCuts,
                                                   Map<String, StreamCut> endStreamCuts) {
            endStreamCuts.entrySet().stream().filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
-                                .forEach(e -> {
-                               if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
-                                   verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
-                               }
-                           });
+                        .forEach(e -> {
+                            if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
+                                verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
+                            }
+                        });
        }
 
        /**
@@ -212,12 +213,12 @@ public class ReaderGroupConfig implements Serializable {
                                              .stream().collect(summarizingInt(Segment::getSegmentNumber));
            val toSCSummary = endPositions.keySet()
                                          .stream().collect(summarizingInt(Segment::getSegmentNumber));
-           //basic check to 
            Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
-                   "Overlapping StreamCuts cannot be provided");
+                   "Start stream cut must precede end stream cut.");
            Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
-                   "Overlapping StreamCuts cannot be provided");
+                   "Start stream cut must precede end stream cut.");
        }
+
 
        private void validateStreamCut(Map<String, StreamCut> streamCuts) {
            streamCuts.forEach((s, streamCut) -> {
