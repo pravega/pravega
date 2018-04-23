@@ -498,6 +498,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
+                                                             final OperationContext context,
+                                                             final Executor executor) {
+        Stream stream = getStream(scopeName, streamName, context);
+        return withCompletion(stream.generateNewTxnId(), executor);
+    }
+
+    @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
                                                                          final String streamName,
                                                                          final UUID txnId,

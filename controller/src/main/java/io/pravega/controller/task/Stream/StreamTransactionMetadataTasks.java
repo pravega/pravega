@@ -14,6 +14,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -22,6 +23,7 @@ import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
@@ -32,6 +34,7 @@ import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import java.time.Duration;
@@ -320,51 +323,60 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
         long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
-        UUID txnId = UUID.randomUUID();
-        TxnResource resource = new TxnResource(scope, stream, txnId);
+        // 1. get latest epoch from history
+        // 2. get new counter in the epoch.. this step can throw DataNotFoundException
+        // 3. txn id = epoch + counter
+        // 4. if while creating txn epoch no longer exists, then we will get DataNotFoundException.
+        // 5. Retry if we get DataNotFoundException, right from step 1.
+        // Note: this is a low probability failure because it will only happen in rare case
+        // when we increment the counter and then epoch node is deleted as scale completes.
+        return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
+                streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
+                .thenCompose(txnId -> {
+                    TxnResource resource = new TxnResource(scope, stream, txnId);
+                    // Step 2. Add txn to host-transaction index.
+                    CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, 0)
+                            .whenComplete((v, e) -> {
+                                if (e != null) {
+                                    log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                                } else {
+                                    log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                                }
+                            });
 
-        // Step 2. Add txn to host-transaction index.
-        CompletableFuture<Void> addIndex = validate.thenComposeAsync(ignore ->
-                streamMetadataStore.addTxnToIndex(hostId, resource, 0), executor).whenComplete((v, e) -> {
-                    if (e != null) {
-                        log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
-                    } else {
-                        log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
-                    }
-                });
+                    // Step 3. Create txn node in the store.
+                    CompletableFuture<VersionedTransactionData> txnFuture = addIndex.thenComposeAsync(ignore ->
+                            streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
+                                    scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
+                        if (e != null) {
+                            log.debug("Txn={}, failed creating txn in store", txnId);
+                        } else {
+                            log.debug("Txn={}, created in store", txnId);
+                        }
+                    });
 
-        // Step 3. Create txn node in the store.
-        CompletableFuture<VersionedTransactionData> txnFuture = addIndex.thenComposeAsync(ignore ->
-                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
-                        scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
-                    if (e != null) {
-                        log.debug("Txn={}, failed creating txn in store", txnId);
-                    } else {
-                        log.debug("Txn={}, created in store", txnId);
-                    }
-                });
+                    // Step 4. Notify segment stores about new txn.
+                    CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                            streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
-        // Step 4. Notify segment stores about new txn.
-        CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
+                    CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
+                            notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+                            // Method notifyTxnCreation ensures that notification completes
+                            // even in the presence of n/w or segment store failures.
+                            log.debug("Txn={}, notified segments stores", txnId));
 
-        CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
-                // Method notifyTxnCreation ensures that notification completes
-                // even in the presence of n/w or segment store failures.
-                log.debug("Txn={}, notified segments stores", txnId));
-
-        // Step 5. Start tracking txn in timeout service
-        return notify.whenCompleteAsync((result, ex) -> {
-            int version = 0;
-            long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
-            if (!txnFuture.isCompletedExceptionally()) {
-                version = txnFuture.join().getVersion();
-                executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
-            }
-            timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
-            log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
-        }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+                    // Step 5. Start tracking txn in timeout service
+                    return notify.whenCompleteAsync((result, ex) -> {
+                        int version = 0;
+                        long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
+                        if (!txnFuture.isCompletedExceptionally()) {
+                            version = txnFuture.join().getVersion();
+                            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+                        }
+                        timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
+                        log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
+                    }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+                }), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, 5, executor));
     }
 
     @SuppressWarnings("ReturnCount")

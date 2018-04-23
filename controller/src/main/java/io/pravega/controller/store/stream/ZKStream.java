@@ -335,62 +335,48 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(final UUID txId,
+    public CompletableFuture<Void> createEpochCounterIfAbsent(int epoch) {
+        // create a new znode under epoch
+        return store.createZNodeIfNotExist(getEpochCounterPath(epoch));
+    }
+
+    @Override
+    public CompletableFuture<Long> incrementAndGetEpochCounter(int epoch) {
+        String epochCounterPath = getEpochCounterPath(epoch);
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        store.getData(epochCounterPath)
+                .whenComplete((data, ex) -> {
+                    if (ex != null) {
+                        result.completeExceptionally(ex);
+                    } else {
+                        // increment
+                        Data<Integer> incremented = new Data<>(data.getData(), data.getVersion());
+                        store.setData(epochCounterPath, incremented)
+                                .whenComplete()
+
+                    }
+                });
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteEpochCounter(int epoch) {
+        return store.deleteNode(getEpochCounterPath(epoch));
+    }
+
+    @Override
+    CompletableFuture<Void> createNewTransaction(final UUID txId,
                                                     final long timestamp,
                                                     final long leaseExpiryTime,
                                                     final long maxExecutionExpiryTime,
                                                     final long scaleGracePeriod) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
-                .whenComplete((value, ex) -> {
-                    if (ex != null) {
-                        if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
-                            Futures.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
-                                    maxExecutionExpiryTime, scaleGracePeriod), future);
-                        } else {
-                            future.completeExceptionally(ex);
-                        }
-                    } else {
-                        future.complete(value);
-                    }
-                });
-        return future;
-    }
-
-    private CompletableFuture<Integer> createNewTransactionNode(final UUID txId,
-                                                                final long timestamp,
-                                                                final long leaseExpiryTime,
-                                                                final long maxExecutionExpiryTime,
-                                                                final long scaleGracePeriod) {
-        return getLatestEpoch().thenCompose(pair -> {
-            final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
-            final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                    scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-            return store.createZNodeIfNotExist(activePath, txnRecord, false)
-                    .thenApply(x -> cache.invalidateCache(activePath))
-                    .thenApply(y -> pair.getKey());
-        });
-    }
-
-    @Override
-    CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
-        return store.getChildren(activeTxRoot).thenCompose(list -> {
-            Map<String, CompletableFuture<Boolean>> map = new HashMap<>();
-            for (String str : list) {
-                int epoch = Integer.parseInt(str);
-                String activeTxnPath = getActiveTxPath(epoch, txId.toString());
-                map.put(str, store.checkExists(activeTxnPath));
-            }
-            return Futures.allOfWithResults(map);
-        }).thenApply(map -> {
-            Optional<Map.Entry<String, Boolean>> opt = map.entrySet().stream().filter(Map.Entry::getValue).findFirst();
-            if (opt.isPresent()) {
-                return Integer.parseInt(opt.get().getKey());
-            } else {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString());
-            }
-        });
+        long epoch = txId.getMostSignificantBits();
+        final String activePath = getActiveTxPath(epoch, txId.toString());
+        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+        // Note: this can throw DataNotFoundException as the epoch node (parent) may have been deleted.
+        return store.createZNodeIfNotExist(activePath, txnRecord, false)
+                .thenApply(x -> cache.invalidateCache(activePath));
     }
 
     @Override
@@ -569,6 +555,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private String getEpochPath(final long epoch) {
         return ZKPaths.makePath(activeTxRoot, Long.toString(epoch));
+    }
+
+    private String getEpochCounterPath(final long epoch) {
+        String root = getEpochPath(epoch);
+        return ZKPaths.makePath(root, "counter");
     }
 
     private String getCompletedTxPath(final String txId) {

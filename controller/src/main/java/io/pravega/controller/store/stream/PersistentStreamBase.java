@@ -784,6 +784,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
+    public CompletableFuture<UUID> generateNewTxnId() {
+        return getLatestEpoch()
+                .thenCompose(epoch -> incrementAndGetEpochCounter(epoch.getKey())
+                        .thenApply(counter -> new UUID(epoch.getKey(), counter)));
+    }
+
+    @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                          final long lease,
                                                                          final long maxExecutionTime,
@@ -791,8 +798,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final long current = System.currentTimeMillis();
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
+        // extract epoch from txnid
+        final long epoch = txnId.getMostSignificantBits();
         return verifyLegalState().thenCompose(v -> createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod))
-                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
+                .thenApply(v -> new VersionedTransactionData((int) epoch, txnId, 0, TxnStatus.OPEN, current,
                         current + maxExecutionTime, scaleGracePeriod));
     }
 
@@ -1169,6 +1178,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
                             return createNewEpoch(newEpoch)
+                                    .thenCompose(v -> createEpochCounterIfAbsent(newEpoch))
                                     .thenCompose(v -> getSegmentTable()
                                             .thenApply(segmentTable -> {
                                                 final int segmentCount = TableHelper.getSegmentCount(segmentTable.getData());
@@ -1178,6 +1188,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             }))
                                     .thenCompose(start -> addIndexRecord(newEpoch, start, offset))
                                     .thenCompose(v -> updateHistoryTable(updated))
+                                    .thenCompose(v -> deleteEpochCounter(activeEpoch))
                                     .whenComplete((r, e) -> {
                                         if (e == null) {
                                             log.debug("{}/{} scale op for epoch {}. Creating new epoch and updating history table.",
@@ -1340,7 +1351,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
 
-    abstract CompletableFuture<Integer> createNewTransaction(final UUID txId,
+    abstract CompletableFuture<Void> createEpochCounterIfAbsent(int epoch);
+
+    abstract CompletableFuture<Long> incrementAndGetEpochCounter(int epoch);
+
+    abstract CompletableFuture<Void> deleteEpochCounter(int epoch);
+
+    abstract CompletableFuture<Void> createNewTransaction(final UUID txId,
                                                              final long timestamp,
                                                              final long leaseExpiryTime,
                                                              final long maxExecutionExpiryTime,

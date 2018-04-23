@@ -146,24 +146,15 @@ public class ZKStoreHelper {
     CompletableFuture<Data<Integer>> getData(final String path) {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
 
-        checkExists(path)
-                .whenComplete((exists, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else if (exists) {
-                        try {
-                            client.getData().inBackground(
-                                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat()
-                                                    .getVersion())),
-                                            result::completeExceptionally, path), executor)
-                                    .forPath(path);
-                        } catch (Exception e) {
-                            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
-                        }
-                    } else {
-                        result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
-                    }
-                });
+        try {
+            client.getData().inBackground(
+                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat()
+                                    .getVersion())),
+                            result::completeExceptionally, path), executor)
+                    .forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
 
         return result;
     }
