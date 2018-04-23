@@ -20,6 +20,15 @@ public class SingleNodeConfig {
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentstorePort", 6000);
     public final static Property<Integer> CONTROLLER_PORT = Property.named("controllerPort", 9090);
     public final static Property<Integer> REST_SERVER_PORT = Property.named("restServerPort", 9091);
+    public final static Property<String> CERT_FILE = Property.named("certFile", "");
+    public final static Property<String> KEY_FILE = Property.named("keyFile", "");
+    public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "");
+    public final static Property<String> USER_NAME = Property.named("userName", "");
+    public final static Property<String> PASSWD = Property.named("passwd", "");
+    public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
+    public final static String PROPERTY_FILE = "singlenode.configurationFile";
+
     private static final String COMPONENT_CODE = "singlenode";
     //end region
 
@@ -49,6 +58,48 @@ public class SingleNodeConfig {
     @Getter
     private final int restServerPort;
 
+    /**
+     * The file containing the client certificate.
+     */
+    @Getter
+    private String certFile;
+
+    /**
+     * File containing the certificate key for the server socket.
+     */
+    @Getter
+    private String keyFile;
+
+    /**
+     * File containing the username passwd db for default auth handler.
+     */
+    @Getter
+    private String passwdFile;
+
+    /**
+     * User for the authenticated interactions between segmentstore and controller.
+     */
+    @Getter
+    private String userName;
+
+    /**
+     * Password for the user.
+     */
+    @Getter
+    private String passwd;
+
+    /**
+     * Flag to enable TLS.
+     */
+    @Getter
+    private boolean enableTls;
+
+    /**
+     * Flag to enable auth.
+     */
+    @Getter
+    private boolean enableAuth;
+
     //end region
 
     //region constructor
@@ -57,6 +108,13 @@ public class SingleNodeConfig {
         this.segmentStorePort = properties.getInt(SEGMENTSTORE_PORT);
         this.controllerPort = properties.getInt(CONTROLLER_PORT);
         this.restServerPort = properties.getInt(REST_SERVER_PORT);
+        this.certFile = properties.get(CERT_FILE);
+        this.keyFile = properties.get(KEY_FILE);
+        this.passwdFile = properties.get(PASSWD_FILE);
+        this.userName = properties.get(USER_NAME);
+        this.passwd = properties.get(PASSWD);
+        this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.enableAuth = properties.getBoolean(ENABLE_AUTH);
     }
 
     /**
@@ -67,5 +125,6 @@ public class SingleNodeConfig {
     public static ConfigBuilder<SingleNodeConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, SingleNodeConfig::new);
     }
+
     //end region
 }
