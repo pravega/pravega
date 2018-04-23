@@ -79,7 +79,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .include(ServiceConfig.builder()
                                   .with(ServiceConfig.CONTAINER_COUNT, 4)
-                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE))
+                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
+                                  .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
+                                  .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30 * 1000))
+
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
@@ -90,9 +93,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L))
             .include(ReadIndexConfig.builder()
                                     .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 512) // Need this for truncation testing.
-                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 30 * 1000))
+                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)

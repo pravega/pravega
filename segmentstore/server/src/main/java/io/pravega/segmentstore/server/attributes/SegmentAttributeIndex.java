@@ -31,6 +31,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -38,6 +39,7 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
+import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -55,6 +57,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -69,7 +72,7 @@ import lombok.extern.slf4j.Slf4j;
  * Attribute Index for a single Segment.
  */
 @Slf4j
-class SegmentAttributeIndex implements AttributeIndex {
+class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
     //region Members
 
     /**
@@ -95,9 +98,11 @@ class SegmentAttributeIndex implements AttributeIndex {
     private final AtomicReference<AttributeSegment> attributeSegment;
     private final Storage storage;
     private final OperationLog operationLog;
+    private final Cache cache;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
     private final String traceObjectId;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -109,17 +114,21 @@ class SegmentAttributeIndex implements AttributeIndex {
      * @param segmentMetadata The SegmentMetadata of the Segment whose attributes we want to manage.
      * @param storage         A Storage adapter which can be used to access the Attribute Segment.
      * @param operationLog    An OperationLog that can be used to atomically update attributes for the main Segment.
+     * @param cache           The Cache to use.
      * @param config          Attribute Index Configuration.
      * @param executor        An Executor to run async tasks.
      */
-    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, AttributeIndexConfig config, ScheduledExecutorService executor) {
+    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, Cache cache,
+                          AttributeIndexConfig config, ScheduledExecutorService executor) {
         this.segmentMetadata = Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.operationLog = Preconditions.checkNotNull(operationLog, "operationLog");
+        this.cache = Preconditions.checkNotNull(cache, "cache");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.attributeSegment = new AtomicReference<>();
         this.traceObjectId = String.format("AttributeIndex[%s]", this.segmentMetadata.getId());
+        this.closed = new AtomicBoolean();
     }
 
     /**
@@ -163,6 +172,63 @@ class SegmentAttributeIndex implements AttributeIndex {
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
                 ex -> ex instanceof StreamSegmentNotExistsException,
                 null);
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
+        // be erased anyway.
+        close(false);
+    }
+
+    /**
+     * Closes the SegmentAttributeIndex and optionally cleans the cache.
+     *
+     * @param cleanCache If true, the Cache will be cleaned up of all entries pertaining to this Index. If false, the
+     *                   Cache will not be touched.
+     */
+    void close(boolean cleanCache) {
+        if (this.closed.getAndSet(true)) {
+            // Close storage reader (and thus cancel those reads).
+            if (cleanCache) {
+                this.executor.execute(() -> {
+                    removeAllEntries();
+                    log.info("{}: Closed.", this.traceObjectId);
+                });
+            } else {
+                log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
+            }
+        }
+    }
+
+    /**
+     * Removes all entries from the cache.
+     */
+    private void removeAllEntries() {
+        // A bit unusual, but we want to make sure we do not call this while the index is active.
+        Preconditions.checkState(this.closed.get(), "Cannot call removeAllEntries unless the SegmentAttributeIndex is closed.");
+
+        // TODO: implement
+        int count = 0;
+        log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, count);
+    }
+
+    //endregion
+
+    //region CacheManager.Client implementation
+
+    @Override
+    public CacheManager.CacheStatus getCacheStatus() {
+        return null;
+    }
+
+    @Override
+    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+        return 0;
     }
 
     //endregion

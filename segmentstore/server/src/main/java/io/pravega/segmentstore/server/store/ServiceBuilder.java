@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -63,6 +64,7 @@ public class ServiceBuilder implements AutoCloseable {
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService coreExecutor;
     private final ScheduledExecutorService storageExecutor;
+    private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
     private final AtomicReference<AttributeIndexFactory> attributeIndexFactory;
@@ -115,6 +117,8 @@ public class ServiceBuilder implements AutoCloseable {
         this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "core");
         this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage-io");
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
+
+        this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
     }
 
     //endregion
@@ -128,6 +132,7 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
         closeComponent(this.cacheFactory);
+        this.cacheManager.close();
         this.threadPoolMetrics.close();
         this.storageExecutor.shutdown();
         this.coreExecutor.shutdown();
@@ -219,6 +224,7 @@ public class ServiceBuilder implements AutoCloseable {
      * @throws DurableDataLogException If unable to initialize DurableDataLogFactory.
      */
     public void initialize() throws DurableDataLogException {
+        this.cacheManager.startAsync().awaitRunning();
         getSingleton(this.dataLogFactory, this.dataLogFactoryCreator).initialize();
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
@@ -246,12 +252,13 @@ public class ServiceBuilder implements AutoCloseable {
     protected ReadIndexFactory createReadIndexFactory() {
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.coreExecutor);
+        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.cacheManager, this.coreExecutor);
     }
 
     protected AttributeIndexFactory createAttributeIndexFactory() {
+        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
-        return new ContainerAttributeIndexFactoryImpl(config, this.coreExecutor);
+        return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {

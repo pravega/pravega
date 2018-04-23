@@ -18,14 +18,18 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -513,6 +517,8 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
         final TestOperationLog operationLog;
+        final CacheFactory cacheFactory;
+        final CacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
             this.memoryStorage = new InMemoryStorage();
@@ -520,7 +526,9 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
             this.storage = new TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
             this.operationLog = new TestOperationLog();
-            val factory = new ContainerAttributeIndexFactoryImpl(config, executorService());
+            this.cacheFactory = new InMemoryCacheFactory();
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage, this.operationLog);
         }
 
@@ -534,6 +542,8 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
+            this.cacheManager.close();
+            this.cacheFactory.close();
             this.storage.close();
             this.memoryStorage.close();
         }

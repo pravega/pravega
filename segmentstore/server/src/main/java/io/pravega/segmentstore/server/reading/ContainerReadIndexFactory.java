@@ -9,14 +9,14 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import com.google.common.base.Preconditions;
-
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -34,20 +34,14 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
      *
      * @param config          Configuration for the ReadIndex.
      * @param cacheFactory    The CacheFactory to use to create Caches for the ReadIndex.
+     * @param cacheManager    The CacheManager to use to manage Cache entries.
      * @param executorService The Executor to use to invoke async callbacks.
      */
-    public ContainerReadIndexFactory(ReadIndexConfig config, CacheFactory cacheFactory, ScheduledExecutorService executorService) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
-        Preconditions.checkNotNull(executorService, "executorService");
-
-        this.config = config;
-        this.cacheFactory = cacheFactory;
-        this.executorService = executorService;
-        this.cacheManager = new CacheManager(config.getCachePolicy(), this.executorService);
-
-        // Start the CacheManager. It's OK to wait for it to start, as it doesn't do anything expensive during that phase.
-        this.cacheManager.startAsync().awaitRunning();
+    public ContainerReadIndexFactory(ReadIndexConfig config, CacheFactory cacheFactory, CacheManager cacheManager, ScheduledExecutorService executorService) {
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.cacheFactory = Preconditions.checkNotNull(cacheFactory, "cacheFactory");
+        this.executorService = Preconditions.checkNotNull(executorService, "executorService");
+        this.cacheManager = Preconditions.checkNotNull(cacheManager, "cacheManager");
     }
 
     @Override
@@ -58,9 +52,6 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.cacheManager.close(); // Closing the CacheManager also stops it.
-            this.closed = true;
-        }
+        this.closed = true;
     }
 }
