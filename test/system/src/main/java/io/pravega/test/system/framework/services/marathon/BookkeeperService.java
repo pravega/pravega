@@ -96,7 +96,7 @@ public class BookkeeperService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION);
         Collection<Volume> volumeCollection = new ArrayList<>();
         volumeCollection.add(createVolume("/bk", "mnt", "RW"));
-        //TODO: add persistent volume  (see issue https://github.com/pravega/pravega/issues/639)
+        volumeCollection.add(createPersistentVolume("persistent", "RW"));
         app.getContainer().setVolumes(volumeCollection);
         app.setPorts(Arrays.asList(BK_PORT));
         app.setRequirePorts(true);
