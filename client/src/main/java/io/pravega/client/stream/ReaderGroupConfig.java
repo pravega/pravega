@@ -59,9 +59,9 @@ public class ReaderGroupConfig implements Serializable {
         * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
         * readers of a ReaderGroup.
         *
-        * @param scopedStreamName Scoped Name of the Stream.
-        * @param startStreamCut Start {@link StreamCut}
-        * @param endStreamCut End {@link StreamCut}
+        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
@@ -81,7 +81,8 @@ public class ReaderGroupConfig implements Serializable {
 
        /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
-        * @param scopedStreamName Scoped Name of the Stream.
+        *
+        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
@@ -93,7 +94,8 @@ public class ReaderGroupConfig implements Serializable {
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
-        * @param scopedStreamName Stream name.
+        *
+        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scopedStreamName) {
