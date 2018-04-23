@@ -27,7 +27,11 @@ public class TestAuthHandler implements AuthHandler {
 
     @Override
     public Permissions authorize(String resource, Map<String, String> headers) {
-        return Permissions.READ_UPDATE;
+        if (headers.get("username").equals("dummy")) {
+            return Permissions.NONE;
+        } else {
+            return Permissions.READ_UPDATE;
+        }
     }
 
     @Override

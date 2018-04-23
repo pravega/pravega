@@ -32,14 +32,23 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+        return getSegmentInputStream(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    }
+
+    @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+        return getSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
+    }
+
+    private SegmentInputStream getSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
-    AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new SegmentInputStreamImpl(result, 0, bufferSize);
+        return new SegmentInputStreamImpl(result, 0, endOffset,  bufferSize);
     }
 }

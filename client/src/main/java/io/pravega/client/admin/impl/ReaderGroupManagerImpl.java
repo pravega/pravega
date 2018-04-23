@@ -37,6 +37,7 @@ import lombok.Cleanup;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
@@ -91,7 +92,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
         Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     @Override

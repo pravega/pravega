@@ -41,13 +41,14 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -75,8 +76,6 @@ public class ReaderGroupNotificationTest {
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
     private AtomicBoolean listenerInvoked = new AtomicBoolean();
-    private AtomicInteger numberOfReaders = new AtomicInteger(0);
-    private AtomicInteger numberOfSegments = new AtomicInteger(0);
     private ReusableLatch listenerLatch = new ReusableLatch();
 
     @BeforeClass
@@ -159,12 +158,14 @@ public class ReaderGroupNotificationTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
+        final CountDownLatch latch = new CountDownLatch(2);
+        final ArrayDeque<SegmentNotification> notificationResults = new ArrayDeque<>();
+
         //Add segment event listener
         Listener<SegmentNotification> l1 = notification -> {
-            listenerInvoked.set(true);
-            numberOfReaders.set(notification.getNumOfReaders());
-            numberOfSegments.set(notification.getNumOfSegments());
-            listenerLatch.release();
+            log.info("Number of Segments{}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
+            notificationResults.offer(notification);
+            latch.countDown();
         };
         readerGroup.getSegmentNotifier(executor).registerListener(l1);
 
@@ -175,10 +176,16 @@ public class ReaderGroupNotificationTest {
         assertNotNull(event2);
         assertEquals("data2", event2.getEvent());
 
-        listenerLatch.await();
-        assertTrue("Listener invoked", listenerInvoked.get());
-        assertEquals(2, numberOfSegments.get());
-        assertEquals(1, numberOfReaders.get());
+        latch.await(); // await two invocations.
+
+        SegmentNotification initialSegmentNotification = notificationResults.poll();
+        assertNotNull(initialSegmentNotification);
+        assertEquals(1, initialSegmentNotification.getNumOfReaders());
+        assertEquals(1, initialSegmentNotification.getNumOfSegments());
+
+        SegmentNotification segmentNotificationPostScale = notificationResults.poll();
+        assertEquals(1, segmentNotificationPostScale.getNumOfReaders());
+        assertEquals(2, segmentNotificationPostScale.getNumOfSegments());
     }
 
     @Test(timeout = 40000)
