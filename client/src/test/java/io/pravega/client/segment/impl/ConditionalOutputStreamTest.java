@@ -21,7 +21,6 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -183,30 +182,30 @@ public class ConditionalOutputStreamTest {
         replies.add(false);
         assertTrue(cOut.write(data, 0));
         assertFalse(cOut.write(data, 1));
-        TestUtils.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             assertTrue(cOut.write(data, 2));
         }, () -> {
             replies.add(true);
         });
-        TestUtils.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             assertFalse(cOut.write(data, 3));
         }, () -> {
             replies.add(false);
         });
-        TestUtils.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             assertTrue(cOut.write(data, 4));
         }, () -> {
-            TestUtils.testBlocking(() -> {
+            AssertExtensions.assertBlocks(() -> {
                 assertFalse(cOut.write(data, 5));
             }, () -> {
                 replies.add(true);
                 replies.add(false);
             });
         });
-        TestUtils.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             assertFalse(cOut.write(data, 6));
         }, () -> {
-            TestUtils.testBlocking(() -> {
+            AssertExtensions.assertBlocks(() -> {
                 assertTrue(cOut.write(data, 7));
             }, () -> {
                 replies.add(false);
