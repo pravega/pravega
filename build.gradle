@@ -520,7 +520,7 @@ project('standalone') {
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
                                  "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
     startScripts {
         classpath += files('./pluginlib')
         doLast {
