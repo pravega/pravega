@@ -62,9 +62,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -93,12 +95,16 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             .withExpBackoff(10, 2, 10, 1000)
             .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
+    private static final Supplier<Long> NEXT_ENTRY_ID = new AtomicLong()::getAndIncrement;
 
     private final SegmentMetadata segmentMetadata;
     private final AtomicReference<AttributeSegment> attributeSegment;
     private final Storage storage;
     private final OperationLog operationLog;
+    @GuardedBy("cacheEntries")
     private final Cache cache;
+    @GuardedBy("cacheEntries")
+    private final ArrayList<CacheEntry> cacheEntries;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
     private final String traceObjectId;
@@ -128,6 +134,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.attributeSegment = new AtomicReference<>();
         this.traceObjectId = String.format("AttributeIndex[%s]", this.segmentMetadata.getId());
+        this.cacheEntries = new ArrayList<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -212,8 +219,15 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
         // A bit unusual, but we want to make sure we do not call this while the index is active.
         Preconditions.checkState(this.closed.get(), "Cannot call removeAllEntries unless the SegmentAttributeIndex is closed.");
 
-        // TODO: implement
-        int count = 0;
+        int count;
+        synchronized (this.cacheEntries) {
+            count = this.cacheEntries.size();
+            for (CacheEntry e : this.cacheEntries) {
+                this.cache.remove(e.getKey());
+            }
+            this.cacheEntries.clear();
+        }
+
         log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, count);
     }
 
@@ -223,11 +237,13 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
     @Override
     public CacheManager.CacheStatus getCacheStatus() {
+        // TODO: implement
         return null;
     }
 
     @Override
     public long updateGenerations(int currentGeneration, int oldestGeneration) {
+        // TODO: implement
         return 0;
     }
 
@@ -258,6 +274,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
                 return Futures.toVoid(appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)),
                         new TimeoutTimer(timeout)));
             }
+            // TODO: cache update here.
         }
     }
 
@@ -268,6 +285,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
+        // TODO: cache read here. Figure out what's in the cache and fetch rest from Storage.
         return readAllSinceLastSnapshot(timeout)
                 .thenApply(c -> {
                     ImmutableMap.Builder<UUID, Long> b = ImmutableMap.builder();
@@ -284,6 +302,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
     @Override
     public CompletableFuture<Long> get(UUID key, Duration timeout) {
         ensureInitialized();
+        // TODO: cache read here.
         return readAllSinceLastSnapshot(timeout)
                 .thenApply(c -> c.attributes.get(key));
     }
@@ -726,4 +745,30 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
     }
 
     //endregion
+
+    private class CacheEntry {
+        @Getter
+        private final long entryId;
+        @Getter
+        private final UUID firstAttributeId;
+        @GuardedBy("cacheEntries")
+        private int generation;
+
+        CacheEntry() {
+            this.entryId = NEXT_ENTRY_ID.get();
+            this.firstAttributeId = new UUID(Long.MIN_VALUE, Long.MIN_VALUE);
+        }
+
+        CacheKey getKey() {
+            return new CacheKey(SegmentAttributeIndex.this.segmentMetadata.getId(), this.entryId);
+        }
+
+        void mergeWith(CacheEntry other) {
+            // TODO: merge in the cache
+        }
+
+        CacheEntry[] split() {
+            return null;
+        }
+    }
 }
