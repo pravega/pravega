@@ -16,9 +16,16 @@ cred_path=${5:-null}
 config_path=${6:-null}
 pravega_org=${7:-pravega/pravega}
 pravega_branch=${8:-master}
+travis_commit=${9:-null}
 cd aws/
-TF_LOG=INFO terraform init
-TF_LOG=INFO terraform apply -auto-approve -var aws_access_key=$aws_access_key \
+sed -i 's/,/ /g' public_dns.txt
+var=`cat public_dns.txt`
+sudo chmod 400 $cred_path
+for i in $var; do
+        ssh -o StrictHostKeyChecking=no -i $cred_path root@$i "bash -s" -- < ./logCollectionScript.sh $aws_access_key $aws_secret_key $pravega_branch $travis_commit
+done
+
+TF_LOG=INFO terraform destroy -force -var aws_access_key=$aws_access_key \
  -var aws_secret_key=$aws_secret_key \
   -var aws_region=$aws_region  \
   -var aws_key_name=$aws_key_name \
@@ -26,8 +33,3 @@ TF_LOG=INFO terraform apply -auto-approve -var aws_access_key=$aws_access_key \
  -var config_path=$config_path \
   -var pravega_org=$pravega_org  \
   -var pravega_branch=$pravega_branch
-touch public_dns.txt
-master_public_dns=`terraform output master_public_dns`
-echo $master_public_dns >> $config_path/public_dns.txt
-slave_public_dns=`terraform output slave_public_dns`
-echo $slave_public_dns >> $config_path/public_dns.txt
