@@ -422,8 +422,7 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-all:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
     }
 
     javadoc {
@@ -488,8 +487,7 @@ project('controller') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile 'io.jsonwebtoken:jjwt:0.9.0'
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
 
     }
 
@@ -519,10 +517,11 @@ project('standalone') {
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                                 "-Dsinglenode.configurationFile=PRAVEGA_APP_HOME/conf/standalone-config.properties",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=pravega",
                                  "-Xdebug",
-                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=y"]
+                                 "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
     startScripts {
         classpath += files('./pluginlib')
         doLast {
@@ -549,8 +548,7 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
-        // https://mvnrepository.com/artifact/io.netty/netty-tcnative-boringssl-static
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.6.Final'
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
@@ -568,6 +566,7 @@ project('standalone') {
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
+        systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
 
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
@@ -741,6 +740,11 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
 
+    }
+
+    task collectSystemTestLogsFromAws(type: Exec) {
+        commandLine './aws/postTestScript.sh'
+        args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
     }
 }
 
