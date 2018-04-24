@@ -102,10 +102,10 @@ public class EndToEndTxnWithTest {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
-                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                .build();
+                                                        .scope("test")
+                                                        .streamName("test")
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
@@ -150,10 +150,10 @@ public class EndToEndTxnWithTest {
     @Test(timeout = 10000)
     public void testTxnConfig() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                                                        .build();
+                .scope("test")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
