@@ -43,7 +43,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
-        return s3Impl.deleteObject(request);
+        return s3Impl.deleteObjects(request);
     }
 
     @Synchronized

@@ -157,14 +157,14 @@ public class S3FileSystemImpl extends S3ImplBase {
     public void deleteObject(String bucketName, String key) {
         Path path = Paths.get(this.baseDir, bucketName, key);
         try {
-                Files.delete(path);
+            Files.delete(path);
         } catch (IOException e) {
             throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
         }
     }
 
     @Override
-    public DeleteObjectsResult deleteObject(DeleteObjectsRequest request) {
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
         for (ObjectKey obj : request.getDeleteObjects().getKeys()) {
             this.deleteObject(request.getBucketName(), obj.getKey());
         }
