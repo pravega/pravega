@@ -32,6 +32,7 @@ public interface ConditionalOutputStream extends AutoCloseable {
      * 
      * @param data The data to be added to the segment.
      * @param expectedOffset The location in the segment that the data will be written at.
+     * @return true if the data was appended, false if the offset was not the expected value.
      * @throws SegmentSealedException If the segment is closed for modifications.
      */
     public boolean write(ByteBuffer data, long expectedOffset) throws SegmentSealedException;

@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import junit.framework.AssertionFailedError;
 import org.junit.Assert;
 
 /**
@@ -434,7 +433,7 @@ public class AssertExtensions {
                 if (exception.get() != null) {
                     throw new RuntimeException("Blocking code threw an exception", exception.get());
                 } else {
-                    throw new AssertionFailedError("Failed to block.");
+                    throw new AssertionError("Failed to block.");
                 }
             }
         } catch (InterruptedException e) {
