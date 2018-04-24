@@ -18,8 +18,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -254,6 +254,27 @@ public class RetryTests {
                     }
                 }), Executors.newSingleThreadScheduledExecutor()).get();
         assert i.get() == 10;
+    }
+
+    @Test
+    public void retryWhileTest() throws Exception {
+        // Max attempts exhausted.
+        AtomicInteger i = new AtomicInteger(0);
+        try {
+            Retry.withExpBackoff(10, 2, 10, 10)
+                    .retryWhile(() -> true)
+                    .run(i::incrementAndGet);
+            Assert.fail("Expected to have failed when exceeding max number of runs.");
+        } catch (RetriesExhaustedException ex) {
+            Assert.assertEquals("Unexpected number of runs.", 10, i.get());
+        }
+
+        // Condition becomes true.
+        i.set(0);
+        Retry.withExpBackoff(10, 2, 10, 10)
+                .retryWhile(() -> i.get() < 5)
+                .run(i::incrementAndGet);
+        Assert.assertEquals("Unexpected number of runs.", 5, i.get());
     }
 
 

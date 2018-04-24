@@ -54,35 +54,41 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         FileDescriptor lastFile = handle.getLastFile();
 
         Timer timer = new Timer();
-        try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
-            if (this.offset != lastFile.getLastOffset()) {
-                // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
-                // before we throw BadOffsetException.
-                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
-            } else if (stream.getPos() != lastFile.getLength()) {
-                // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
-                // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
-                // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.
-                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", lastFile, lastFile.getLength(), stream.getPos());
-                lastFile.setLength(stream.getPos());
-                throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
+        try {
+            markWriteInProgress(lastFile, true); // Set a flag on the file indicating we're about to write to it.
+            try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
+                if (this.offset != lastFile.getLastOffset()) {
+                    // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
+                    // before we throw BadOffsetException.
+                    throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
+                } else if (stream.getPos() != lastFile.getLength()) {
+                    // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
+                    // Update our knowledge of the filesystem and throw a BadOffsetException - this should cause upstream code
+                    // to try to reconcile; if it can't then the upstream code should shut down or take other appropriate measures.
+                    log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", lastFile, lastFile.getLength(), stream.getPos());
+                    lastFile.setLength(stream.getPos());
+                    throw new BadOffsetException(handle.getSegmentName(), lastFile.getLastOffset(), this.offset);
+                }
+
+                if (this.length == 0) {
+                    // Exit here (vs at the beginning of the method), since we want to throw appropriate exceptions in case
+                    // of Sealed or BadOffset
+                    // Note: IOUtils.copyBytes with length == 0 will enter an infinite loop, hence the need for this check.
+                    return;
+                }
+
+                // We need to be very careful with IOUtils.copyBytes. There are many overloads with very similar signatures.
+                // There is a difference between (InputStream, OutputStream, int, boolean) and (InputStream, OutputStream, long, boolean),
+                // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
+                // of bytes to copy.
+                IOUtils.copyBytes(this.data, stream, (long) this.length, false);
+
+                stream.flush();
+                lastFile.increaseLength(this.length);
+            } finally {
+                // Clear the write flag on the file; this will unblock any calls to makeReadOnly() that wait on it.
+                markWriteInProgress(lastFile, false);
             }
-
-            if (this.length == 0) {
-                // Exit here (vs at the beginning of the method), since we want to throw appropriate exceptions in case
-                // of Sealed or BadOffset
-                // Note: IOUtils.copyBytes with length == 0 will enter an infinite loop, hence the need for this check.
-                return;
-            }
-
-            // We need to be very careful with IOUtils.copyBytes. There are many overloads with very similar signatures.
-            // There is a difference between (InputStream, OutputStream, int, boolean) and (InputStream, OutputStream, long, boolean),
-            // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
-            // of bytes to copy.
-            IOUtils.copyBytes(this.data, stream, (long) this.length, false);
-
-            stream.flush();
-            lastFile.increaseLength(this.length);
         } catch (FileNotFoundException | AclException ex) {
             checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
