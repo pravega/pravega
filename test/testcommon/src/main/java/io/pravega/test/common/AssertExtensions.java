@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import junit.framework.AssertionFailedError;
 import org.junit.Assert;
 
 /**
@@ -372,14 +373,14 @@ public class AssertExtensions {
      */
     public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, Runnable unblocker) {
         final AtomicReference<ResultT> result = new AtomicReference<>(null);
-        final AtomicReference<Exception> exception = new AtomicReference<>(null);
+        final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     result.set(blockingFunction.call());
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     exception.set(e);
                 }
                 isBlocked.release();
@@ -414,14 +415,14 @@ public class AssertExtensions {
      * @param unblocker The function that is expected to unblock the blocking function.
      */
     public static void assertBlocks(RunnableWithException blockingFunction, Runnable unblocker) {
-        final AtomicReference<Exception> exception = new AtomicReference<>(null);
+        final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     blockingFunction.run();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     exception.set(e);
                 }
                 isBlocked.release();
@@ -433,7 +434,7 @@ public class AssertExtensions {
                 if (exception.get() != null) {
                     throw new RuntimeException("Blocking code threw an exception", exception.get());
                 } else {
-                    throw new RuntimeException("Failed to block.");
+                    throw new AssertionFailedError("Failed to block.");
                 }
             }
         } catch (InterruptedException e) {
