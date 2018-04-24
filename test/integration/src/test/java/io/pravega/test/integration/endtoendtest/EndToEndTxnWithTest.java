@@ -149,6 +149,7 @@ public class EndToEndTxnWithTest {
 
     @Test(timeout = 10000)
     public void testTxnConfig() throws Exception {
+        // create stream test
         StreamConfiguration config = StreamConfiguration.builder()
                 .scope("test")
                 .streamName("test")
@@ -161,21 +162,28 @@ public class EndToEndTxnWithTest {
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        // create writers with different configs and try creating transactions against those configs
         EventWriterConfig defaultConfig = EventWriterConfig.builder().build();
+        assertNotNull(createTxn(clientFactory, defaultConfig, "test"));
+
         EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build();
+        assertNotNull(createTxn(clientFactory, validConfig, "test"));
+
         EventWriterConfig leaseMoreThanScaleGraceConfig = EventWriterConfig.builder()
                 .transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(11000).build();
-        EventWriterConfig highScaleGraceConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(100 * 1000).build();
-        EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
-        EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
-        assertNotNull(createTxn(clientFactory, defaultConfig, "test"));
-        assertNotNull(createTxn(clientFactory, validConfig, "test"));
         AssertExtensions.assertThrows("lease more than scale grace period not honoured",
                 () -> createTxn(clientFactory, leaseMoreThanScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+
+        EventWriterConfig highScaleGraceConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(100 * 1000).build();
         AssertExtensions.assertThrows("high scale grace period not honoured",
                 () -> createTxn(clientFactory, highScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+
+        EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",
                 () -> createTxn(clientFactory, lowTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+
+        EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
         AssertExtensions.assertThrows("high timeouot period not honoured",
                 () -> createTxn(clientFactory, highTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
     }
