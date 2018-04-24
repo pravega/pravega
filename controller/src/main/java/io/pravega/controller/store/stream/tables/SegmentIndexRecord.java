@@ -14,12 +14,12 @@ import lombok.Data;
 
 import java.util.Optional;
 
-@Data
 /**
  * Class corresponding to a record/row in SegmentIndex.
  * Each row is fixed size
  * Row: [offset-in-Segment-table]
  */
+@Data
 public class SegmentIndexRecord {
     private static final int INDEX_RECORD_SIZE = Integer.BYTES;
     private final int segmentNumber;

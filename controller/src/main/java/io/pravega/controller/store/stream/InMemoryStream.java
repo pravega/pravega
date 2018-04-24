@@ -285,7 +285,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 segmentIndex = new Data<>(data.getData(), 0);
             }
         }
-
         return CompletableFuture.completedFuture(null);
     }
 
@@ -295,10 +294,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (this.segmentIndex == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
-
             return CompletableFuture.completedFuture(copy(this.segmentIndex));
         }
-
     }
 
     @Override
@@ -342,8 +339,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Segment> getSegmentRow(int number) {
         return getSegmentIndex()
-            .thenCompose(segmentIndex -> getSegmentTable()
-                .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(), segmentTable.getData())));
+                .thenCompose(segmentIndex -> getSegmentTable()
+                        .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(), segmentTable.getData())));
     }
 
     @Override

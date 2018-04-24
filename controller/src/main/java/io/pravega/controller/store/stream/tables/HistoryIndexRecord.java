@@ -18,7 +18,7 @@ import java.util.Optional;
 /**
  * Class corresponding to a record/row in Index table.
  * Each row is fixed size
- * Row: [eventTime, pointer-into-history-table]
+ * Row: [pointer-into-history-table]
  */
 public class HistoryIndexRecord {
     private static final int INDEX_RECORD_SIZE = Integer.BYTES;

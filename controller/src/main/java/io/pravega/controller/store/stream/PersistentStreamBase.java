@@ -593,7 +593,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         if (epochTransition == null) {
                                             return Futures.toVoid(updateState(State.ACTIVE));
                                         }
-                                        // update segment index and table in idempotent fashion.
+                                        // Idempotent update to index and table.
                                         int newEpoch = epochTransition.getNewEpoch();
 
                                         final int segmentCount = TableHelper.getSegmentCount(segmentIndex.getData(),
@@ -655,9 +655,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
         long scaleEventTime = Math.max(System.currentTimeMillis(), scaleStartTime);
         long segmentCreationTimestamp = Math.max(scaleEventTime, lastScaleTime + 1);
 
-        // Note: if segment index was updated in an earlier attempt but segment was not, we need to overwrite previous index update!
-        // this is because new offsets may be different. we cannot update segment table before index because then
-        // we would not be able to read from segment table as we dont know the starting offsets for segments.
+        // Note: if segment index was updated in an earlier attempt but segment was not, we need to overwrite the
+        // previous index update!
+        // This is because new offsets may be different. we cannot update segment table before index because then
+        // we would not be able to read from segment table as we don't know the starting offsets for segments.
         final Pair<byte[], byte[]> updated = TableHelper.addNewSegmentsToSegmentTableAndIndex(nextSegmentNumber, newEpoch,
                 segmentIndex.getData(), segmentTable.getData(), newRanges, segmentCreationTimestamp);
 
@@ -730,7 +731,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             if (e != null) {
                                                 Throwable ex = Exceptions.unwrap(e);
                                                 if (ex instanceof StoreException.DataNotEmptyException) {
-                                                    // cant delete as there are transactions still running under epoch node
+                                                    // Can't delete as there are transactions still running under epoch node
                                                     log.debug("stream {}/{} epoch {} not empty", scope, name, epoch);
                                                     result.complete(false);
                                                 } else {

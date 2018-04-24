@@ -127,7 +127,7 @@ public class TableHelper {
                 segments = record.getSegments();
             } else {
                 // case 3: overlap between requested epoch and stream cut.
-                // take segments from stream cut that are from or aftergit re this epoch.
+                // take segments from stream cut that are from or after this epoch.
                 // take remaining segments from this epoch.
                 segments = new ArrayList<>();
                 // all segments from stream cut that have epoch >= this epoch
@@ -149,7 +149,7 @@ public class TableHelper {
     /**
      * Method to validate a given stream Cut.
      * A stream cut is valid if it covers the entire key space without any overlaps in ranges for segments that form the
-     * streamcut. It throws Invalid argument exception if the supplied stream cut does not satisfy the invariants.
+     * streamcut. It throws {@link InvalidArgumentException} if the supplied stream cut does not satisfy the invariants.
      *
      * @param streamCut supplied stream cut.
      */
