@@ -197,6 +197,18 @@ public class ZKStoreHelper {
         return result;
     }
 
+    CompletableFuture<Integer> updateAndGetVersion(final String path) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
+        try {
+            client.setData().inBackground(
+                    callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
+                    .forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+        return result;
+    }
+
     CompletableFuture<Void> createZNode(final String path, final byte[] data) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {

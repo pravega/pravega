@@ -74,6 +74,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
      */
     @GuardedBy("txnsLock")
     private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
+    @GuardedBy("txnsLock")
+    private final Map<Integer, AtomicLong> epochCounter = new HashMap<>();
+
     private final AtomicInteger activeEpoch = new AtomicInteger();
 
     InMemoryStream(String scope, String name) {
@@ -454,6 +457,45 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS,
                         "Stream: " + getName() + " Epoch: " + epoch));
             }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createEpochCounterIfAbsent(int epoch) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        synchronized (txnsLock) {
+            if (!epochCounter.containsKey(epoch)) {
+                epochCounter.put(epoch, new AtomicLong(0));
+                result.complete(null);
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS,
+                        "Stream: " + getName() + " Epoch: " + epoch));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Long> incrementAndGetEpochCounter(int epoch) {
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        synchronized (txnsLock) {
+            if (epochCounter.containsKey(epoch)) {
+                result.complete(epochCounter.get(epoch).incrementAndGet());
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Epoch: " + epoch));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> deleteEpochCounter(int epoch) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        synchronized (txnsLock) {
+            epochCounter.remove(epoch);
+            result.complete(null);
         }
         return result;
     }

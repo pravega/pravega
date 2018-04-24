@@ -25,12 +25,12 @@ import lombok.Getter;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
 /**
@@ -336,32 +336,54 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createEpochCounterIfAbsent(int epoch) {
-        // create a new znode under epoch
-        return store.createZNodeIfNotExist(getEpochCounterPath(epoch));
+        // create a new znode under epoch for msb and another for counter
+        byte[] b = new byte[Integer.BYTES];
+        BitConverter.writeInt(b, 0, 0);
+
+        return store.createZNodeIfNotExist(getEpochMsbPath(epoch), b)
+                .thenCompose(v -> store.createZNodeIfNotExist(getEpochCounterPath(epoch, 0), true));
     }
 
     @Override
     public CompletableFuture<Long> incrementAndGetEpochCounter(int epoch) {
-        String epochCounterPath = getEpochCounterPath(epoch);
-        CompletableFuture<Long> result = new CompletableFuture<>();
-        store.getData(epochCounterPath)
-                .whenComplete((data, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else {
-                        // increment
-                        Data<Integer> incremented = new Data<>(data.getData(), data.getVersion());
-                        store.setData(epochCounterPath, incremented)
-                                .whenComplete()
+        // This method can throw DataNotFoundException if msb path is deleted (epoch sealed as part of scale), Or
+        String msbPath = getEpochMsbPath(epoch);
+        return store.getData(msbPath).thenCompose(msbData -> incrementCounter(epoch, msbPath, msbData));
+    }
 
+    private CompletionStage<Long> incrementCounter(int epoch, String msbPath, Data<Integer> msbData) {
+        int msb = BitConverter.readInt(msbData.getData(), 0);
+        String lsbPath = getEpochCounterPath(epoch, msb);
+
+        return store.updateAndGetVersion(lsbPath)
+                .thenCompose(lsb -> {
+                    long id = (long) msb << 32 | lsb & 0xFFFFFFFFL;
+
+                    // This will allow 10000 outstanding concurrent increments to this counter even after we seal it.
+                    if (lsb > Integer.MAX_VALUE - 10000) {
+                        // 1. create new lsb node at path epoch/counters/(msb + 1)
+                        // 2. delete stale lsb node at path epoch/
+                        // 3. increment msb node with newer value. This ensures that all future increments happen against
+                        // msb node.
+                        String staleLsbPath = getEpochCounterPath(epoch, msb - 1);
+                        String newLsbPath = getEpochCounterPath(epoch, msb + 1);
+                        return store.createZNodeIfNotExist(newLsbPath)
+                                .thenCompose(v -> store.deletePath(staleLsbPath, false))
+                                .thenCompose(deleted -> {
+                                    byte[] b = new byte[Integer.BYTES];
+                                    BitConverter.writeInt(b, 0, msb + 1);
+                                    return store.setData(msbPath, new Data<>(b, null));
+                                }).thenApply(x -> id);
+                    } else {
+                        return CompletableFuture.completedFuture(id);
                     }
                 });
-        return result;
     }
 
     @Override
     public CompletableFuture<Void> deleteEpochCounter(int epoch) {
-        return store.deleteNode(getEpochCounterPath(epoch));
+        return store.deletePath(getEpochMsbPath(epoch), false)
+            .thenCompose(v -> store.deleteTree(getEpochCounterRootPath(epoch)));
     }
 
     @Override
@@ -413,16 +435,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
-        // TODO: no need to check existence, just delete the path, if the path is already deleted, will get error
-        return store.checkExists(activePath)
-                .thenCompose(x -> {
-                    if (x) {
-                        return store.deletePath(activePath, false)
+        return store.deletePath(activePath, false)
                                 .whenComplete((r, e) -> cache.invalidateCache(activePath));
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
     }
 
     @Override
@@ -557,9 +571,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return ZKPaths.makePath(activeTxRoot, Long.toString(epoch));
     }
 
-    private String getEpochCounterPath(final long epoch) {
-        String root = getEpochPath(epoch);
-        return ZKPaths.makePath(root, "counter");
+    private String getEpochMsbPath(final long epoch) {
+        return ZKPaths.makePath(getEpochPath(epoch), "msb");
+    }
+
+    private String getEpochCounterPath(final long epoch, final int counter) {
+        return ZKPaths.makePath(getEpochCounterRootPath(epoch), String.format("counter%d", counter));
+    }
+
+    private String getEpochCounterRootPath(final long epoch) {
+        return ZKPaths.makePath(getEpochPath(epoch), "counters");
     }
 
     private String getCompletedTxPath(final String txId) {

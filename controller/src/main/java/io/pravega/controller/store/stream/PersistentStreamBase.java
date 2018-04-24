@@ -826,34 +826,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId) {
-        return getTransactionEpoch(txId).thenCompose(epoch -> getActiveTx(epoch, txId)
+        int epoch = getTransactionEpoch(txId);
+        return getActiveTx(epoch, txId)
                 .thenApply(data -> {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.parse(data.getData());
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
                             activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getScaleGracePeriod());
-                }));
+                });
     }
 
     @Override
     public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
-        return verifyLegalState().thenCompose(v -> getTransactionEpoch(txId).handle((epoch, ex) -> {
-            if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
-                return null;
-            } else if (ex != null) {
-                throw new CompletionException(ex);
-            }
-            return epoch;
-        }).thenCompose(x -> {
-            if (x == null) {
-                return getCompletedTxnStatus(txId);
-            } else {
-                return checkTransactionStatus(x, txId);
-            }
-        }));
-    }
-
-    private CompletableFuture<TxnStatus> checkTransactionStatus(final int epoch, final UUID txId) {
+        int epoch = getTransactionEpoch(txId);
         return verifyLegalState().thenCompose(v -> getActiveTx(epoch, txId).handle((ok, ex) -> {
             if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
@@ -885,8 +870,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
                                                                               final Optional<Integer> version) {
         val legal = verifyLegalState();
-        return legal.thenCompose(v -> getTransactionEpoch(txId).thenCompose(epoch -> sealActiveTxn(epoch, txId, commit, version))
-                                                               .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null)))
+        int epoch = getTransactionEpoch(txId);
+        return legal.thenCompose(v -> sealActiveTxn(epoch, txId, commit, version))
+                                                               .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null))
                     .thenCompose(pair -> {
                         if (pair.getKey() == TxnStatus.UNKNOWN) {
                             return validateCompletedTxn(txId, commit, "seal").thenApply(status -> new SimpleEntry<>(status, null));
@@ -945,7 +931,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) {
-        return verifyLegalState().thenCompose(v -> checkTransactionStatus(epoch, txId)).thenApply(x -> {
+        return verifyLegalState().thenCompose(v -> checkTransactionStatus(txId)).thenApply(x -> {
             switch (x) {
                 // Only sealed transactions can be committed
                 case COMMITTED:
@@ -1297,6 +1283,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
+    private Integer getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb
+        return (int)txId.getMostSignificantBits();
+    }
+
     abstract CompletableFuture<Void> deleteStream();
 
     abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime);
@@ -1362,8 +1353,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                              final long leaseExpiryTime,
                                                              final long maxExecutionExpiryTime,
                                                              final long scaleGracePeriod);
-
-    abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 
     abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId);
 
