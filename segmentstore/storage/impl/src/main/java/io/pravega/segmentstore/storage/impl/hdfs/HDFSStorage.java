@@ -46,7 +46,7 @@ import org.apache.hadoop.io.IOUtils;
 /**
  * Storage adapter for a backing HDFS Store which implements fencing using file-chaining strategy.
  * <p>
- * Each segment is represented by one file, adopting the following pattern: {segment-name}_{epoch}.
+ * For each segment, there is exactly one file in the file system, adopting the following pattern: {segment-name}_{epoch}.
  * <ul>
  * <li> {segment-name} is the name of the segment as used in the SegmentStore
  * <li> {epoch} is the Container Epoch which has ownership of that segment.
@@ -417,8 +417,8 @@ class HDFSStorage implements SyncStorage {
     public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
         // Creates a file with the lowest possible epoch (0).
         // There is a possible race during create where more than one segmentstore may be trying to create a streamsegment.
-        // If one create is delayed till long time, it is possible that other segmentstore will be able to create the file with
-        // epoch (0) and then rename it to its owned version (segment_<epoch>).
+        // If one create is delayed, it is possible that other segmentstore will be able to create the file with
+        // epoch (0) and then rename it using its epoch (segment_<epoch>).
         //
         // To fix this, the create code checks whether a file with higher epoch exists.
         // If it does, it tries to remove the created file, and throws SegmentExistsException.
@@ -447,7 +447,9 @@ class HDFSStorage implements SyncStorage {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
         }
 
-        //If there is a race during creation, delete the file with epoch 0 and throw exception.
+        // If there is a race during creation, delete the file with epoch 0 and throw exception.
+        // It is safe to delete the file as a file with higher epoch already exists. Any new operations will always
+        // work the file with higher epoch than 0.
         try {
             status = findAllRaw(streamSegmentName);
             if (status != null && status.length > 1) {
