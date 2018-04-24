@@ -502,11 +502,10 @@ public class TableHelper {
     /**
      * Add a new row to index table.
      *
-     * @param timestamp     timestamp
      * @return serialized index table
      */
     @SneakyThrows
-    public static byte[] createHistoryIndex(final long timestamp) {
+    public static byte[] createHistoryIndex() {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
         indexStream.write(new HistoryIndexRecord(0, 0).toByteArray());

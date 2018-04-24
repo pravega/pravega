@@ -115,7 +115,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             }
                         })
                         .thenCompose((Void v) -> createHistoryIndexIfAbsent(new Data<>(
-                                TableHelper.createHistoryIndex(createStreamResponse.getTimestamp()), null)))
+                                TableHelper.createHistoryIndex(), null)))
                         .thenCompose((Void v) -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),

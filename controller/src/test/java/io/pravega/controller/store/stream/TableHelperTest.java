@@ -82,7 +82,7 @@ public class TableHelperTest {
         final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
         long timestamp = 1;
         byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
-        byte[] historyIndex = TableHelper.createHistoryIndex(timestamp);
+        byte[] historyIndex = TableHelper.createHistoryIndex();
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, startSegments);
 
@@ -165,7 +165,7 @@ public class TableHelperTest {
         assertEquals(successors, new ArrayList<Integer>());
 
         byte[] historyTable = TableHelper.createHistoryTable(timestamp, newSegments);
-        byte[] historyIndex = TableHelper.createHistoryIndex(timestamp);
+        byte[] historyIndex = TableHelper.createHistoryIndex();
 
         int nextHistoryOffset = historyTable.length;
 
@@ -474,7 +474,7 @@ public class TableHelperTest {
         byte[] segmentIndex = segmentTableAndIndex.getKey();
         byte[] segmentTable = segmentTableAndIndex.getValue();
         byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
-        byte[] historyIndex = TableHelper.createHistoryIndex(timestamp);
+        byte[] historyIndex = TableHelper.createHistoryIndex();
 
         // start new scale
         List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
@@ -671,7 +671,7 @@ public class TableHelperTest {
         byte[] segmentTable = segmentTableAndIndex.getValue();
         byte[] segmentIndex = segmentTableAndIndex.getKey();
         byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
-        byte[] historyIndex = TableHelper.createHistoryIndex(timestamp);
+        byte[] historyIndex = TableHelper.createHistoryIndex();
 
         List<Integer> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, startSegments);

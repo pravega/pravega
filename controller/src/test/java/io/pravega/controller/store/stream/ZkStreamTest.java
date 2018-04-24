@@ -530,7 +530,9 @@ public class ZkStreamTest {
         // create epoch
         stream.createEpochNodeIfAbsent(0).join();
 
+        byte[] historyIndex = TableHelper.createHistoryIndex();
         byte[] historyTable = TableHelper.createHistoryTable(1L, Lists.newArrayList(0, 1));
+        stream.createHistoryIndexIfAbsent(new Data<>(historyIndex, 0)).join();
         stream.createHistoryTableIfAbsent(new Data<>(historyTable, 0)).join();
         stream.createStateIfAbsent(State.ACTIVE).join();
         UUID txId = UUID.randomUUID();
