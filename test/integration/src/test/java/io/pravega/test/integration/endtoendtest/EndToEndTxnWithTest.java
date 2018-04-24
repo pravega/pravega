@@ -33,12 +33,14 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -53,7 +55,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-public class EndToEndTxnWithScaleTest {
+public class EndToEndTxnWithTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -100,10 +102,10 @@ public class EndToEndTxnWithScaleTest {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                                                        .build();
+                .scope("test")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
@@ -143,5 +145,45 @@ public class EndToEndTxnWithScaleTest {
         event = reader.readNextEvent(10000);
         assertNotNull(event);
         assertEquals("txntest2", event.getEvent());
+    }
+
+    @Test(timeout = 10000)
+    public void testTxnConfig() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scope("test")
+                                                        .streamName("test")
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream(config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        EventWriterConfig defaultConfig = EventWriterConfig.builder().build();
+        EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build();
+        EventWriterConfig leaseMoreThanScaleGraceConfig = EventWriterConfig.builder()
+                .transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(11000).build();
+        EventWriterConfig highScaleGraceConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(100 * 1000).build();
+        EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
+        EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
+        assertNotNull(createTxn(clientFactory, defaultConfig, "test"));
+        assertNotNull(createTxn(clientFactory, validConfig, "test"));
+        AssertExtensions.assertThrows("lease more than scale grace period not honoured",
+                () -> createTxn(clientFactory, leaseMoreThanScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("high scale grace period not honoured",
+                () -> createTxn(clientFactory, highScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("low timeout period not honoured",
+                () -> createTxn(clientFactory, lowTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("high timeouot period not honoured",
+                () -> createTxn(clientFactory, highTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+    }
+
+    private UUID createTxn(ClientFactory clientFactory, EventWriterConfig config, String streamName) {
+        @Cleanup
+        EventStreamWriter<String> test = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                config);
+        return test.beginTxn().getTxnId();
     }
 }
