@@ -87,19 +87,15 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config, ScheduledExecutorService backgroundThreadPool,
             ExecutorService retransmitPool) {
-        Preconditions.checkNotNull(stream);
-        Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(outputStreamFactory);
-        Preconditions.checkNotNull(serializer);
-        this.stream = stream;
-        this.controller = controller;
+        this.stream = Preconditions.checkNotNull(stream);
+        this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
-        this.outputStreamFactory = outputStreamFactory;
+        this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);;
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
-        this.serializer = serializer;
+        this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.backgroundThreadPool = backgroundThreadPool;
-        this.retransmitPool = retransmitPool;
+        this.backgroundThreadPool = Preconditions.checkNotNull(backgroundThreadPool);
+        this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
         this.pinger = new Pinger(config, stream, controller);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
