@@ -43,11 +43,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.assertTrue;
-@Ignore
+
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
