@@ -75,6 +75,7 @@ public class EventStreamReaderTest {
         reader.close();
     }
 
+    @SuppressWarnings("unchecked")
     @Test(timeout = 10000)
     public void testReadWithEndOfSegmentException() throws Exception {
         AtomicLong clock = new AtomicLong();
