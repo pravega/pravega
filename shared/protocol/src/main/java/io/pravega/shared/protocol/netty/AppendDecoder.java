@@ -9,18 +9,20 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import com.google.common.annotations.VisibleForTesting;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageDecoder;
 import lombok.Data;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * AppendBlocks are decoded specially to avoid having to parse every append individually.
@@ -79,10 +81,13 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             segment.lastEventNumber = ca.getEventNumber();
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            ca.getEvent().writeFields(new DataOutputStream(bout));
+            byte[] data = bout.toByteArray(); 
             result = new Append(segment.getName(),
                     ca.getWriterId(),
                     ca.getEventNumber(),
-                    ca.getData(),
+                    Unpooled.wrappedBuffer(data),
                     ca.getExpectedOffset());
             break;
         case APPEND_BLOCK:

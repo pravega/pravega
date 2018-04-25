@@ -82,4 +82,9 @@ public class StreamSegments {
         }
         return new StreamSegments(result, delegationToken);
     }
+    
+    @Override
+    public String toString() {
+        return "StreamSegments:" + segments.toString();
+    }
 }

@@ -76,6 +76,25 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the delete() method.
+     */
+    @Test
+    public void testDelete() {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            createSegment(segmentName, s);
+
+            //Delete the segment.
+            s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
+            Assert.assertFalse("Expected the segment to not exist.", s.exists(segmentName, null).join());
+            assertThrows("getStreamSegmentInfo() did not throw for deleted StreamSegment.",
+                    () -> s.getStreamSegmentInfo(segmentName, null).join(),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        }
+    }
+
+    /**
      * Tests the openRead() and openWrite() methods.
      */
     @Test

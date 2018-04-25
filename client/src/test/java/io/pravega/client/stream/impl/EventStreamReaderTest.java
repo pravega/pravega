@@ -10,9 +10,11 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -38,6 +41,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 
 public class EventStreamReaderTest {
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -68,6 +73,47 @@ public class EventStreamReaderTest {
         assertNull(read.getEvent());
         assertEquals(0, reader.getReaders().size());
         reader.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 10000)
+    public void testReadWithEndOfSegmentException() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+
+        //Prep the mocks.
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+
+        //Mock for the two SegmentInputStreams.
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        SegmentInputStream segmentInputStream1 = Mockito.mock(SegmentInputStream.class);
+        Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OFFSET_REACHED));
+        Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
+
+        SegmentInputStream segmentInputStream2 = Mockito.mock(SegmentInputStream.class);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
+        Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(Segment.fromScopedName("Foo/test/0"));
+        Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
+
+        SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
+        Mockito.when(inputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        //Mock Orderer
+        Orderer orderer = Mockito.mock(Orderer.class);
+        Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
+
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
+                new ByteArraySerializer(), groupState,
+                orderer, clock::get,
+                ReaderConfig.builder().build());
+
+        EventRead<byte[]> event = reader.readNextEvent(100L);
+        //Validate that segmentInputStream1.close() is invoked on reaching endOffset.
+        Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
+        //Validate that groupState.handleEndOfSegment method is invoked.
+        Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
     }
 
     @Test(timeout = 10000)
@@ -122,9 +168,9 @@ public class EventStreamReaderTest {
         assertTrue(reader.readNextEvent(0).isCheckpoint());
         Mockito.when(groupState.getCheckpoint()).thenReturn(null);
         Mockito.when(groupState.findSegmentToReleaseIfRequired()).thenReturn(segment2);
-        Mockito.when(groupState.releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong())).thenReturn(true);
+        Mockito.when(groupState.releaseSegment(Mockito.eq(segment2), anyLong(), anyLong())).thenReturn(true);
         assertFalse(reader.readNextEvent(0).isCheckpoint());
-        Mockito.verify(groupState).releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong());
+        Mockito.verify(groupState).releaseSegment(Mockito.eq(segment2), anyLong(), anyLong());
         readers = reader.getReaders();
         assertEquals(1, readers.size());
         Assert.assertEquals(segment1, readers.get(0).getSegmentId());
@@ -134,7 +180,7 @@ public class EventStreamReaderTest {
     private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
-        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Boolean>()));
+        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Void>()));
         return buffer;
     }
 
