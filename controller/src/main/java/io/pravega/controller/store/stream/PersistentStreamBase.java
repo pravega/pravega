@@ -813,7 +813,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<UUID> generateNewTxnId() {
         return getLatestEpoch()
-                .thenCompose(epoch -> incrementAndGetEpochCounter(epoch.getKey())
+                .thenCompose(epoch -> generateNextUniqueId(epoch.getKey())
                         .thenApply(counter -> new UUID(epoch.getKey(), counter)));
     }
 
@@ -1198,7 +1198,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                             return createNewEpoch(newEpoch)
 
-                                    .thenCompose(v -> createEpochCounterIfAbsent(newEpoch))
+                                    .thenCompose(v -> createEpochUniqueIdGenerator(newEpoch))
                                     .thenCompose(v -> getSegmentIndex().thenCompose(segmentIndex -> getSegmentTable()
                                             .thenApply(segmentTable -> {
                                                 final int segmentCount = TableHelper.getSegmentCount(segmentIndex.getData(),
@@ -1209,7 +1209,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             })))
                                     .thenCompose(start -> addHistoryIndexRecord(newEpoch, offset))
                                     .thenCompose(v -> updateHistoryTable(updated))
-                                    .thenCompose(v -> deleteEpochCounter(activeEpoch))
+                                    .thenCompose(v -> deleteEpochUniqueIdGenerator(activeEpoch))
                                     .whenComplete((r, e) -> {
                                         if (e == null) {
                                             log.debug("{}/{} scale op for epoch {}. Creating new epoch and updating history table.",
@@ -1390,11 +1390,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
 
-    abstract CompletableFuture<Void> createEpochCounterIfAbsent(int epoch);
+    abstract CompletableFuture<Void> createEpochUniqueIdGenerator(int epoch);
 
-    abstract CompletableFuture<Long> incrementAndGetEpochCounter(int epoch);
+    abstract CompletableFuture<Long> generateNextUniqueId(int epoch);
 
-    abstract CompletableFuture<Void> deleteEpochCounter(int epoch);
+    abstract CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch);
 
     abstract CompletableFuture<Void> createNewTransaction(final UUID txId,
                                                              final long timestamp,

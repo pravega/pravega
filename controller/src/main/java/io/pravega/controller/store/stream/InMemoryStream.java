@@ -515,7 +515,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochCounterIfAbsent(int epoch) {
+    CompletableFuture<Void> createEpochUniqueIdGenerator(int epoch) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (txnsLock) {
             if (!epochCounter.containsKey(epoch)) {
@@ -530,7 +530,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Long> incrementAndGetEpochCounter(int epoch) {
+    CompletableFuture<Long> generateNextUniqueId(int epoch) {
         CompletableFuture<Long> result = new CompletableFuture<>();
         synchronized (txnsLock) {
             if (epochCounter.containsKey(epoch)) {
@@ -544,7 +544,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> deleteEpochCounter(int epoch) {
+    CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (txnsLock) {
             epochCounter.remove(epoch);

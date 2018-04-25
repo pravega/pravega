@@ -348,7 +348,48 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createEpochCounterIfAbsent(int epoch) {
+    CompletableFuture<Void> createNewTransaction(final UUID txId,
+                                                 final long timestamp,
+                                                 final long leaseExpiryTime,
+                                                 final long maxExecutionExpiryTime,
+                                                 final long scaleGracePeriod) {
+        long epoch = txId.getMostSignificantBits();
+        final String activePath = getActiveTxPath(epoch, txId.toString());
+        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+        // Note: this can throw DataNotFoundException as the epoch node (parent) may have been deleted.
+        return store.createZNodeIfNotExist(activePath, txnRecord, false)
+                .thenApply(x -> cache.invalidateCache(activePath));
+    }
+
+    // region epoch unique id generator
+    /**
+     * An epoch unique id generator generates a new long value which is unique for the epoch.
+     * This generator has requirement to be efficient and correct. To ensure correctness we will use a monotonically
+     * increasing counter which will return a new long. This will ensurue that we will never have collisions and values
+     * are unique.
+     * Several threads/processes could simultaneously try to generate new ids so the scheme should ensure that there are
+     * minimal concurrency penalties.
+     * Hence using curator's distributed atomic long recipe Or using a znoded and storing a long inside it and incrementing
+     * with CAS would be inefficient as there could be lots of write conflicts.
+     * So we have broken down the long counter into two integer counters.
+     * We use an least significant bigs(LSB) counter that performs count by using the znode.stat.version. Everytime the counter has to be incremented, we will
+     * perform an update on this znode without version check and take the version in the response as the new count
+     * This approach makes incrementing this znode very efficient.
+     * Since znode version can have a max value of Integer.Max, so this counter can only count till Integer.Max before repeating
+     * the values. Hence we add a new znode for most significant bits in the long.
+     * This znode stores the current msb count as a value in its znode.
+     * So when new id is to be generated, we do following:
+     * 1. fetch MSB node, get the MSB value from it,
+     * 2. use the msb value to get the lsb path.
+     * 3. update LSB and get its version.
+     * 3.a. if LSB.version > Integer.Max - 10000 --> we have almost exhausted LSB counter. Need to reset it and increment MSB.
+     * 3.b. create new LSB node.
+     * 3.c. update msb node value by incrementing it.
+     */
+
+    @Override
+    public CompletableFuture<Void> createEpochUniqueIdGenerator(int epoch) {
         // create a new znode under epoch for msb and another for counter
         byte[] b = new byte[Integer.BYTES];
         BitConverter.writeInt(b, 0, 0);
@@ -358,7 +399,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Long> incrementAndGetEpochCounter(int epoch) {
+    public CompletableFuture<Long> generateNextUniqueId(int epoch) {
         // This method can throw DataNotFoundException if msb path is deleted (epoch sealed as part of scale), Or
         String msbPath = getEpochMsbPath(epoch);
         return store.getData(msbPath).thenCompose(msbData -> incrementCounter(epoch, msbPath, msbData));
@@ -378,6 +419,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         // 2. delete stale lsb node at path epoch/
                         // 3. increment msb node with newer value. This ensures that all future increments happen against
                         // msb node.
+                        // stale lsb node is the lsb node that corresponds to an older generation and we are sure no one
+                        // is using that as counter. So we can safely remove it. Note: If current msb is 0 then this will
+                        // refer to a non-existent node. Attempting to delete it is ok as delete ignores DataNotFoundExceptions.
                         String staleLsbPath = getEpochCounterPath(epoch, msb - 1);
                         String newLsbPath = getEpochCounterPath(epoch, msb + 1);
                         return store.createZNodeIfNotExist(newLsbPath)
@@ -394,25 +438,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> deleteEpochCounter(int epoch) {
+    public CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch) {
         return store.deletePath(getEpochMsbPath(epoch), false)
             .thenCompose(v -> store.deleteTree(getEpochCounterRootPath(epoch)));
     }
 
-    @Override
-    CompletableFuture<Void> createNewTransaction(final UUID txId,
-                                                    final long timestamp,
-                                                    final long leaseExpiryTime,
-                                                    final long maxExecutionExpiryTime,
-                                                    final long scaleGracePeriod) {
-        long epoch = txId.getMostSignificantBits();
-        final String activePath = getActiveTxPath(epoch, txId.toString());
-        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-        // Note: this can throw DataNotFoundException as the epoch node (parent) may have been deleted.
-        return store.createZNodeIfNotExist(activePath, txnRecord, false)
-                .thenApply(x -> cache.invalidateCache(activePath));
-    }
+    // endregion
 
     @Override
     CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) {
