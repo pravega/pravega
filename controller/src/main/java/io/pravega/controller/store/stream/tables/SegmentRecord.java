@@ -87,11 +87,6 @@ public class SegmentRecord {
     }
 
     @SneakyThrows(IOException.class)
-    byte[] toByteArray() {
-        return SERIALIZER.serialize(this).getCopy();
-    }
-
-    @SneakyThrows(IOException.class)
     public ArrayView toArrayView() {
         return SERIALIZER.serialize(this);
     }

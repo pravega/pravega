@@ -9,32 +9,53 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-
-import io.pravega.common.util.BitConverter;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.tables.serializers.CompletedTxnRecordSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.Lombok;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 
 @Data
+@Builder
+@AllArgsConstructor
+@Slf4j
 public class CompletedTxnRecord {
-    private static final int COMPLETED_TXN_RECORD_SIZE = Long.BYTES + Integer.BYTES;
+    public static final VersionedSerializer.WithBuilder<CompletedTxnRecord, CompletedTxnRecord.CompletedTxnRecordBuilder> SERIALIZER
+            = new CompletedTxnRecordSerializer();
 
     private final long completeTime;
     private final TxnStatus completionStatus;
 
-    public static CompletedTxnRecord parse(final byte[] bytes) {
-        final long completeTimeStamp = BitConverter.readLong(bytes, 0);
+    public static class CompletedTxnRecordBuilder implements ObjectBuilder<CompletedTxnRecord> {
 
-        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, Long.BYTES)];
+    }
 
-        return new CompletedTxnRecord(completeTimeStamp, status);
+    public static CompletedTxnRecord parse(byte[] array) {
+        CompletedTxnRecord completedRecord;
+        try {
+            completedRecord = SERIALIZER.deserialize(array);
+        } catch (IOException e) {
+            log.error("deserialization error for completed txn record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return completedRecord;
     }
 
     public byte[] toByteArray() {
-        byte[] b = new byte[COMPLETED_TXN_RECORD_SIZE];
-        BitConverter.writeLong(b, 0, completeTime);
-        BitConverter.writeInt(b, Long.BYTES, completionStatus.ordinal());
-
-        return b;
+        byte[] array;
+        try {
+            array = SERIALIZER.serialize(this).getCopy();
+        } catch (IOException e) {
+            log.error("error serializing completed txn record {}", e);
+            throw Lombok.sneakyThrow(e);
+        }
+        return array;
     }
 
 }

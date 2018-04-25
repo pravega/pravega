@@ -61,11 +61,6 @@ public class HistoryRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
-        return SERIALIZER.serialize(this).getCopy();
-    }
-
-    @SneakyThrows(IOException.class)
     public ArrayView toArrayView() {
         return SERIALIZER.serialize(this);
     }

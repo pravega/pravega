@@ -14,6 +14,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -94,7 +95,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamProperty.complete(streamConfig1)).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1)).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());

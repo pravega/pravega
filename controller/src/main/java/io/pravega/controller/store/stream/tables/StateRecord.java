@@ -11,8 +11,7 @@ package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.tables.serializers.ActiveTxnRecordSerializer;
+import io.pravega.controller.store.stream.tables.serializers.StateRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,31 +22,27 @@ import java.io.IOException;
 
 @Data
 @Builder
-@AllArgsConstructor
 @Slf4j
-public class ActiveTxnRecord {
-    public static final VersionedSerializer.WithBuilder<ActiveTxnRecord, ActiveTxnRecord.ActiveTxnRecordBuilder> SERIALIZER
-            = new ActiveTxnRecordSerializer();
+@AllArgsConstructor
+public class StateRecord {
+    public static final VersionedSerializer.WithBuilder<StateRecord, StateRecord.StateRecordBuilder> SERIALIZER
+            = new StateRecordSerializer();
 
-    private final long txCreationTimestamp;
-    private final long leaseExpiryTime;
-    private final long maxExecutionExpiryTime;
-    private final long scaleGracePeriod;
-    private final TxnStatus txnStatus;
+    private final State state;
 
-    public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
+    public static class StateRecordBuilder implements ObjectBuilder<StateRecord> {
 
     }
 
-    public static ActiveTxnRecord parse(byte[] data) {
-        ActiveTxnRecord activeTxnRecord;
+    public static StateRecord parse(byte[] data) {
+        StateRecord stateRecord;
         try {
-            activeTxnRecord = SERIALIZER.deserialize(data);
+            stateRecord = SERIALIZER.deserialize(data);
         } catch (IOException e) {
-            log.error("deserialization error for active txn record {}", e);
+            log.error("deserialization error for state record {}", e);
             throw Lombok.sneakyThrow(e);
         }
-        return activeTxnRecord;
+        return stateRecord;
     }
 
     public byte[] toByteArray() {
@@ -55,9 +50,10 @@ public class ActiveTxnRecord {
         try {
             array = SERIALIZER.serialize(this).getCopy();
         } catch (IOException e) {
-            log.error("error serializing active txn record {}", e);
+            log.error("error serializing state record {}", e);
             throw Lombok.sneakyThrow(e);
         }
         return array;
     }
+
 }
