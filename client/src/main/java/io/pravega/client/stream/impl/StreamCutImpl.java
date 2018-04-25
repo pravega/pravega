@@ -15,16 +15,13 @@ import io.pravega.client.stream.Stream;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
 
 /**
  * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
  * used as in intermediate class to make StreamCut instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-@ToString
 public class StreamCutImpl extends StreamCutInternal {
     private static final long serialVersionUID = 1L;
 
@@ -59,7 +56,18 @@ public class StreamCutImpl extends StreamCutInternal {
                 return false;
             }
         }
-
         return true;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder(stream.getScopedName());
+        positions.forEach((key, value) -> {
+            builder.append(';');
+            builder.append(key.getSegmentNumber());
+            builder.append("=");
+            builder.append(value);
+        });
+        return builder.toString();
     }
 }

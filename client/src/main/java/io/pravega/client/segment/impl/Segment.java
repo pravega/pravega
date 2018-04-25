@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.base.Strings;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import java.io.Serializable;
 
 import lombok.Data;
@@ -36,8 +37,9 @@ public class Segment implements Serializable, Comparable<Segment> {
      * @param number     ID number for the segment.
      */
     public Segment(String scope, String streamName, int number) {
-        this.scope = scope;
-        this.streamName = streamName;
+        this.scope = Exceptions.checkNotNullOrEmpty(scope, "scope");
+        this.streamName = Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        Exceptions.checkArgument(number >= 0, "segmentNumber", "Segment numbers cannot be negative");
         this.segmentNumber = number;
     }
 
