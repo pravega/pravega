@@ -24,11 +24,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.junit.Test;
 
-import static io.pravega.test.common.Async.testBlocking;
+import static io.pravega.test.common.AssertExtensions.assertBlocks;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SegmentInputStreamTest {
 
@@ -88,10 +92,10 @@ public class SegmentInputStreamTest {
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 3);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
-        ByteBuffer read = testBlocking(() -> stream.read(),
+        ByteBuffer read = assertBlocks(() -> stream.read(),
                 () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
-        read = testBlocking(() -> stream
+        read = assertBlocks(() -> stream
                 .read(), () -> fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
     }
@@ -130,7 +134,7 @@ public class SegmentInputStreamTest {
         for (int i = 0; i < numEntries; i++) {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
-        ByteBuffer read = testBlocking(() -> stream.read(), () -> {
+        ByteBuffer read = assertBlocks(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertEquals(ByteBuffer.wrap(data), read);
@@ -144,7 +148,7 @@ public class SegmentInputStreamTest {
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
 
-        testBlocking(() -> stream.read(),
+        assertBlocks(() -> stream.read(),
                      () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
         ByteBuffer read = stream.read(10);
         assertNull(read);
@@ -213,7 +217,7 @@ public class SegmentInputStreamTest {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
         assertFalse(stream.canReadWithoutBlocking());
-        testBlocking(() -> stream.read(), () -> {
+        assertBlocks(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertFalse(stream.canReadWithoutBlocking());
@@ -271,7 +275,7 @@ public class SegmentInputStreamTest {
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 2);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
-        testBlocking(() -> {
+        assertBlocks(() -> {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }, () -> {
             fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 0)));
@@ -309,6 +313,92 @@ public class SegmentInputStreamTest {
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         stream.close();
         AssertExtensions.assertThrows(ObjectClosedException.class, () -> stream.read());
+    }
+
+    @Test(expected = EndOfSegmentException.class)
+    public void testReadWithEndOffset() throws Exception {
+        byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        int wireDataSize = wireData.remaining(); //size of the data with header size.
+
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+        when(mockAsyncInputStream.read(0, wireDataSize))
+                .thenReturn(CompletableFuture.completedFuture(new WireCommands.SegmentRead(segment.getScopedName(),
+                        0, false, false, wireData.slice())));
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(mockAsyncInputStream, 0, wireDataSize,
+                SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+
+        ByteBuffer read = stream.read();
+        assertEquals(ByteBuffer.wrap(data), read); //verify we are reading the data.
+        verify(mockAsyncInputStream, times(1)).read(0L, wireDataSize); //ensure there is one invocation.
+        stream.read(); // this should throw EndOfSegmentExceptiono as we have reached the endOffset
+    }
+
+    @Test
+    public void testReadWithEndOffsetWithSmallerReads() throws Exception {
+        byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        int wireDataSize = wireData.remaining(); //size of the data with header size.
+
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+        when(mockAsyncInputStream.read(0, wireDataSize))
+                .thenReturn(CompletableFuture.completedFuture(new WireCommands.SegmentRead(segment.getScopedName(),
+                        0, false, false, ByteBufferUtils.slice(wireData, 0, 2))));
+        when(mockAsyncInputStream.read(2, 16))
+                .thenReturn(CompletableFuture.completedFuture(new WireCommands.SegmentRead(segment.getScopedName(),
+                        2, false, false, ByteBufferUtils.slice(wireData, 2, wireDataSize - 2))));
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(mockAsyncInputStream, 0, wireDataSize,
+                SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+
+        ByteBuffer read = stream.read();
+        assertEquals(ByteBuffer.wrap(data), read); //verify we are reading the data.
+        verify(mockAsyncInputStream, times(1)).read(0L, wireDataSize);
+        verify(mockAsyncInputStream, times(1)).read(2L, wireDataSize - 2);
+    }
+
+    @Test
+    public void testReadWithEndOffsetWithDataGreaterThanBuffer() throws Exception {
+        byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        ByteBuffer wireData = createEventFromData(data);
+        int wireDataSize = wireData.remaining(); //size of the data with header size.
+        int bufferSize = wireDataSize / 2; //buffer is half the data length
+
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+        when(mockAsyncInputStream.read(0, bufferSize))
+                .thenReturn(CompletableFuture.completedFuture(new WireCommands.SegmentRead(segment.getScopedName(),
+                        0, false, false, ByteBufferUtils.slice(wireData, 0, bufferSize))));
+        when(mockAsyncInputStream.read(bufferSize, wireDataSize - bufferSize))
+                .thenReturn(CompletableFuture.completedFuture(new WireCommands.SegmentRead(segment.getScopedName(),
+                        bufferSize, false, false, ByteBufferUtils.slice(wireData, bufferSize, wireDataSize - bufferSize))));
+
+        //Create a SegmentInputStream where the Buffer can hold only part of the data.
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(mockAsyncInputStream, 0, wireDataSize, bufferSize);
+
+        ByteBuffer read = stream.read();
+        assertEquals(ByteBuffer.wrap(data), read); //verify we are reading the data.
+        verify(mockAsyncInputStream, times(1)).read(0L, bufferSize);
+        verify(mockAsyncInputStream, times(1)).read(bufferSize, wireDataSize - bufferSize);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testReadWithInvalidEndOffset() {
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+
+        //Set the end offset which is less than startOffset+WireCommands.TYPE_PLUS_LENGTH_SIZE
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(mockAsyncInputStream, 0,
+                WireCommands.TYPE_PLUS_LENGTH_SIZE - 1, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testReadWithNegativeEndOffset() {
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(mockAsyncInputStream, 0,
+                -2, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
     
 }

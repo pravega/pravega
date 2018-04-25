@@ -20,6 +20,8 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
@@ -217,9 +219,37 @@ public class AppendTest {
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
-        CompletableFuture<Boolean> ack = new CompletableFuture<>();
+        CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
-        assertTrue(ack.get(5, TimeUnit.SECONDS));
+        ack.get(5, TimeUnit.SECONDS);
+    }
+    
+    @Test
+    public void appendThroughConditionalClient() throws Exception {
+        String endpoint = "localhost";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "scope";
+        String stream = "stream";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+
+        @Cleanup
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
+        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+
+        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+
+        Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
+        @Cleanup
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        
+        assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
     }
 
     @Test
