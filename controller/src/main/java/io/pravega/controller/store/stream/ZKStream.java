@@ -468,7 +468,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
         final Data<Integer> data = new Data<>(updated.toByteArray(), version);
         return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath))
-                            .whenComplete((r, e) -> cache.invalidateCache(activePath));
+                .whenComplete((r, e) -> cache.invalidateCache(activePath));
     }
 
     @Override
