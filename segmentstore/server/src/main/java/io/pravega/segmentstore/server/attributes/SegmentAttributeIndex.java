@@ -21,8 +21,6 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -103,7 +101,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
     private static final HashHelper HASH = HashHelper.seededWith(SegmentAttributeIndex.class.getName());
-    private static final int CACHE_BUCKETS = 128;
+    private static final int CACHE_BUCKETS = 64;
 
     private final SegmentMetadata segmentMetadata;
     private final AtomicReference<AttributeSegment> attributeSegment;
@@ -211,7 +209,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             // Close storage reader (and thus cancel those reads).
             if (cleanCache) {
                 this.executor.execute(() -> {
-                    removeAllEntries();
+                    removeAllCacheEntries();
                     log.info("{}: Closed.", this.traceObjectId);
                 });
             } else {
@@ -223,10 +221,8 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
     /**
      * Removes all entries from the cache.
      */
-    private void removeAllEntries() {
-        // A bit unusual, but we want to make sure we do not call this while the index is active.
-        Preconditions.checkState(this.closed.get(), "Cannot call removeAllEntries unless the SegmentAttributeIndex is closed.");
-
+    @VisibleForTesting
+    void removeAllCacheEntries() {
         List<CacheEntry> entries;
         synchronized (this.cacheEntries) {
             entries = Arrays.stream(this.cacheEntries).filter(Objects::nonNull).collect(Collectors.toList());
@@ -297,15 +293,15 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             return CompletableFuture.completedFuture(null);
         } else {
             AttributeCollection c = new AttributeCollection(values);
-            if (shouldSnapshot()) {
-                // We are overdue for a snapshot. Create one while including the new values. No need to also write them
-                // separately.
-                return createSnapshot(c, false, timeout);
-            } else {
-                // Write the new values separately, as an atomic append.
-                return appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)), new TimeoutTimer(timeout))
-                        .thenAccept(writeInfo -> updateCache(c, writeInfo.getEndOffset()));
-            }
+
+            // Check if we are overdue for a snapshot. If so, create one while including the new values (which should prevent
+            // us from having to write them separately).
+            CompletableFuture<WriteInfo> result = shouldSnapshot()
+                    ? createSnapshot(c, false, timeout)
+                    : appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)), new TimeoutTimer(timeout));
+
+            // Update the cache after the operation succeeds.
+            return result.thenAcceptAsync(writeInfo -> updateCache(c, writeInfo.getEndOffset()), this.executor);
         }
     }
 
@@ -450,9 +446,10 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
      *                      Snapshots generated as part of Seals, all of those must complete in order for the operation to
      *                      be considered successful.
      * @param timeout       Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully. It
+     * will contain information about the Storage write pertaining to the Snapshot write.
      */
-    private CompletableFuture<Void> createSnapshot(AttributeCollection newAttributes, boolean mustComplete, Duration timeout) {
+    private CompletableFuture<WriteInfo> createSnapshot(AttributeCollection newAttributes, boolean mustComplete, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // The serialization may be invoked multiple times, based on whether the appendConditionally() requires a retry.
@@ -472,9 +469,10 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
      * @param writeInfo    Information about the data written as part of the Snapshot.
      * @param mustComplete Whether the operation must complete. Refer to createSnapshot's mustComplete for more details.
      * @param timer        Timer for the operation (used for timeouts).
-     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully. It
+     * will contain the value of the writeInfo argument passed into this method.
      */
-    private CompletableFuture<Void> updateStatePostSnapshot(WriteInfo writeInfo, boolean mustComplete, TimeoutTimer timer) {
+    private CompletableFuture<WriteInfo> updateStatePostSnapshot(WriteInfo writeInfo, boolean mustComplete, TimeoutTimer timer) {
         log.debug("{}: Snapshot serialized to attribute segment ({}).", this.traceObjectId, writeInfo);
         UpdateAttributesOperation op = new UpdateAttributesOperation(this.segmentMetadata.getId(), Arrays.asList(
                 new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, AttributeUpdateType.ReplaceIfGreater, writeInfo.offset),
@@ -504,7 +502,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
                 return null;
             });
         }
-        return result;
+        return result.thenApply(v -> writeInfo);
     }
 
     /**
@@ -878,9 +876,15 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
     //endregion
 
+    /**
+     * An entry in the Cache to which one or more Attributes are mapped.
+     */
     private class CacheEntry {
+        /**
+         * Id of the entry. This is used to lookup cached data in the Cache.
+         */
         @Getter
-        private final long entryId;
+        private final int entryId;
         @GuardedBy("this")
         private int generation;
         @GuardedBy("this")
@@ -888,54 +892,142 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
         CacheEntry(int id, int currentGeneration) {
             this.entryId = id;
-            this.size = 0;
             this.generation = currentGeneration;
+            this.size = 0;
         }
 
+        /**
+         * Gets a new CacheKey representing this Entry.
+         */
         CacheKey getKey() {
             return new CacheKey(SegmentAttributeIndex.this.segmentMetadata.getId(), this.entryId);
         }
 
+        /**
+         * Gets a value representing the current Generation of this Cache Entry. This value is updated every time the
+         * data behind this entry is modified or accessed.
+         */
         synchronized int getGeneration() {
             return this.generation;
         }
 
+        /**
+         * Gets a value representing the size, in bytes, of the data behind this Cache Entry.
+         */
         synchronized int getSize() {
             return this.size;
         }
 
-        synchronized void fetchValues(List<UUID> attributeIds, Map<UUID, Long> result, int currentGeneration) {
+        /**
+         * Reads all the values from this Cache Entry for the given Attribute Ids into the given Map.
+         *
+         * @param attributeIds      The Attribute Ids to query.
+         * @param result            A Map where to store the result. Only those Attribute Ids which have data in this entry
+         *                          will be added here.
+         * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
+         *                          only be updated if at least one Attribute Value is fetched (cache hit).
+         */
+        synchronized void fetchValues(Collection<UUID> attributeIds, Map<UUID, Long> result, int currentGeneration) {
+            if (attributeIds.isEmpty()) {
+                // Nothing to do.
+                return;
+            }
+
             byte[] data = SegmentAttributeIndex.this.cache.get(getKey());
             if (data != null && data.length > 0 && readValues(data, attributeIds, result)) {
                 this.generation = currentGeneration;
             }
         }
 
+        /**
+         * Updates the data in this Cache Entry with the new values. The new data will not overwrite the whole entry, rather
+         * the new attribute values will be merged into the Entry, using the following scheme:
+         * - Attributes that do not exist in attributeValues are left untouched.
+         * - Attributes that do not exist in the entry but do exist in attributeValues are added.
+         * - Attributes that exist in both the entry and attributeValues are only modified if their version is smaller than
+         * the given version.
+         *
+         * @param attributeValues   The Attribute Values to add or update.
+         * @param version           The current Cache Version. This is usually the last offset in the Attribute Segment
+         *                          where the given set of Attribute Values are written.
+         * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
+         *                          only be updated if at least one Attribute Value is updated.
+         */
         synchronized void updateValues(Collection<Map.Entry<UUID, Long>> attributeValues, long version, int currentGeneration) {
-            byte[] oldData = SegmentAttributeIndex.this.cache.get(getKey());
-            ByteArraySegment newData = writeValues(oldData, attributeValues, version);
-            // TODO; only update if we actually modified something.
-            SegmentAttributeIndex.this.cache.insert(getKey(), newData);
-            this.generation = currentGeneration;
+            if (attributeValues.isEmpty()) {
+                // Nothing to do.
+                return;
+            }
+
+            // Fetch existing data.
+            byte[] existingData = SegmentAttributeIndex.this.cache.get(getKey());
+            Map<UUID, UUID> values = CacheEntryLayout.getAllValues(existingData);
+
+            // Merge new values.
+            boolean changed = false;
+            for (Map.Entry<UUID, Long> e : attributeValues) {
+                UUID existing = values.getOrDefault(e.getKey(), null);
+                if (existing == null || existing.version() < version) {
+                    if (e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
+                        values.remove(e.getKey());
+                        changed |= existing != null;
+                    } else {
+                        // As per the CacheEntryLayout contract, we create a UUID with MSB set to Version and LSB set to Value
+                        // in order to pass it down for serialization.
+                        values.put(e.getKey(), new UUID(version, e.getValue()));
+                        changed |= existing == null || existing.getLeastSignificantBits() != e.getValue();
+                    }
+                }
+            }
+
+            // Serialize, but only if anything changed.
+            if (changed) {
+                byte[] newData = CacheEntryLayout.setValues(
+                        existingData,
+                        values.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).iterator(),
+                        values.size());
+                SegmentAttributeIndex.this.cache.insert(getKey(), newData);
+                this.generation = currentGeneration;
+            }
         }
 
+        /**
+         * Removes all data associated with this cache entry.
+         */
         synchronized void clear() {
             SegmentAttributeIndex.this.cache.remove(getKey());
             this.size = 0;
         }
 
-        private boolean readValues(byte[] data, List<UUID> attributeIds, Map<UUID, Long> result) {
+        /**
+         * Reads the values from the given serialization for the given Attribute Ids and populates them into the given Map.
+         *
+         * @param data         The Cache Entry serialization.
+         * @param attributeIds A Collection of Attribute Ids to fetch.
+         * @param result       A Map to store the result. Only those Attribute Ids that exist in data will be stored here.
+         * @return True if at least one value was fetched, false otherwise.
+         */
+        private boolean readValues(byte[] data, Collection<UUID> attributeIds, Map<UUID, Long> result) {
+            // The Cache Entry Serialization has the Attributes in sorted order (by Id), so the most efficient way of
+            // searching the values is to do a binary search within the byte array:
+            // - We make use of the CacheEntryLayout abstraction to not have to deserialize the whole array.
+            // - We process the incoming attributeIds in sorted order, which will aid our search. We remember the index
+            // of the last found Attribute Id, and only execute our search for subsequent Ids from that index on, since,
+            // if those Ids exist, they are guaranteed to be after the last found one.
             final int count = CacheEntryLayout.getCount(data);
-            int nextIndex = 0;
-            Iterator<UUID> iterator = attributeIds.stream().sorted().iterator();
+
+            // Process the Attribute Ids in sorted order.
+            int nextIndex = 0; // Index of the last found Attribute Id. This is a sequence index, and not the array index.
             boolean found = false;
+            Iterator<UUID> iterator = attributeIds.stream().sorted().iterator();
             while (iterator.hasNext() && nextIndex < count) {
+                // Do a binary search starting at nextIndex until the end of the data.
                 UUID id = iterator.next();
                 int startIndex = nextIndex;
                 int endIndex = count;
                 while (startIndex < endIndex) {
+                    // Use the CacheEntryLayout to locate the Attribute Id in the middle.
                     int midIndex = startIndex + (endIndex - startIndex) / 2;
-
                     UUID midAttributeId = CacheEntryLayout.getAttributeId(data, midIndex);
                     int c = id.compareTo(midAttributeId);
                     if (c == 0) {
@@ -955,81 +1047,6 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             }
 
             return found;
-
-        }
-
-        private ByteArraySegment writeValues(byte[] existingData, Collection<Map.Entry<UUID, Long>> attributeValues, long version) {
-            Map<UUID, UUID> values = CacheEntryLayout.getAllValues(existingData);
-            attributeValues.forEach(e -> {
-                UUID existing = values.getOrDefault(e.getKey(), null);
-                if (existing == null || existing.version() < version) {
-                    values.put(e.getKey(), new UUID(version, e.getValue()));
-                }
-            });
-
-            return CacheEntryLayout.setValues(existingData, values.entrySet().stream()
-                    .sorted(Comparator.comparing(Map.Entry::getKey)).collect(Collectors.toList()));
-        }
-    }
-
-    private static class CacheEntryLayout {
-        // Layout: Count|AttributeData
-        // - Count: 4 Bytes representing the number of attributes encoded.
-        // - AttributeData: Attributes, listed in Sorted Order (by ID): ID (16 bytes), Version (8 bytes), Value (8 bytes).
-        // Lookup is done by means of binary search inside this list.
-
-        private static final int HEADER_LENGTH = Integer.BYTES;
-        private static final int RECORD_LENGTH = 4 * Long.BYTES;
-        private static final int VERSION_OFFSET = 2 * Long.BYTES;
-        private static final int VALUE_OFFSET = 3 * Long.BYTES;
-
-        static int getCount(byte[] data) {
-            Preconditions.checkArgument((data.length - HEADER_LENGTH) % RECORD_LENGTH == 0, "Invalid or corrupted cache entry.");
-            return BitConverter.readInt(data, 0);
-        }
-
-        static UUID getAttributeId(byte[] data, int index) {
-            int offset = HEADER_LENGTH + index * RECORD_LENGTH;
-            return new UUID(BitConverter.readLong(data, offset), BitConverter.readLong(data, offset + Long.BYTES));
-        }
-
-        static long getValue(byte[] data, int index) {
-            return BitConverter.readLong(data, HEADER_LENGTH + index * RECORD_LENGTH + VALUE_OFFSET);
-        }
-
-        static Map<UUID, UUID> getAllValues(byte[] data) {
-            if (data == null) {
-                return new HashMap<>();
-            }
-
-            int count = getCount(data);
-            Map<UUID, UUID> result = new HashMap<>();
-            int offset = HEADER_LENGTH;
-            for (int i = 0; i < count; i++) {
-                result.put(new UUID(BitConverter.readLong(data, offset), BitConverter.readLong(data, offset + Long.BYTES)),
-                        new UUID(BitConverter.readLong(data, offset + VERSION_OFFSET), BitConverter.readLong(data, offset + VALUE_OFFSET)));
-                offset += RECORD_LENGTH;
-            }
-
-            return result;
-        }
-
-        static ByteArraySegment setValues(byte[] data, Collection<Map.Entry<UUID, UUID>> sortedValues) {
-            int size = HEADER_LENGTH + RECORD_LENGTH * sortedValues.size();
-            if (data == null || data.length < size) {
-                data = new byte[size];
-            }
-
-            BitConverter.writeInt(data, 0, sortedValues.size());
-            int offset = HEADER_LENGTH;
-            for (Map.Entry<UUID, UUID> e : sortedValues) {
-                offset += BitConverter.writeLong(data, offset, e.getKey().getMostSignificantBits());
-                offset += BitConverter.writeLong(data, offset, e.getKey().getLeastSignificantBits());
-                offset += BitConverter.writeLong(data, offset, e.getValue().getMostSignificantBits());
-                offset += BitConverter.writeLong(data, offset, e.getValue().getLeastSignificantBits());
-            }
-
-            return new ByteArraySegment(data, 0, size);
         }
     }
 }

@@ -310,7 +310,12 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
                         .builder()
                         .attributes(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()))
                         .build());
+
+                // We need to make sure we clear the cache in case of this unorthodox interception. Normally the cache is
+                // updated by the SegmentAttributeIndex, but since we are hijacking the Storage write call, we need to clear
+                // it so we can properly execute our test.
                 return context.storage.write(idx.getAttributeSegmentHandle(), offset, s.getReader(), s.getLength(), TIMEOUT)
+                                      .thenRun(idx::removeAllCacheEntries)
                                       .thenCompose(v -> Futures.failedFuture(new BadOffsetException(streamSegmentName, offset, offset)));
             } else {
                 // Already intercepted.
@@ -386,6 +391,9 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
                 return CompletableFuture.completedFuture(null);
             }
         };
+
+        // Clear the cache so we are guaranteed to attempt to read from Storage.
+        idx.removeAllCacheEntries();
 
         // Finally, verify we can read the data we want to.
         val value = idx.get(attributeId, TIMEOUT).join();
