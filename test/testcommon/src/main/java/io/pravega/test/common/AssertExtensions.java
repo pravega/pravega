@@ -15,9 +15,13 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -357,5 +361,101 @@ public class AssertExtensions {
     @FunctionalInterface
     public interface RunnableWithException {
         void run() throws Exception;
+    }
+
+    /**
+     * Asserts that the provided function blocks until the second function is run.
+     * 
+     * @param blockingFunction The function that is expected to block
+     * @param unblocker The function that is expected to unblock the blocking function.
+     * @return The result of the blockingFunction.
+     * @param <ResultT> The result of the blockingFunction.
+     */
+    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, Runnable unblocker) {
+        final AtomicReference<ResultT> result = new AtomicReference<>(null);
+        final AtomicReference<Throwable> exception = new AtomicReference<>(null);
+        final Semaphore isBlocked = new Semaphore(0);
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    result.set(blockingFunction.call());
+                } catch (Throwable e) {
+                    exception.set(e);
+                }
+                isBlocked.release();
+            }
+        });
+        t.start();
+        try {
+            Assert.assertFalse(isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        unblocker.run();
+        try {
+            isBlocked.acquire();
+            t.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        if (exception.get() != null) {
+            throw new RuntimeException(exception.get());
+        } else {
+            return result.get();
+        }
+    }
+
+    /**
+     * Asserts that the provided function blocks until the second function is run.
+     * 
+     * @param blockingFunction The function that is expected to block
+     * @param unblocker The function that is expected to unblock the blocking function.
+     */
+    public static void assertBlocks(RunnableWithException blockingFunction, Runnable unblocker) {
+        final AtomicReference<Throwable> exception = new AtomicReference<>(null);
+        final Semaphore isBlocked = new Semaphore(0);
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    blockingFunction.run();
+                } catch (Throwable e) {
+                    exception.set(e);
+                }
+                isBlocked.release();
+            }
+        });
+        t.start();
+        try {
+            if (isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS)) {
+                if (exception.get() != null) {
+                    throw new RuntimeException("Blocking code threw an exception", exception.get());
+                } else {
+                    throw new AssertionError("Failed to block.");
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        unblocker.run();
+        try {
+            if (!isBlocked.tryAcquire(2000, TimeUnit.MILLISECONDS)) {
+                RuntimeException e = new RuntimeException("Failed to unblock");
+                e.setStackTrace(t.getStackTrace());
+                t.interrupt();
+                throw new RuntimeException(e);
+            }
+            t.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        if (exception.get() != null) {
+            throw new RuntimeException(exception.get());
+        } 
     }
 }

@@ -19,6 +19,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -62,7 +63,7 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         UUID id = UUID.randomUUID();
-        ConditionalAppend request = new ConditionalAppend(id, 1, 0, Unpooled.EMPTY_BUFFER);
+        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER));
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
         Mockito.verify(connection).send(request);
         assertFalse(future.isDone());

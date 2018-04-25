@@ -21,7 +21,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -118,7 +117,7 @@ public class AsyncSegmentInputStreamTest {
         
         WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.allocate(0));
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
-        Async.testBlocking(() -> readFuture.get(), () -> {
+        AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentRead(segmentRead);            
         });
@@ -141,7 +140,7 @@ public class AsyncSegmentInputStreamTest {
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
-        Async.testBlocking(() -> readFuture.get(), () -> {
+        AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad)));            
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good)));         

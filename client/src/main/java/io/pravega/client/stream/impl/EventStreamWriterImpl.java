@@ -116,7 +116,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
-        CompletableFuture<Boolean> ackFuture = new CompletableFuture<Boolean>();
+        CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         writeFlushLock.writeLock().lock();
         try {
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
@@ -129,22 +129,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         } finally {
             writeFlushLock.writeLock().unlock();
         }
-
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        ackFuture.whenComplete((bool, exception) -> {
-            if (exception != null) {
-                result.completeExceptionally(exception);
-            } else {
-                if (bool) {
-                    result.complete(null);
-                } else {
-                    result.completeExceptionally(new IllegalStateException("Condition failed for non-conditional " +
-                            "write!?"));
-                }
-            }
-        });
-
-        return result;
+        return ackFuture;
     }
     
     @GuardedBy("writeFlushLock")
