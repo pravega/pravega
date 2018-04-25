@@ -210,7 +210,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
      *                   Cache will not be touched.
      */
     void close(boolean cleanCache) {
-        if (this.closed.getAndSet(true)) {
+        if (!this.closed.getAndSet(true)) {
             // Close storage reader (and thus cancel those reads).
             if (cleanCache) {
                 this.executor.execute(() -> {
@@ -249,10 +249,12 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
         long size = 0;
         synchronized (this.cacheEntries) {
             for (CacheEntry e : this.cacheEntries) {
-                int g = e.getGeneration();
-                minGen = Math.min(minGen, g);
-                maxGen = Math.max(maxGen, g);
-                size += e.getSize();
+                if (e != null) {
+                    int g = e.getGeneration();
+                    minGen = Math.min(minGen, g);
+                    maxGen = Math.max(maxGen, g);
+                    size += e.getSize();
+                }
             }
         }
 
@@ -269,7 +271,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             this.currentCacheGeneration = currentGeneration;
             for (int i = 0; i < this.cacheEntries.length; i++) {
                 CacheEntry e = this.cacheEntries[i];
-                if (e.getGeneration() < oldestGeneration) {
+                if (e != null && e.getGeneration() < oldestGeneration) {
                     this.cache.remove(e.getKey());
                     sizeRemoved += e.getSize();
                     this.cacheEntries[i] = null;
@@ -698,6 +700,11 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
                 .collect(Collectors.groupingBy(e -> HASH.hashToBucket(e, CACHE_BUCKETS)));
     }
 
+    @VisibleForTesting
+    Map<UUID, Integer> getBuckets(Collection<UUID> attributeIds) {
+        return attributeIds.stream().collect(Collectors.toMap(id -> id, id -> HASH.hashToBucket(id, CACHE_BUCKETS)));
+    }
+
     private void ensureInitialized() {
         Preconditions.checkState(this.attributeSegment.get() != null, "SegmentAttributeIndex is not initialized.");
     }
@@ -992,6 +999,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
                         values.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).iterator(),
                         values.size());
                 SegmentAttributeIndex.this.cache.insert(getKey(), newData);
+                this.size = newData.length;
                 this.generation = currentGeneration;
             }
         }
@@ -1022,36 +1030,36 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             final int count = CacheEntryLayout.getCount(data);
 
             // Process the Attribute Ids in sorted order.
-            int nextIndex = 0; // Index of the last found Attribute Id. This is a sequence index, and not the array index.
-            boolean found = false;
+            int nextPos = 0; // Position of the last found Attribute Id. This is a sequence position, and not the index in the array.
+            boolean anythingFound = false;
             Iterator<UUID> iterator = attributeIds.stream().sorted().iterator();
-            while (iterator.hasNext() && nextIndex < count) {
+            while (iterator.hasNext() && nextPos < count) {
                 // Do a binary search starting at nextIndex until the end of the data.
                 UUID id = iterator.next();
-                int startIndex = nextIndex;
-                int endIndex = count;
-                while (startIndex < endIndex) {
+                int startPos = nextPos;
+                int endPos = count;
+                while (startPos < endPos) {
                     // Use the CacheEntryLayout to locate the Attribute Id in the middle.
-                    int midIndex = startIndex + (endIndex - startIndex) / 2;
-                    UUID midAttributeId = CacheEntryLayout.getAttributeId(data, midIndex);
+                    int midPos = startPos + (endPos - startPos) / 2;
+                    UUID midAttributeId = CacheEntryLayout.getAttributeId(data, midPos);
                     int c = id.compareTo(midAttributeId);
                     if (c == 0) {
                         // Found it.
-                        result.put(id, CacheEntryLayout.getValue(data, midIndex));
-                        nextIndex = midIndex + 1;
-                        found = true;
+                        result.put(id, CacheEntryLayout.getValue(data, midPos));
+                        nextPos = midPos + 1;
+                        anythingFound = true;
                         break;
                     } else if (c < 0) {
                         // Search again to the left.
-                        endIndex = midIndex;
+                        endPos = midPos;
                     } else {
                         // Search again to the right.
-                        startIndex = midIndex + 1;
+                        startPos = midPos + 1;
                     }
                 }
             }
 
-            return found;
+            return anythingFound;
         }
     }
 }

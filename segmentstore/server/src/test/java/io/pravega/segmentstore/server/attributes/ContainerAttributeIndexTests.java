@@ -18,18 +18,19 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
-import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
+import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -38,9 +39,11 @@ import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +51,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -104,6 +108,64 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
                                          .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, attributeCount / 2)
                                          .build();
         testRegularOperations(attributeCount, 17, 3, config, true);
+    }
+
+    /**
+     * Tests the ability to process Cache Eviction signals and re-caching evicted values.
+     */
+    @Test
+    public void testCacheEviction() {
+        final int attributeCount = 1000;
+        final int cacheFraction = 10; // How much of the total number of attributes to fit in the cache at once.
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        final int cacheMaxSize = attributeCount / cacheFraction * CacheEntryLayout.RECORD_LENGTH;
+        final int generationCount = 1000;
+        final CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * generationCount), Duration.ofMillis(1000));
+        @Cleanup
+        TestContext context = new TestContext(NO_SNAPSHOT_CONFIG, cachePolicy);
+        populateSegments(context);
+        val idx = (SegmentAttributeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val idsWithBuckets = idx.getBuckets(attributes);
+
+        // Keep track of the removed Cache Keys, as well as our estimation of what buckets should be evicted in which order.
+        // It is pretty difficult to estimate WHEN a bucket will be evicted, but the order can be easily predicted by keeping
+        // a MRU list of buckets.
+        ArrayList<Integer> removedBuckets = new ArrayList<>();
+        context.cacheFactory.cache.removeCallback = key -> removedBuckets.add(key.getEntryId()); // Record every cache removal.
+        LinkedList<Integer> mruBuckets = new LinkedList<>();
+
+        // Test this for insertions.
+        for (int i = 0; i < attributes.size(); i++) {
+            UUID attributeId = attributes.get(i);
+            int bucket = idsWithBuckets.get(attributeId);
+            mruBuckets.remove((Integer) bucket);
+            mruBuckets.addLast(bucket);
+            idx.put(attributeId, (long) i, TIMEOUT).join();
+            int preCount = removedBuckets.size();
+            context.cacheManager.applyCachePolicy();
+            for (int r = preCount; r < removedBuckets.size(); r++) {
+                // Some key got evicted.
+                int expectedBucket = mruBuckets.removeFirst();
+                int actualBucket = removedBuckets.get(r);
+                Assert.assertEquals("Unexpected bucket removed.", expectedBucket, actualBucket);
+            }
+        }
+        AssertExtensions.assertGreaterThan("Expected at least one eviction to take place (put).", 0, removedBuckets.size());
+
+        // Verify that for retrievals, it still works, though due to the nature of the reads, it will be almost impossible
+        // to predict the order of evictions.
+        removedBuckets.clear();
+        for (int i = 0; i < attributes.size(); i++) {
+            UUID attributeId = attributes.get(i);
+            long value = idx.get(attributeId, TIMEOUT).join();
+            if (i % (cacheFraction / 2) == 0) {
+                // Due to the slow nature of Storage reads, do not apply cache policy too frequently here. Only now and then.
+                context.cacheManager.applyCachePolicy();
+            }
+            Assert.assertEquals("Unexpected value retrieved.", (long) i, value);
+        }
+
+        AssertExtensions.assertGreaterThan("Expected at least one eviction to take place (get).", 0, removedBuckets.size());
     }
 
     /**
@@ -452,6 +514,10 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         val expectedValues = new HashMap<UUID, Long>();
 
+        // Record every time we read from Storage.
+        AtomicBoolean storageRead = new AtomicBoolean(false);
+        context.storage.readInterceptor = (name, offset, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+
         // We verify the correctness of the index after every notification that a snapshot was created.
         AtomicLong lastSnapshotEndOffset = new AtomicLong(0);
         val updateBatch = new HashMap<UUID, Long>();
@@ -490,12 +556,17 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
             commitBatch.run();
         }
 
+        storageRead.set(false);
         checkIndex(idx, expectedValues);
+        Assert.assertFalse("Not expecting any storage reads.", storageRead.get());
 
-        // 2. Reload index and verify it still has the correct values.
+        // 2. Reload index and verify it still has the correct values. This also forces a cache cleanup so we read data
+        // directly from Storage.
         context.index.cleanup(null);
         val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        storageRead.set(false);
         checkIndex(idx2, expectedValues);
+        Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
 
         // 3. Remove all values.
         idx2.remove(expectedValues.keySet(), TIMEOUT).join();
@@ -525,17 +596,21 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
         final TestOperationLog operationLog;
-        final CacheFactory cacheFactory;
-        final CacheManager cacheManager;
+        final TestCacheFactory cacheFactory;
+        final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
+            this(config, CachePolicy.INFINITE);
+        }
+
+        TestContext(AttributeIndexConfig config, CachePolicy cachePolicy) {
             this.memoryStorage = new InMemoryStorage();
             this.memoryStorage.initialize(1);
             this.storage = new TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
             this.operationLog = new TestOperationLog();
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+            this.cacheFactory = new TestCacheFactory();
+            this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage, this.operationLog);
         }
@@ -550,6 +625,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
+            this.index.close();
             this.cacheManager.close();
             this.cacheFactory.close();
             this.storage.close();
@@ -699,6 +775,38 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
             }
 
             //endregion
+        }
+
+        private class TestCache extends InMemoryCache {
+            Consumer<CacheKey> removeCallback;
+
+            TestCache(String id) {
+                super(id);
+            }
+
+            @Override
+            public void remove(Cache.Key key) {
+                Consumer<CacheKey> callback = this.removeCallback;
+                if (callback != null) {
+                    callback.accept((CacheKey) key);
+                }
+
+                super.remove(key);
+            }
+        }
+
+        private class TestCacheFactory implements CacheFactory {
+            final TestCache cache = new TestCache("Test");
+
+            @Override
+            public Cache getCache(String id) {
+                return this.cache;
+            }
+
+            @Override
+            public void close() {
+                this.cache.close();
+            }
         }
     }
 

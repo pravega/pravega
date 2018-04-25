@@ -19,15 +19,14 @@ import lombok.Getter;
 /**
  * Cache Key for the Segment Attribute Index.
  */
-public class CacheKey extends Cache.Key {
+class CacheKey extends Cache.Key {
     //region Members
 
     private static final HashHelper HASH = HashHelper.seededWith(CacheKey.class.getName());
     private static final int SERIALIZATION_LENGTH = Long.BYTES + Long.BYTES;
-    @Getter
     private final long segmentId;
     @Getter
-    private final long entryId;
+    private final int entryId;
 
     //endregion
 
@@ -39,7 +38,7 @@ public class CacheKey extends Cache.Key {
      * @param segmentId The Segment Id that the key refers to.
      * @param entryId   The Cache Entry Id that the key refers to.
      */
-    CacheKey(long segmentId, long entryId) {
+    CacheKey(long segmentId, int entryId) {
         Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "segmentId");
         this.segmentId = segmentId;
         this.entryId = entryId;
@@ -53,7 +52,7 @@ public class CacheKey extends Cache.Key {
     public byte[] serialize() {
         byte[] result = new byte[SERIALIZATION_LENGTH];
         BitConverter.writeLong(result, 0, this.segmentId);
-        BitConverter.writeLong(result, Long.BYTES, this.entryId);
+        BitConverter.writeInt(result, Long.BYTES, this.entryId);
         return result;
     }
 

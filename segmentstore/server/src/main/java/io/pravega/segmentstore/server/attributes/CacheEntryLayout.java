@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.attributes;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BitConverter;
 import java.util.HashMap;
@@ -26,10 +27,11 @@ import java.util.UUID;
  * - AttributeData: Attributes: ID (16 bytes), Version (8 bytes), Value (8 bytes).
  */
 class CacheEntryLayout {
-    private static final int HEADER_LENGTH = Integer.BYTES;
-    private static final int RECORD_LENGTH = 4 * Long.BYTES;
+    @VisibleForTesting
+    static final int RECORD_LENGTH = 4 * Long.BYTES;
     private static final int VERSION_OFFSET = 2 * Long.BYTES;
     private static final int VALUE_OFFSET = 3 * Long.BYTES;
+    private static final int HEADER_LENGTH = Integer.BYTES;
 
     /**
      * Gets a value representing the number of attributes encoded in the given serialization.

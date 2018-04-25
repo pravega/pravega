@@ -124,6 +124,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
                 // Need to initialize the AttributeIndex and complete the future that we just registered.
                 // If this fails
                 toInitialize.get().initialize(timeout)
+                            .thenRun(() -> this.cacheManager.register(toInitialize.get()))
                             .whenComplete((r, ex) -> {
                                 if (ex == null) {
                                     result.complete(toInitialize.get());
