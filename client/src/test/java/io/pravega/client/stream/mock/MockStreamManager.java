@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
@@ -142,7 +144,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
         Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
+
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     public Position getInitialPosition(String stream) {
