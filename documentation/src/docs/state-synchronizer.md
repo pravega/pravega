@@ -44,7 +44,7 @@ concurrently read and write the shared state in a consistent fashion. 
 Before we dive into the details about how to use State Synchronizer, let's take
 a quick look at an example application that uses State Synchronizer.  We have
 provided a simple yet illustrative example of using State
-Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/com/emc/pravega/example/statesynchronizer)
+Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/io/pravega/example/statesynchronizer)
 
 The example uses State Synchronizer to build an implementation of Java's Map
 data structure called SharedMap.  We use that primitive SharedMap data structure
@@ -59,7 +59,7 @@ Here is a menu of the available commands in the SharedConfigCLI application:
 
 ```
 Enter one of the following commands at the command line prompt:
- 
+
 GET_ALL - prints out all of the properties in the Shared Config.
 GET {key} - print out the configuration property for the given key.
 PUT {key} , {value} - update the Shared Config with the given key/value pair.  Print out previous value (if it existed).
@@ -183,11 +183,11 @@ In our example, InitialUpdateT is implemented as:
 private static class CreateState<K, V> implements InitialUpdate<SharedStateMap<K,V>>, Serializable {
     private static final long serialVersionUID = 1L;
     private final ConcurrentHashMap<K, V> impl;
-     
+
     public CreateState(ConcurrentHashMap<K, V> impl) {
         this.impl = impl;
     }
- 
+
     @Override
     public SharedStateMap<K, V> create(String scopedStreamName, Revision revision) {
         return new SharedStateMap<K, V>(scopedStreamName, impl, revision);
@@ -223,14 +223,14 @@ Class.  We define an abstract class, called StateUpdate, from which all of thes
  */
 private static abstract class StateUpdate<K,V> implements Update<SharedStateMap<K,V>>, Serializable {
     private static final long serialVersionUID = 1L;
-     
+
     @Override
     public SharedStateMap<K,V> applyTo(SharedStateMap<K,V> oldState, Revision newRevision) {
         ConcurrentHashMap<K, V> newState = new ConcurrentHashMap<K, V>(oldState.impl);
         process(newState);
         return new SharedStateMap<K,V>(oldState.getScopedStreamName(), newState, newRevision);
     }
- 
+
     public abstract void process(ConcurrentHashMap<K, V> updatableList);
 }
 ```
@@ -258,12 +258,12 @@ private static class Put<K,V> extends StateUpdate<K,V> {
     private static final long serialVersionUID = 1L;
     private final K key;
     private final V value;
- 
+
     public Put(K key, V value) {
         this.key = key;
         this.value = value;
     }
- 
+
     @Override
     public void process(ConcurrentHashMap<K, V> impl) {
         impl.put(key, value);
@@ -298,18 +298,18 @@ subclasses of StateUpdate to perform state change (write) operations.
   */
  public SharedMap(ClientFactory clientFactory, StreamManager streamManager, String scope, String name){
      streamManager.createScope(scope);
-      
+
      StreamConfiguration streamConfig = StreamConfiguration.builder().scope(scope).streamName(name)
              .scalingPolicy(ScalingPolicy.fixed(1))
              .build();
-      
+
      streamManager.createStream(scope, name, streamConfig);
-      
+
      this.stateSynchronizer = clientFactory.createStateSynchronizer(name,
                                              new JavaSerializer<StateUpdate<K,V>>(),
                                              new JavaSerializer<CreateState<K,V>>(),
                                              SynchronizerConfig.builder().build());
-      
+
      stateSynchronizer.initialize(new CreateState<K,V>(new ConcurrentHashMap<K,V>()));
  }
 ```
@@ -380,7 +380,7 @@ public V put(K key, V value){
 
 It is important to note that the function provided to the StateSynchronizer's
 updateState() will be call potentially multiple times. The result of applying the function to the old state is written
-only when it is applied against the most current revision of the state. 
+only when it is applied against the most current revision of the state.
 If there was a race and the optimistic concurrency check fails, it will be called again.
 Most of the time there will only be a small number of invocations.  In some cases, the
 developer may choose to use fetchUpdates() to synchronize the StateSynchronizer
