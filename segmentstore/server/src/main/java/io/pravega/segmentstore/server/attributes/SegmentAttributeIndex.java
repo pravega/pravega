@@ -100,8 +100,13 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             .withExpBackoff(10, 2, 10, 1000)
             .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
-    private static final HashHelper HASH = HashHelper.seededWith(SegmentAttributeIndex.class.getName());
+
+    /**
+     * The number of buckets to hash Attributes into with respect to caching. Since each cache operation involves some sort
+     * of marshalling and serialization, the higher the number of buckets the less of those we'll need to make.
+     */
     private static final int CACHE_BUCKETS = 64;
+    private static final HashHelper HASH = HashHelper.seededWith(SegmentAttributeIndex.class.getName());
 
     private final SegmentMetadata segmentMetadata;
     private final AtomicReference<AttributeSegment> attributeSegment;
