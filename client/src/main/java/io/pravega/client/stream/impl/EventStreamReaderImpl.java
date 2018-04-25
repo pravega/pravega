@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EndOfSegmentException.ErrorType;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -102,7 +103,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     try {
                         buffer = segmentReader.read(waitTime);
                     } catch (EndOfSegmentException e) {
-                        handleEndOfSegment(segmentReader);
+                        boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
+                        handleEndOfSegment(segmentReader, fetchSuccessors);
                         buffer = null;
                     } catch (SegmentTruncatedException e) {
                         handleSegmentTruncated(segmentReader);
@@ -189,7 +191,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey());
+                final SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(),
+                        groupState.getEndOffsetForSegment(newSegment.getKey()));
                 in.setOffset(newSegment.getValue());
                 readers.add(in);
             }
@@ -204,12 +207,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(SegmentInputStream oldSegment) throws ReinitializationRequiredException {
+    private void handleEndOfSegment(SegmentInputStream oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
         try {
             log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
             readers.remove(oldSegment);
             oldSegment.close();
-            groupState.handleEndOfSegment(oldSegment.getSegmentId());
+            groupState.handleEndOfSegment(oldSegment.getSegmentId(), fetchSuccessors);
         } catch (ReinitializationRequiredException e) {
             close();
             throw e;
@@ -226,7 +229,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
-            handleEndOfSegment(segmentReader);
+            handleEndOfSegment(segmentReader, true);
         }
         throw new TruncatedDataException();
     }
