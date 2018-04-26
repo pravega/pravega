@@ -10,8 +10,8 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
+import io.pravega.client.stream.impl.UnboundedStreamCut;
 import java.io.Serializable;
-import lombok.EqualsAndHashCode;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -33,12 +33,4 @@ public interface StreamCut extends Serializable {
      * @return Implementation of EventPointer interface
      */
     StreamCutInternal asImpl();
-
-    @EqualsAndHashCode
-    final class UnboundedStreamCut implements StreamCut {
-        @Override
-        public StreamCutInternal asImpl() {
-            return null;
-        }
-    }
 }
