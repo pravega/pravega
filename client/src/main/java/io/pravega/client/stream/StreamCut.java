@@ -11,6 +11,7 @@ package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
 import java.io.Serializable;
+import lombok.EqualsAndHashCode;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -24,7 +25,7 @@ public interface StreamCut extends Serializable {
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
      * of the stream or the current TAIL of the stream.
      */
-    StreamCut UNBOUNDED = () -> null;
+    StreamCut UNBOUNDED = new UnboundedStreamCut();
 
     /**
      * Used internally. Do not call.
@@ -32,4 +33,12 @@ public interface StreamCut extends Serializable {
      * @return Implementation of EventPointer interface
      */
     StreamCutInternal asImpl();
+
+    @EqualsAndHashCode
+    final class UnboundedStreamCut implements StreamCut {
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
+    }
 }
