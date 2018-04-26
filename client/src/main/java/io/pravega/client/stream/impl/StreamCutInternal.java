@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
@@ -19,8 +20,25 @@ import java.util.Map;
  */
 public abstract class StreamCutInternal implements StreamCut {
 
-    private static final long serialVersionUID = 1L;
-
+    public static final StreamCutInternal UNBOUNDED = new StreamCutInternal() {
+        @Override
+        public ByteBuffer toBytes() {
+            return null;
+        }
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
+        @Override
+        public Stream getStream() {
+            return null;
+        }
+        @Override
+        public Map<Segment, Long> getPositions() {
+            return null;
+        }
+    };
+    
     /**
      * Get {@link Stream} for the StreamCut.
      * @return The stream.
@@ -32,4 +50,9 @@ public abstract class StreamCutInternal implements StreamCut {
      * @return Map of Segment to its offset.
      */
     public abstract Map<Segment, Long> getPositions();
+    
+    
+    public static StreamCutInternal fromBytes(ByteBuffer cut) {
+        return StreamCutImpl.fromBytes(cut);
+    }
 }

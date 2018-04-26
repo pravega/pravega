@@ -35,7 +35,7 @@ public interface Position {
     /**
      * Deserializes the position from its serialized from obtained from calling {@link #toBytes()}.
      * 
-     * @param position A serialized position.
+     * @param serializedPosition A serialized position.
      * @return The position object.
      */
     static Position fromBytes(ByteBuffer serializedPosition) {
