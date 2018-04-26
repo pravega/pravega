@@ -123,16 +123,16 @@ public class CheckpointState implements Serializable {
         return !uncheckpointedHosts.isEmpty();
     }
     
-    void clearCheckpointsThrough(String checkpointId) {
+    void clearCheckpointsBefore(String checkpointId) {
         if (checkpointPositions.containsKey(checkpointId)) {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
                 String cp = iterator.next();
-                uncheckpointedHosts.remove(cp);
-                checkpointPositions.remove(cp);
-                iterator.remove();
                 if (cp.equals(checkpointId)) {
                     break;
                 }
+                uncheckpointedHosts.remove(cp);
+                checkpointPositions.remove(cp);
+                iterator.remove();
             }
         }
     }

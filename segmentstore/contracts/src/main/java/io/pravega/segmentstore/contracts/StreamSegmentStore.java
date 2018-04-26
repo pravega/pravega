@@ -135,8 +135,8 @@ public interface StreamSegmentStore {
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
      * future will be failed with the causing exception. Note that this result will only contain those attributes that
-     * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, consider using
-     * getAttributes().
+     * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, you must use
+     * getAttributes(), which will fetch all attributes, regardless of where they are currently located.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout);

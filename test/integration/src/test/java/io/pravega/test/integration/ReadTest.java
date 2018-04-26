@@ -17,6 +17,8 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.Segment;
@@ -50,6 +52,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.TestUtils;
@@ -69,6 +72,7 @@ import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -206,6 +210,45 @@ public class ReadTest {
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 150000);
+    }
+    
+    @Test(timeout = 10000)
+    public void readConditionalData() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
+        String endpoint = "localhost";
+        String scope = "scope";
+        String stream = "stream";
+        int port = TestUtils.getAvailableListenPort();
+        byte[] testString = "Hello world\n".getBytes();
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createScope(scope);
+        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        
+        ConditionalOutputStreamFactoryImpl segmentproducerClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+
+        SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
+
+        Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
+                                 .getSegments().iterator().next();
+
+        @Cleanup("close")
+        ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        assertTrue(out.write(ByteBuffer.wrap(testString), 0));
+
+        @Cleanup("close")
+        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
+        ByteBuffer result = in.read();
+        assertEquals(ByteBuffer.wrap(testString), result);
+        assertNull(in.read(100));
+        assertFalse(out.write(ByteBuffer.wrap(testString), 0));
+        assertTrue(out.write(ByteBuffer.wrap(testString), testString.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
+        result = in.read();
+        assertEquals(ByteBuffer.wrap(testString), result);
+        assertNull(in.read(100));
     }
 
     @Test

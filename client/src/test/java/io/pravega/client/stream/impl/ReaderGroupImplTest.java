@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -21,8 +22,11 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +34,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -102,6 +107,43 @@ public class ReaderGroupImplTest {
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 
+    @Test
+    public void getUnreadBytesBasedOnLastCheckpointPosition() {
+        final String stream = "s1";
+        final StreamCut startStreamCut = getStreamCut(stream, 10L, 1, 2);
+        final StreamCut endStreamCut = getStreamCut(stream, 25L, 1, 2);
+        //setup mocks
+        when(state.getPositionsForLastCompletedCheckpoint())
+                .thenReturn(Optional.of(ImmutableMap.of(Stream.of(SCOPE, stream), startStreamCut.asImpl().getPositions())));
+        when(state.getEndSegments()).thenReturn(endStreamCut.asImpl().getPositions());
+        when(synchronizer.getState()).thenReturn(state);
+        ImmutableSet<Segment> segmentSet = ImmutableSet.<Segment>builder()
+                .addAll(startStreamCut.asImpl().getPositions().keySet()).addAll(endStreamCut.asImpl().getPositions().keySet()).build();
+        when(controller.getSegments(startStreamCut, endStreamCut))
+                .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(segmentSet, "")));
+
+        assertEquals(30L, readerGroup.unreadBytes());
+    }
+
+    @Test
+    public void getUnreadBytesBasedOnLastPosition() {
+        final String stream = "s1";
+        final StreamCut startStreamCut = getStreamCut(stream, 10L, 1, 2);
+        final StreamCut endStreamCut = getStreamCut(stream, 30L, 1, 2);
+
+        //setup mocks
+        when(state.getPositionsForLastCompletedCheckpoint()).thenReturn(Optional.empty()); // simulate zero checkpoints.
+        when(state.getPositions()).thenReturn(ImmutableMap.of(Stream.of(SCOPE, stream), startStreamCut.asImpl().getPositions()));
+        when(state.getEndSegments()).thenReturn(endStreamCut.asImpl().getPositions());
+        when(synchronizer.getState()).thenReturn(state);
+        ImmutableSet<Segment> r = ImmutableSet.<Segment>builder()
+                .addAll(startStreamCut.asImpl().getPositions().keySet()).addAll(endStreamCut.asImpl().getPositions().keySet()).build();
+        when(controller.getSegments(startStreamCut, endStreamCut))
+                .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
+
+        assertEquals(40L, readerGroup.unreadBytes());
+    }
+
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
@@ -110,5 +152,14 @@ public class ReaderGroupImplTest {
 
     private Stream createStream(String streamName) {
         return Stream.of(SCOPE, streamName);
+    }
+
+    private StreamCut getStreamCut(String streamName, long offset, int... segmentNumbers) {
+        ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
+        Arrays.stream(segmentNumbers).forEach(seg -> {
+            builder.put(new Segment(SCOPE, streamName, seg), offset);
+        });
+
+        return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
     }
 }

@@ -35,7 +35,7 @@ public class SegmentTransactionTest {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 PendingEvent event = (PendingEvent) invocation.getArgument(0);
-                event.getAckFuture().complete(true);
+                event.getAckFuture().complete(null);
                 return null;
             }
         }).when(outputStream).write(Mockito.any(PendingEvent.class));
