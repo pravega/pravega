@@ -15,6 +15,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Please note this is an experimental API.
@@ -29,6 +30,14 @@ import io.pravega.client.stream.StreamCut;
  */
 @Beta
 public interface BatchClient {
+
+    /**
+     * Get information about a given Stream, {@link StreamInfo}.
+     *
+     * @param stream the stream.
+     * @return stream information.
+     */
+    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.

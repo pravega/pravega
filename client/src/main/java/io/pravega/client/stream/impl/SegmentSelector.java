@@ -95,6 +95,7 @@ public class SegmentSelector {
      *         re-sent.
      */
     public List<PendingEvent> refreshSegmentEventWriters(Consumer<Segment> segmentSealedCallBack) {
+        log.info("Refreshing segments for stream {}", stream);
         return updateSegments(Futures.getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new),
                 segmentSealedCallBack);
@@ -111,6 +112,7 @@ public class SegmentSelector {
             Entry<Segment, SegmentOutputStream> entry = iter.next();
             if (!currentSegments.getSegments().contains(entry.getKey())) {
                 SegmentOutputStream writer = entry.getValue();
+                log.info("Closing writer {} on segment {} during segment refresh", writer, entry.getKey());
                 iter.remove();
                 try {
                     writer.close();
@@ -128,7 +130,7 @@ public class SegmentSelector {
                                                         Consumer<Segment> segmentSealedCallback) {
         currentSegments = newStreamSegments;
         createMissingWriters(segmentSealedCallback, newStreamSegments.getDelegationToken());
-        log.trace("Fetch unacked events for segment :{}", sealedSegment);
+        log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, newStreamSegments);
         List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
         writers.remove(sealedSegment); //remove this sealed segment writer.
         return toResend;
@@ -137,6 +139,7 @@ public class SegmentSelector {
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
+                log.debug("Creating writer for segment {}", segment);
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config, delegationToken);
                 writers.put(segment, out);
             }

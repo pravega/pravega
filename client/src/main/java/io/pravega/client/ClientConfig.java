@@ -20,12 +20,14 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class contains configuration that is passed on to Pravega client.
  * Please note that this is an experimental object and the contents and their interpretation may change
  * in future.
  */
+@Slf4j
 @Data
 @Beta
 @Builder(toBuilder = true)
@@ -73,6 +75,9 @@ public class ClientConfig {
                 controllerURI = URI.create("tcp://localhost");
             }
             extractCredentials();
+            if (credentials == null) {
+                log.warn("The credentials are not specified or could not be extracted.");
+            }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
 
