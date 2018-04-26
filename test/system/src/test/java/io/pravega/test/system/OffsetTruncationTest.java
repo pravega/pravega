@@ -67,16 +67,16 @@ public class OffsetTruncationTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
-
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "truncationExecutor");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM)
-                                                                  .scalingPolicy(scalingPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
+                                                                            .streamName(STREAM)
+                                                                            .scalingPolicy(scalingPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
 
     /**
-     * This is used to setup the various services required by the system test framework.
+     * This is used to setup the services required by the system test framework.
      *
      * @throws MarathonException    when error in setup
      */
@@ -128,25 +128,25 @@ public class OffsetTruncationTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
         streamManager = StreamManager.create(controllerURI);
-        assertTrue("Creating Scope", streamManager.createScope(SCOPE));
+        assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
 
     /**
-     * This tests verifies that truncation works specifying an offset that applies to multiple segments. To this end,
+     * This test verifies that truncation works specifying an offset that applies to multiple segments. To this end,
      * the test first writes a set of events on a Stream (with multiple segments) and truncates it at a specified offset
-     * (truncatedEvents). The tests asserts that readers (only) read the remaining events that have not been truncated.
+     * (truncatedEvents). The tests asserts that readers only read the remaining events that have not been truncated.
      */
     @Test
-    public void offsetTruncationTest() throws Exception {
+    public void offsetTruncationTest() {
         final int totalEvents = 200;
         final int truncatedEvents = 50;
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
-                ClientConfig.builder().controllerURI(controllerURI).build())
-                .build(),
-                 connectionFactory.getInternalExecutor());
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                                           .clientConfig(ClientConfig.builder()
+                                                                           .controllerURI(controllerURI).build()).build(),
+                                                                            connectionFactory.getInternalExecutor());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking offsetTruncationTest test with Controller URI: {}", controllerURI);
@@ -179,12 +179,12 @@ public class OffsetTruncationTest {
                   truncatedEvents*PARALLELISM);
     }
 
-    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) throws Exception {
+    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i=0; i<totalEvents; i++) {
-            writer.writeEvent(String.valueOf(i)).get();
+            writer.writeEvent(String.valueOf(i)).join();
             log.debug("Writing event: {} to stream {}", i, streamName);
         }
     }
@@ -203,12 +203,11 @@ public class OffsetTruncationTest {
     }
 
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {
-        final int timeout = 1000;
         EventRead<T> event;
         int validEvents = 0;
         try {
             do {
-                event = reader.readNextEvent(timeout);
+                event = reader.readNextEvent(1000);
                 if (event.getEvent()!=null)
                     validEvents++;
             } while ((event.getEvent()!=null || event.isCheckpoint()) && validEvents<limit);
@@ -217,6 +216,7 @@ public class OffsetTruncationTest {
         } catch (ReinitializationRequiredException | RuntimeException e) {
             log.error("Exception while reading event: ", e);
         }
+
         return validEvents;
     }
 }
