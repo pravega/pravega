@@ -131,7 +131,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
-                setSystemProperty("io.pravega.storage.hdfs.replaceDataNodesOnFailure", "false");
+                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
@@ -153,7 +153,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
             });
         } else {
             // Set HDFS as the default for Tier2.
-            map.put("HDFS_URL", "io.pravega.storage.hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+            map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
             map.put("TIER2_STORAGE", "HDFS");
         }
     }

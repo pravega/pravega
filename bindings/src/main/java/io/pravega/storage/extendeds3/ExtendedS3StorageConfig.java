@@ -32,7 +32,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> NAMESPACE = Property.named("namespace", ""); // use default namespace
     public static final Property<Boolean> USENONEMATCH = Property.named("useNoneMatch", false);
 
-    private static final String COMPONENT_CODE = "io/pravega/storage/extendeds3";
+    private static final String COMPONENT_CODE = "extendeds3";
 
     //endregion
 

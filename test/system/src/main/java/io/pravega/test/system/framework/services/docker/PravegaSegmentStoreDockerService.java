@@ -83,7 +83,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         stringBuilderMap.put("autoScale.cacheCleanUpInSeconds", "120");
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(30 * 1000));
-        stringBuilderMap.put("io.pravega.storage.hdfs.replaceDataNodesOnFailure", "false");
+        stringBuilderMap.put("hdfs.replaceDataNodesOnFailure", "false");
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
         }

@@ -28,7 +28,7 @@ public class HDFSStorageConfig {
     public static final Property<Integer> REPLICATION = Property.named("replication", 3);
     public static final Property<Integer> BLOCK_SIZE = Property.named("blockSize", 1024 * 1024);
     public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure", true);
-    private static final String COMPONENT_CODE = "io/pravega/storage/hdfs";
+    private static final String COMPONENT_CODE = "hdfs";
 
     //endregion
 
