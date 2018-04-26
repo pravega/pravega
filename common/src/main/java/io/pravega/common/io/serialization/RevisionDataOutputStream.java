@@ -221,14 +221,17 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     }
 
     @Override
-    public void writeArray(byte[] array) throws IOException {
+    public void writeArray(byte[] array, int offset, int length) throws IOException {
         if (array == null) {
+            // We ignore offset and length in this case, as per the method's contract.
             writeCompactInt(0);
             return;
+        } else if (offset < 0 || offset > array.length || length < 0 || offset + length > array.length) {
+            throw new ArrayIndexOutOfBoundsException("offset and length must refer to a range within the given array.");
         }
 
-        writeCompactInt(array.length);
-        write(array, 0, array.length);
+        writeCompactInt(length);
+        write(array, offset, length);
     }
 
     @Override

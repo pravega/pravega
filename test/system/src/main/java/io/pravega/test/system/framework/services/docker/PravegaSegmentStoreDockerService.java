@@ -54,6 +54,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         this.conUri = conUri;
     }
 
+    @Override
     public void stop() {
         super.stop();
     }

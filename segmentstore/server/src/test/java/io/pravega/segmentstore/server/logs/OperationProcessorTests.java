@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
@@ -18,8 +19,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ConfigHelpers;
-import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ServiceListeners;
@@ -28,7 +27,7 @@ import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
+import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -46,6 +45,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -62,6 +62,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -115,12 +116,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
         OperationWithCompletion.allOf(completionFutures).join();
 
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
-
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, context.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, context.readIndex);
+        operationProcessor.stopAsync().awaitTerminated();
     }
 
     /**
@@ -168,9 +167,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof MetadataUpdateException || ex instanceof StreamSegmentException);
 
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
-
         HashSet<Long> streamSegmentsWithNoContents = new HashSet<>();
         streamSegmentsWithNoContents.add(sealedStreamSegmentId);
         streamSegmentsWithNoContents.add(deletedStreamSegmentId);
@@ -204,6 +200,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, context.metadata, false, false);
         performReadIndexChecks(completionFutures, context.readIndex);
+        operationProcessor.stopAsync().awaitTerminated();
     }
 
     /**
@@ -223,14 +220,14 @@ public class OperationProcessorTests extends OperationLogTestBase {
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment,
                 METADATA_CHECKPOINT_EVERY, false, false);
 
-        // Replace some of the Append Operations with a FailedAppendOperations. Some operations fail at the beginning,
+        // Replace some of the Append Operations with a FailedAppendOperation. Some operations fail at the beginning,
         // some at the end of the serialization.
         int appendCount = 0;
         HashSet<Integer> failedOperationIndices = new HashSet<>();
         for (int i = 0; i < operations.size(); i++) {
             if (operations.get(i) instanceof StreamSegmentAppendOperation) {
                 if ((appendCount++) % failAppendFrequency == 0) {
-                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i), i % 2 == 0));
+                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i)));
                     failedOperationIndices.add(i);
                 }
             }
@@ -252,10 +249,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
-
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
+                ex -> ex instanceof IntentionalException);
 
         // Verify that the "right" operations failed, while the others succeeded.
         for (int i = 0; i < completionFutures.size(); i++) {
@@ -264,7 +258,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();
@@ -274,6 +268,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
         performReadIndexChecks(completionFutures, context.readIndex);
+        operationProcessor.stopAsync().awaitTerminated();
     }
 
     /**
@@ -392,7 +387,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Create a different state updater and Memory log - and use these throughout this test.
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
-        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, context.readIndex);
+        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, context.readIndex, Runnables.doNothing());
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
@@ -410,12 +405,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
-
-        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
-        AssertExtensions.assertThrows(
-                "No operations failed.",
-                OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof DataCorruptionException);
 
         // Wait for the store to fail (and make sure it failed).
         AssertExtensions.assertThrows(
@@ -438,37 +427,22 @@ public class OperationProcessorTests extends OperationLogTestBase {
             if (encounteredFirstFailure) {
                 Assert.assertTrue("Encountered successful operation after a failed operation: " + oc.operation, oc.completion.isCompletedExceptionally());
             }
-            if (i < failAtOperationIndex) {
-                // The operation that failed may have inadvertently failed other operations that were aggregated together
-                // with it, which is why it's hard to determine precisely what the first expected failed operation is.
-                if (oc.completion.isCompletedExceptionally()) {
-                    // If we do find a failed one in this area, make sure it is failed with DataCorruptionException.
-                    AssertExtensions.assertThrows(
-                            "Unexpected exception for failed Operation in the same DataFrame as intentionally failed operation.",
-                            oc.completion::join,
-                            ex -> ex instanceof DataCorruptionException);
-                    encounteredFirstFailure = true;
-                } else {
-                    successCount++;
-                }
-            } else if (i == failAtOperationIndex) {
+            // The operation that failed may have inadvertently failed other operations that were aggregated together
+            // with it, which is why it's hard to determine precisely what the first expected failed operation is.
+            if (oc.completion.isCompletedExceptionally()) {
+                // If we do find a failed one in this area, make sure it is failed with DataCorruptionException.
                 AssertExtensions.assertThrows(
-                        "Unexpected exception for intentionally failed Operation.",
-                        oc.completion::join,
-                        ex -> ex instanceof DataCorruptionException
-                                || ex instanceof IllegalContainerStateException
-                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException)));
-                encounteredFirstFailure = true;
-            } else {
-                AssertExtensions.assertThrows(
-                        "Unexpected exception for failed Operation.",
+                        "Unexpected exception for failed Operation in the same DataFrame as intentionally failed operation.",
                         oc.completion::join,
                         super::isExpectedExceptionForDataCorruption);
+                encounteredFirstFailure = true;
+            } else {
+                successCount++;
             }
         }
 
         AssertExtensions.assertGreaterThan("No operation succeeded.", 0, successCount);
-        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, context.metadata);
+        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, context.metadata, failAtOperationIndex - 1);
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
@@ -543,7 +517,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "Operation did not fail with the right exception.",
                 () -> completionFuture.completion,
-                ex -> ex instanceof CancellationException);
+                ex -> ex instanceof CancellationException || ex instanceof ObjectClosedException);
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
@@ -554,25 +528,32 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
     private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
+        performLogOperationChecks(operations, memoryLog, dataLog, truncationMarkers, Integer.MAX_VALUE);
+    }
+
+    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
+                                           DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, int maxCount) throws Exception {
         // Log Operation based checks
+        val successfulOps = operations.stream()
+                                      .filter(oc -> !oc.completion.isCompletedExceptionally())
+                                      .map(oc -> oc.operation)
+                                      .filter(Operation::canSerialize)
+                                      .limit(maxCount)
+                                      .collect(Collectors.toList());
+
         @Cleanup
-        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
+        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
+        if (successfulOps.size() > 0) {
+            // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
+            // We check periodically until the last item has been written.
+            await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10);
+        }
+
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true);
-        for (OperationWithCompletion oc : operations) {
-            if (oc.completion.isCompletedExceptionally()) {
-                // We expect this operation to not have been processed.
-                continue;
-            }
-
-            if (!oc.operation.canSerialize()) {
-                // We do not expect this operation in the log; skip it.
-                continue;
-            }
-
+        for (Operation expectedOp : successfulOps) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
-            Operation expectedOp = oc.operation;
             AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
             lastSeqNo = expectedOp.getSequenceNumber();
 
@@ -580,27 +561,28 @@ public class OperationProcessorTests extends OperationLogTestBase {
             Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
 
             // Use memoryLogComparer: we are actually expecting the same object here.
-            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next());
+            Operation actual = memoryLogIterator.next();
+            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, actual);
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
-            DataFrameReader.ReadResult<Operation> readResult = dataFrameReader.getNext();
-            Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, readResult);
+            DataFrameRecord<Operation> dataFrameRecord = dataFrameReader.getNext();
+            Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, dataFrameRecord);
 
             // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
-            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem());
+            OperationComparer.DEFAULT.assertEquals(expectedOp, dataFrameRecord.getItem());
 
             // Check truncation markers if this is the last Operation to be written.
             LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameAddress() != null
-                    && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
+            if (dataFrameRecord.getLastFullDataFrameAddress() != null
+                    && dataFrameRecord.getLastFullDataFrameAddress().getSequence() != dataFrameRecord.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
-                        readResult.getLastFullDataFrameAddress(), dataFrameAddress);
-            } else if (readResult.isLastFrameEntry()) {
+                        dataFrameRecord.getLastFullDataFrameAddress(), dataFrameAddress);
+            } else if (dataFrameRecord.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
-                        readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
+                        dataFrameRecord.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
@@ -643,7 +625,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
-            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex);
+            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());
         }
 
         @Override

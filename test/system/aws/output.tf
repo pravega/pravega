@@ -11,3 +11,11 @@
 output "ip" {
   value = "${aws_instance.swarm_master.*.public_ip}"
 }
+
+output "master_public_dns" {
+  value = "${aws_instance.swarm_master.*.public_dns}"
+}
+
+output "slave_public_dns" {
+  value = "${aws_instance.swarm_slaves.*.public_dns}"
+}

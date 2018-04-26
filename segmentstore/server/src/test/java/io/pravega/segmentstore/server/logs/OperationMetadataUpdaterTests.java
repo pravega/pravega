@@ -22,7 +22,6 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -359,7 +358,7 @@ public class OperationMetadataUpdaterTests {
     private long mapTransaction(long parentSegmentId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata) throws Exception {
         String segmentName = "Transaction_" + updater.nextOperationSequenceNumber();
 
-        val mapOp = new TransactionMapOperation(parentSegmentId, StreamSegmentInformation.builder().name(segmentName).build());
+        val mapOp = new StreamSegmentMapOperation(parentSegmentId, StreamSegmentInformation.builder().name(segmentName).build());
         process(mapOp, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId(), parentSegmentId);

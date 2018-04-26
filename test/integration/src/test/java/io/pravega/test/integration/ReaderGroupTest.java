@@ -10,6 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.Stream;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -20,13 +21,11 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.test.common.TestUtils;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Data;
@@ -91,10 +90,10 @@ public class ReaderGroupTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(-1)
+                                                         .stream(Stream.of(SCOPE, STREAM_NAME))
                                                          .build();
-        streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
+        streamManager.createReaderGroup(READER_GROUP, groupConfig);
 
         writeEvents(100, clientFactory);
         ReaderThread r1 = new ReaderThread(20, "Reader1", clientFactory);
@@ -138,10 +137,10 @@ public class ReaderGroupTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(-1)
+                                                         .stream(Stream.of(SCOPE, STREAM_NAME))
                                                          .build();
-        streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
+        streamManager.createReaderGroup(READER_GROUP, groupConfig);
 
         writeEvents(100, clientFactory);
         new ReaderThread(100, "Reader", clientFactory).run();

@@ -24,6 +24,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -33,7 +34,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -53,9 +53,9 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_READERS = 5;
     private static final int NUM_WRITERS = 5;
-    private final String scope = "testReadTxnWriteScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testReadTxnWriteScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String stream = "testReadTxnWriteScaleStream";
-    private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(stream).scalingPolicy(scalingPolicy).build();
@@ -146,11 +146,11 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             //run the failover test before scaling
             performFailoverForTestsInvolvingTxns();
 
-        //bring the instances back to 3 before performing failover during scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            //bring the instances back to 3 before performing failover during scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
 
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //scale manually
             log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, stream)
@@ -186,10 +186,10 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, stream)
                     .get().getSegments().size());
 
-        //bring the instances back to 3 before performing failover after scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //bring the instances back to 3 before performing failover after scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
             performFailoverForTestsInvolvingTxns();

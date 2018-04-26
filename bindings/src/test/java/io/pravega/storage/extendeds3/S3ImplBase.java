@@ -51,7 +51,7 @@ public abstract class S3ImplBase {
 
     public abstract void deleteObject(String bucketName, String key);
 
-    public abstract DeleteObjectsResult deleteObject(DeleteObjectsRequest request);
+    public abstract DeleteObjectsResult deleteObjects(DeleteObjectsRequest request);
 
     public abstract ListObjectsResult listObjects(String bucketName, String prefix);
 

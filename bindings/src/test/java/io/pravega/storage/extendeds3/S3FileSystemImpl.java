@@ -18,6 +18,7 @@ import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.DeleteObjectsResult;
 import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.ListObjectsResult;
+import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.bean.PutObjectResult;
 import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -154,12 +155,20 @@ public class S3FileSystemImpl extends S3ImplBase {
 
     @Override
     public void deleteObject(String bucketName, String key) {
-
+        Path path = Paths.get(this.baseDir, bucketName, key);
+        try {
+            Files.delete(path);
+        } catch (IOException e) {
+            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
+        }
     }
 
     @Override
-    public DeleteObjectsResult deleteObject(DeleteObjectsRequest request) {
-        return null;
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
+        for (ObjectKey obj : request.getDeleteObjects().getKeys()) {
+            this.deleteObject(request.getBucketName(), obj.getKey());
+        }
+        return new DeleteObjectsResult();
     }
 
     @Override

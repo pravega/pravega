@@ -12,11 +12,11 @@ package io.pravega.test.integration.demo;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockStreamManager;
 
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.UUID;
 
 import lombok.Cleanup;
@@ -33,8 +33,9 @@ public class StartReader {
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         streamManager.createReaderGroup(READER_GROUP,
-                                        ReaderGroupConfig.builder().startingTime(0).build(),
-                                        Collections.singleton(StartLocalService.STREAM_NAME));
+                                        ReaderGroupConfig.builder()
+                                                         .stream(Stream.of(StartLocalService.SCOPE, StartLocalService.STREAM_NAME))
+                                                         .build());
         EventStreamReader<String> reader = streamManager.getClientFactory().createReader(UUID.randomUUID().toString(),
                                                                                          READER_GROUP,
                                                                                          new JavaSerializer<>(),

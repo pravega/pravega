@@ -42,6 +42,7 @@ public class HDFSDockerService extends DockerBasedService {
         super(serviceName);
     }
 
+    @Override
     public void stop() {
         super.stop();
     }

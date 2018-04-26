@@ -23,6 +23,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -32,7 +33,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -59,8 +59,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(25 * 60);
 
-    private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testReadWriteAndScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
@@ -150,10 +150,10 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //run the failover test before scaling
             performFailoverTest();
 
-        //bring the instances back to 3 before performing failover during scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //bring the instances back to 3 before performing failover during scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //scale manually
             log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
@@ -189,10 +189,10 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
-        //bring the instances back to 3 before performing failover after scaling
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //bring the instances back to 3 before performing failover after scaling
+            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
             performFailoverTest();

@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.segmentstore.server.LogItem;
+import io.pravega.common.util.SequencedItemList;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import lombok.val;
 /**
  * Test LogItem implementation that allows injecting serialization errors.
  */
-class TestLogItem implements LogItem {
+class TestLogItem implements SequencedItemList.Element {
     @Getter
     private final long sequenceNumber;
     @Getter
@@ -66,8 +66,7 @@ class TestLogItem implements LogItem {
         return result;
     }
 
-    @Override
-    public void serialize(OutputStream output) throws IOException {
+    private void serialize(OutputStream output) throws IOException {
         DataOutputStream dataOutput = new DataOutputStream(output);
         dataOutput.writeLong(this.sequenceNumber);
         dataOutput.writeInt(this.data.length);
@@ -103,5 +102,18 @@ class TestLogItem implements LogItem {
         }
 
         return false;
+    }
+
+    static class TestLogItemSerializer implements Serializer<TestLogItem> {
+
+        @Override
+        public void serialize(OutputStream output, TestLogItem item) throws IOException {
+            item.serialize(output);
+        }
+
+        @Override
+        public TestLogItem deserialize(InputStream input) throws IOException {
+            return null;
+        }
     }
 }

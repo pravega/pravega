@@ -21,6 +21,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
@@ -134,9 +135,9 @@ public class MultiReadersEndToEndTest {
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(),
                                     ClientConfig.builder()
                                                 .controllerURI(SETUP_UTILS.getControllerUri()).build());
-        readerGroupManager.createReaderGroup(readerGroupName,
-                                             ReaderGroupConfig.builder().startingTime(0).build(),
-                                             streamNames);
+        ReaderGroupConfig.ReaderGroupConfigBuilder builder = ReaderGroupConfig.builder();
+        streamNames.forEach(s -> builder.stream(Stream.of(SETUP_UTILS.getScope(), s)));
+        readerGroupManager.createReaderGroup(readerGroupName, builder.build());
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);
 
@@ -216,9 +217,9 @@ public class MultiReadersEndToEndTest {
         });
 
         final String readerGroupName = "testReaderGroup";
-        streamManager.createReaderGroup(readerGroupName,
-                                        ReaderGroupConfig.builder().startingTime(0).build(),
-                                        streamNames);
+        ReaderGroupConfig.ReaderGroupConfigBuilder builder = ReaderGroupConfig.builder();
+        streamNames.forEach(s -> builder.stream(Stream.of("scope", s)));
+        streamManager.createReaderGroup(readerGroupName, builder.build());
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);
 

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.Iterators;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.SequencedItemList;
@@ -37,9 +38,9 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -53,8 +54,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.Cleanup;
@@ -72,7 +75,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 3;
     }
 
     //region Creating Segments
@@ -315,6 +318,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return ex instanceof DataCorruptionException
                 || ex instanceof IllegalContainerStateException
                 || ex instanceof ObjectClosedException
+                || ex instanceof CancellationException
                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 
@@ -394,25 +398,30 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
+    protected void await(Supplier<Boolean> condition, int checkFrequencyMillis) throws TimeoutException {
+        long remainingMillis = TIMEOUT.toMillis();
+        while (!condition.get() && remainingMillis > 0) {
+            Exceptions.handleInterrupted(() -> Thread.sleep(checkFrequencyMillis));
+            remainingMillis -= checkFrequencyMillis;
+        }
+
+        if (!condition.get() && remainingMillis <= 0) {
+            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
+        }
+    }
     //endregion
 
     //region FailedStreamSegmentAppendOperation
 
     static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
-        private final boolean failAtBeginning;
 
-        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
+        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base) {
             super(base.getStreamSegmentId(), base.getData(), base.getAttributeUpdates());
-            this.failAtBeginning = failAtBeginning;
         }
 
         @Override
-        protected void serializeContent(DataOutputStream target) throws IOException {
-            if (!this.failAtBeginning) {
-                super.serializeContent(target);
-            }
-
-            throw new IOException("intentional failure");
+        public long getStreamSegmentId() {
+            throw new IntentionalException("intentional failure");
         }
     }
 

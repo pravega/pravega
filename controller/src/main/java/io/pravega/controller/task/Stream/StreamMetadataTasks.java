@@ -52,6 +52,8 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -73,6 +75,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
+import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -83,8 +87,9 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  */
 @Slf4j
 public class StreamMetadataTasks extends TaskBase {
+    private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
-    public static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
@@ -212,7 +217,8 @@ public class StreamMetadataTasks extends TaskBase {
                             .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
                     return checkGenerateStreamCut(scope, stream, context, latestCut, recordingTime, delegationToken)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime));
-                });
+                })
+                .thenAccept(x -> DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, stream), 1));
 
     }
 
@@ -593,21 +599,23 @@ public class StreamMetadataTasks extends TaskBase {
                 runOnlyIfStarted,
                 context,
                 executor), executor)
-                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
-                        .thenApply(updated -> response))
-                .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context, delegationToken)
-                        .thenCompose(x -> {
-                            assert !response.getSegmentsCreated().isEmpty();
+                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(),
+                        State.SCALING, context, executor)
+                        .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scaleInput.getScope(),
+                                scaleInput.getStream(), context, executor))
+                        .thenCompose(v -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(),
+                                response.getSegmentsCreated(), context, delegationToken)
 
-                            long scaleTs = response.getSegmentsCreated().get(0).getStart();
+                                .thenCompose(x -> {
+                                    assert !response.getSegmentsCreated().isEmpty();
 
-                            return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
-                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
-                                    scaleTs, context, executor), executor);
-                        })
-                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context, delegationToken))
-                        .thenApply(y -> response.getSegmentsCreated()));
+                                    return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(),
+                                            scaleInput.getStream(), context, executor), executor);
+                                })
+                                .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context, delegationToken))
+                                .thenApply(y -> response.getSegmentsCreated())));
     }
+
 
     /**
      * Helper method to complete scale operation. It tries to optimistically complete the scale operation if no transaction is running
@@ -629,12 +637,11 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                     assert !response.getSegmentsCreated().isEmpty() && !response.getSegmentsSealed().isEmpty();
 
-                    long scaleTs = response.getSegmentsCreated().get(0).getStart();
                     return notifySealedSegments(scope, stream, response.getSegmentsSealed(), delegationToken)
                             .thenCompose(x -> getSealedSegmentsSize(scope, stream, response.getSegmentsSealed(), delegationToken))
                             .thenCompose(map ->
-                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map,
-                                            response.getSegmentsCreated(), epoch, scaleTs, context, executor), executor)
+                                    withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, context,
+                                            executor), executor)
                                     .thenApply(z -> {
                                         log.info("scale processing for {}/{} epoch {} completed.", scope, stream, epoch);
                                         return true;

@@ -17,7 +17,7 @@ provider "aws" {
 
 #security group, allow all incoming and outgoing traffic
 resource "aws_security_group" "pravega_default" {
- name = "pravega_default"
+ name_prefix = "pravega_default"
  ingress {
   from_port = 0
   to_port = 0
@@ -40,7 +40,7 @@ resource "aws_instance" "swarm_master" {
  ami = "${lookup(var.pravega_aws_amis, var.aws_region)}"
  instance_type = "${lookup(var.pravega_instance_type, var.aws_region)}"
  key_name = "${var.aws_key_name}"
- security_groups = ["pravega_default"]
+ vpc_security_group_ids = ["${aws_security_group.pravega_default.id}"]
  provisioner "local-exec" {
    command = "chmod 400 ${var.cred_path}"
  }
@@ -78,7 +78,7 @@ resource "aws_instance" "swarm_slaves" {
  ami = "${lookup(var.pravega_aws_amis, var.aws_region)}"
  instance_type = "${lookup(var.pravega_instance_type, var.aws_region)}"
  key_name = "${var.aws_key_name}"
- security_groups = ["pravega_default"]
+ vpc_security_group_ids = ["${aws_security_group.pravega_default.id}"]
  provisioner "local-exec" {
    command = "chmod 400 ${var.cred_path}"
  }

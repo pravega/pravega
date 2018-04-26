@@ -43,6 +43,7 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
 
         // Get all BK ledger ids.
         output("Searching for all the ledgers ...");
+        @Cleanup
         val bkAdmin = new BookKeeperAdmin(context.logFactory.getBookKeeperClient());
         val allLedgerIds = new ArrayList<Long>();
         bkAdmin.listLedgers().forEach(allLedgerIds::add);

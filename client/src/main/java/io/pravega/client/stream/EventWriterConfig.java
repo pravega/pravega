@@ -37,7 +37,7 @@ public class EventWriterConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private long transactionTimeoutTime = 60 * 60 * 1000;
+        private long transactionTimeoutTime = 30 * 1000 - 1;
         private long transactionTimeoutScaleGracePeriod = -1;
     }
     

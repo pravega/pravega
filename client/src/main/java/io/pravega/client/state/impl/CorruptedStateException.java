@@ -10,6 +10,7 @@
 package io.pravega.client.state.impl;
 
 public class CorruptedStateException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
 
     /**
      * Constructor for corrupted state exception with message.
