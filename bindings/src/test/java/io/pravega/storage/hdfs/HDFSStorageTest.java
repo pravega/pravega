@@ -85,10 +85,11 @@ public class HDFSStorageTest extends StorageTestBase {
 
     //region Fencing tests
     /**
-     * A special case Fencing test that verifies the HDFSStorage fencing mechanism when the "fenced-out" instance keeps
-     * trying to write continuously. This verifies that any ongoing writes are properly handled upon fencing.
-     * By having the "fenced-out" instance keep writing, we will exercise the case when we have an ongoing write while
-     * a HDFS file is being set as read-only (the HDFS behavior in this case is that the ongoing write will complete).
+     * A special test case of fencing to verify the behavior of HDFSStorage in the presence of an instance that has
+     * been fenced out. This case verifies that any ongoing writes properly fail upon fencing. Specifically, we have a
+     * fenced-out instance that keeps writing and we verify that the write fails once the ownership changes.
+     * The HDFS behavior is such in this case is that ongoing writes that execute before the rename
+     * complete successfully.
      */
     @Test(timeout = 60000)
     public void testZombieFencing() throws Exception {
@@ -254,15 +255,15 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
-        private void validateProperties(String stage, String segmentName, SegmentProperties sp, long expectedLength, boolean expectedSealed) {
-            Assert.assertNotNull("No result from GetInfoOperation (" + stage + ").", sp);
-            Assert.assertEquals("Unexpected name (" + stage + ").", segmentName, sp.getName());
-            Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
-            Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
-        }
+    private void validateProperties(String stage, String segmentName, SegmentProperties sp, long expectedLength, boolean expectedSealed) {
+        Assert.assertNotNull("No result from GetInfoOperation (" + stage + ").", sp);
+        Assert.assertEquals("Unexpected name (" + stage + ").", segmentName, sp.getName());
+        Assert.assertEquals("Unexpected length (" + stage + ").", expectedLength, sp.getLength());
+        Assert.assertEquals("Unexpected sealed status (" + stage + ").", expectedSealed, sp.isSealed());
+    }
 
     /**
-     * Tests the ExistsOperation in various scenarios.
+     * Tests the exists API.
      */
     @Test
     public void testExists() throws Exception {
@@ -275,8 +276,7 @@ public class HDFSStorageTest extends StorageTestBase {
             createSegment(segmentName, s);
 
             // Not exists.
-            Assert.assertFalse("Unexpected result for missing segment (no files).",
-                    s.exists("nonexistent", null).join());
+            Assert.assertFalse("Unexpected result for missing segment (no files).", s.exists("nonexistent", null).join());
         }
     }
 
