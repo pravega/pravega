@@ -39,6 +39,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -54,6 +55,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilder implements AutoCloseable {
     //region Members
 
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
     private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
@@ -124,8 +126,7 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.readIndexFactory);
         closeComponent(this.cacheFactory);
         this.threadPoolMetrics.close();
-        this.storageExecutor.shutdownNow();
-        this.coreExecutor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
     }
 
     //endregion
