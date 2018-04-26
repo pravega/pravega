@@ -57,7 +57,7 @@ public class HDFSStorageTest extends StorageTestBase {
     private static final int WRITE_COUNT = 5;
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(StorageTestBase.TIMEOUT.getSeconds());
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;
@@ -107,9 +107,9 @@ public class HDFSStorageTest extends StorageTestBase {
 
         // Create the Segment and open it for the first time.
         val currentHandle = new AtomicReference<SegmentHandle>(
-                currentStorage.get().create(segmentName, StorageTestBase.TIMEOUT)
+                currentStorage.get().create(segmentName, TIMEOUT)
                               .thenCompose(v -> currentStorage.get().openWrite(segmentName))
-                              .get(StorageTestBase.TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+                              .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
 
         // Run a number of epochs.
         while (currentEpoch <= epochCount) {
@@ -120,7 +120,7 @@ public class HDFSStorageTest extends StorageTestBase {
                     () -> true,
                     () -> {
                         rnd.nextBytes(writeBuffer);
-                        return oldStorage.write(handle, writtenData.size(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, StorageTestBase.TIMEOUT)
+                        return oldStorage.write(handle, writtenData.size(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT)
                                          .thenRun(() -> writtenData.write(writeBuffer));
                     },
                     executorService());
@@ -129,7 +129,7 @@ public class HDFSStorageTest extends StorageTestBase {
             val newStorage = createStorage();
             try {
                 newStorage.initialize(++currentEpoch);
-                currentHandle.set(newStorage.openWrite(segmentName).get(StorageTestBase.TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+                currentHandle.set(newStorage.openWrite(segmentName).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
             } catch (Exception ex) {
                 newStorage.close();
                 throw ex;
@@ -137,7 +137,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
             currentStorage.set(newStorage);
             try {
-                appends.get(StorageTestBase.TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                appends.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.fail("Continuous appends on older epoch Adapter did not fail.");
             } catch (Exception ex) {
                 val cause = Exceptions.unwrap(ex);
@@ -158,8 +158,8 @@ public class HDFSStorageTest extends StorageTestBase {
         readStorage.initialize(++currentEpoch);
         int bytesRead = readStorage
                 .openRead(segmentName)
-                .thenCompose(handle -> readStorage.read(handle, 0, readData, 0, readData.length, StorageTestBase.TIMEOUT))
-                .get(StorageTestBase.TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                .thenCompose(handle -> readStorage.read(handle, 0, readData, 0, readData.length, TIMEOUT))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected number of bytes read.", readData.length, bytesRead);
         Assert.assertArrayEquals("Unexpected data read back.", expectedData, readData);
     }
@@ -186,7 +186,7 @@ public class HDFSStorageTest extends StorageTestBase {
             storage2.initialize(epoch2);
 
             // Create segment in Storage1 (thus Storage1 owns it for now).
-            storage1.create(segmentName, StorageTestBase.TIMEOUT).join();
+            storage1.create(segmentName, TIMEOUT).join();
 
             // Storage1 should be able to execute all operations.
             SegmentHandle handle1 = storage1.openWrite(segmentName).join();
@@ -226,7 +226,7 @@ public class HDFSStorageTest extends StorageTestBase {
     public void testGetInfo() throws Exception {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
-            s.initialize(StorageTestBase.DEFAULT_EPOCH);
+            s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
             SegmentHandle handle = s.openWrite(segmentName).join();
 
@@ -272,7 +272,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
-            s.initialize(StorageTestBase.DEFAULT_EPOCH);
+            s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
 
             // Not exists.
@@ -289,7 +289,7 @@ public class HDFSStorageTest extends StorageTestBase {
         String segmentName = "foo_open";
         val rnd = new Random(0);
         try (Storage s = createStorage()) {
-            s.initialize(StorageTestBase.DEFAULT_EPOCH);
+            s.initialize(DEFAULT_EPOCH);
             createSegment(segmentName, s);
             SegmentHandle handle = s.openWrite(segmentName).join();
 
@@ -328,8 +328,8 @@ public class HDFSStorageTest extends StorageTestBase {
         val rnd = new Random(0);
         try (Storage s = createStorage();
         Storage s2 = createStorage()) {
-            s.initialize(StorageTestBase.DEFAULT_EPOCH);
-            s2.initialize(StorageTestBase.DEFAULT_EPOCH + 1);
+            s.initialize(DEFAULT_EPOCH);
+            s2.initialize(DEFAULT_EPOCH + 1);
 
             createSegment(segmentName, s);
             SegmentHandle handle = s.openWrite(segmentName).join();
@@ -371,7 +371,7 @@ public class HDFSStorageTest extends StorageTestBase {
      */
     public static class RollingStorageTests extends RollingStorageTestBase {
         @Rule
-        public Timeout globalTimeout = Timeout.seconds(StorageTestBase.TIMEOUT.getSeconds());
+        public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
         private File baseDir = null;
         private MiniDFSCluster hdfsCluster = null;
         private HDFSStorageConfig adapterConfig;
@@ -405,7 +405,7 @@ public class HDFSStorageTest extends StorageTestBase {
         @Override
         protected long getSegmentRollingSize() {
             // Need to increase this otherwise the test will run for too long.
-            return RollingStorageTestBase.DEFAULT_ROLLING_SIZE * 5;
+            return DEFAULT_ROLLING_SIZE * 5;
         }
     }
 

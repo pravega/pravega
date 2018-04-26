@@ -14,12 +14,10 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.storage.IdempotentStorageTestBase;
-import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
@@ -31,12 +29,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+
 /**
  * Unit tests for FileSystemStorage.
  */
 public class FileSystemStorageTest extends IdempotentStorageTestBase {
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(StorageTestBase.TIMEOUT.getSeconds());
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
 
@@ -70,22 +70,22 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
-            s.initialize(StorageTestBase.DEFAULT_EPOCH);
-            s.create(segmentName, StorageTestBase.TIMEOUT).join();
+            s.initialize(DEFAULT_EPOCH);
+            s.create(segmentName, TIMEOUT).join();
 
             long expectedMetricsSize = FileSystemMetrics.WRITE_BYTES.get();
             long expectedMetricsSuccesses = FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
             // Invalid handle.
             val readOnlyHandle = s.openRead(segmentName).join();
-            AssertExtensions.assertThrows(
+            assertThrows(
                     "write() did not throw for read-only handle.",
-                    () -> s.write(readOnlyHandle, 0, new ByteArrayInputStream("h".getBytes()), 1, StorageTestBase.TIMEOUT),
+                    () -> s.write(readOnlyHandle, 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException);
 
-            AssertExtensions.assertThrows(
+            assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
                     () -> s.write(createInexistentSegmentHandle(s, false), 0,
-                            new ByteArrayInputStream("h".getBytes()), 1, StorageTestBase.TIMEOUT),
+                            new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
@@ -98,7 +98,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             for (int j = 0; j < appendCount; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
-                s.write(writeHandle, offset, dataStream, writeData.length, StorageTestBase.TIMEOUT).join();
+                s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 expectedMetricsSize += writeData.length;
                 expectedMetricsSuccesses += 1;
                 Assert.assertEquals("WRITE_LATENCY should increase the count of successful events in case of successful writes",
@@ -111,17 +111,17 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
             // Check bad offset.
             final long finalOffset = offset;
-            AssertExtensions.assertThrows("write() did not throw bad offset write (larger).",
-                    () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, StorageTestBase.TIMEOUT),
+            assertThrows("write() did not throw bad offset write (larger).",
+                    () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
                     expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
                     expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             // Check post-delete write.
-            s.delete(writeHandle, StorageTestBase.TIMEOUT).join();
-            AssertExtensions.assertThrows("write() did not throw for a deleted StreamSegment.",
-                    () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, StorageTestBase.TIMEOUT),
+            s.delete(writeHandle, TIMEOUT).join();
+            assertThrows("write() did not throw for a deleted StreamSegment.",
+                    () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
                     expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
@@ -144,7 +144,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
      */
     public static class RollingStorageTests extends RollingStorageTestBase {
         @Rule
-        public Timeout globalTimeout = Timeout.seconds(StorageTestBase.TIMEOUT.getSeconds());
+        public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
         private File baseDir = null;
         private FileSystemStorageConfig adapterConfig;
 
