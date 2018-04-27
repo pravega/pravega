@@ -144,7 +144,7 @@ public class ReaderGroupStateManager {
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
                                 + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
             }
-            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
+            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });
     }
     

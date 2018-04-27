@@ -362,7 +362,7 @@ public class ReaderGroupState implements Revisioned {
     static class RemoveReader extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
         private final String readerId;
-        private final PositionInternal lastPosition;
+        private final Map<Segment, Long> ownedSegments;
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -377,10 +377,10 @@ public class ReaderGroupState implements Revisioned {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
                     Long offset;
-                    if (lastPosition == null) {
+                    if (ownedSegments == null) {
                         offset = entry.getValue();
                     } else {
-                        offset = lastPosition.getOffsetForOwnedSegment(segment);
+                        offset = ownedSegments.get(segment);
                         Preconditions.checkState(offset != null,
                                 "No offset in lastPosition for assigned segment: " + segment);
                     }
