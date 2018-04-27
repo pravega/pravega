@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream extends PersistentStreamBase<Integer> {
+    @VisibleForTesting
+    static final int DELTA = 10000;
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
@@ -57,6 +59,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SEALED_SEGMENTS_PATH = STREAM_PATH + "/sealedSegments";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
+    private static final String MSB_NODE_PATH = "msb";
+    private static final String LSB_ROOT_PATH = "counters";
+    private static final String LSB_FORMAT = "counter%d";
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -76,7 +81,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
-
     private final Cache<Integer> cache;
 
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
@@ -333,7 +337,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
-                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
+                        .thenApply(children -> children.stream().filter(x -> !x.equals(MSB_NODE_PATH) && !x.startsWith(LSB_ROOT_PATH)))
+                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))
                                        .exceptionally(e -> {
                                            if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
@@ -393,7 +398,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         // create a new znode under epoch for msb and another for counter
         byte[] b = new byte[Integer.BYTES];
         BitConverter.writeInt(b, 0, 0);
-
         return store.createZNodeIfNotExist(getEpochMsbPath(epoch), b)
                 .thenCompose(v -> store.createZNodeIfNotExist(getEpochCounterPath(epoch, 0), true));
     }
@@ -413,8 +417,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(lsb -> {
                     long id = (long) msb << 32 | lsb & 0xFFFFFFFFL;
 
-                    // This will allow 10000 outstanding concurrent increments to this counter even after we seal it.
-                    if (lsb > Integer.MAX_VALUE - 10000) {
+                    // This will allow `delta` outstanding concurrent increments to this counter even after we seal it.
+                    if (lsb > Integer.MAX_VALUE - DELTA) {
                         // 1. create new lsb node at path epoch/counters/(msb + 1)
                         // 2. delete stale lsb node at path epoch/
                         // 3. increment msb node with newer value. This ensures that all future increments happen against
@@ -440,7 +444,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch) {
         return store.deletePath(getEpochMsbPath(epoch), false)
-            .thenCompose(v -> store.deleteTree(getEpochCounterRootPath(epoch)));
+            .thenCompose(v -> store.deleteTree(getEpochCounterRootPath(epoch))
+                    .exceptionally(e -> {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            return null;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    }));
     }
 
     // endregion
@@ -647,20 +658,24 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Long.toString(epoch)), txId);
     }
 
-    private String getEpochPath(final long epoch) {
+    @VisibleForTesting
+    String getEpochPath(final long epoch) {
         return ZKPaths.makePath(activeTxRoot, Long.toString(epoch));
     }
 
-    private String getEpochMsbPath(final long epoch) {
-        return ZKPaths.makePath(getEpochPath(epoch), "msb");
+    @VisibleForTesting
+    String getEpochMsbPath(final long epoch) {
+        return ZKPaths.makePath(getEpochPath(epoch), MSB_NODE_PATH);
     }
 
-    private String getEpochCounterPath(final long epoch, final int counter) {
-        return ZKPaths.makePath(getEpochCounterRootPath(epoch), String.format("counter%d", counter));
+    @VisibleForTesting
+    String getEpochCounterPath(final long epoch, final int counter) {
+        return ZKPaths.makePath(getEpochCounterRootPath(epoch), String.format(LSB_FORMAT, counter));
     }
 
-    private String getEpochCounterRootPath(final long epoch) {
-        return ZKPaths.makePath(getEpochPath(epoch), "counters");
+    @VisibleForTesting
+    String getEpochCounterRootPath(final long epoch) {
+        return ZKPaths.makePath(getEpochPath(epoch), LSB_ROOT_PATH);
     }
 
     private String getCompletedTxPath(final String txId) {

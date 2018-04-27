@@ -11,8 +11,8 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.Data;
-import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -43,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -434,12 +435,12 @@ public class ZkStreamTest {
 
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
-        UUID txnId1 = UUID.randomUUID();
+        UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
                 context, executor).get();
         Assert.assertEquals(txnId1, tx.getId());
 
-        UUID txnId2 = UUID.randomUUID();
+        UUID txnId2 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
                 context, executor).get();
         Assert.assertEquals(txnId2, tx2.getId());
@@ -527,15 +528,14 @@ public class ZkStreamTest {
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZKStream stream = new ZKStream("scope", "stream", storeHelper);
-        // create epoch
-        stream.createEpochNodeIfAbsent(0).join();
 
-        byte[] historyIndex = TableHelper.createHistoryIndex();
-        byte[] historyTable = TableHelper.createHistoryTable(1L, Lists.newArrayList(0, 1));
-        stream.createHistoryIndexIfAbsent(new Data<>(historyIndex, 0)).join();
-        stream.createHistoryTableIfAbsent(new Data<>(historyTable, 0)).join();
-        stream.createStateIfAbsent(State.ACTIVE).join();
-        UUID txId = UUID.randomUUID();
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope("scope").streamName("stream").scalingPolicy(policy1).build();
+        stream.create(configuration1, System.currentTimeMillis()).join();
+        stream.updateState(State.ACTIVE).join();
+        UUID txId = stream.generateNewTxnId().join();
         stream.createTransaction(txId, 1000L, 1000L, 1000L).join();
 
         String activeTxPath = stream.getActiveTxPath(0, txId.toString());
@@ -558,6 +558,76 @@ public class ZkStreamTest {
         ZKStream stream3 = new ZKStream("scope", "stream", storeHelper);
         result = stream3.getCurrentTxns().join();
         assertEquals(1, result.size());
+    }
+
+    @Test(timeout = 10000)
+    public void testEpochCounter() throws Exception {
+        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+        ZKStream stream = new ZKStream("scope", "stream", storeHelper);
+
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope("scope").streamName("stream").scalingPolicy(policy1).build();
+
+        stream.create(configuration1, System.currentTimeMillis()).join();
+        stream.updateState(State.ACTIVE).join();
+
+        // attempt to generate
+        long id = stream.generateNextUniqueId(0).join();
+        assertEquals(1L, id);
+
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals(2L, id);
+
+        AtomicInteger lsb = new AtomicInteger(Integer.MAX_VALUE - 9999);
+        doReturn(CompletableFuture.completedFuture(lsb.incrementAndGet())).when(storeHelper).updateAndGetVersion(stream.getEpochCounterPath(0, 0));
+
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals((long) 0 << 32 | lsb.get() & 0xFFFFFFFFL, id);
+
+        // verify that msb has increased
+        Data<Integer> data = storeHelper.getData(stream.getEpochMsbPath(0)).join();
+        assertEquals(1, BitConverter.readInt(data.getData(), 0));
+
+        // verify that there are two lsb nodes
+        List<String> lsbCounters = storeHelper.getChildren(stream.getEpochCounterRootPath(0)).join();
+        assertEquals(2, lsbCounters.size());
+        assertTrue(lsbCounters.contains("counter0") && lsbCounters.contains("counter1"));
+
+        // verify that new id is generated against lsb 1 ..
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals((long) 1 << 32 | 1 & 0xFFFFFFFFL, id);
+
+        // mock updateAndGetVersion for counter 1 too
+        doReturn(CompletableFuture.completedFuture(lsb.incrementAndGet())).when(storeHelper).updateAndGetVersion(stream.getEpochCounterPath(0, 1));
+
+        // verify that id matches msb = 1 and lsb = Integer.Max - 9999 + 2
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals((long) 1 << 32 | lsb.get() & 0xFFFFFFFFL, id);
+
+        // verify that msb has increased
+        data = storeHelper.getData(stream.getEpochMsbPath(0)).join();
+        assertEquals(2, BitConverter.readInt(data.getData(), 0));
+
+        // verify that there are two lsb nodes and lsb node for 0 is deleted.
+        lsbCounters = storeHelper.getChildren(stream.getEpochCounterRootPath(0)).join();
+        assertEquals(2, lsbCounters.size());
+        assertTrue(lsbCounters.contains("counter1") && lsbCounters.contains("counter2"));
+
+        // mock store helper to return old msb(= 1)
+        byte[] array = new byte[Integer.BYTES];
+        BitConverter.writeInt(array, 0, 1);
+        doReturn(CompletableFuture.completedFuture(new Data<>(array, 0))).when(storeHelper).getData(stream.getEpochMsbPath(0));
+
+        // verify that we get response corresponding to counter1
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals((long) 1 << 32 | lsb.get() & 0xFFFFFFFFL, id);
+
+        reset(storeHelper);
+
+        id = stream.generateNextUniqueId(0).join();
+        assertEquals((long) 2 << 32 | 1L & 0xFFFFFFFFL, id);
     }
 
     private void testCommitFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,

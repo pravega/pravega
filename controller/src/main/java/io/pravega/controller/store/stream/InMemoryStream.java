@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -562,7 +561,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         final Data<Integer> txnData = new Data<>(
                 new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                 .toByteArray(), 0);
-        int epoch = (int)txId.getMostSignificantBits();
+        int epoch = (int) txId.getMostSignificantBits();
 
         synchronized (txnsLock) {
             if (!epochTxnMap.containsKey(epoch)) {

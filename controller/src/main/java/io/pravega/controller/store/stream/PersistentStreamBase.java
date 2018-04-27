@@ -707,7 +707,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                                 return addPartialHistoryRecordAndIndex(epochTransition.getSegmentsToSeal(),
                                         epochTransition.getNewSegmentsWithRange().keySet(),
-                                        epochTransition.getActiveEpoch(), epochTransition.getNewEpoch());
+                                        epochTransition.getActiveEpoch(), epochTransition.getNewEpoch())
+                                        .thenCompose(v -> {
+                                            log.debug("Scale stream {}/{}, sealing old epoch for new transaction creation", scope, name);
+                                            return sealOldEpochForNewTransactions(epochTransition.getActiveEpoch())
+                                                    .exceptionally(e -> {
+                                                        System.err.println("huha -->" + e);
+                                                        throw new CompletionException(e);
+                                                    });
+                                        });
                             });
                 });
     }
@@ -1150,7 +1158,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {
-        return createEpochNodeIfAbsent(epoch);
+        return createEpochNodeIfAbsent(epoch)
+                .thenCompose(v -> createEpochUniqueIdGenerator(epoch));
+    }
+
+    private CompletableFuture<Void> sealOldEpochForNewTransactions(int epoch) {
+        return deleteEpochUniqueIdGenerator(epoch);
     }
 
     /**
@@ -1197,8 +1210,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
                             return createNewEpoch(newEpoch)
-
-                                    .thenCompose(v -> createEpochUniqueIdGenerator(newEpoch))
                                     .thenCompose(v -> getSegmentIndex().thenCompose(segmentIndex -> getSegmentTable()
                                             .thenApply(segmentTable -> {
                                                 final int segmentCount = TableHelper.getSegmentCount(segmentIndex.getData(),
@@ -1209,7 +1220,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                             })))
                                     .thenCompose(start -> addHistoryIndexRecord(newEpoch, offset))
                                     .thenCompose(v -> updateHistoryTable(updated))
-                                    .thenCompose(v -> deleteEpochUniqueIdGenerator(activeEpoch))
                                     .whenComplete((r, e) -> {
                                         if (e == null) {
                                             log.debug("{}/{} scale op for epoch {}. Creating new epoch and updating history table.",
@@ -1325,7 +1335,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private Integer getTransactionEpoch(UUID txId) {
         // epoch == UUID.msb
-        return (int)txId.getMostSignificantBits();
+        return (int) txId.getMostSignificantBits();
     }
 
     abstract CompletableFuture<Void> deleteStream();
