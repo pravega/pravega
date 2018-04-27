@@ -39,7 +39,7 @@ public class PositionImpl extends PositionInternal {
      *
      * @param ownedSegments Current segments that the position refers to.
      */
-    @Builder(builderClassName="PositionBuilder")
+    @Builder(builderClassName = "PositionBuilder")
     public PositionImpl(Map<Segment, Long> ownedSegments) {
         this.ownedSegments = new HashMap<>(ownedSegments);
     }
@@ -108,7 +108,8 @@ public class PositionImpl extends PositionInternal {
 
         private void write00(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()) , (out, offset) -> out.writeCompactLong(offset));
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
+                                        (out, offset) -> out.writeCompactLong(offset));
         }
     }
 

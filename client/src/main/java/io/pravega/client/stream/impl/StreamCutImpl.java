@@ -41,7 +41,7 @@ public class StreamCutImpl extends StreamCutInternal {
 
     private final Map<Segment, Long> positions;
 
-    @Builder(builderClassName="StreamCutBuilder")
+    @Builder(builderClassName = "StreamCutBuilder")
     public StreamCutImpl(Stream stream, Map<Segment, Long> positions) {
         this.stream = stream;
         this.positions = positions;

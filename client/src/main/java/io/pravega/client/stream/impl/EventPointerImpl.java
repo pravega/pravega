@@ -35,7 +35,7 @@ public class EventPointerImpl extends EventPointerInternal {
     private final long eventStartOffset;
     private final int eventLength;
 
-    @Builder(builderClassName="EventPointerBuilder")
+    @Builder(builderClassName = "EventPointerBuilder")
     EventPointerImpl(Segment segment, long eventStartOffset, int eventLength) {
         this.segment = segment;
         this.eventStartOffset = eventStartOffset;
