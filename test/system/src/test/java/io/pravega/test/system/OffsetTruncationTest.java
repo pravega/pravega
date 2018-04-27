@@ -172,18 +172,18 @@ public class OffsetTruncationTest {
         // Read again, now expecting to read events from the offset defined in truncate call onwards.
         futures = readDummyEvents(clientFactory, READER_GROUP, PARALLELISM);
         Futures.allOf(futures).join();
-        assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a,b) -> a+b).get(),
-                (totalEvents-(truncatedEvents*PARALLELISM)));
+        assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(),
+                totalEvents - (truncatedEvents * PARALLELISM));
 
        log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.",
-                  truncatedEvents*PARALLELISM);
+                  truncatedEvents * PARALLELISM);
     }
 
     private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        for (int i=0; i<totalEvents; i++) {
+        for (int i = 0; i < totalEvents; i++) {
             writer.writeEvent(String.valueOf(i)).join();
             log.debug("Writing event: {} to stream {}", i, streamName);
         }
@@ -191,14 +191,14 @@ public class OffsetTruncationTest {
 
     private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory client, String rGroup, int numReaders, int limit) {
         List<EventStreamReader<String>> readers = new ArrayList<>();
-        for (int i=0; i<numReaders; i++) {
+        for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
         }
 
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit))).collect(toList());
     }
 
-    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory clientFactory, String readerGroup, int numReaders){
+    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory clientFactory, String readerGroup, int numReaders) {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
@@ -208,9 +208,10 @@ public class OffsetTruncationTest {
         try {
             do {
                 event = reader.readNextEvent(1000);
-                if (event.getEvent()!=null)
+                if (event.getEvent() != null) {
                     validEvents++;
-            } while ((event.getEvent()!=null || event.isCheckpoint()) && validEvents<limit);
+                }
+            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
 
             reader.close();
         } catch (ReinitializationRequiredException | RuntimeException e) {
