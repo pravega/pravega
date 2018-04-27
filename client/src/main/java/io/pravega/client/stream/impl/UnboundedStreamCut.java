@@ -13,7 +13,7 @@ import io.pravega.client.stream.StreamCut;
 import lombok.EqualsAndHashCode;
 
 /**
- * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
+ * This class represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
  * of the stream or the current TAIL of the stream.
  */
 @EqualsAndHashCode
