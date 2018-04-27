@@ -152,17 +152,19 @@ public final class Exceptions {
     }
     
     /**
-     * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the Map arg
-     * argument has a size of zero.
+     * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException
+     * if the Map arg argument has a size of zero.
      *
-     * @param <T>     The type of elements in the provided map.
-     * @param arg     The argument to check.
+     * @param <K> The type of keys in the provided map.
+     * @param <V> The type of keys in the provided map.
+     * @param arg The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
      * @return The arg.
-     * @throws NullPointerException     If arg is null.
+     * @throws NullPointerException If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static <K,V> Map<K,V> checkNotNullOrEmpty(Map<K,V> arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static <K, V> Map<K, V> checkNotNullOrEmpty(Map<K, V> arg, String argName) throws NullPointerException,
+                                                                                      IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty map.");
         return arg;
