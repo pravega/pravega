@@ -54,7 +54,7 @@ public class RevisionImpl implements Revision, Serializable {
         sb.append(eventAtOffset);
         return sb.toString();
     }
-    
+
     public static Revision fromString(String scopedName) {
         String[] tokens = scopedName.split(":");
         if (tokens.length == 3) {
@@ -63,8 +63,7 @@ public class RevisionImpl implements Revision, Serializable {
             throw new IllegalArgumentException("Not a valid segment name");
         }
     }
-    
-    
+
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedForm(toString());
     }

@@ -29,8 +29,7 @@ public interface EventPointer {
      * @return A binary representation of the event pointer.
      */
     ByteBuffer toBytes();
-    
-    
+
     /**
      * Deserializes the event pointer from its serialized from obtained from calling {@link #toBytes()}.
      * 

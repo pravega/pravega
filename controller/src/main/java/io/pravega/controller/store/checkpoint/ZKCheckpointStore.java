@@ -51,6 +51,7 @@ class ZKCheckpointStore implements CheckpointStore {
             public ByteBuffer serialize(Position value) {
                 return value.toBytes();
             }
+            
             @Override
             public Position deserialize(ByteBuffer serializedValue) {
                 return Position.fromBytes(serializedValue);

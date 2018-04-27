@@ -31,7 +31,6 @@ public interface Revision extends Comparable<Revision> {
     @Override
     String toString();
     
-    
     /**
      * Deserializes the revision from its serialized from obtained from calling {@link #toString()}.
      * 

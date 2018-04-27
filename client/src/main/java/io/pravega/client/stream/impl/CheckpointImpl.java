@@ -54,7 +54,6 @@ public class CheckpointImpl implements Checkpoint {
         this.positions = positionBuilder.build();
     }
     
-    
     @lombok.Builder(builderClassName = "CheckpointBuilder")
     private CheckpointImpl(Map<Stream, StreamCut> positions, String name) {
         this.name = name;
