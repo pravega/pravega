@@ -17,6 +17,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ToStringUtils;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -24,18 +25,17 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
-import lombok.ToString;
 
 /**
  * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
  * used as in intermediate class to make StreamCut instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-@ToString
 public class StreamCutImpl extends StreamCutInternal {
 
     static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
@@ -63,6 +63,15 @@ public class StreamCutImpl extends StreamCutInternal {
     @Override
     public StreamCutInternal asImpl() {
         return this;
+    }
+    
+    @Override
+    public String toString() {
+        return stream.getScopedName() + ":"
+                + ToStringUtils.mapToString(positions.entrySet()
+                                                     .stream()
+                                                     .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
+                                                                               e -> e.getValue())));
     }
 
     @VisibleForTesting
