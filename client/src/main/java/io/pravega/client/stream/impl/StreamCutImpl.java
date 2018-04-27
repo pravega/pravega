@@ -35,7 +35,7 @@ import lombok.ToString;
 @ToString
 public class StreamCutImpl extends StreamCutInternal {
 
-    private static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
+    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
 
     private final Stream stream;
 
@@ -73,10 +73,10 @@ public class StreamCutImpl extends StreamCutInternal {
         return true;
     }
     
-    private static class StreamCutBuilder implements ObjectBuilder<StreamCutImpl> {
+    private static class StreamCutBuilder implements ObjectBuilder<StreamCutInternal> {
     }
     
-    public static class StreamCutSerializer extends VersionedSerializer.WithBuilder<StreamCutImpl, StreamCutBuilder> {
+    public static class StreamCutSerializer extends VersionedSerializer.WithBuilder<StreamCutInternal, StreamCutBuilder> {
         @Override
         protected StreamCutBuilder newBuilder() {
             return builder();
@@ -101,7 +101,7 @@ public class StreamCutImpl extends StreamCutInternal {
             builder.positions(map);
         }
 
-        private void write00(StreamCutImpl cut, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(StreamCutInternal cut, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeUTF(cut.getStream().getScopedName());
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactInt(s.getSegmentNumber()),
