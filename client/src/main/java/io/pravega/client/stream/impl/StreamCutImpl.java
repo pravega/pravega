@@ -18,11 +18,14 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import lombok.Builder;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 import lombok.ToString;
@@ -120,4 +123,20 @@ public class StreamCutImpl extends StreamCutInternal {
     public static StreamCutInternal fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
     }
+    
+    @SneakyThrows(IOException.class)
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(SERIALIZER.serialize(this).getCopy());
+    }
+    
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private final byte[] value;
+        @SneakyThrows(IOException.class)
+        Object readResolve() throws ObjectStreamException {
+            return SERIALIZER.deserialize(new ByteArraySegment(value));
+        }
+    }
+    
 }

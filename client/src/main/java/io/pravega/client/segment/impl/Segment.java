@@ -110,7 +110,8 @@ public class Segment implements Comparable<Segment>, Serializable {
     }
     
     @Data
-    private static class SerializedForm  {
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
         private final String value;
         Object readResolve() throws ObjectStreamException {
             return Segment.fromScopedName(value);

@@ -40,7 +40,8 @@ public class Sequence implements Comparable<Sequence>, Serializable {
     }
     
     @Data
-    private static class SerializedForm  {
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
         private final UUID value;
         Object readResolve() throws ObjectStreamException {
             return new Sequence(value.getMostSignificantBits(), value.getLeastSignificantBits());

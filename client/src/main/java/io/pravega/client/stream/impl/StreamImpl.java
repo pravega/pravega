@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
@@ -39,8 +40,10 @@ public class StreamImpl implements StreamInternal, Serializable {
     }
     
     @Data
-    private static class SerializedForm  {
-        private final String value;
+    @AllArgsConstructor
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String value;
         Object readResolve() throws ObjectStreamException {
             return StreamInternal.fromScopedName(value);
         }
