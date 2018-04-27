@@ -31,7 +31,6 @@ public interface Position {
      */
     ByteBuffer toBytes();
     
-    
     /**
      * Deserializes the position from its serialized from obtained from calling {@link #toBytes()}.
      * 

@@ -116,7 +116,7 @@ public class EventPointerImpl extends EventPointerInternal {
     }
     
     @SneakyThrows(IOException.class)
-    public static EventPointerInternal fromBytes(byte[] data) {
-        return SERIALIZER.deserialize(data);
+    public static EventPointerInternal fromBytes(ByteBuffer data) {
+        return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
 }

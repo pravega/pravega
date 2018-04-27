@@ -96,7 +96,7 @@ public class StreamCutImpl extends StreamCutInternal {
             Stream stream = Stream.of(revisionDataInput.readUTF());
             builder.stream(stream);
             Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
-                                                                                 stream.getStreamName(), in.readInt()),
+                                                                                 stream.getStreamName(), in.readCompactInt()),
                                                                in -> in.readCompactLong());
             builder.positions(map);
         }
