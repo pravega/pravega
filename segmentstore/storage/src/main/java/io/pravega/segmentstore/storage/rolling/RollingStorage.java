@@ -461,8 +461,12 @@ public class RollingStorage implements SyncStorage {
     @Override
     public void truncate(SegmentHandle handle, long truncationOffset) throws StreamSegmentException {
         // Delete all SegmentChunks which are entirely before the truncation offset.
-        val h = asWritableHandle(handle);
+        RollingSegmentHandle h = asReadableHandle(handle);
         ensureNotDeleted(h);
+
+        // The only acceptable case where we allow a read-only handle is if the Segment is sealed, since openWrite() will
+        // only return a read-only handle in that case.
+        Preconditions.checkArgument(h.isSealed() || !h.isReadOnly(), "Can only truncate with a read-only handle if the Segment is Sealed.");
         if (h.getHeaderHandle() == null) {
             // No header means the Segment is made up of a single SegmentChunk. We can't do anything.
             return;
@@ -472,13 +476,20 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
                 "truncationOffset must be non-negative and at most the length of the Segment.");
         val last = h.lastChunk();
-        if (last != null && canTruncate(last, truncationOffset)) {
-            // If we were asked to truncate the entire Segment, then rollover at this point so we can delete all existing
-            // data.
+        if (last != null && canTruncate(last, truncationOffset) && !h.isSealed()) {
+            // If we were asked to truncate the entire (non-sealed) Segment, then rollover at this point so we can delete
+            // all existing data.
             rollover(h);
+
+            // We are free to delete all chunks.
+            deleteChunks(h, s -> canTruncate(s, truncationOffset));
+        } else {
+            // Either we were asked not to truncate the whole segment, or we were, and the Segment is sealed. If the latter,
+            // then the Header is also sealed, we could not have done a quick rollover; as such we have no option but to
+            // preserve the last chunk so that we can recalculate the length of the Segment if we need it again.
+            deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
         }
 
-        deleteChunks(h, s -> canTruncate(s, truncationOffset));
         LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset);
     }
 
