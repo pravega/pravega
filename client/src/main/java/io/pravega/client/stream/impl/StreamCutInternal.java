@@ -28,28 +28,6 @@ import java.util.Map;
  * This is an abstract class which acts an intermediate class to make the actual StreamCut implementation opaque.
  */
 public abstract class StreamCutInternal implements StreamCut {
-
-    public static final StreamCutInternal UNBOUNDED = new StreamCutInternal() {
-        @Override
-        public ByteBuffer toBytes() {
-            return null;
-        }
-
-        @Override
-        public StreamCutInternal asImpl() {
-            return null;
-        }
-
-        @Override
-        public Stream getStream() {
-            return null;
-        }
-
-        @Override
-        public Map<Segment, Long> getPositions() {
-            return null;
-        }
-    };
     
     /**
      * Get {@link Stream} for the StreamCut.

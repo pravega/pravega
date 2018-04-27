@@ -24,7 +24,17 @@ public interface StreamCut {
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
      * of the stream or the current TAIL of the stream.
      */
-    StreamCut UNBOUNDED = StreamCutInternal.UNBOUNDED;
+    StreamCut UNBOUNDED = new StreamCut() {
+        @Override
+        public ByteBuffer toBytes() {
+            return ByteBuffer.allocate(0);
+        }
+
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
+    };
 
     /**
      * Used internally. Do not call.
@@ -45,6 +55,9 @@ public interface StreamCut {
      * @return The StreamCut object.
      */
     static StreamCut fromBytes(ByteBuffer cut) {
+        if (!cut.hasRemaining()) {
+            return UNBOUNDED;
+        }
         return StreamCutInternal.fromBytes(cut);
     }
 }
