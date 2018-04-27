@@ -114,7 +114,7 @@ public class UnreadBytesTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes", "unreadbytes").build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 

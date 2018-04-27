@@ -28,7 +28,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OFFSET_REACHED;
 
 /**
- * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
+ * Manages buffering and provides a synchronous to {@link AsyncSegmentInputStream}
  * 
  * @see SegmentInputStream
  */

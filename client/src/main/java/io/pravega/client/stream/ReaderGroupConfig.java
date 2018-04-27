@@ -11,6 +11,7 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.common.Exceptions;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,6 +23,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 import lombok.val;
+import org.apache.commons.lang3.StringUtils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingInt;
@@ -59,12 +61,23 @@ public class ReaderGroupConfig implements Serializable {
         * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
         * readers of a ReaderGroup.
         *
-        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param streamName Stream name.
         * @param startStreamCut Start {@link StreamCut}.
         * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+       public ReaderGroupConfigBuilder stream(final String scope, final String streamName,
+                                              final StreamCut startStreamCut, final StreamCut endStreamCut) {
+
+           Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+
+           final String scopedStreamName;
+           if (StringUtils.isBlank(scope)) {
+               scopedStreamName = streamName;
+           } else {
+               scopedStreamName = new StringBuilder(scope).append('/').append(streamName).toString();
+           }
 
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
@@ -80,26 +93,63 @@ public class ReaderGroupConfig implements Serializable {
        }
 
        /**
+        * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
+        * readers of a ReaderGroup. {@link ReaderGroup#getScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @param endStreamCut End {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final String streamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           return stream(null, streamName, startStreamCut, endStreamCut);
+       }
+
+       /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
         *
-        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param streamName Stream name.
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut) {
-           return stream(scopedStreamName, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder stream(final String scope, final String streamName, final StreamCut startStreamCut) {
+           return stream(scope, streamName, startStreamCut, StreamCut.UNBOUNDED);
        }
 
+       /**
+        * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        * {@link ReaderGroup#getScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final String streamName, final StreamCut startStreamCut) {
+           return stream(null, streamName, startStreamCut, StreamCut.UNBOUNDED);
+       }
 
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
         *
-        * @param scopedStreamName Scoped name of the stream, if only stream name is specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param streamName Stream name.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName) {
-           return stream(scopedStreamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder stream(final String scope, final String streamName) {
+           return stream(scope, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       }
+
+       /**
+        * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
+        * will be used as the starting StreamCut. {@link ReaderGroup#getScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder stream(final String streamName) {
+           return stream(null, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
