@@ -13,11 +13,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.StreamTruncationRecordSerializer;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -32,8 +31,7 @@ import java.util.Set;
 @Data
 @Slf4j
 public class StreamTruncationRecord  {
-    public static final VersionedSerializer.WithBuilder<StreamTruncationRecord,
-            StreamTruncationRecord.StreamTruncationRecordBuilder> SERIALIZER = new StreamTruncationRecordSerializer();
+    public static final StreamTruncationRecordSerializer SERIALIZER = new StreamTruncationRecordSerializer();
 
     public static final StreamTruncationRecord EMPTY = new StreamTruncationRecord(ImmutableMap.of(),
             ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), false);
@@ -127,26 +125,13 @@ public class StreamTruncationRecord  {
 
     }
 
-    public static StreamTruncationRecord parse(byte[] data) {
-        StreamTruncationRecord streamTruncationRecord;
-        try {
-            streamTruncationRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for stream truncation record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return streamTruncationRecord;
+    @SneakyThrows(IOException.class)
+    public static StreamTruncationRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing stream truncation record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
-
 }

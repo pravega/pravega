@@ -10,12 +10,11 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.StreamCutRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -30,8 +29,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Slf4j
 public class StreamCutRecord {
-    public static final VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> SERIALIZER
-            = new StreamCutRecordSerializer();
+    public static final StreamCutRecordSerializer SERIALIZER = new StreamCutRecordSerializer();
 
     /**
      * Time when this stream cut was recorded.
@@ -50,26 +48,13 @@ public class StreamCutRecord {
 
     }
 
-    public static StreamCutRecord parse(byte[] data) {
-        StreamCutRecord retention;
-        try {
-            retention = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("Exception while deserializing streamcut record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return retention;
+    @SneakyThrows(IOException.class)
+    public static StreamCutRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
-    public static byte[] toByteArray(StreamCutRecord record) {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(record).getCopy();
-        } catch (IOException e) {
-            log.error("Exception while serializing streamcut record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+    @SneakyThrows(IOException.class)
+    public byte[] toByteArray() {
+        return SERIALIZER.serialize(this).getCopy();
     }
-
 }

@@ -10,12 +10,11 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.StateRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -25,8 +24,7 @@ import java.io.IOException;
 @Slf4j
 @AllArgsConstructor
 public class StateRecord {
-    public static final VersionedSerializer.WithBuilder<StateRecord, StateRecord.StateRecordBuilder> SERIALIZER
-            = new StateRecordSerializer();
+    public static final StateRecordSerializer SERIALIZER = new StateRecordSerializer();
 
     private final State state;
 
@@ -34,26 +32,13 @@ public class StateRecord {
 
     }
 
-    public static StateRecord parse(byte[] data) {
-        StateRecord stateRecord;
-        try {
-            stateRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for state record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return stateRecord;
+    @SneakyThrows(IOException.class)
+    public static StateRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing state record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
-
 }

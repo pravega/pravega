@@ -35,7 +35,7 @@ public class ActiveTxnRecordSerializer
                 .leaseExpiryTime(revisionDataInput.readLong())
                 .maxExecutionExpiryTime(revisionDataInput.readLong())
                 .scaleGracePeriod(revisionDataInput.readLong())
-                .txnStatus(TxnStatus.values()[revisionDataInput.readInt()]);
+                .txnStatus(TxnStatus.values()[revisionDataInput.readCompactInt()]);
     }
 
     private void write00(ActiveTxnRecord activeTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -43,7 +43,7 @@ public class ActiveTxnRecordSerializer
         revisionDataOutput.writeLong(activeTxnRecord.getLeaseExpiryTime());
         revisionDataOutput.writeLong(activeTxnRecord.getMaxExecutionExpiryTime());
         revisionDataOutput.writeLong(activeTxnRecord.getScaleGracePeriod());
-        revisionDataOutput.writeInt(activeTxnRecord.getTxnStatus().ordinal());
+        revisionDataOutput.writeCompactInt(activeTxnRecord.getTxnStatus().ordinal());
     }
 
     @Override

@@ -10,7 +10,6 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.tables.serializers.SegmentRecordSerializer;
 import lombok.Builder;
@@ -29,8 +28,7 @@ import java.util.Optional;
  * records. So we maintain a segment index which identifies start offset for each row in the table.
  */
 public class SegmentRecord {
-    public static final VersionedSerializer.WithBuilder<SegmentRecord, SegmentRecord.SegmentRecordBuilder>
-            SERIALIZER = new SegmentRecordSerializer();
+    public static final SegmentRecordSerializer SERIALIZER = new SegmentRecordSerializer();
 
     private final int segmentNumber;
     private final long startTime;

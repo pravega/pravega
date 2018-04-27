@@ -10,13 +10,12 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.serializers.ActiveTxnRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -26,8 +25,7 @@ import java.io.IOException;
 @AllArgsConstructor
 @Slf4j
 public class ActiveTxnRecord {
-    public static final VersionedSerializer.WithBuilder<ActiveTxnRecord, ActiveTxnRecord.ActiveTxnRecordBuilder> SERIALIZER
-            = new ActiveTxnRecordSerializer();
+    public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
 
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
@@ -39,25 +37,13 @@ public class ActiveTxnRecord {
 
     }
 
-    public static ActiveTxnRecord parse(byte[] data) {
-        ActiveTxnRecord activeTxnRecord;
-        try {
-            activeTxnRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for active txn record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return activeTxnRecord;
+    @SneakyThrows(IOException.class)
+    public static ActiveTxnRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing active txn record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

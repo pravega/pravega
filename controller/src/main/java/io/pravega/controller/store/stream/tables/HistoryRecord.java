@@ -10,7 +10,6 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.tables.serializers.HistoryRecordSerializer;
 import lombok.Builder;
@@ -35,8 +34,7 @@ import java.util.Optional;
  */
 @Data
 public class HistoryRecord {
-    public static final VersionedSerializer.WithBuilder<HistoryRecord, HistoryRecord.HistoryRecordBuilder>
-            SERIALIZER = new HistoryRecordSerializer();
+    public static final HistoryRecordSerializer SERIALIZER = new HistoryRecordSerializer();
 
     @Getter
     private final int epoch;

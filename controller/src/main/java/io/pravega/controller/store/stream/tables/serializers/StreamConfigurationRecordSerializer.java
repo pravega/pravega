@@ -39,6 +39,12 @@ public class StreamConfigurationRecordSerializer
         version(0).revision(0, this::write00, this::read00);
     }
 
+    @Override
+    protected void beforeSerialization(StreamConfigurationRecord streamConfigurationRecord) {
+        Preconditions.checkNotNull(streamConfigurationRecord);
+        Preconditions.checkNotNull(streamConfigurationRecord.getStreamConfiguration());
+    }
+
     private void read00(RevisionDataInput revisionDataInput,
                         StreamConfigurationRecordBuilder streamConfigurationRecordBuilder)
             throws IOException {
@@ -54,8 +60,6 @@ public class StreamConfigurationRecordSerializer
 
     private void write00(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
             throws IOException {
-        Preconditions.checkNotNull(streamConfigurationRecord);
-        Preconditions.checkNotNull(streamConfigurationRecord.getStreamConfiguration());
         revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getScope());
         revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getStreamName());
         ScalingPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
@@ -101,7 +105,6 @@ public class StreamConfigurationRecordSerializer
         private void write00(ScalingPolicyRecord scalingPolicyRecord, RevisionDataOutput revisionDataOutput) throws IOException {
             if (scalingPolicyRecord == null || scalingPolicyRecord.getScalingPolicy() == null) {
                 revisionDataOutput.writeBoolean(false);
-                revisionDataOutput.write(new byte[0]);
             } else {
                 revisionDataOutput.writeBoolean(true);
                 ScalingPolicy scalingPolicy = scalingPolicyRecord.getScalingPolicy();
@@ -147,7 +150,6 @@ public class StreamConfigurationRecordSerializer
                 throws IOException {
             if (retentionPolicyRecord == null || retentionPolicyRecord.getRetentionPolicy() == null) {
                 revisionDataOutput.writeBoolean(false);
-                revisionDataOutput.write(new byte[0]);
             } else {
                 revisionDataOutput.writeBoolean(true);
                 RetentionPolicy retentionPolicy = retentionPolicyRecord.getRetentionPolicy();

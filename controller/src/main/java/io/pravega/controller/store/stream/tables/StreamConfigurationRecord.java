@@ -13,12 +13,11 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.StreamConfigurationRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -29,8 +28,7 @@ import java.io.IOException;
 @AllArgsConstructor
 public class StreamConfigurationRecord {
 
-    public static final VersionedSerializer.WithBuilder<StreamConfigurationRecord,
-            StreamConfigurationRecord.StreamConfigurationRecordBuilder> SERIALIZER = new StreamConfigurationRecordSerializer();
+    public static final StreamConfigurationRecordSerializer SERIALIZER = new StreamConfigurationRecordSerializer();
 
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
@@ -49,26 +47,14 @@ public class StreamConfigurationRecord {
 
     }
 
-    public static StreamConfigurationRecord parse(byte[] data) {
-        StreamConfigurationRecord streamConfigurationRecord;
-        try {
-            streamConfigurationRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for configuration record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return streamConfigurationRecord;
+    @SneakyThrows(IOException.class)
+    public static StreamConfigurationRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing configuration record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
 
     @Data
@@ -77,8 +63,8 @@ public class StreamConfigurationRecord {
     @AllArgsConstructor
     public static class ScalingPolicyRecord {
 
-        public static final VersionedSerializer.WithBuilder<ScalingPolicyRecord, ScalingPolicyRecordBuilder> SERIALIZER
-                = new StreamConfigurationRecordSerializer.ScalingPolicyRecordSerializer();
+        public static final StreamConfigurationRecordSerializer.ScalingPolicyRecordSerializer SERIALIZER =
+                new StreamConfigurationRecordSerializer.ScalingPolicyRecordSerializer();
 
         private final ScalingPolicy scalingPolicy;
 
@@ -86,26 +72,14 @@ public class StreamConfigurationRecord {
 
         }
 
-        public static ScalingPolicyRecord parse(byte[] data) {
-            ScalingPolicyRecord scalingPolicyRecord;
-            try {
-                scalingPolicyRecord = SERIALIZER.deserialize(data);
-            } catch (IOException e) {
-                log.error("deserialization error for configuration's scaling policy record {}", e);
-                throw Lombok.sneakyThrow(e);
-            }
-            return scalingPolicyRecord;
+        @SneakyThrows(IOException.class)
+        public static ScalingPolicyRecord parse(final byte[] data) {
+            return SERIALIZER.deserialize(data);
         }
 
+        @SneakyThrows(IOException.class)
         public byte[] toByteArray() {
-            byte[] array;
-            try {
-                array = SERIALIZER.serialize(this).getCopy();
-            } catch (IOException e) {
-                log.error("error serializing configuration's scaling policy record {}", e);
-                throw Lombok.sneakyThrow(e);
-            }
-            return array;
+            return SERIALIZER.serialize(this).getCopy();
         }
     }
 
@@ -115,8 +89,8 @@ public class StreamConfigurationRecord {
     @AllArgsConstructor
     public static class RetentionPolicyRecord {
 
-        public static final VersionedSerializer.WithBuilder<RetentionPolicyRecord, RetentionPolicyRecordBuilder> SERIALIZER
-                = new StreamConfigurationRecordSerializer.RetentionPolicyRecordSerializer();
+        public static final StreamConfigurationRecordSerializer.RetentionPolicyRecordSerializer SERIALIZER =
+                new StreamConfigurationRecordSerializer.RetentionPolicyRecordSerializer();
 
         private final RetentionPolicy retentionPolicy;
 
@@ -124,27 +98,14 @@ public class StreamConfigurationRecord {
 
         }
 
-        public static RetentionPolicyRecord parse(byte[] data) {
-            RetentionPolicyRecord retentionPolicyRecord;
-            try {
-                retentionPolicyRecord = SERIALIZER.deserialize(data);
-            } catch (IOException e) {
-                log.error("deserialization error for configuration's retention policy record {}", e);
-                throw Lombok.sneakyThrow(e);
-            }
-            return retentionPolicyRecord;
+        @SneakyThrows(IOException.class)
+        public static RetentionPolicyRecord parse(final byte[] data) {
+            return SERIALIZER.deserialize(data);
         }
 
+        @SneakyThrows(IOException.class)
         public byte[] toByteArray() {
-            byte[] array;
-            try {
-                array = SERIALIZER.serialize(this).getCopy();
-            } catch (IOException e) {
-                log.error("error serializing configuration's retention policy record {}", e);
-                throw Lombok.sneakyThrow(e);
-            }
-            return array;
+            return SERIALIZER.serialize(this).getCopy();
         }
     }
-
 }

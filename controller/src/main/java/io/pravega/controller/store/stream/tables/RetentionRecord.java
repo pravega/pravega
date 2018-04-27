@@ -11,11 +11,10 @@ package io.pravega.controller.store.stream.tables;
 
 import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.RetentionRecordSerializer;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -27,8 +26,7 @@ import java.util.stream.Collectors;
 @Data
 @Builder
 public class RetentionRecord {
-    public static final VersionedSerializer.WithBuilder<RetentionRecord, RetentionRecord.RetentionRecordBuilder> SERIALIZER =
-            new RetentionRecordSerializer();
+    public static final RetentionRecordSerializer SERIALIZER = new RetentionRecordSerializer();
 
     private final List<StreamCutRecord> streamCuts;
 
@@ -58,25 +56,13 @@ public class RetentionRecord {
     public static class RetentionRecordBuilder implements ObjectBuilder<RetentionRecord> {
     }
 
-    public static RetentionRecord parse(byte[] data) {
-        RetentionRecord retention;
-        try {
-            retention = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("Exception while deserializing retention record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return retention;
+    @SneakyThrows(IOException.class)
+    public static RetentionRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("Exception while serializing retention record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

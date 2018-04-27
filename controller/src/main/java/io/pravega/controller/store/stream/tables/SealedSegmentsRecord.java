@@ -10,11 +10,10 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.store.stream.tables.serializers.SealedSegmentsRecordSerializer;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -29,8 +28,7 @@ import java.util.Map;
 @Builder
 @Slf4j
 public class SealedSegmentsRecord {
-    public static final VersionedSerializer.WithBuilder<SealedSegmentsRecord, SealedSegmentsRecord.SealedSegmentsRecordBuilder>
-            SERIALIZER = new SealedSegmentsRecordSerializer();
+    public static final SealedSegmentsRecordSerializer SERIALIZER = new SealedSegmentsRecordSerializer();
 
     /**
      * Sealed segments with size at the time of sealing.
@@ -49,25 +47,13 @@ public class SealedSegmentsRecord {
 
     }
 
-    public static SealedSegmentsRecord parse(byte[] data) {
-        SealedSegmentsRecord sealedSegmentsRecord;
-        try {
-            sealedSegmentsRecord = SERIALIZER.deserialize(data);
-        } catch (IOException e) {
-            log.error("deserialization error for sealed segment record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return sealedSegmentsRecord;
+    @SneakyThrows(IOException.class)
+    public static SealedSegmentsRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
     }
 
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] array;
-        try {
-            array = SERIALIZER.serialize(this).getCopy();
-        } catch (IOException e) {
-            log.error("error serializing sealed segment record {}", e);
-            throw Lombok.sneakyThrow(e);
-        }
-        return array;
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

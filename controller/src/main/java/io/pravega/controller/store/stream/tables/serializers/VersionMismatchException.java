@@ -9,7 +9,9 @@
  */
 package io.pravega.controller.store.stream.tables.serializers;
 
-public class VersionMismatchException extends RuntimeException {
+import io.pravega.common.io.SerializationException;
+
+public class VersionMismatchException extends SerializationException {
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Version mismatch during deserialization %s.";
 

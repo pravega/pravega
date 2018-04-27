@@ -33,12 +33,12 @@ public class CompletedTxnRecordSerializer
                         CompletedTxnRecord.CompletedTxnRecordBuilder completedTxnRecordBuilder)
             throws IOException {
         completedTxnRecordBuilder.completeTime(revisionDataInput.readLong())
-                .completionStatus(TxnStatus.values()[revisionDataInput.readInt()]);
+                .completionStatus(TxnStatus.values()[revisionDataInput.readCompactInt()]);
     }
 
     private void write00(CompletedTxnRecord completedTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeLong(completedTxnRecord.getCompleteTime());
-        revisionDataOutput.writeInt(completedTxnRecord.getCompletionStatus().ordinal());
+        revisionDataOutput.writeCompactInt(completedTxnRecord.getCompletionStatus().ordinal());
     }
 
     @Override
