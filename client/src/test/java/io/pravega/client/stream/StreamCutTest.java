@@ -21,6 +21,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class StreamCutTest {
 
@@ -39,6 +40,7 @@ public class StreamCutTest {
         StreamCut sc = StreamCut.UNBOUNDED;
         final byte[] buf = serialize(sc);
         assertEquals(sc, deSerializeStreamCut(buf));
+        assertNull(deSerializeStreamCut(buf).asImpl());
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {
