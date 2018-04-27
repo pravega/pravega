@@ -19,6 +19,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.SerializationException;
 
 @EqualsAndHashCode
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -60,7 +61,7 @@ public class RevisionImpl implements Revision, Serializable {
         if (tokens.length == 3) {
             return new RevisionImpl(Segment.fromScopedName(tokens[0]), Long.parseLong(tokens[1]), Integer.parseInt(tokens[2]));
         } else {
-            throw new IllegalArgumentException("Not a valid segment name");
+            throw new SerializationException("Not a valid segment name: " + scopedName);
         }
     }
 

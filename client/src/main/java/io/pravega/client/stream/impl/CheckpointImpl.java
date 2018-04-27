@@ -87,7 +87,7 @@ public class CheckpointImpl implements Checkpoint {
         private void read00(RevisionDataInput revisionDataInput, CheckpointBuilder builder) throws IOException {
             builder.name(revisionDataInput.readUTF());
             Map<Stream, StreamCut> map = revisionDataInput.readMap(in -> Stream.of(in.readUTF()),
-                                                                   in -> StreamCutImpl.SERIALIZER.deserialize(in));
+                                                                   StreamCutImpl.SERIALIZER::deserialize);
             builder.positions(map);
         }
 
