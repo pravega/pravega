@@ -13,6 +13,9 @@ import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 
 public class DefaultCredentials implements Credentials {
+    
+    private static final long serialVersionUID = 1L;
+
     private final ImmutableMap<String, String> credsMap;
 
     public DefaultCredentials(String password, String userName) {
