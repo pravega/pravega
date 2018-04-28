@@ -73,7 +73,13 @@ public class EventPointerImpl extends EventPointerInternal {
     
     @Override
     public String toString() {
-        return segment.getScopedName() + ":" + eventStartOffset + "-" + eventLength;
+        StringBuffer sb = new StringBuffer();
+        sb.append(segment.getScopedName());
+        sb.append(':');
+        sb.append(eventStartOffset);
+        sb.append('-');
+        sb.append(eventLength);
+        return sb.toString();
     }
 
     private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
