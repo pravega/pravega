@@ -424,13 +424,23 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(type.getCode());
+            out.writeInt(data.readableBytes());
             out.write(data.array(), data.arrayOffset(), data.readableBytes());
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            byte[] msg = new byte[length];
+        public static Event readFrom(DataInput in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.EVENT.getCode()) {
+                throw new InvalidMessageException("Was expecting EVENT but found: "+ typeCode);
+            }
+            int eventLength = in.readInt();
+            if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
+                throw new InvalidMessageException("Was expecting length: "+length+" but found: "+ eventLength);
+            }
+            byte[] msg = new byte[eventLength];
             in.readFully(msg);
-            return new Event(wrappedBuffer(msg));
+            return new Event(wrappedBuffer(msg));            
         }
     }
 
@@ -546,7 +556,7 @@ public final class WireCommands {
         final UUID writerId;
         final long eventNumber;
         final long expectedOffset;
-        final ByteBuf data;
+        final Event event;
 
 
         @Override
@@ -555,27 +565,15 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
-            if (data == null) {
-                out.writeInt(0);
-            } else {
-                out.writeInt(data.readableBytes());
-                out.write(data.array(), data.arrayOffset(), data.readableBytes());
-            }
+            event.writeFields(out);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            int dataLength = in.readInt();
-            byte[] data;
-            if (dataLength > 0) {
-                data = new byte[dataLength];
-                in.readFully(data);
-            } else {
-                data = new byte[0];
-            }
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, wrappedBuffer(data));
+            Event event = Event.readFrom(in, length - 8 * 4);
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event);
         }
 
         @Override

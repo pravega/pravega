@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.junit.Test;
 
-import static io.pravega.test.common.Async.testBlocking;
+import static io.pravega.test.common.AssertExtensions.assertBlocks;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -92,10 +92,10 @@ public class SegmentInputStreamTest {
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 3);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
-        ByteBuffer read = testBlocking(() -> stream.read(),
+        ByteBuffer read = assertBlocks(() -> stream.read(),
                 () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
-        read = testBlocking(() -> stream
+        read = assertBlocks(() -> stream
                 .read(), () -> fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
     }
@@ -134,7 +134,7 @@ public class SegmentInputStreamTest {
         for (int i = 0; i < numEntries; i++) {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
-        ByteBuffer read = testBlocking(() -> stream.read(), () -> {
+        ByteBuffer read = assertBlocks(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertEquals(ByteBuffer.wrap(data), read);
@@ -148,7 +148,7 @@ public class SegmentInputStreamTest {
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
 
-        testBlocking(() -> stream.read(),
+        assertBlocks(() -> stream.read(),
                      () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
         ByteBuffer read = stream.read(10);
         assertNull(read);
@@ -217,7 +217,7 @@ public class SegmentInputStreamTest {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
         assertFalse(stream.canReadWithoutBlocking());
-        testBlocking(() -> stream.read(), () -> {
+        assertBlocks(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertFalse(stream.canReadWithoutBlocking());
@@ -275,7 +275,7 @@ public class SegmentInputStreamTest {
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 2);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
-        testBlocking(() -> {
+        assertBlocks(() -> {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }, () -> {
             fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 0)));
