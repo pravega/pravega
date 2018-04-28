@@ -11,6 +11,12 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import lombok.Cleanup;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -18,7 +24,7 @@ import static org.junit.Assert.assertEquals;
 public class SerializationTest {
 
     @Test
-    public void testRevision() {
+    public void testRevision() throws IOException, ClassNotFoundException {
         RevisionImpl revision = new RevisionImpl(Segment.fromScopedName("Foo/Bar/1"), 2, 3);
         String string = revision.toString();
         Revision revision2 = Revision.fromString(string);
@@ -26,6 +32,16 @@ public class SerializationTest {
         assertEquals(Segment.fromScopedName("Foo/Bar/1"), revision2.asImpl().getSegment());
         assertEquals(2, revision2.asImpl().getOffsetInSegment());
         assertEquals(3, revision2.asImpl().getEventAtOffset());
+        
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        @Cleanup
+        ObjectOutputStream oout = new ObjectOutputStream(bout);
+        oout.writeObject(revision);
+        byte[] byteArray = bout.toByteArray();
+        ObjectInputStream oin = new ObjectInputStream(new ByteArrayInputStream(byteArray));
+        Object revision3 = oin.readObject();
+        assertEquals(revision, revision3);
+        assertEquals(revision2, revision3);
     }
     
 }
