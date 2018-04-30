@@ -512,8 +512,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Helpers
 
     /**
-     * Processes the given AttributeUpdaterOperation with exactly one retry in case it was rejected because an attribute update
-     * failure due to the attribute value missing from the in-memory cache.
+     * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
+     * update failure due to the attribute value missing from the in-memory cache.
      *
      * @param operation The Operation to process.
      * @param timer     Timer for the operation.
@@ -591,7 +591,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // Add them to the cache if requested.
             r = r.thenComposeAsync(extendedAttributes -> {
                 // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
-                // complete IFF the attribute is not currently set). If it has some value value, then a concurrent update
+                // complete if the attribute is not currently set). If it has some value, then a concurrent update
                 // must have changed it and we cannot update anymore.
                 // Also make sure we insert (a NULL value) for those missing attributes as well).
                 ArrayList<AttributeUpdate> updates = new ArrayList<>();
