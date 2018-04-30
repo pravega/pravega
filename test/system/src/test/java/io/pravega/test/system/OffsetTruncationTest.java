@@ -70,15 +70,15 @@ public class OffsetTruncationTest {
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-                                                                            .streamName(STREAM)
-                                                                            .scalingPolicy(scalingPolicy).build();
+                                                                  .streamName(STREAM)
+                                                                  .scalingPolicy(scalingPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
 
     /**
      * This is used to setup the services required by the system test framework.
      *
-     * @throws MarathonException    when error in setup
+     * @throws MarathonException When error in setup.
      */
     @Environment
     public static void initialize() throws MarathonException {
@@ -146,7 +146,7 @@ public class OffsetTruncationTest {
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                                                                            .clientConfig(ClientConfig.builder()
                                                                            .controllerURI(controllerURI).build()).build(),
-                                                                            connectionFactory.getInternalExecutor());
+                                                                           connectionFactory.getInternalExecutor());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking offsetTruncationTest test with Controller URI: {}", controllerURI);
@@ -154,7 +154,7 @@ public class OffsetTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                .stream(SCOPE + "/" + STREAM).build());
+                                                                      .stream(SCOPE + "/" + STREAM).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
         // Write events to the Stream.
@@ -174,9 +174,8 @@ public class OffsetTruncationTest {
         Futures.allOf(futures).join();
         assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(),
                 totalEvents - (truncatedEvents * PARALLELISM));
-
-       log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.",
-                  truncatedEvents * PARALLELISM);
+        log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.",
+                truncatedEvents * PARALLELISM);
     }
 
     private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
