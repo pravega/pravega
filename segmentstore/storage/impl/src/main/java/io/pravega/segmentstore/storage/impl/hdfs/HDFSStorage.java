@@ -413,7 +413,7 @@ class HDFSStorage implements SyncStorage {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
             }
             // Looping for the maximum possible number.
-        } while (fencedCount < MAX_EPOCH);
+        } while (fencedCount < (int) (MAX_EPOCH - 1));
         LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
         throw new StorageNotPrimaryException("Not able to fence out other writers.");
     }
