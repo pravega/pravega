@@ -44,7 +44,7 @@ public class ToStringUtils {
      * Performs the reverse of {@link #mapToString(Map)}. It parses a map written in a string form
      * back into a Java map.
      * 
-     * Note that in order to parse properly, it is important that non one the keys or values that
+     * Note that in order to parse properly, it is important that none the keys or values that
      * were serialized contain '=' or ',' characters as this prevents parsing. For this reason it
      * should be noted that this simple format does not support nesting.
      * 
