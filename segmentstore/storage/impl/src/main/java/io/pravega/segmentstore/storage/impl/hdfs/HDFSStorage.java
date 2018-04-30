@@ -379,7 +379,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        int fencedCount = 0;
+        long fencedCount = 0;
         do {
             try {
                 FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
@@ -413,7 +413,7 @@ class HDFSStorage implements SyncStorage {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
             }
             // Looping for the maximum possible number.
-        } while (fencedCount < (int) (MAX_EPOCH - 1));
+        } while (fencedCount < MAX_EPOCH);
         LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
         throw new StorageNotPrimaryException("Not able to fence out other writers.");
     }
