@@ -15,6 +15,7 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -82,6 +83,16 @@ public class BatchClientImplTest {
         assertTrue(segments.hasNext());
         assertEquals(2, segments.next().asImpl().getSegment().getSegmentNumber());
         assertFalse(segments.hasNext());
+
+        Iterator<SegmentRange> unBoundedSegments = client.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
+        assertTrue(unBoundedSegments.hasNext());
+        assertEquals(0, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertTrue(unBoundedSegments.hasNext());
+        assertEquals(1, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertTrue(unBoundedSegments.hasNext());
+        assertEquals(2, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertFalse(unBoundedSegments.hasNext());
+
     }
 
     @Test(timeout = 5000)
