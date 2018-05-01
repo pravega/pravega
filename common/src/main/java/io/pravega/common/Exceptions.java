@@ -10,16 +10,16 @@
 package io.pravega.common;
 
 import com.google.common.base.Preconditions;
-
 import java.util.Collection;
-
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper methods that perform various checks and throw exceptions if certain conditions are met.
  */
+@Slf4j
 public final class Exceptions {
 
     /**
@@ -210,6 +210,18 @@ public final class Exceptions {
         if (closed) {
             throw new ObjectClosedException(targetObject);
         }
+    }
+
+    /**
+     * Logs the exception and its cause to error log.
+     *
+     * @param t   The exception to be logged.
+     */
+    public static void unwrapAndLogException(Throwable t) {
+       log.error("Exception :", t);
+       if (t.getCause() != null && t.getCause() != t) {
+           unwrapAndLogException(t.getCause());
+       }
     }
 
     private static String badArgumentMessage(String argName, String message, Object... args) {

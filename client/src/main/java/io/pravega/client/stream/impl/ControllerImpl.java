@@ -968,6 +968,7 @@ public class ControllerImpl implements Controller {
         @Override
         public void onError(Throwable t) {
             log.warn("gRPC call failed with server error: {}", t.getMessage());
+            Exceptions.unwrapAndLogException(t);
             future.completeExceptionally(t);
         }
 
