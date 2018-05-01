@@ -465,6 +465,12 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Segment"
+      splits:
+        type: integer
+        format: int64
+      merges:
+        type: integer
+        format: int64
   Segment:
     type: object
     properties:

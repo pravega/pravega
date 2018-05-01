@@ -10,12 +10,13 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
+import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
@@ -92,7 +93,7 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+        public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) throws StreamSegmentNotExistsException {
             log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
         }
@@ -114,7 +115,12 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
-            return this.readIndex.readDirect(streamSegmentId, startOffset, length);
+            try {
+                return this.readIndex.readDirect(streamSegmentId, startOffset, length);
+            } catch (StreamSegmentNotExistsException ex) {
+                // Null is interpreted as "Segment not exists" by the SegmentAggregator.
+                return null;
+            }
         }
 
         //endregion

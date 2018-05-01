@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -474,7 +475,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         }
 
         // Part 4: large appends (larger than MaxFlushSize).
-        Random random = new Random();
+        Random random = RandomFactory.create();
         for (int i = 0; i < appendCount; i++) {
             // Add another operation and record its length.
             byte[] largeAppendData = new byte[config.getMaxFlushSizeBytes() * 10 + 1];
@@ -1028,7 +1029,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertFalse("Unexpected value returned by mustFlush() before adding StreamSegmentTruncateOperation.",
                 context.segmentAggregator.mustFlush());
 
-        // Generate and add a Seal Operation.
+        // Generate and add a Truncate Operation.
         StorageOperation truncateOp = generateTruncateAndUpdateMetadata(SEGMENT_ID, context);
         context.segmentAggregator.add(truncateOp);
         Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after adding StreamSegmentTruncateOperation.",
@@ -1136,9 +1137,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a segment, add some data, and seal it in storage.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.openWrite(context.segmentAggregator.getMetadata().getName())
-                       .thenCompose(h -> context.storage.write(h, 0, new ByteArrayInputStream(storageData), storageData.length, TIMEOUT)).join();
+                       .thenCompose(h -> context.storage.write(h, 0, new ByteArrayInputStream(storageData), storageData.length, TIMEOUT)
+                                                        .thenCompose(v -> context.storage.seal(h, TIMEOUT))).join();
         val sm = context.containerMetadata.getStreamSegmentMetadata(context.segmentAggregator.getMetadata().getId());
         sm.setLength(storageData.length);
         sm.setStorageLength(storageData.length);

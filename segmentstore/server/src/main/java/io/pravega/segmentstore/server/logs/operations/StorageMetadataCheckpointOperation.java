@@ -9,35 +9,16 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-
 /**
  * Log Operation that contains a checkpoint of the Metadata at a particular point in time that contains only information
  * about the Storage state of Segments (essentially those items that are not updated using regular Log Operations).
  */
 public class StorageMetadataCheckpointOperation extends CheckpointOperationBase {
-    //region Constructor
-
-    /**
-     * Creates a new instance of the MetadataCheckpointOperation class.
-     */
-    public StorageMetadataCheckpointOperation() {
-        super();
+    static class Serializer extends SerializerBase<StorageMetadataCheckpointOperation> {
+        @Override
+        protected OperationBuilder<StorageMetadataCheckpointOperation> newBuilder() {
+            return new OperationBuilder<>(new StorageMetadataCheckpointOperation());
+        }
     }
 
-    protected StorageMetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws IOException {
-        super(header, source);
-    }
-
-    //endregion
-
-    //region Operation Implementation
-
-    @Override
-    protected OperationType getOperationType() {
-        return OperationType.StorageMetadataCheckpoint;
-    }
-
-    //endregion
 }

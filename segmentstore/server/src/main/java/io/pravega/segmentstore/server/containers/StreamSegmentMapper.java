@@ -27,8 +27,6 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -461,7 +459,7 @@ public class StreamSegmentMapper extends SegmentStateMapper {
     }
 
     /**
-     * Submits a StreamSegmentMapOperation or TransactionMapOperation to the OperationLog. Upon completion, this operation
+     * Submits a StreamSegmentMapOperation to the OperationLog. Upon completion, this operation
      * will have mapped the given Segment to a new internal Segment Id if none was provided in the given SegmentInfo.
      * If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment with the
      * requested Segment Id.
@@ -487,39 +485,24 @@ public class StreamSegmentMapper extends SegmentStateMapper {
             completeAssignment(properties.getName(), existingSegmentId);
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
-            CompletableFuture<Void> logAddResult;
-            StreamSegmentMapping mapping;
+            StreamSegmentMapOperation op;
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Transaction.
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
-                TransactionMapOperation op = new TransactionMapOperation(parentStreamSegmentId, properties);
-                mapping = applySegmentId(segmentInfo, op);
-                logAddResult = this.durableLog.add(op, timeout);
+                op = new StreamSegmentMapOperation(parentStreamSegmentId, properties);
             } else {
                 // Standalone StreamSegment.
-                StreamSegmentMapOperation op = new StreamSegmentMapOperation(properties);
-                mapping = applySegmentId(segmentInfo, op);
-                logAddResult = this.durableLog.add(op, timeout);
+                op = new StreamSegmentMapOperation(properties);
             }
 
-            return logAddResult
-                    .thenApply(seqNo -> completeAssignment(properties.getName(), mapping.getStreamSegmentId()));
-        }
-    }
+            if (segmentInfo.getSegmentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                op.setStreamSegmentId(segmentInfo.getSegmentId());
+            }
 
-    /**
-     * Copies the Segment Id from the given SegmentInfo to the given Mapping, if any is defined.
-     *
-     * @param segmentInfo The source SegmentInfo to get the StreamSegmentId.
-     * @param mapping     The StreamSegmentMapping to set the StreamSegmentId to.
-     */
-    private StreamSegmentMapping applySegmentId(SegmentInfo segmentInfo, StreamSegmentMapping mapping) {
-        if (segmentInfo.getSegmentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            mapping.setStreamSegmentId(segmentInfo.getSegmentId());
+            return this.durableLog.add(op, timeout)
+                    .thenApply(seqNo -> completeAssignment(properties.getName(), op.getStreamSegmentId()));
         }
-
-        return mapping;
     }
 
     /**

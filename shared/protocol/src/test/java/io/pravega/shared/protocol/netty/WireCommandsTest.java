@@ -12,6 +12,7 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
@@ -68,7 +69,7 @@ public class WireCommandsTest {
 
     @Test
     public void testConditionalAppend() throws IOException {
-        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, buf));
+        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf)));
     }
 
     @Test

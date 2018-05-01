@@ -13,8 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
@@ -54,12 +53,12 @@ public class BlockingDrainingQueue<T> {
     /**
      * Closes the queue and prevents any other access to it. Any blocked call to takeAllItems() will fail with InterruptedException.
      *
-     * @return If the queue has any more items in it, these will be returned here. The items are guaranteed not to be
-     * returned both here and via takeAllItems().
+     * @return If the queue has any more items in it, these will be returned here in the order in which they were inserted.
+     * The items are guaranteed not to be returned both here and via take()/poll().
      */
-    public Collection<T> close() {
+    public Queue<T> close() {
         CompletableFuture<Queue<T>> pending = null;
-        Collection<T> result = null;
+        Queue<T> result = null;
         synchronized (this.contents) {
             if (!this.closed) {
                 this.closed = true;
@@ -74,7 +73,23 @@ public class BlockingDrainingQueue<T> {
             pending.cancel(true);
         }
 
-        return result != null ? result : Collections.emptyList();
+        return result != null ? result : new LinkedList<>();
+    }
+
+    /**
+     * Cancels any pending Future from a take() operation.
+     */
+    public void cancelPendingTake() {
+        CompletableFuture<Queue<T>> pending;
+        synchronized (this.contents) {
+            pending = this.pendingTake;
+            this.pendingTake = null;
+        }
+
+        // Cancel any pending poll request.
+        if (pending != null) {
+            pending.cancel(true);
+        }
     }
 
     /**

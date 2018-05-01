@@ -54,6 +54,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
+import io.pravega.test.common.IntentionalException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -74,6 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -294,7 +296,7 @@ public class DurableLogTests extends OperationLogTestBase {
         for (int i = 0; i < operations.size(); i++) {
             if (operations.get(i) instanceof StreamSegmentAppendOperation) {
                 if ((appendCount++) % failAppendFrequency == 0) {
-                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i), i % 2 == 0));
+                    operations.set(i, new FailedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operations.get(i)));
                     failedOperationIndices.add(i);
                 }
             }
@@ -307,7 +309,7 @@ public class DurableLogTests extends OperationLogTestBase {
         AssertExtensions.assertThrows(
                 "No operations failed.",
                 OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof IOException);
+                ex -> ex instanceof IntentionalException);
 
         // Verify that the "right" operations failed, while the others succeeded.
         for (int i = 0; i < completionFutures.size(); i++) {
@@ -316,7 +318,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof IOException);
+                        ex -> ex instanceof IntentionalException);
             } else {
                 // Verify no exception was thrown.
                 oc.completion.join();
@@ -444,12 +446,6 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
-
-        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
-        AssertExtensions.assertThrows(
-                "No operations failed.",
-                OperationWithCompletion.allOf(completionFutures)::join,
-                ex -> ex instanceof DataCorruptionException);
 
         // Wait for the service to fail (and make sure it failed).
         AssertExtensions.assertThrows(
@@ -662,7 +658,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
         OperationWithCompletion.allOf(completionFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        List<Operation> readOperations = readAllDurableLog(durableLog);
+        List<Operation> readOperations = readUpToSequenceNumber(durableLog, setup.metadata.getOperationSequenceNumber());
 
         // Count the number of injected MetadataCheckpointOperations.
         int injectedOperationCount = 0;
@@ -675,7 +671,10 @@ public class DurableLogTests extends OperationLogTestBase {
         // Calculate how many we were expecting.
         int expectedCheckpoints = readOperations.size() - (int) operations.stream().filter(Operation::canSerialize).count();
 
-        Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.", expectedCheckpoints, injectedOperationCount);
+        if (expectedCheckpoints != injectedOperationCount) {
+            Assert.assertEquals("Unexpected operations were injected. Expected only MetadataCheckpointOperations.",
+                    expectedCheckpoints, injectedOperationCount);
+        }
 
         // We expect at least 2 injected operations (one is the very first one (checked above), and then at least
         // one more based on written data.
@@ -734,7 +733,7 @@ public class DurableLogTests extends OperationLogTestBase {
             OperationWithCompletion.allOf(completionFutures).join();
 
             // Get a list of all the operations, before recovery.
-            originalOperations = readAllDurableLog(durableLog);
+            originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
 
             // Stop the processor.
             durableLog.stopAsync().awaitTerminated();
@@ -747,7 +746,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
-            List<Operation> recoveredOperations = readAllDurableLog(durableLog);
+            List<Operation> recoveredOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             assertRecoveredOperationsMatch(originalOperations, recoveredOperations);
             performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, metadata, mergeTransactions, sealStreamSegments);
             performReadIndexChecks(completionFutures, readIndex);
@@ -918,7 +917,7 @@ public class DurableLogTests extends OperationLogTestBase {
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(operations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
-            originalOperations = readAllDurableLog(durableLog);
+            originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
         }
 
         // Disable the DurableDataLog. This requires us to initialize the log, then disable it.
@@ -988,7 +987,7 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertFalse("Not expecting an offline DurableLog after re-enabling.", durableLog.isOffline());
 
             // Verify we can still read the data that we wrote before the DataLog was disabled.
-            List<Operation> recoveredOperations = readAllDurableLog(durableLog);
+            List<Operation> recoveredOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             assertRecoveredOperationsMatch(originalOperations, recoveredOperations);
             performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
             performReadIndexChecks(completionFutures, readIndex);
@@ -1129,7 +1128,7 @@ public class DurableLogTests extends OperationLogTestBase {
             OperationWithCompletion.allOf(completionFutures).join();
 
             // Get a list of all the operations, before truncation.
-            List<Operation> originalOperations = readAllDurableLog(durableLog);
+            List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             boolean fullTruncationPossible = false;
 
             // Truncate up to each operation and:
@@ -1189,8 +1188,8 @@ public class DurableLogTests extends OperationLogTestBase {
             }
 
             durableLog.add(newOp, TIMEOUT).join();
-            List<Operation> newOperations = readAllDurableLog(durableLog);
             final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
+            List<Operation> newOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             Assert.assertEquals("Unexpected number of operations added after full truncation.", expectedOperationCount, newOperations.size());
             Assert.assertTrue("Expecting the first operation after full truncation to be a MetadataCheckpointOperation.",
                     newOperations.get(0) instanceof MetadataCheckpointOperation);
@@ -1243,7 +1242,7 @@ public class DurableLogTests extends OperationLogTestBase {
             OperationWithCompletion.allOf(completionFutures).join();
 
             // Get a list of all the operations, before any truncation.
-            originalOperations = readAllDurableLog(durableLog);
+            originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
 
             // Stop the processor.
             durableLog.stopAsync().awaitTerminated();
@@ -1339,7 +1338,7 @@ public class DurableLogTests extends OperationLogTestBase {
             }
 
             // Truncate at the last possible truncation point.
-            val originalOperations = readAllDurableLog(durableLog);
+            val originalOperations = readUpToSequenceNumber(durableLog, metadata1.getOperationSequenceNumber());
             long lastCheckpointSeqNo = -1;
             for (Operation o : originalOperations) {
                 if (o instanceof MetadataCheckpointOperation) {
@@ -1380,25 +1379,24 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region Helpers
 
-    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, DurableLog durableLog) {
+    private void performLogOperationChecks(List<OperationWithCompletion> operations, DurableLog durableLog) {
         // Log Operation based checks
         long lastSeqNo = -1;
+        val successfulOperations = operations.stream()
+                                             .filter(oc -> !oc.completion.isCompletedExceptionally())
+                                             .map(oc -> oc.operation)
+                                             .filter(Operation::canSerialize)
+                                             .collect(Collectors.toList());
+
+        // Writing to the DurableLog is done asynchronously, so wait for the last operation to arrive there before reading.
+        durableLog.read(successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber() - 1, 1, TIMEOUT).join();
+
+        // Issue the read for the entire log now.
         Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
         OperationComparer comparer = new OperationComparer(true);
-        for (OperationWithCompletion oc : operations) {
-            if (oc.completion.isCompletedExceptionally()) {
-                // We expect this operation to not have been processed.
-                continue;
-            }
-
-            if (!oc.operation.canSerialize()) {
-                // We do not expect this operation in the log; skip it.
-                continue;
-            }
-
+        for (Operation expectedOp : successfulOperations) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
-            Operation expectedOp = oc.operation;
             AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
             lastSeqNo = expectedOp.getSequenceNumber();
 
@@ -1408,13 +1406,29 @@ public class DurableLogTests extends OperationLogTestBase {
         }
     }
 
-    private List<Operation> readAllDurableLog(OperationLog durableLog) {
+    /**
+     * Reads the given OperationLog from the beginning up to the given Sequence Number. This method makes use of tail
+     * reads in the OperationLog, which handle the case when the OperationProcessor asynchronously adds operations
+     * to the log after ack-ing them.
+     */
+    @SneakyThrows
+    private List<Operation> readUpToSequenceNumber(OperationLog durableLog, long seqNo) {
         ArrayList<Operation> result = new ArrayList<>();
-        Iterator<Operation> logIterator = durableLog.read(-1L, Integer.MAX_VALUE, TIMEOUT).join();
-        while (logIterator.hasNext()) {
-            result.add(logIterator.next());
-        }
+        while (true) {
+            // Figure out if we've already reached our limit.
+            long afterSequence = result.size() == 0 ? -1 : result.get(result.size() - 1).getSequenceNumber();
+            if (afterSequence >= seqNo) {
+                break;
+            }
 
+            // Figure out how much to read. If we don't know, read at least one item so we see what's the first SeqNo
+            // in the Log.
+            int maxCount = result.size() == 0 ? 1 : (int) (seqNo - result.get(result.size() - 1).getSequenceNumber());
+            Iterator<Operation> logIterator = durableLog.read(afterSequence, maxCount, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            while (logIterator.hasNext()) {
+                result.add(logIterator.next());
+            }
+        }
         return result;
     }
 

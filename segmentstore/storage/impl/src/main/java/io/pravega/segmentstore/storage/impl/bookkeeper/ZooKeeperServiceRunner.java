@@ -24,6 +24,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -133,7 +134,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             zs.shutdown();
         }
 
-        ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+        NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
         if (sf != null) {
             sf.closeAll();
             sf.shutdown();

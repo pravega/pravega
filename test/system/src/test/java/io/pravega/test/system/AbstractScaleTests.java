@@ -17,11 +17,11 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 abstract class AbstractScaleTests {
-    protected final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
+    protected final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
     @Getter(lazy = true)
@@ -67,6 +67,7 @@ abstract class AbstractScaleTests {
     // Exception to indicate that the scaling operation did not happen.
     // We need to retry operation to check scaling on this exception.
     class ScaleOperationNotDoneException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 
 }

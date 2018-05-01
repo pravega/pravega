@@ -19,7 +19,6 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -119,7 +118,7 @@ public class EndToEndChannelLeakTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
-                build(), Collections.singleton(STREAM_NAME));
+                stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
@@ -179,28 +178,34 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 
+        assertEquals(0, connectionFactory.getActiveChannelCount());
+        
         //Create a writer.
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-
+        
+        assertEquals(0, connectionFactory.getActiveChannelCount());
+        //Write an event.
+        writer.writeEvent("0", "zero").get();
+        assertEquals(1, connectionFactory.getActiveChannelCount());
+        
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
-        ReaderGroup readerGroup = groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
-                build(), Collections.singleton(STREAM_NAME));
-
+        assertEquals(1, connectionFactory.getActiveChannelCount());
+      
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM_NAME)).build());
         //create a reader.
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
-        //Write an event.
-        writer.writeEvent("0", "zero").get();
 
-        //Total 4 sockets are open at this point : Writer has 1 connection to segment 0 of stream +
-        //Reader has 3 connections (1 metadata client + 1 Writer to _RGreader/0 + 1 Reader to _RGreader/0)
-        assertEquals(4, connectionFactory.getActiveChannelCount());
-        int channelCount = 4;
+        //Total 5 sockets are open at this point : Writer has 1 connection to segment 0 of stream +
+        //Reader has 4 connections to the reader group (read, write, metadata, and conditionalUpdates)
+        assertEquals(5, connectionFactory.getActiveChannelCount());
+        int channelCount = 5;
 
         //Read an event.
         EventRead<String> event = reader1.readNextEvent(10000);
@@ -235,9 +240,9 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
-        //Creation of a reader will add 3 more connections details similar to the above comment.
-        assertEquals(channelCount + 3, connectionFactory.getActiveChannelCount());
-        channelCount = channelCount + 3;
+        //Creation of a reader will add 4 more connections details similar to the above comment.
+        assertEquals(channelCount + 4, connectionFactory.getActiveChannelCount());
+        channelCount = channelCount + 4;
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event);

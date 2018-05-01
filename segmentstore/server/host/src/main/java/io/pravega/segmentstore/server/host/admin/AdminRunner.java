@@ -63,6 +63,7 @@ public final class AdminRunner {
 
         // Continuously accept new commands as long as the user entered one.
         System.out.println(String.format("%nType \"%s\" for list of commands, or \"%s\" to exit.", CMD_HELP, CMD_EXIT));
+        @Cleanup
         Scanner input = new Scanner(System.in);
         while (true) {
             System.out.print(System.lineSeparator() + "> ");

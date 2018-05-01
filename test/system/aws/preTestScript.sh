@@ -14,11 +14,11 @@ aws_region=${3:-null}
 aws_key_name=${4:-aws-key-pair}
 cred_path=${5:-null}
 config_path=${6:-null}
-pravega_org=${7:-pravega}
+pravega_org=${7:-pravega/pravega}
 pravega_branch=${8:-master}
 cd aws/
-terraform init
-terraform apply -auto-approve -var aws_access_key=$aws_access_key \
+TF_LOG=INFO terraform init
+TF_LOG=INFO terraform apply -auto-approve -var aws_access_key=$aws_access_key \
  -var aws_secret_key=$aws_secret_key \
   -var aws_region=$aws_region  \
   -var aws_key_name=$aws_key_name \
@@ -26,3 +26,8 @@ terraform apply -auto-approve -var aws_access_key=$aws_access_key \
  -var config_path=$config_path \
   -var pravega_org=$pravega_org  \
   -var pravega_branch=$pravega_branch
+touch public_dns.txt
+master_public_dns=`terraform output master_public_dns`
+echo $master_public_dns >> $config_path/public_dns.txt
+slave_public_dns=`terraform output slave_public_dns`
+echo $slave_public_dns >> $config_path/public_dns.txt
