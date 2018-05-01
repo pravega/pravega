@@ -12,6 +12,9 @@ package io.pravega.common;
 import io.pravega.common.util.ConfigBuilder;
 import java.util.function.Supplier;
 
+/**
+ * Interface used to pass the configuration to storage plugin implementation.
+ */
 public interface ConfigSetup {
     /**
      * Gets the Configuration with specified constructor from the ServiceBuilder's config.

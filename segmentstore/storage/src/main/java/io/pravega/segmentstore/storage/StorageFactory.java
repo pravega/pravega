@@ -21,7 +21,16 @@ public interface StorageFactory {
      */
     Storage createStorageAdapter();
 
+    /**
+     * The unique name for the storage factory.
+     * @return  Unique name for the storage factory.
+     */
     String getName();
 
+    /**
+     * API to initialize the storage factory with given configuration.
+     * @param setup     Configuration for the factory.
+     * @param executor  The storage factory is expected to use this ExecutorService for execution of its tasks.
+     */
     void initialize(ConfigSetup setup, ScheduledExecutorService executor);
 }

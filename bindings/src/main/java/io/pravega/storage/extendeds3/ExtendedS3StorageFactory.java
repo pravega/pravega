@@ -19,13 +19,17 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Factory for ExtendedS3 Storage adapters.
  */
 public class ExtendedS3StorageFactory implements StorageFactory {
-    private ExtendedS3StorageConfig config;
-    private ExecutorService executor;
+    @GuardedBy("$this")
+    private AtomicReference<ExtendedS3StorageConfig> config;
+    @GuardedBy("$this")
+    private AtomicReference<ExecutorService> executor;
 
     /**
      * Creates a new instance of the NFSStorageFactory class.
@@ -36,24 +40,25 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
+        this.config = new AtomicReference<>(config);
+        this.executor = new AtomicReference<>(executor);
     }
 
     public ExtendedS3StorageFactory() {
-
+        this.config = new AtomicReference<>();
+        this.executor = new AtomicReference<>();
     }
 
     @Override
     public Storage createStorageAdapter() {
-        S3Config s3Config = new S3Config(config.getUrl())
-                .withIdentity(config.getAccessKey())
-                .withSecretKey(config.getSecretKey())
-                .withNamespace(config.getNamespace());
+        S3Config s3Config = new S3Config(config.get().getUrl())
+                .withIdentity(config.get().getAccessKey())
+                .withSecretKey(config.get().getSecretKey())
+                .withNamespace(config.get().getNamespace());
 
         S3JerseyClient client = new S3JerseyClient(s3Config);
-        ExtendedS3Storage s = new ExtendedS3Storage(client, this.config);
-        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
+        ExtendedS3Storage s = new ExtendedS3Storage(client, this.config.get());
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor.get());
     }
 
     @Override
@@ -62,8 +67,8 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     }
 
     @Override
-    public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-        this.config = setup.getConfig(ExtendedS3StorageConfig::builder);
-        this.executor = executor;
+    public synchronized void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
+        this.config.set(setup.getConfig(ExtendedS3StorageConfig::builder));
+        this.executor.set(executor);
     }
 }

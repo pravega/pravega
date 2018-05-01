@@ -17,13 +17,17 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Factory for HDFS Storage adapters.
  */
 public class HDFSStorageFactory implements StorageFactory {
-    private HDFSStorageConfig config;
-    private Executor executor;
+    @GuardedBy("$this")
+    private AtomicReference<HDFSStorageConfig> config;
+    @GuardedBy("$this")
+    private AtomicReference<Executor> executor;
 
     /**
      * Creates a new instance of the HDFSStorageFactory class.
@@ -34,18 +38,19 @@ public class HDFSStorageFactory implements StorageFactory {
     public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
+        this.config = new AtomicReference<>(config);
+        this.executor = new AtomicReference<>(executor);
     }
 
     public HDFSStorageFactory() {
-
+        this.config = new AtomicReference<>();
+        this.executor = new AtomicReference<>();
     }
 
     @Override
-    public Storage createStorageAdapter() {
-        HDFSStorage s = new HDFSStorage(this.config);
-        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
+    public synchronized Storage createStorageAdapter() {
+        HDFSStorage s = new HDFSStorage(this.config.get());
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor.get());
     }
 
     @Override
@@ -54,8 +59,8 @@ public class HDFSStorageFactory implements StorageFactory {
     }
 
     @Override
-    public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-        this.config = setup.getConfig(HDFSStorageConfig::builder);
-        this.executor = executor;
+    public synchronized void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
+        this.config.set(setup.getConfig(HDFSStorageConfig::builder));
+        this.executor.set(executor);
     }
 }
