@@ -142,7 +142,7 @@ public class BatchClientSimpleTest {
      * This test verifies the basic functionality of {@link BatchClient}, including stream metadata checks, segment
      * counts, parallel segment reads and reads  with offsets using stream cuts.
      */
-    @Test(timeout = 30000)
+    @Test
     public void batchClientSimpleTest() {
         final int totalEvents = PARALLELISM * 1000;
         final int offsetEvents = PARALLELISM * 200;
@@ -176,23 +176,23 @@ public class BatchClientSimpleTest {
         log.debug("Creating batch client.");
         BatchClient batchClient = clientFactory.createBatchClient();
         StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
-        StreamCut headStreamCut = streamInfo.getHeadStreamCut();
 
         // Assert that batchClient provides correct stream info.
         log.debug("Validating stream metadata fields.");
-        assertEquals(batchClient.getStreamInfo(stream).join().getStreamName(), STREAM);
-        assertEquals(batchClient.getStreamInfo(stream).join().getScope(), SCOPE);
+        assertEquals(streamInfo.getStreamName(), STREAM);
+        assertEquals(streamInfo.getScope(), SCOPE);
 
         // First, test that we can read all the events in parallel segments with batch client.
-        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, headStreamCut, null).getIterator());
+        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamInfo.getHeadStreamCut(), null).getIterator());
         log.debug("Reading all events in parallel.");
         assertEquals(ranges.size(), PARALLELISM);
         assertEquals(readFromRanges(ranges, batchClient), totalEvents);
 
         // Second, test that we can read events from parallel segments from an offset onwards.
         log.debug("Reading events from stream cut onwards in parallel.");
-        ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, null).getIterator());
+        ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
         assertEquals(readFromRanges(ranges, batchClient), totalEvents - offsetEvents);
+        log.debug("Events correctly read from Stream: simple batch client test passed.");
     }
 
     // Start utils region
@@ -203,7 +203,9 @@ public class BatchClientSimpleTest {
                 .map(range -> CompletableFuture.supplyAsync(() -> batchClient.readSegment(range, new JavaSerializer<>()))
                                                .thenApplyAsync(segmentIterator -> {
                                                    log.debug("Thread " + Thread.currentThread().getId() + " reading events.");
-                                                   return Lists.newArrayList(segmentIterator).size();
+                                                   int numEvents = Lists.newArrayList(segmentIterator).size();
+                                                   segmentIterator.close();
+                                                   return numEvents;
                                                }))
                 .collect(Collectors.toList());
         return eventCounts.stream().map(CompletableFuture::join).mapToInt(Integer::intValue).sum();
@@ -225,7 +227,7 @@ public class BatchClientSimpleTest {
             readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
         }
 
-        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit))).collect(toList());
+        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
     }
 
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {
