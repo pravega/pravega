@@ -157,7 +157,22 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
             .build();
 
+    // DL config that can be used to force truncations after every operation - this will speed up metadata eviction eligibility.
+    private static final DurableLogConfig FREQUENT_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 5)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+            .build();
+
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+
+    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
+            .builder()
+            .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 50)
+            .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
+            .with(AttributeIndexConfig.READ_BLOCK_SIZE, 1000)
+            .build();
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
             .builder()

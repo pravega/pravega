@@ -294,7 +294,7 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the case when Snapshots fail due to OperationLogFailure. The snapshot itself must have recorded in the file,
-     * but the Offset & Length attributes never updated on the main Segment.
+     * but the Offset and Length attributes never updated on the main Segment.
      */
     @Test
     public void testOperationLogFailure() {
@@ -393,11 +393,11 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests reading from the Attribute Segment but while a truncation was in progress. Scenario:
-     * 1. We have 2 snapshots and some data in between
+     * Tests reading from the Attribute Segment while a truncation was in progress. Scenario:
+     * 1. We have 2 snapshots and some data in between.
      * 2. Main Segment metadata points to the first snapshot.
      * 3. We begin reading the first snapshot, but in the meantime, the metadata offsets were updated and the segment has been truncated
-     * (to the second snapshot)
+     * (to the second snapshot).
      * 4. The code should be able to handle and recover from this.
      */
     @Test

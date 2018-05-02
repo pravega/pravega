@@ -122,7 +122,8 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         } else {
             try {
                 // Need to initialize the AttributeIndex and complete the future that we just registered.
-                // If this fails
+                // If this fails, we must fail the Future that we previously registered and unregister any pointers to
+                // this index.
                 toInitialize.get().initialize(timeout)
                             .thenRun(() -> this.cacheManager.register(toInitialize.get()))
                             .whenComplete((r, ex) -> {

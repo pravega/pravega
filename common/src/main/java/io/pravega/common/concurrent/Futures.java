@@ -280,7 +280,7 @@ public final class Futures {
     }
 
     /**
-     * Same as CompletableFuture.exceptionally(), except that it allows certain types of exceptions..
+     * Same as CompletableFuture.exceptionally(), except that it allows certain exceptions, as defined by the isExpected parameter.
      * If such an exception is caught, the given exceptionValue is then returned. All other Exceptions will be re-thrown.
      *
      * @param future         The original CompletableFuture to attach to.

@@ -43,6 +43,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -58,6 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilder implements AutoCloseable {
     //region Members
 
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
     private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
@@ -134,8 +136,7 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.cacheFactory);
         this.cacheManager.close();
         this.threadPoolMetrics.close();
-        this.storageExecutor.shutdown();
-        this.coreExecutor.shutdown();
+        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
     }
 
     //endregion
@@ -259,6 +260,11 @@ public class ServiceBuilder implements AutoCloseable {
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
         return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
+    }
+
+    protected AttributeIndexFactory createAttributeIndexFactory() {
+        AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
+        return new ContainerAttributeIndexFactoryImpl(config, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {

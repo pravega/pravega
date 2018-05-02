@@ -110,7 +110,7 @@ public class StreamManagerImpl implements StreamManager {
             this.controller.close();
         }
         if (this.executor != null) {
-            this.executor.shutdown();
+            ExecutorServiceHelpers.shutdown(this.executor);
         }
     }
 }

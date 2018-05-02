@@ -11,7 +11,9 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.TimeoutTimer;
 import io.pravega.common.function.RunnableWithException;
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -149,6 +151,53 @@ public final class ExecutorServiceHelpers {
             // Invoke the finally callback in case we were not able to successfully schedule the task.
             if (!scheduledSuccess) {
                 runFinally.run();
+            }
+        }
+    }
+
+    /**
+     * Shuts down the given ExecutorServices in two phases, using a timeout of 5 seconds:
+     * 1. Prevents new tasks from being submitted.
+     * 2. Awaits for currently running tasks to terminate. If they don't terminate within the given timeout, they will be
+     * forcibly cancelled.
+     *
+     * @param pools   The ExecutorServices to shut down.
+     */
+    public static void shutdown(ExecutorService... pools) {
+        shutdown(Duration.ofSeconds(5), pools);
+    }
+
+    /**
+     * Shuts down the given ExecutorServices in two phases:
+     * 1. Prevents new tasks from being submitted.
+     * 2. Awaits for currently running tasks to terminate. If they don't terminate within the given timeout, they will be
+     * forcibly cancelled.
+     *
+     * This is implemented as per the guidelines in the ExecutorService Javadoc:
+     * https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html
+     *
+     * @param timeout Grace period that will be given to tasks to complete.
+     * @param pools   The ExecutorServices to shut down.
+     */
+    public static void shutdown(Duration timeout, ExecutorService... pools) {
+        // Prevent new tasks from being submitted.
+        for (ExecutorService pool : pools) {
+            pool.shutdown();
+        }
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        for (ExecutorService pool : pools) {
+            try {
+                // Wait a while for existing tasks to terminate. Note that subsequent pools will be given a smaller timeout,
+                // since they all started shutting down at the same time (above), and they can shut down in parallel.
+                if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
+                    // Cancel currently executing tasks and wait for them to respond to being cancelled.
+                    pool.shutdownNow();
+                    pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+                }
+            } catch (InterruptedException ie) {
+                pool.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }

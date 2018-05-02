@@ -15,6 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -75,7 +76,7 @@ public abstract class StreamCutServiceTest {
         service.stopAsync();
         service.awaitTerminated();
         connectionFactory.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     protected abstract StreamMetadataStore createStore(int bucketCount, Executor executor);

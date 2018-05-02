@@ -55,10 +55,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -94,7 +91,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
     /**
      * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
      * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
-     * if we stumble across a segment truncation.
+     * if we stumble upon a segment truncation.
      */
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)

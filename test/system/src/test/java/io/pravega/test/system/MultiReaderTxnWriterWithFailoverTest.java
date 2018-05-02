@@ -126,8 +126,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
-        executorService.shutdownNow();
-        controllerExecutorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);

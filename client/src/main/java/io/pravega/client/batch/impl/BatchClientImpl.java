@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -90,16 +91,19 @@ public class BatchClientImpl implements BatchClient {
 
     private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
                                                 final Optional<StreamCut> endStreamCut) {
+        val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
+        val endCut = endStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
+
         //Validate that the stream cuts are for the requested stream.
-        startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
-        endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
+        startCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
+        endCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
 
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
-        CompletableFuture<StreamCut> startSCFuture = startStreamCut.isPresent() ?
-                CompletableFuture.completedFuture(startStreamCut.get()) : fetchStreamCut(stream, new Date(0L));
-        CompletableFuture<StreamCut> endSCFuture = endStreamCut.isPresent() ?
-                CompletableFuture.completedFuture(endStreamCut.get()) : fetchTailStreamCut(stream);
+        CompletableFuture<StreamCut> startSCFuture = startCut.isPresent() ?
+                CompletableFuture.completedFuture(startCut.get()) : fetchStreamCut(stream, new Date(0L));
+        CompletableFuture<StreamCut> endSCFuture = endCut.isPresent() ?
+                CompletableFuture.completedFuture(endCut.get()) : fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
         CompletableFuture<StreamSegmentsIterator> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
