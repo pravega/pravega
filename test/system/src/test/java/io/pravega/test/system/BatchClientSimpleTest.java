@@ -140,7 +140,7 @@ public class BatchClientSimpleTest {
 
     /**
      * This test verifies the basic functionality of {@link BatchClient}, including stream metadata checks, segment
-     * counts, parallel segment reads and reads  with offsets using stream cuts.
+     * counts, parallel segment reads and reads with offsets using stream cuts.
      */
     @Test
     public void batchClientSimpleTest() {
@@ -179,19 +179,19 @@ public class BatchClientSimpleTest {
 
         // Assert that batchClient provides correct stream info.
         log.debug("Validating stream metadata fields.");
-        assertEquals(streamInfo.getStreamName(), STREAM);
-        assertEquals(streamInfo.getScope(), SCOPE);
+        assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
+        assertEquals("Expected Scope name: ", SCOPE, streamInfo.getScope());
 
         // First, test that we can read all the events in parallel segments with batch client.
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamInfo.getHeadStreamCut(), null).getIterator());
         log.debug("Reading all events in parallel.");
-        assertEquals(ranges.size(), PARALLELISM);
-        assertEquals(readFromRanges(ranges, batchClient), totalEvents);
+        assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
+        assertEquals("Expected events read: ", totalEvents, readFromRanges(ranges, batchClient));
 
         // Second, test that we can read events from parallel segments from an offset onwards.
         log.debug("Reading events from stream cut onwards in parallel.");
         ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
-        assertEquals(readFromRanges(ranges, batchClient), totalEvents - offsetEvents);
+        assertEquals("Expected events read: ", totalEvents - offsetEvents, readFromRanges(ranges, batchClient));
         log.debug("Events correctly read from Stream: simple batch client test passed.");
     }
 
