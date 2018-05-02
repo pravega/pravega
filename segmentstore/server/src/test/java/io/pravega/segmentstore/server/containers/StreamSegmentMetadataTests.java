@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
@@ -69,11 +69,9 @@ public class StreamSegmentMetadataTests {
         metadata.updateAttributes(attributeUpdates);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after update.", expectedAttributes, metadata);
 
-        // Step 3: Remove all attributes.
-        val attributesToRemove = new HashMap<UUID, Long>();
-        expectedAttributes.forEach((id, value) -> attributesToRemove.put(id, SegmentMetadata.NULL_ATTRIBUTE_VALUE));
-        metadata.updateAttributes(attributesToRemove);
-        expectedAttributes.clear();
+        // Step 3: Remove all attributes (Note that attributes are not actually removed; they're set to the NULL_ATTRIBUTE_VALUE).fa
+        expectedAttributes.entrySet().forEach(e -> e.setValue(Attributes.NULL_ATTRIBUTE_VALUE));
+        metadata.updateAttributes(expectedAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after removal.", expectedAttributes, metadata);
     }
 

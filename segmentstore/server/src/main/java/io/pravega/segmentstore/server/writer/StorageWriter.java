@@ -23,6 +23,7 @@ import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
@@ -230,10 +231,10 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     "Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber())));
         }
 
-        if (op instanceof MetadataOperation) {
+        if (op instanceof SegmentOperation) {
+            return processSegmentOperation((SegmentOperation) op);
+        } else if (op instanceof MetadataOperation) {
             return processMetadataOperation((MetadataOperation) op);
-        } else if (op instanceof StorageOperation) {
-            return processStorageOperation((StorageOperation) op);
         } else {
             // Unknown operation. Better throw an error rather than skipping over what could be important data.
             return Futures.failedFuture(new DataCorruptionException(String.format("Unsupported operation %s.", op)));
@@ -253,7 +254,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         return CompletableFuture.completedFuture(null);
     }
 
-    private CompletableFuture<Void> processStorageOperation(StorageOperation op) {
+    private CompletableFuture<Void> processSegmentOperation(SegmentOperation op) {
         // Add the operation to the appropriate Aggregator.
         return getSegmentAggregator(op.getStreamSegmentId())
                 .thenAccept(aggregator -> {

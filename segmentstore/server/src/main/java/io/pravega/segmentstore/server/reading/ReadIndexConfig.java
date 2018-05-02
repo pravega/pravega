@@ -72,7 +72,7 @@ public class ReadIndexConfig {
     //region Constructor
 
     /**
-     * Creates a new instance of the DurableLogConfig class.
+     * Creates a new instance of the ReadIndexConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */

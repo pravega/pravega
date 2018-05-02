@@ -21,7 +21,7 @@ import java.util.Collection;
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
  * can be serialized to a DurableDataLog. This operation (although possible), should not be directly added to the In-Memory Transaction Log.
  */
-public class StreamSegmentAppendOperation extends StorageOperation {
+public class StreamSegmentAppendOperation extends StorageOperation implements AttributeUpdaterOperation {
     //region Members
 
     private static final long NO_OFFSET = -1;
