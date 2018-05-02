@@ -84,7 +84,7 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
      * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
-     * if we stumble across a segment truncation.
+     * if we stumble upon a segment truncation.
      */
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)

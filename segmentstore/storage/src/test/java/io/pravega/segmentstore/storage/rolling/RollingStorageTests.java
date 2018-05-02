@@ -17,6 +17,7 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -95,37 +96,8 @@ public class RollingStorageTests extends RollingStorageTestBase {
         populate(s, writeHandle, writeStream);
         byte[] writtenData = writeStream.toByteArray();
 
-        int truncateOffset = 0;
-        while (true) {
-            s.truncate(writeHandle, truncateOffset);
-
-            // Verify we can still read properly.
-            checkWrittenData(writtenData, truncateOffset, readHandle, s);
-
-            // Verify each SegmentChunk's existence.
-            for (SegmentChunk segmentChunk : writeHandle.chunks()) {
-                boolean expectedExists = segmentChunk.getLastOffset() > truncateOffset
-                        || (segmentChunk.getStartOffset() == segmentChunk.getLastOffset() && segmentChunk.getLastOffset() == truncateOffset);
-                Assert.assertEquals("Unexpected SegmentChunk truncation status for " + segmentChunk + ", truncation offset = " + truncateOffset,
-                        expectedExists, segmentChunk.exists());
-                boolean existsInStorage = baseStorage.exists(segmentChunk.getName());
-                Assert.assertEquals("Expected SegmentChunk deletion status for " + segmentChunk + ", truncation offset = " + truncateOffset,
-                        expectedExists, existsInStorage);
-                if (!expectedExists) {
-                    AssertExtensions.assertThrows(
-                            "Not expecting a read from a truncated SegmentChunk to work.",
-                            () -> s.read(readHandle, segmentChunk.getLastOffset() - 1, new byte[1], 0, 1),
-                            ex -> ex instanceof StreamSegmentTruncatedException);
-                }
-            }
-
-            // Increment truncateOffset by some value, but let's make sure we also truncate at the very end of the Segment.
-            if (truncateOffset >= writtenData.length) {
-                break;
-            }
-
-            truncateOffset = (int) Math.min(writtenData.length, truncateOffset + DEFAULT_ROLLING_POLICY.getMaxLength() / 2);
-        }
+        // Test that truncate works in this scenario.
+        testProgressiveTruncate(writeHandle, readHandle, writtenData, s, baseStorage);
 
         // Do some more writes and verify they are added properly.
         int startOffset = writtenData.length;
@@ -142,6 +114,34 @@ public class RollingStorageTests extends RollingStorageTestBase {
                 "concat() allowed using a truncated segment as a source.",
                 () -> s.concat(targetSegmentHandle, 0, SEGMENT_NAME),
                 ex -> ex instanceof IllegalStateException);
+    }
+
+    /**
+     * Tests the ability to truncate Sealed Segments.
+     */
+    @Test
+    public void testTruncateSealed() throws Exception {
+        // Write small and large writes, alternatively.
+        @Cleanup
+        val baseStorage = new TestStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
+        s.initialize(1);
+
+        // Create a Segment, write some data, then seal it.
+        s.create(SEGMENT_NAME);
+        val appendHandle = (RollingSegmentHandle) s.openWrite(SEGMENT_NAME);
+        val writeStream = new ByteArrayOutputStream();
+        populate(s, appendHandle, writeStream);
+        s.seal(appendHandle);
+        byte[] writtenData = writeStream.toByteArray();
+
+        val truncateHandle = (RollingSegmentHandle) s.openWrite(SEGMENT_NAME);
+        Assert.assertTrue("Handle not read-only after sealing.", truncateHandle.isReadOnly());
+        Assert.assertTrue("Handle not sealed after sealing.", truncateHandle.isSealed());
+
+        // Test that truncate works in this scenario.
+        testProgressiveTruncate(truncateHandle, truncateHandle, writtenData, s, baseStorage);
     }
 
     /**
@@ -505,6 +505,45 @@ public class RollingStorageTests extends RollingStorageTestBase {
             if (writeStream != null) {
                 writeStream.write(appendData);
             }
+        }
+    }
+
+    private void testProgressiveTruncate(RollingSegmentHandle writeHandle, SegmentHandle readHandle, byte[] writtenData, RollingStorage s, SyncStorage baseStorage) throws Exception {
+        int truncateOffset = 0;
+        while (true) {
+            s.truncate(writeHandle, truncateOffset);
+
+            // Verify we can still read properly.
+            checkWrittenData(writtenData, truncateOffset, readHandle, s);
+
+            // Verify each SegmentChunk's existence.
+            for (SegmentChunk segmentChunk : writeHandle.chunks()) {
+                boolean expectedExists;
+                if (writeHandle.isSealed() && segmentChunk.getLastOffset() == writeHandle.length()) {
+                    expectedExists = true;
+                } else {
+                    expectedExists = segmentChunk.getLastOffset() > truncateOffset
+                            || (segmentChunk.getStartOffset() == segmentChunk.getLastOffset() && segmentChunk.getLastOffset() == truncateOffset);
+                }
+                Assert.assertEquals("Unexpected SegmentChunk truncation status for " + segmentChunk + ", truncation offset = " + truncateOffset,
+                        expectedExists, segmentChunk.exists());
+                boolean existsInStorage = baseStorage.exists(segmentChunk.getName());
+                Assert.assertEquals("Expected SegmentChunk deletion status for " + segmentChunk + ", truncation offset = " + truncateOffset,
+                        expectedExists, existsInStorage);
+                if (!expectedExists) {
+                    AssertExtensions.assertThrows(
+                            "Not expecting a read from a truncated SegmentChunk to work.",
+                            () -> s.read(readHandle, segmentChunk.getLastOffset() - 1, new byte[1], 0, 1),
+                            ex -> ex instanceof StreamSegmentTruncatedException);
+                }
+            }
+
+            // Increment truncateOffset by some value, but let's make sure we also truncate at the very end of the Segment.
+            if (truncateOffset >= writtenData.length) {
+                break;
+            }
+
+            truncateOffset = (int) Math.min(writtenData.length, truncateOffset + DEFAULT_ROLLING_POLICY.getMaxLength() / 2);
         }
     }
 

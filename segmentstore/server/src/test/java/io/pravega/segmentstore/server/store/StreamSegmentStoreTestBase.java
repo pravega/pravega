@@ -64,6 +64,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
     // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
@@ -79,7 +80,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .include(ServiceConfig.builder()
                                   .with(ServiceConfig.CONTAINER_COUNT, 4)
-                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE))
+                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
+                                  .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE))
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))

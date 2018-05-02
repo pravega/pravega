@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.framework.CuratorFramework;
@@ -50,7 +51,7 @@ public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
         }
 
         if (executor != null) {
-            executor.shutdown();
+            ExecutorServiceHelpers.shutdown(executor);
         }
     }
 }

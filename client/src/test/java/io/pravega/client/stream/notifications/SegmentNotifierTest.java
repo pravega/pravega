@@ -18,6 +18,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -95,6 +96,6 @@ public class SegmentNotifierTest {
 
     @After
     public void cleanup() {
-        executor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 }

@@ -512,8 +512,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Helpers
 
     /**
-     * Processes the given AttributeUpdaterOperation with exactly one retry in case it was rejected because an attribute update
-     * failure due to the attribute value missing from the in-memory cache.
+     * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
+     * update failure due to the attribute value missing from the in-memory cache.
      *
      * @param operation The Operation to process.
      * @param timer     Timer for the operation.

@@ -582,6 +582,14 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Now verify that a valid offset does work (not throwing means the test passes).
         txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset()));
+
+        // Verify it works on a Sealed Segment.
+        val sealOp = createSeal();
+        txn.preProcessOperation(sealOp);
+        txn.acceptOperation(sealOp);
+        txn.commit(metadata);
+
+        // Truncate the segment again.
         txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset() + 1));
         txn.preProcessOperation(createTruncate(SEGMENT_LENGTH));
     }

@@ -276,7 +276,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
                         // * We processed a TransactionMergeOperation but did not have a chance to ack/truncate the DataSource
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
-                        log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
+                        log.warn("{}: Segment '{}' does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
                         setState(AggregatorState.Writing);
                         LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
                     } else {

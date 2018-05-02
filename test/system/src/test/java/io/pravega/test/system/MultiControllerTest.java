@@ -12,6 +12,7 @@ package io.pravega.test.system;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
@@ -109,7 +110,7 @@ public class MultiControllerTest {
 
     @After
     public void tearDown() {
-        EXECUTOR_SERVICE.shutdownNow();
+        ExecutorServiceHelpers.shutdown(EXECUTOR_SERVICE);
         if (controllerService1 != null && controllerService1.isRunning()) {
             controllerService1.stop();
             controllerService1.clean();
