@@ -1292,7 +1292,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * 1. Sets up a custom SegmentContainer with a hook into the metadataCleanup task
      * 2. Creates a segment and appends something to it, each time updating attributes (and verifies they were updated correctly).
      * 3. Waits for the segment's attributes to be forgotten.
-     * 4. Verifies that the forgotten attributes can be fetched from the Attribute Index & re-cached in memory.
+     * 4. Verifies that the forgotten attributes can be fetched from the Attribute Index and re-cached in memory.
      */
     @Test
     public void testAttributeCleanup() throws Exception {
