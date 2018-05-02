@@ -396,10 +396,10 @@ class HDFSStorage implements SyncStorage {
                         } catch (FileNotFoundException e) {
                             //This happens when more than one host is trying to fence and only one of the host goes through.
                             //Retry the rename so that host with the highest epoch gets access.
-                            //In the worst case, the current owner of the segment will win this race after retries equal
-                            //to the number of segmentstores in the race. Total number of segmentstores in the deployment
-                            // is the higher bound for this number.
-                            //It is safe to retry for MAX_INT times as we are sure that the loop will never go that long.
+                            //In the worst case, the current owner of the segment will win this race after a number of attempts
+                            //  equal to the number of Segment Stores in the race. The high bound for this number of attempts
+                            // is the total number of Segment Store instances in the cluster.
+                            //It is safe to retry for MAX_EPOCH times as we are sure that the loop will never go that long.
                             log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
                             fencedCount++;
                             continue;
