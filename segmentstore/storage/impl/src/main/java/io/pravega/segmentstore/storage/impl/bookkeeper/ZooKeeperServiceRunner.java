@@ -24,7 +24,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Cleanup;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -35,6 +34,7 @@ import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.bookkeeper.util.MathUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -117,7 +117,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             throw new IllegalStateException("Already started.");
         }
 
-        this.serverFactory.set(ServerCnxnFactory.createFactory());
+        this.serverFactory.set(NIOServerCnxnFactory.createFactory());
         val address = "localhost:" + this.zkPort;
         log.info("Starting Zookeeper server at " + address + " ...");
         this.serverFactory.get().configure(new InetSocketAddress("localhost", this.zkPort), 1000, secureZK);
@@ -134,7 +134,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             zs.shutdown();
         }
 
-        NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+        ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
         if (sf != null) {
             sf.closeAll();
             sf.shutdown();
@@ -188,6 +188,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
                         log.info("Server UP");
                         return true;
                     }
+                } catch (Exception e) {
+                  e.printStackTrace();
                 } finally {
                     sock.close();
                     if (reader != null) {
@@ -222,7 +224,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         myKeys.close();
 
         TrustManagerFactory tmf = TrustManagerFactory
-                .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                .getInstance("SunX509");
         tmf.init(myTrustStore);
         return tmf;
     }

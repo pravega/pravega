@@ -116,6 +116,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String certFile;
     private String keyFile;
     private String passwdFile;
+    private boolean secureZK;
 
     public static final class InProcPravegaClusterBuilder {
         public InProcPravegaCluster build() {
@@ -139,7 +140,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    startRestServer, userName, passwd, certFile, keyFile, passwdFile, secureZK);
         }
     }
 
