@@ -46,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -176,6 +177,12 @@ public class OffsetTruncationTest {
                 totalEvents - (truncatedEvents * PARALLELISM));
         log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.",
                 truncatedEvents * PARALLELISM);
+    }
+
+    @After
+    public void tearDown() {
+        streamManager.close();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
