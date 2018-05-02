@@ -212,18 +212,6 @@ public final class Exceptions {
         }
     }
 
-    /**
-     * Logs the exception and its cause to error log.
-     *
-     * @param t   The exception to be logged.
-     */
-    public static void unwrapAndLogException(Throwable t) {
-       log.error("Exception :", t);
-       if (t.getCause() != null && t.getCause() != t) {
-           unwrapAndLogException(t.getCause());
-       }
-    }
-
     private static String badArgumentMessage(String argName, String message, Object... args) {
         return argName + ": " + String.format(message, args);
     }
