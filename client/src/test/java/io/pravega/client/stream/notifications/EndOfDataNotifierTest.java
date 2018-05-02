@@ -16,6 +16,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -85,6 +86,6 @@ public class EndOfDataNotifierTest {
 
     @After
     public void cleanup() {
-        executor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 }

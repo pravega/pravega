@@ -122,7 +122,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     @Override
     public void tearDown() throws Exception {
         if (executorService != null) {
-            executorService.shutdown();
+            ExecutorServiceHelpers.shutdown(executorService);
         }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();

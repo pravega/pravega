@@ -19,6 +19,7 @@ import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -80,7 +81,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
-                        executorService.shutdown();
+                        ExecutorServiceHelpers.shutdown(executorService);
                     } catch (DockerException e) {
                         throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get " +
                                 "container exit status and test result.", e);
