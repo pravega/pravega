@@ -262,11 +262,6 @@ public class ServiceBuilder implements AutoCloseable {
         return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
     }
 
-    protected AttributeIndexFactory createAttributeIndexFactory() {
-        AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
-        return new ContainerAttributeIndexFactoryImpl(config, this.coreExecutor);
-    }
-
     protected StorageFactory createStorageFactory() {
         return getSingleton(this.storageFactory, this.storageFactoryCreator);
     }
