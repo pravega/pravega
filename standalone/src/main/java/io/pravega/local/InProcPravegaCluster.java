@@ -10,6 +10,7 @@
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
@@ -133,6 +134,10 @@ public class InProcPravegaCluster implements AutoCloseable {
             //For SegmentStore
             Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
+            //Check TLS related parameters
+            Preconditions.checkState(!enableTls || !Strings.isNullOrEmpty(this.keyFile) || !Strings.isNullOrEmpty(this.certFile),
+                    "TLS parameters not set");
+
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;
             }
@@ -238,7 +243,7 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
-        ConfigBuilder<ServiceConfig> serviceConfigConfigBuilder = ServiceConfig.builder()
+        ConfigBuilder<ServiceConfig> serviceConfigBuilder = ServiceConfig.builder()
                                                        .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                                                        .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                                        .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
@@ -252,14 +257,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                                                                ServiceConfig.StorageType.INMEMORY :
                                                                ServiceConfig.StorageType.FILESYSTEM);
         if (this.enableTls) {
-            serviceConfigConfigBuilder = serviceConfigConfigBuilder.with(ServiceConfig.KEY_FILE, this.keyFile)
+            serviceConfigBuilder = serviceConfigBuilder.with(ServiceConfig.KEY_FILE, this.keyFile)
                     .with(ServiceConfig.CERT_FILE, this.certFile);
         }
 
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
-                .include(serviceConfigConfigBuilder)
+                .include(serviceConfigBuilder)
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
