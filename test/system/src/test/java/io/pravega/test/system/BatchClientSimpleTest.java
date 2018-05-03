@@ -175,16 +175,15 @@ public class BatchClientSimpleTest {
         Checkpoint cp = readerGroup.initiateCheckpoint("batchClientCheckpoint", executor).join();
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
 
+        // Instantiate the batch client and assert it provides correct stream info.
         log.debug("Creating batch client.");
         BatchClient batchClient = clientFactory.createBatchClient();
         StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
-
-        // Assert that batchClient provides correct stream info.
         log.debug("Validating stream metadata fields.");
         assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
         assertEquals("Expected Scope name: ", SCOPE, streamInfo.getScope());
 
-        // First, test that we can read events from parallel segments from an offset onwards.
+        // Test that we can read events from parallel segments from an offset onwards.
         log.debug("Reading events from stream cut onwards in parallel.");
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
         assertEquals("Expected events read: ", totalEvents - offsetEvents, readFromRanges(ranges, batchClient));
@@ -199,16 +198,17 @@ public class BatchClientSimpleTest {
             ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
             assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
             readEvents += readFromRanges(ranges, batchClient);
-            log.debug("Events read in parallel so far: {}", readEvents);
+            log.debug("Events read in parallel so far: {}.", readEvents);
             currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
         }
 
-        assertEquals("Expected events read: ", totalEvents * batchIterations, readEvents);
+        assertEquals("Expected events read: .", totalEvents * batchIterations, readEvents);
 
-        // Test the client when we select to start reading a Stream before a truncation point.
+        // Test the client when we select to start reading a Stream from a truncation point.
+        log.debug("Truncating stream at event {}.", offsetEvents);
+        assertTrue(controller.truncateStream(SCOPE, STREAM, streamCut).join());
         StreamCut initialPosition = batchClient.getStreamInfo(stream).join().getHeadStreamCut();
         ranges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
-        controller.truncateStream(SCOPE, STREAM, streamCut);
         assertEquals("Expected events read: ", (totalEvents - offsetEvents) + totalEvents * batchIterations,
                     readFromRanges(ranges, batchClient));
         log.debug("Events correctly read from Stream: simple batch client test passed.");
