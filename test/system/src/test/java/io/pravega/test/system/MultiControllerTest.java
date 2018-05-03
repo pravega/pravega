@@ -46,7 +46,8 @@ public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private Service controllerService1 = null;
-    private ControllerImpl controllerClient = null;
+    private ControllerImpl controllerClientDirect = null;
+    private ControllerImpl controllerClientDiscover = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
@@ -59,7 +60,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        Service controllerService = Utils.createPravegaControllerService("multicontroller", zkUris.get(0));
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -81,7 +82,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
+        controllerService1 = Utils.createPravegaControllerService("multicontroller", zkUris.get(0));
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }
@@ -98,14 +99,18 @@ public class MultiControllerTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-        controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                                                                  .clientConfig(ClientConfig.builder()
-                                                                                            .controllerURI(controllerURI)
-                                                                                            .build())
-                                                                  .build(),
-                                              EXECUTOR_SERVICE);
+        controllerClientDirect = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder()
+                        .controllerURI(controllerURIDirect.get())
+                        .build())
+                .build(),
+                EXECUTOR_SERVICE);
+        controllerClientDiscover = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder()
+                        .controllerURI(controllerURIDiscover.get())
+                        .build())
+                .build(),
+                EXECUTOR_SERVICE);
     }
 
     @After
@@ -114,7 +119,8 @@ public class MultiControllerTest {
         if (controllerService1 != null && controllerService1.isRunning()) {
             controllerService1.stop();
             controllerService1.clean();
-            controllerClient.close();
+            controllerClientDirect.close();
+            controllerClientDiscover.close();
         }
     }
 
@@ -160,12 +166,12 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                controllerClient.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
+                controllerClientDirect.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
                 throwable -> throwable instanceof RetriesExhaustedException);
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                    controllerClient.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
+                    controllerClientDiscover.createScope("scope" + RandomStringUtils.randomAlphanumeric(10)),
                     throwable -> throwable instanceof RetriesExhaustedException);
         }
         log.info("multiControllerTest execution completed");
@@ -173,17 +179,17 @@ public class MultiControllerTest {
 
     private void withControllerURIDirect() throws ExecutionException, InterruptedException {
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerClientDirect).get());
     }
 
     private void withControllerURIDiscover() throws ExecutionException, InterruptedException {
         if (!DOCKER_BASED) {
             Assert.assertTrue(createScopeWithSimpleRetry(
-                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()).get());
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerClientDiscover).get());
         }
     }
 
-    CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, URI controllerURI) {
+    CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, ControllerImpl controllerClient) {
         // Need to retry since there is a delay for the mesos DNS name to resolve correctly.
         return Retry.withExpBackoff(500, 2, 10, 5000)
                 .retryingOn(Exception.class)
