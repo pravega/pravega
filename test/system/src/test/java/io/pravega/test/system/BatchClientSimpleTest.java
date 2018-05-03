@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -73,7 +74,7 @@ public class BatchClientSimpleTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
                                                                   .streamName(STREAM)
@@ -146,6 +147,7 @@ public class BatchClientSimpleTest {
     public void batchClientSimpleTest() {
         final int totalEvents = PARALLELISM * 1000;
         final int offsetEvents = PARALLELISM * 200;
+        final int batchIterations = 4;
         final Stream stream = Stream.of(SCOPE, STREAM);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -182,17 +184,33 @@ public class BatchClientSimpleTest {
         assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
         assertEquals("Expected Scope name: ", SCOPE, streamInfo.getScope());
 
-        // First, test that we can read all the events in parallel segments with batch client.
-        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamInfo.getHeadStreamCut(), null).getIterator());
-        log.debug("Reading all events in parallel.");
-        assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
-        assertEquals("Expected events read: ", totalEvents, readFromRanges(ranges, batchClient));
-
-        // Second, test that we can read events from parallel segments from an offset onwards.
+        // First, test that we can read events from parallel segments from an offset onwards.
         log.debug("Reading events from stream cut onwards in parallel.");
-        ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
+        List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
         assertEquals("Expected events read: ", totalEvents - offsetEvents, readFromRanges(ranges, batchClient));
+
+        // Emulate the behavior of Hadoop client: i) Get tail of Stream, ii) Read from tail until end, iii) repeat
+        log.debug("Reading in batch iterations.");
+        StreamCut currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
+        int readEvents = 0;
+        for (int i = 0; i < batchIterations; i++) {
+            writeDummyEvents(clientFactory, STREAM, totalEvents);
+            // Read all the existing events in parallel segments from the previous tail to the current one.
+            ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
+            assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
+            readEvents += readFromRanges(ranges, batchClient);
+            log.debug("Events read in parallel so far: {}", readEvents);
+            currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
+        }
+
+        assertEquals("Expected events read: ", totalEvents * batchIterations, readEvents);
         log.debug("Events correctly read from Stream: simple batch client test passed.");
+    }
+
+    @After
+    public void tearDown() {
+        streamManager.close();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     // Start utils region
