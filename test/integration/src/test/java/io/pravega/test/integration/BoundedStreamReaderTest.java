@@ -290,6 +290,8 @@ public class BoundedStreamReaderTest {
                 ReaderConfig.builder().build());
 
         assertThrows(TruncatedDataException.class, () -> reader2.readNextEvent(10000));
+        //subsequent read should return data present post truncation, Event3 is returned here since stream was truncated @ offset 30 * 2.
+        readAndVerify(reader2, 3);
     }
 
     /*

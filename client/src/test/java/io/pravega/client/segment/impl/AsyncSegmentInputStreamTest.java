@@ -152,6 +152,19 @@ public class AsyncSegmentInputStreamTest {
         });
         verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""));
         assertTrue(!Futures.isSuccessful(readFuture)); // verify read future completedExceptionally
+        assertThrows(SegmentTruncatedException.class, () -> readFuture.get());
+        verifyNoMoreInteractions(c);
+
+        //Ensure that reads at a different offset can still happen on the same instance.
+        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 5656, false, false, ByteBuffer.allocate(0));
+        CompletableFuture<SegmentRead> readFuture2 = in.read(5656, 5678);
+        AssertExtensions.assertBlocks(() -> readFuture2.get(), () -> {
+            ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+            processor.segmentRead(segmentRead);
+        });
+        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 5656,  5678, ""));
+        assertTrue(Futures.isSuccessful(readFuture2));
+        assertEquals(segmentRead, readFuture2.join());
         verifyNoMoreInteractions(c);
     }
 

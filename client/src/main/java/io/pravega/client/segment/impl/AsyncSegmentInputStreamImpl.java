@@ -164,7 +164,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             Throwable ex = Exceptions.unwrap(t);
             log.warn("Exception while reading from Segment : {}", segmentId, ex);
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
-        }).throwingOn(ConnectionClosedException.class)
+        }).throwingOn(RuntimeException.class)
                 .runAsync(() -> {
                     return getConnection()
                             .whenComplete((connection, ex) -> {
