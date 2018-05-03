@@ -451,20 +451,13 @@ class SegmentAttributeIndex implements AttributeIndex {
     }
 
     /**
-     * Determines whether the main segment has been deleted.
-     */
-    private boolean isMainSegmentDeleted() {
-        return this.segmentMetadata.isDeleted() || this.segmentMetadata.isMerged();
-    }
-
-    /**
      * Verifies that the main Segment still exists (is not deleted). If it doesn't, it aborts the current operation by
      * throwing a StreamSegmentNotExistsException. If the main Segment is deleted, the owning SegmentContainer will be
      * deleting this Attribute Segment soon, so do not bother making any more changes to it.
      */
     @SneakyThrows(StreamSegmentNotExistsException.class)
     private void ensureMainSegmentExists() {
-        if (isMainSegmentDeleted()) {
+        if (this.segmentMetadata.isDeleted() || this.segmentMetadata.isMerged()) {
             log.info("{}: Main Segment ({}) is Deleted. Aborting operation.", this.traceObjectId, this.segmentMetadata.getName());
             throw new StreamSegmentNotExistsException(this.segmentMetadata.getName());
         }
