@@ -134,7 +134,7 @@ public class StreamCutsTest {
      * readers can be initialized at these StreamCut intervals and that only sliceSize events are read.
      */
     @Test
-    public void batchClientSimpleTest() {
+    public void streamCutsTest() {
         final int totalEvents = 1000;
         final int sliceSize = 100;
         @Cleanup
@@ -147,11 +147,13 @@ public class StreamCutsTest {
         // First, write half of events in each Stream.
         writeDummyEvents(clientFactory, STREAM_ONE, totalEvents / 2);
         writeDummyEvents(clientFactory, STREAM_TWO, totalEvents / 2);
+        log.debug("Finished writing events to streams.");
 
         // Second, get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
         List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup, sliceSize);
+        log.debug("Finished creating StreamCuts.");
 
         // Third, ensure that reader groups can correctly read slices from different Streams.
         int groupId = 0;
@@ -198,8 +200,11 @@ public class StreamCutsTest {
 
                 // Get a StreamCut each for each slice.
                 if (validEvents % slice == 0) {
-                    log.debug("Creating StreamCuts snapshot at event {}.", validEvents);
-                    streamCuts.add(readerGroup.getStreamCuts());
+                    Map<Stream, StreamCut> newCut = readerGroup.getStreamCuts();
+                    log.debug("Creating {} StreamCuts in a snapshot at event {}.", streamCuts.size(), validEvents);
+                    for (Stream stream: newCut.keySet())
+                        log.debug("Stream {}, StreamCut info: {}", stream.getScopedName(), newCut.get(stream).asImpl().toString());
+                    streamCuts.add(newCut);
                 }
             } while (event.getEvent() != null || event.isCheckpoint());
         } catch (ReinitializationRequiredException | RuntimeException e) {
