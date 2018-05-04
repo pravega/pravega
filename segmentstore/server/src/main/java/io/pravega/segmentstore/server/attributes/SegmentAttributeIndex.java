@@ -269,11 +269,7 @@ class SegmentAttributeIndex implements AttributeIndex {
      */
     private CompletableFuture<AttributeCollection> readAllSinceLastSnapshot(Duration timeout) {
         CompletableFuture<AttributeCollection> result = READ_RETRY.runAsync(() -> {
-            if (isMainSegmentDeleted()) {
-                // Verify if the main segment has been deleted and stop now if needed.
-                return handleMainSegmentDeleted(timeout);
-            }
-
+            ensureMainSegmentExists();
             long lastSnapshotOffset = getLastSnapshotOffset();
             int readLength = (int) Math.min(Integer.MAX_VALUE, this.attributeSegment.get().getLength() - lastSnapshotOffset);
             CompletableFuture<AttributeCollection> r = new CompletableFuture<>();
@@ -344,12 +340,8 @@ class SegmentAttributeIndex implements AttributeIndex {
                 .add(op, timer.getRemaining())
                 .thenComposeAsync(v -> {
                     log.debug("{}: Snapshot location updated in main segment's metadata ({}).", this.traceObjectId, writeInfo);
-                    if (isMainSegmentDeleted()) {
-                        // Verify if the main segment has been deleted and stop now if needed.
-                        return handleMainSegmentDeleted(timer.getRemaining());
-                    } else {
-                        return this.storage.truncate(this.attributeSegment.get().handle, writeInfo.offset, timer.getRemaining());
-                    }
+                    ensureMainSegmentExists();
+                    return this.storage.truncate(this.attributeSegment.get().handle, writeInfo.offset, timer.getRemaining());
                 }, this.executor);
 
         if (!mustComplete) {
@@ -398,10 +390,7 @@ class SegmentAttributeIndex implements AttributeIndex {
         // a concurrent change, we will need to re-generate the serialization in order to guarantee that we always write
         // the latest data.
         AttributeSegment as = this.attributeSegment.get();
-        if (isMainSegmentDeleted()) {
-            // Verify if the main segment has been deleted and stop now if needed.
-            return handleMainSegmentDeleted(timer.getRemaining());
-        }
+        ensureMainSegmentExists();
 
         long offset = as.getLength();
         return getSerialization.get().thenComposeAsync(data ->
@@ -462,24 +451,16 @@ class SegmentAttributeIndex implements AttributeIndex {
     }
 
     /**
-     * Determines whether the main segment has been deleted.
+     * Verifies that the main Segment still exists (is not deleted). If it doesn't, it aborts the current operation by
+     * throwing a StreamSegmentNotExistsException. If the main Segment is deleted, the owning SegmentContainer will be
+     * deleting this Attribute Segment soon, so do not bother making any more changes to it.
      */
-    private boolean isMainSegmentDeleted() {
-        return this.segmentMetadata.isDeleted() || this.segmentMetadata.isMerged();
-    }
-
-    /**
-     * Performs any necessary cleanup after the main segment has been determined to have been deleted. This will
-     * delete the AttributeSegment as well.
-     *
-     * @param timeout Timeout for the operation.
-     */
-    private <T> CompletableFuture<T> handleMainSegmentDeleted(Duration timeout) {
-        Preconditions.checkState(isMainSegmentDeleted(), "Main segment is not deleted.");
-        log.info("{}: Main Segment is Deleted. Attempting to delete Attribute Segment.", this.traceObjectId);
-        return Futures
-                .exceptionallyExpecting(this.storage.delete(this.attributeSegment.get().handle, timeout), ex -> ex instanceof StreamSegmentNotExistsException, null)
-                .thenCompose(v -> Futures.failedFuture(new StreamSegmentNotExistsException(this.segmentMetadata.getName())));
+    @SneakyThrows(StreamSegmentNotExistsException.class)
+    private void ensureMainSegmentExists() {
+        if (this.segmentMetadata.isDeleted() || this.segmentMetadata.isMerged()) {
+            log.info("{}: Main Segment ({}) is Deleted. Aborting operation.", this.traceObjectId, this.segmentMetadata.getName());
+            throw new StreamSegmentNotExistsException(this.segmentMetadata.getName());
+        }
     }
 
     private void ensureInitialized() {
