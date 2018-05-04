@@ -53,14 +53,10 @@ public class Utils {
                 new BookkeeperService("bookkeeper", zkUri);
     }
 
-    public static Service createPravegaControllerService(final String id, final URI zkUri) {
-        return DOCKER_BASED
-                ? new PravegaControllerDockerService(id, zkUri)
-                : new PravegaControllerService(id, zkUri);
-    }
-
     public static Service createPravegaControllerService(final URI zkUri) {
-        return createPravegaControllerService("controller", zkUri);
+        return DOCKER_BASED
+                ? new PravegaControllerDockerService("controller", zkUri)
+                : new PravegaControllerService("controller", zkUri);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {

@@ -46,6 +46,7 @@ public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private Service controllerService1 = null;
+    private Service segmentStoreService = null;
     private ControllerImpl controllerClientDirect = null;
     private ControllerImpl controllerClientDiscover = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
@@ -60,7 +61,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        Service controllerService = Utils.createPravegaControllerService("multicontroller", zkUris.get(0));
+        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -73,6 +74,14 @@ public class MultiControllerTest {
         final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
+
+        URI controllerUri = URI.create("tcp://" + String.join(",", uris));
+
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUri);
+        if (!segService.isRunning()) {
+            segService.start(true);
+        }
+        log.debug("Pravega host service details: {}", segService.getServiceDetails());
     }
 
     @Before
@@ -82,7 +91,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createPravegaControllerService("multicontroller", zkUris.get(0));
+        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }
@@ -111,10 +120,14 @@ public class MultiControllerTest {
                         .build())
                 .build(),
                 EXECUTOR_SERVICE);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerURIDirect.get());
+        log.debug("Pravega host service details: {}", segmentStoreService.getServiceDetails());
+
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         ExecutorServiceHelpers.shutdown(EXECUTOR_SERVICE);
         if (controllerService1 != null && controllerService1.isRunning()) {
             controllerService1.stop();
@@ -122,6 +135,7 @@ public class MultiControllerTest {
             controllerClientDirect.close();
             controllerClientDiscover.close();
         }
+        Futures.getAndHandleExceptions(segmentStoreService.scaleService(0), ExecutionException::new);
     }
 
     /**
