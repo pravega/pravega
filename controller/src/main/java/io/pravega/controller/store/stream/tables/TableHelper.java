@@ -39,6 +39,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
+
 /**
  * Helper class for operations pertaining to segment store tables (segment, history, index).
  * All the processing is done locally and this class does not make any network calls.
@@ -57,16 +61,18 @@ public class TableHelper {
      */
     public static Segment getSegment(final long segmentId, final byte[] segmentIndex, final byte[] segmentTable,
                                      final byte[] historyIndex, final byte[] historyTable) {
-        Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, io.pravega.client.segment.impl.Segment.getPrimaryId(segmentId));
+        int primaryId = getPrimaryId(segmentId);
+        Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, primaryId);
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
             long creationTime;
-            int epoch = io.pravega.client.segment.impl.Segment.getSecondaryId(segmentId);
-            // TODO: shivesh epoch = 0 is a temporary check
-            if (epoch == record.getCreationEpoch() || epoch == 0) {
-                if (epoch == 0) {
-                    epoch = record.getCreationEpoch();
-                }
+            int epoch = getSecondaryId(segmentId);
+            // TODO: epoch = 0 is a temporary check till clients continue to send int based segment ids (#2469)
+            if (epoch == 0) {
+                epoch = record.getCreationEpoch();
+            }
+
+            if (epoch == record.getCreationEpoch()) {
                 creationTime = record.getStartTime();
             } else {
                 Optional<HistoryRecord> historyRecord = HistoryRecord.readRecord(epoch, historyIndex, historyTable, false);
@@ -75,13 +81,28 @@ public class TableHelper {
                 }
                 creationTime = historyRecord.get().getScaleTime();
             }
-            return new Segment(segmentId,
+
+            return new Segment(computeSegmentId(primaryId, epoch),
                     epoch,
                     creationTime,
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else {
             throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Segment : " + segmentId);
+        }
+    }
+
+    public static Segment getLatestSegment(final byte[] segmentIndex, final byte[] segmentTable) {
+        Optional<Segment> segment = SegmentRecord.readLatest(segmentIndex, segmentTable).map(segmentRecord -> new Segment(
+                computeSegmentId(segmentRecord.getSegmentNumber(), segmentRecord.getCreationEpoch()),
+                segmentRecord.getCreationEpoch(),
+                segmentRecord.getStartTime(),
+                segmentRecord.getRoutingKeyStart(),
+                segmentRecord.getRoutingKeyEnd()));
+        if (segment.isPresent()) {
+            return segment.get();
+        } else {
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "No Segment found");
         }
     }
 
@@ -166,7 +187,7 @@ public class TableHelper {
     /**
      * Method to validate a given stream Cut.
      * A stream cut is valid if it covers the entire key space without any overlaps in ranges for segments that form the
-     * streamcut. It throws {@link InvalidArgumentException} if the supplied stream cut does not satisfy the invariants.
+     * streamcut. It throws {@link IllegalArgumentException} if the supplied stream cut does not satisfy the invariants.
      *
      * @param streamCut supplied stream cut.
      */
@@ -584,13 +605,12 @@ public class TableHelper {
                     final byte[] historyTable,
                     final byte[] segmentIndex,
                     final byte[] segmentTable) {
-        // TODO: shivesh verify
         AtomicBoolean isConsistent = new AtomicBoolean(true);
         SegmentRecord latest = SegmentRecord.readLatest(segmentIndex, segmentTable).get();
         // verify that epoch transition record is consistent with segment table
         if (latest.getCreationEpoch() == epochTransitionRecord.newEpoch) { // if segment table is updated
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
-                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, io.pravega.client.segment.impl.Segment.getPrimaryId(segmentWithRange.getKey()));
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getPrimaryId(segmentWithRange.getKey()));
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
@@ -783,7 +803,7 @@ public class TableHelper {
                 x.getKey() >= 0 && x.getValue() > 0);
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, io.pravega.client.segment.impl.Segment.getPrimaryId(segmentId)).map(x ->
+                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getPrimaryId(segmentId)).map(x ->
                         new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -823,8 +843,7 @@ public class TableHelper {
         int segmentCount = getSegmentCount(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
         IntStream.range(0, newRanges.size()).forEach(x -> {
-            // TODO: shivesh verify
-            newSegments.put(io.pravega.client.segment.impl.Segment.computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
+            newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
         });
         return new EpochTransitionRecord(activeEpoch.getKey(), newEpoch, scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));
@@ -834,7 +853,6 @@ public class TableHelper {
                                                                               byte[] segmentTable, Map<Long, Long> streamCut) {
         Map<Long, Integer> epochStreamCutMap = new HashMap<>();
 
-        // TODO: shivesh --> most recent is segment with highest epoch
         Long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         Segment mostRecentSegment = getSegment(mostRecent, segmentIndex, segmentTable, historyIndex, historyTable);
 
@@ -873,7 +891,6 @@ public class TableHelper {
                 Segment epochSegment = getSegment(epochSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
                 // ignore already deleted segments from todelete
                 // toDelete.add(epoch.segment overlaps cut.segment && epoch < cut.segment.epoch)
-                // TODO: shivesh --> verify that the logic is fine
                 return !deletedSegments.contains(epochSegmentNumber) &&
                         epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getSegmentId() == epochSegment.getSegmentId() ||
                                 (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
@@ -889,7 +906,6 @@ public class TableHelper {
         // compare epochs. map1 should have epochs gt or eq its overlapping segments in map2
         return map1.entrySet().stream().allMatch(e1 ->
                 map2.entrySet().stream().noneMatch(e2 ->
-                        // TODO: shivesh verify that logic is intact
                         (e2.getKey().getSegmentId() == e1.getKey().getSegmentId() &&
                                 cut1.get(e1.getKey().getSegmentId()) < cut2.get(e2.getKey().getSegmentId()))
                                 || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));

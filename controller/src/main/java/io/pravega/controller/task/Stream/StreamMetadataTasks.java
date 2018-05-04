@@ -73,12 +73,14 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
 import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -320,11 +322,12 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         // 1. get stream cut
-        return startTruncation(scope, stream, streamCut, context)
+        return transformStreamCut(scope, stream, streamCut, contextOpt)
+                .thenCompose(streamCutTransformed -> startTruncation(scope, stream, streamCutTransformed, context)
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                        return checkDone(() -> isTruncated(scope, stream, streamCutTransformed, context))
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn("Unable to start truncation for {}/{}", scope, stream);
@@ -334,8 +337,26 @@ public class StreamMetadataTasks extends TaskBase {
                 .exceptionally(ex -> {
                     log.warn("Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex);
-                });
+                }));
     }
+
+    // region temporary
+    private CompletableFuture<Map<Long, Long>> transformStreamCut(String scope, String stream, Map<Long, Long> streamCutOld, OperationContext contextOpt) {
+        return Futures.keysAllOfWithResults(streamCutOld.entrySet().stream().collect(Collectors.toMap(x -> resolveOldSegmentId(scope, stream, x.getKey(), contextOpt), Map.Entry::getValue)));
+    }
+
+    private CompletableFuture<List<Long>> transformSegmentList(String scope, String stream, List<Long> segments, OperationContext contextOpt) {
+        return Futures.allOfWithResults(segments.stream().map(x -> resolveOldSegmentId(scope, stream, x, contextOpt)).collect(Collectors.toList()));
+    }
+
+    public CompletableFuture<Long> resolveOldSegmentId(String scope, String stream, long segmentId, OperationContext contextOpt) {
+        if (getSecondaryId(segmentId) == 0) {
+            return streamMetadataStore.getSegment(scope, stream, segmentId, contextOpt, executor).thenApply(Segment::getSegmentId);
+        } else {
+            return CompletableFuture.completedFuture(segmentId);
+        }
+    }
+    // endregion
 
     private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -593,16 +614,16 @@ public class StreamMetadataTasks extends TaskBase {
      * @return returns list of new segments created as part of this scale operation.
      */
     public CompletableFuture<List<Segment>> startScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
-        return withRetries(() -> {
-            return streamMetadataStore.startScale(scaleInput.getScope(),
-                    scaleInput.getStream(),
-                    scaleInput.getSegmentsToSeal(),
-                    scaleInput.getNewRanges(),
-                    scaleInput.getScaleTime(),
-                    runOnlyIfStarted,
-                    context,
-                    executor);
-        }, executor)
+        // TODO: remove the temporary transformation step after external clients start using new id scheme (issue #2469
+        return withRetries(() -> transformSegmentList(scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal(), context)
+                .thenCompose(segmentsToSeal -> streamMetadataStore.startScale(scaleInput.getScope(),
+                        scaleInput.getStream(),
+                        segmentsToSeal,
+                        scaleInput.getNewRanges(),
+                        scaleInput.getScaleTime(),
+                        runOnlyIfStarted,
+                        context,
+                        executor)), executor)
                 .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(),
                         State.SCALING, context, executor)
                         .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scaleInput.getScope(),
@@ -665,7 +686,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
                             response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
                         List<Long> newSegments = IntStream.range(0, response.getConfiguration().getScalingPolicy()
-                                .getMinNumSegments()).boxed().map(x -> io.pravega.client.segment.impl.Segment.computeSegmentId(x, 0)).collect(Collectors.toList());
+                                .getMinNumSegments()).boxed().map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0)).collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
@@ -812,7 +833,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private SegmentRange convert(String scope, String stream, Segment segment) {
-        // TODO: shivesh
         return ModelHelper.createSegmentRange(scope, stream, segment.getSegmentId(), segment.getKeyEnd(),
                 segment.getKeyEnd());
     }

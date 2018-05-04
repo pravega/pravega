@@ -31,9 +31,13 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
 
 @Slf4j
 public class SegmentHelper {
@@ -55,8 +59,8 @@ public class SegmentHelper {
                                                     final HostControllerStore hostControllerStore,
                                                     final ConnectionFactory clientCF, String controllerToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        int primary = Segment.getPrimaryId(segmentId);
-        int secondary = Segment.getSecondaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
+        int secondary = getSecondaryId(segmentId);
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
@@ -105,9 +109,10 @@ public class SegmentHelper {
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        // TODO: shivesh
+        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
+        // actual segment id as opposed to only primary id
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), controllerToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -119,8 +124,8 @@ public class SegmentHelper {
                                                       final HostControllerStore hostControllerStore,
                                                       final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        int primary = Segment.getPrimaryId(segmentId);
-        int secondary = Segment.getSecondaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
+        int secondary = getSecondaryId(segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
         final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
@@ -179,8 +184,8 @@ public class SegmentHelper {
                                                     final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        int primary = Segment.getPrimaryId(segmentId);
-        int secondary = Segment.getSecondaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
+        int secondary = getSecondaryId(segmentId);
 
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
@@ -225,9 +230,10 @@ public class SegmentHelper {
             }
         };
 
-        // TODO shivesh
+        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
+        // actual segment id as opposed to only primary id
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -250,8 +256,8 @@ public class SegmentHelper {
                                                   final HostControllerStore hostControllerStore,
                                                   final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        int primary = Segment.getPrimaryId(segmentId);
-        int secondary = Segment.getSecondaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
+        int secondary = getSecondaryId(segmentId);
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
@@ -295,9 +301,10 @@ public class SegmentHelper {
             }
         };
 
-        // TODO shivesh
+        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
+        // actual segment id as opposed to only primary id
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -309,7 +316,7 @@ public class SegmentHelper {
                                                      final HostControllerStore hostControllerStore,
                                                      final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        int primary = Segment.getPrimaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
@@ -354,9 +361,8 @@ public class SegmentHelper {
             }
         };
 
-        // shivesh
         WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), txId, delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -368,7 +374,7 @@ public class SegmentHelper {
                                                           final HostControllerStore hostControllerStore,
                                                           final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        int primary = Segment.getPrimaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
 
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
@@ -423,7 +429,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), txId, delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -434,7 +440,7 @@ public class SegmentHelper {
                                                          final UUID txId,
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF, String delegationToken) {
-        int primary = Segment.getPrimaryId(segmentId);
+        int primary = getPrimaryId(segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
@@ -484,9 +490,8 @@ public class SegmentHelper {
             }
         };
 
-        // TODO: shivesh
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), txId, delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -494,8 +499,8 @@ public class SegmentHelper {
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
                                                 long segmentId, HostControllerStore hostControllerStore,
                                                 ConnectionFactory clientCF, String delegationToken) {
-        final int primary = Segment.getPrimaryId(segmentId);
-        final int secondary = Segment.getSecondaryId(segmentId);
+        final int primary = getPrimaryId(segmentId);
+        final int secondary = getSecondaryId(segmentId);
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
@@ -536,17 +541,18 @@ public class SegmentHelper {
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        // TODO shivesh
+        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
+        // actual segment id as opposed to only primary id
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId,
                                                                             HostControllerStore hostControllerStore, ConnectionFactory clientCF, String delegationToken) {
-        final int primary = Segment.getPrimaryId(segmentId);
-        final int secondary = Segment.getSecondaryId(segmentId);
+        final int primary = getPrimaryId(segmentId);
+        final int secondary = getSecondaryId(segmentId);
         final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
@@ -586,7 +592,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId)), delegationToken);
+                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }

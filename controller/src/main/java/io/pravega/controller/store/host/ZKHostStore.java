@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -122,8 +124,7 @@ public class ZKHostStore implements HostControllerStore {
     
     @Override
     public Host getHostForSegment(String scope, String stream, long segmentId) {
-        // TODO: shivesh temporary
-        String qualifiedName = Segment.getScopedName(scope, stream, Segment.getPrimaryId(segmentId));
+        String qualifiedName = Segment.getScopedName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

@@ -46,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -259,6 +260,7 @@ public class ZkStreamTest {
 
         long scale1 = start + 10000;
         ArrayList<Long> sealedSegments = Lists.newArrayList(3L, 4L);
+        long five = computeSegmentId(5, 1);
         StartScaleResponse response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
         List<Segment> newSegments = response.getSegmentsCreated();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
@@ -269,7 +271,7 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 5L).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, five).contains(x.getSegmentId())));
 
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
@@ -279,7 +281,10 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(2 * keyChunk, 1.0));
 
         long scale2 = scale1 + 10000;
-        ArrayList<Long> sealedSegments1 = Lists.newArrayList(1L, 2L, 5L);
+        ArrayList<Long> sealedSegments1 = Lists.newArrayList(1L, 2L, five);
+        long six = computeSegmentId(6, 2);
+        long seven = computeSegmentId(7, 2);
+        long eight = computeSegmentId(8, 2);
         response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
@@ -290,7 +295,7 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 6L, 7L, 8L).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, seven, eight).contains(x.getSegmentId())));
 
         // 7 -> 9 = .3 - .35, 10 = .35 - .6
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
@@ -300,7 +305,10 @@ public class ZkStreamTest {
                 new AbstractMap.SimpleEntry<>(3 * keyChunk, 1.0));
 
         long scale3 = scale2 + 10000;
-        ArrayList<Long> sealedSegments2 = Lists.newArrayList(7L, 8L);
+        long nine = computeSegmentId(9, 3);
+        long ten = computeSegmentId(10, 3);
+        long eleven = computeSegmentId(11, 3);
+        ArrayList<Long> sealedSegments2 = Lists.newArrayList(seven, eight);
         response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
         segmentsCreated = response.getSegmentsCreated();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
@@ -311,46 +319,46 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 6L, 9L, 10L, 11L).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, nine, ten, eleven).contains(x.getSegmentId())));
 
         Map<Long, List<Long>> successors = store.getSuccessors(SCOPE, streamName, 0L, context, executor).get();
         assertTrue(successors.isEmpty());
         successors = store.getSuccessors(SCOPE, streamName, 1L, context, executor).get();
         assertTrue(successors.size() == 2 &&
-                successors.containsKey(6L) && successors.get(6L).containsAll(Collections.singleton(1L)) &&
-                successors.containsKey(7L) && successors.get(7L).containsAll(Collections.singleton(1L)));
+                successors.containsKey(six) && successors.get(six).containsAll(Collections.singleton(1L)) &&
+                successors.containsKey(seven) && successors.get(seven).containsAll(Collections.singleton(1L)));
 
         successors = store.getSuccessors(SCOPE, streamName, 2L, context, executor).get();
         assertTrue(successors.size() == 1 &&
-                successors.containsKey(8L) && successors.get(8L).containsAll(Lists.newArrayList(2L, 5L)));
+                successors.containsKey(eight) && successors.get(eight).containsAll(Lists.newArrayList(2L, five)));
 
         successors = store.getSuccessors(SCOPE, streamName, 3L, context, executor).get();
         assertTrue(successors.size() == 1 &&
-                successors.containsKey(5L) && successors.get(5L).containsAll(Lists.newArrayList(3L, 4L)));
+                successors.containsKey(five) && successors.get(five).containsAll(Lists.newArrayList(3L, 4L)));
 
         successors = store.getSuccessors(SCOPE, streamName, 4L, context, executor).get();
         assertTrue(successors.size() == 1 &&
-                successors.containsKey(5L) && successors.get(5L).containsAll(Lists.newArrayList(3L, 4L)));
+                successors.containsKey(five) && successors.get(five).containsAll(Lists.newArrayList(3L, 4L)));
 
-        successors = store.getSuccessors(SCOPE, streamName, 5L, context, executor).get();
+        successors = store.getSuccessors(SCOPE, streamName, five, context, executor).get();
         assertTrue(successors.size() == 1 &&
-                successors.containsKey(8L) && successors.get(8L).containsAll(Lists.newArrayList(2L, 5L)));
+                successors.containsKey(eight) && successors.get(eight).containsAll(Lists.newArrayList(2L, five)));
 
-        successors = store.getSuccessors(SCOPE, streamName, 6L, context, executor).get();
+        successors = store.getSuccessors(SCOPE, streamName, six, context, executor).get();
         assertTrue(successors.isEmpty());
-        successors = store.getSuccessors(SCOPE, streamName, 7L, context, executor).get();
+        successors = store.getSuccessors(SCOPE, streamName, seven, context, executor).get();
         assertTrue(successors.size() == 2 &&
-                successors.containsKey(9L) && successors.get(9L).containsAll(Collections.singleton(7L)) &&
-                successors.containsKey(10L) && successors.get(10L).containsAll(Lists.newArrayList(7L, 8L)));
-        successors = store.getSuccessors(SCOPE, streamName, 8L, context, executor).get();
+                successors.containsKey(nine) && successors.get(nine).containsAll(Collections.singleton(seven)) &&
+                successors.containsKey(ten) && successors.get(ten).containsAll(Lists.newArrayList(seven, eight)));
+        successors = store.getSuccessors(SCOPE, streamName, eight, context, executor).get();
         assertTrue(successors.size() == 2 &&
-                successors.containsKey(11L) && successors.get(11L).containsAll(Collections.singleton(8L)) &&
-                successors.containsKey(10L) && successors.get(10L).containsAll(Lists.newArrayList(7L, 8L)));
-        successors = store.getSuccessors(SCOPE, streamName, 9L, context, executor).get();
+                successors.containsKey(eleven) && successors.get(eleven).containsAll(Collections.singleton(eight)) &&
+                successors.containsKey(ten) && successors.get(ten).containsAll(Lists.newArrayList(seven, eight)));
+        successors = store.getSuccessors(SCOPE, streamName, nine, context, executor).get();
         assertTrue(successors.isEmpty());
-        successors = store.getSuccessors(SCOPE, streamName, 10L, context, executor).get();
+        successors = store.getSuccessors(SCOPE, streamName, ten, context, executor).get();
         assertTrue(successors.isEmpty());
-        successors = store.getSuccessors(SCOPE, streamName, 11L, context, executor).get();
+        successors = store.getSuccessors(SCOPE, streamName, eleven, context, executor).get();
         assertTrue(successors.isEmpty());
         // start -1
         List<Long> historicalSegments = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
@@ -365,22 +373,22 @@ public class ZkStreamTest {
         // scale1 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale1 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 1L, 2L, 5L)));
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 1L, 2L, five)));
 
         // scale2 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale2 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 6L, 7L, 8L)));
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, seven, eight)));
 
         // scale3 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 6L, 9L, 10L, 11L)));
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
 
         // scale 3 + 10000
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 10000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 6L, 9L, 10L, 11L)));
+        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());

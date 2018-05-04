@@ -28,6 +28,7 @@ import io.pravega.controller.store.stream.tables.SealedSegmentsRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -40,6 +41,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,7 +122,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose((Void v) -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
-                                    IntStream.range(0, numSegments).boxed().map(x -> io.pravega.client.segment.impl.Segment.computeSegmentId(x, 0)).collect(Collectors.toList()));
+                                    IntStream.range(0, numSegments).boxed().map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0)).collect(Collectors.toList()));
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
                         .thenCompose((Void v) -> createSealedSegmentsRecord(
@@ -552,20 +554,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         // Idempotent update to index and table.
                                         int newEpoch = epochTransition.getNewEpoch();
 
-                                        // TODO: shivesh this will become interesting here
                                         // we need to ensure that segment creation is idempotent.
                                         final int segmentCount = TableHelper.getSegmentCount(segmentIndex.getData(),
                                                 segmentTable.getData());
-                                        final Segment latestSegment = TableHelper.getSegment(io.pravega.client.segment.impl.Segment.computeSegmentId(segmentCount - 1, 0),
-                                                segmentIndex.getData(), segmentTable.getData(), historyIndex.getData(), historyTable.getData());
+                                        final Segment latestSegment = TableHelper.getLatestSegment(segmentIndex.getData(), segmentTable.getData());
                                         if (latestSegment.getEpoch() < newEpoch) {
                                             assert latestSegment.getEpoch() == epochTransition.getActiveEpoch();
 
                                             log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}",
                                                     scope, name, epochTransition.getSegmentsToSeal());
 
+                                            List<SimpleEntry<Double, Double>> newRanges = epochTransition.getNewSegmentsWithRange().entrySet()
+                                                    .stream().sorted(Comparator.comparingLong(Map.Entry::getKey)).map(Map.Entry::getValue)
+                                                    .collect(Collectors.toList());
                                             return createNewSegments(
-                                                    Lists.newArrayList(epochTransition.getNewSegmentsWithRange().values()),
+                                                    newRanges,
                                                     historyIndex.getData(), historyTable.getData(), segmentIndex, segmentTable,
                                                     segmentCount, epochTransition.getActiveEpoch(), newEpoch, epochTransition.getTime());
                                         } else {

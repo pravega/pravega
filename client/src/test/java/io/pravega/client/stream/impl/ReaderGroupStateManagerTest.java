@@ -407,8 +407,7 @@ public class ReaderGroupStateManagerTest {
         assertTrue(segments1.isEmpty());
     }
 
-    // TODO shivesh
-    //    @Test(timeout = 10000)
+    @Test(timeout = 10000)
     public void testSegmentsAssigned() throws ReinitializationRequiredException {
         String scope = "scope";
         String stream = "stream";

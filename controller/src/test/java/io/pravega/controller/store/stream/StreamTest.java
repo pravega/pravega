@@ -14,6 +14,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -168,7 +169,8 @@ public class StreamTest {
 
         long scale = System.currentTimeMillis();
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
-
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         StartScaleResponse response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
         List<Segment> newSegments = response.getSegmentsCreated();
         zkStream.updateState(State.SCALING).join();
@@ -202,7 +204,7 @@ public class StreamTest {
 
         Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
 
-        assertTrue(successors.containsKey(1L) && successors.containsKey(2L));
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
@@ -233,6 +235,6 @@ public class StreamTest {
 
         successors = zkStream.getSuccessorsWithPredecessors(0).get();
 
-        assertTrue(successors.containsKey(1L) && successors.containsKey(2L));
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
     }
 }

@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -350,7 +351,7 @@ public abstract class StreamMetadataStoreTest {
         long scaleTs = System.currentTimeMillis();
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        List<Long> scale1SealedSegments = Collections.singletonList(1L);
+        List<Long> scale1SealedSegments = Collections.singletonList(computeSegmentId(1, 0));
 
         // test run only if started
         AssertExtensions.assertThrows("", () ->
@@ -410,7 +411,7 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        List<Long> scale2SealedSegments = Arrays.asList(0L, 2L, 3L);
+        List<Long> scale2SealedSegments = Arrays.asList(computeSegmentId(0, 0), computeSegmentId(2, 1), computeSegmentId(3, 1));
         long scaleTs2 = System.currentTimeMillis();
         response = store.startScale(scope, stream, scale2SealedSegments, Arrays.asList(segment3, segment4, segment5), scaleTs2, false, null, executor).get();
         final List<Segment> scale2SegmentsCreated = response.getSegmentsCreated();
@@ -437,7 +438,7 @@ public abstract class StreamMetadataStoreTest {
         // transition node. We should get ScaleConflict in such a case.
         // mock createEpochTransition
         SimpleEntry<Double, Double> segment6 = new SimpleEntry<>(0.0, 1.0);
-        List<Long> scale3SealedSegments = Arrays.asList(4L, 5L, 6L);
+        List<Long> scale3SealedSegments = Arrays.asList(computeSegmentId(4, 2), computeSegmentId(5, 2), computeSegmentId(6, 2));
         long scaleTs3 = System.currentTimeMillis();
 
         @SuppressWarnings("unchecked")
@@ -899,7 +900,7 @@ public abstract class StreamMetadataStoreTest {
         // complex stream cut - across two epochs
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(0L, 40L);
-        map4.put(3L, 10L);
+        map4.put(computeSegmentId(3, 1), 10L);
         size = store.getSizeTillStreamCut(scope, stream, map4, null, executor).join();
         assertTrue(size == 90L);
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, map4);
@@ -907,8 +908,8 @@ public abstract class StreamMetadataStoreTest {
 
         // simple stream cut on epoch 2
         Map<Long, Long> map5 = new HashMap<>();
-        map5.put(2L, 10L);
-        map5.put(3L, 10L);
+        map5.put(computeSegmentId(2, 1), 10L);
+        map5.put(computeSegmentId(3, 1), 10L);
 
         size = store.getSizeTillStreamCut(scope, stream, map5, null, executor).join();
         assertTrue(size == 100L);

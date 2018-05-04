@@ -41,6 +41,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
 
@@ -137,7 +139,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
-                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
+                                                               .collect(Collectors.toMap(e -> StreamSegmentNameUtils.computeSegmentId(e.getKey().getSegmentNumber(), 0),
                                                                        Map.Entry::getValue));
         return truncateStream(scope, stream, segmentToOffsetMap);
     }
@@ -339,8 +341,8 @@ public class LocalController implements Controller {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
-                    // TODO: shivesh this is temporary
-                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list.stream().map(Segment::getPrimaryId).collect(Collectors.toList())));
+                    // TODO: replace primary id with segment id after client handles long segment id. #2469
+                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list.stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toList())));
                     return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
     }

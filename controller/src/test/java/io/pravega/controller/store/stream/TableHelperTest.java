@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.client.segment.impl.Segment.*;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -96,7 +96,7 @@ public class TableHelperTest {
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, time);
 
         segment = TableHelper.getSegment(10L, segmentIndex3, segmentTable3, historyIndex, historyTable);
-        assertEquals(segment.getSegmentId(), 10L);
+        assertEquals(segment.getSegmentId(), computeSegmentId(10, 2));
         segment = TableHelper.getSegment(computeSegmentId(10, 2), segmentIndex3, segmentTable3, historyIndex, historyTable);
         assertEquals(segment.getSegmentId(), computeSegmentId(10, 2));
         assertEquals(15, TableHelper.getSegmentCount(segmentIndex3, segmentTable3));

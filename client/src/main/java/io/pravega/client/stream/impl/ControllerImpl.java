@@ -81,6 +81,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -326,8 +328,9 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
+        // TODO: #2469 remove segment id computation with 0 secondary id
         return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
+                .stream().collect(Collectors.toMap(x -> StreamSegmentNameUtils.computeSegmentId(x.getKey().getSegmentNumber(), 0), Map.Entry::getValue)));
     }
 
     private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
@@ -612,8 +615,8 @@ public class ControllerImpl implements Controller {
             log.debug("Received the following data from the controller {}", successors.getSegmentsList());
             Map<SegmentWithRange, List<Integer>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
-                // TODO: shivesh
-                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList().stream().map(Segment::getPrimaryId).collect(Collectors.toList()));
+                // TODO: Remove this with issue #2469 when client starts supporting new id scheme
+                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList().stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toList()));
             }
             return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {

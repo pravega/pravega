@@ -26,6 +26,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
+
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -59,9 +61,10 @@ public final class ModelHelper {
      */
     public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
+        // TODO: remove getPrimaryId with #2469
         return new Segment(segment.getStreamInfo().getScope(),
-                           segment.getStreamInfo().getStream(),
-                           segment.getSegmentNumber());
+                segment.getStreamInfo().getStream(),
+                StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber()));
     }
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
