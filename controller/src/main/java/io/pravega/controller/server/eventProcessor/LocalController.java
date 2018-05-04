@@ -136,13 +136,13 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        final Map<Integer, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
-                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
+        final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
+                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                        Map.Entry::getValue));
         return truncateStream(scope, stream, segmentToOffsetMap);
     }
 
-    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
         return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
@@ -199,7 +199,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                                    final Map<Double, Double> newKeyRanges,
                                                    final ScheduledExecutorService executor) {
         CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
@@ -226,7 +226,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> startScale(final Stream stream,
-                                                  final List<Integer> sealedSegments,
+                                                  final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         return startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .thenApply(x -> {
@@ -262,7 +262,7 @@ public class LocalController implements Controller {
                 });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges) {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
@@ -339,7 +339,8 @@ public class LocalController implements Controller {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
-                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
+                    // TODO: shivesh this is temporary
+                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list.stream().map(Segment::getPrimaryId).collect(Collectors.toList())));
                     return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
     }

@@ -248,7 +248,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                        List<SimpleEntry<Double, Double>> newRanges) {
 
         long scaleTimestamp = System.currentTimeMillis();
-        List<Integer> existingSegments = segments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        List<Long> existingSegments = segments.stream().map(Segment::getSegmentId).collect(Collectors.toList());
         StartScaleResponse response = store.startScale(scope, stream, existingSegments, newRanges,
                 scaleTimestamp, false, null, executor).join();
         List<Segment> segmentsCreated = response.getSegmentsCreated();

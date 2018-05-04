@@ -123,15 +123,15 @@ public class EndToEndTruncationTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0, 1), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get();
 
         assertTrue(result);
         writer.writeEvent("0", "truncationTest2").get();
 
-        Map<Integer, Long> streamCutPositions = new HashMap<>();
-        streamCutPositions.put(2, 0L);
-        streamCutPositions.put(3, 0L);
-        streamCutPositions.put(4, 0L);
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(2L, 0L);
+        streamCutPositions.put(3L, 0L);
+        streamCutPositions.put(4L, 0L);
 
         controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 

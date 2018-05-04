@@ -21,13 +21,13 @@ public class SealedSegmentsRecord implements Serializable {
     /**
      * Sealed segments with size at the time of sealing.
      */
-    private final Map<Integer, Long> sealedSegmentsSizeMap;
+    private final Map<Long, Long> sealedSegmentsSizeMap;
 
-    public SealedSegmentsRecord(Map<Integer, Long> sealedSegmentsSizeMap) {
+    public SealedSegmentsRecord(Map<Long, Long> sealedSegmentsSizeMap) {
         this.sealedSegmentsSizeMap = Collections.unmodifiableMap(new HashMap<>(sealedSegmentsSizeMap));
     }
 
-    public Map<Integer, Long> getSealedSegmentsSizeMap() {
+    public Map<Long, Long> getSealedSegmentsSizeMap() {
         return sealedSegmentsSizeMap;
     }
 }

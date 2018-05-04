@@ -169,13 +169,12 @@ message StreamConfig {
 
 message StreamCut {
     StreamInfo streamInfo = 1;
-    map<int32, int64> cut = 2;
+    map<int64, int64> cut = 2;
 }
-
 
 message SegmentId {
     StreamInfo streamInfo = 1;
-    int32 segmentNumber = 2;
+    int64 segmentNumber = 2;
 }
 
 message SegmentRange {
@@ -229,7 +228,7 @@ message PingTxnRequest {
 message SuccessorResponse {
     message SegmentEntry {
         SegmentRange segment = 1;
-        repeated int32 value = 2;
+        repeated int64 value = 2;
     }
     repeated SegmentEntry segments = 1;
     string delegationToken = 2;
@@ -237,7 +236,7 @@ message SuccessorResponse {
 
 message ScaleRequest {
     StreamInfo streamInfo = 1;
-    repeated int32 sealedSegments = 2;
+    repeated int64 sealedSegments = 2;
     message KeyRangeEntry {
         double start = 1;
         double end = 2;

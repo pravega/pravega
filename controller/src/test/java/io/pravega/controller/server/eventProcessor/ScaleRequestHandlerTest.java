@@ -171,17 +171,17 @@ public class ScaleRequestHandlerTest {
         assertEquals(middle, scaleOpEvent.getNewRanges().get(1).getKey(), delta);
         assertEquals(end, scaleOpEvent.getNewRanges().get(1).getValue(), delta);
         assertEquals(1, scaleOpEvent.getSegmentsToSeal().size());
-        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(2));
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(2L));
 
         assertTrue(Futures.await(multiplexer.process(scaleOpEvent)));
 
         // verify that the event is processed successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 2L));
         // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 3));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == 3L));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == 4L));
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
@@ -190,7 +190,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(writer.queue.isEmpty());
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == 4L));
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, 4, null, executor).join());
 
@@ -207,28 +207,28 @@ public class ScaleRequestHandlerTest {
         assertEquals(start, scaleOpEvent.getNewRanges().get(0).getKey(), delta);
         assertEquals(end, scaleOpEvent.getNewRanges().get(0).getValue(), delta);
         assertEquals(2, scaleOpEvent.getSegmentsToSeal().size());
-        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(3));
-        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(4));
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(3L));
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(4L));
 
         // process scale down event
         assertTrue(Futures.await(multiplexer.process(scaleOpEvent)));
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 3L));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 4L));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == 5L));
         assertTrue(activeSegments.size() == 3);
 
         // make it throw a non retryable failure so that test does not wait for number of retries.
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
-        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
+        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 3L));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 4L));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == 5L));
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));

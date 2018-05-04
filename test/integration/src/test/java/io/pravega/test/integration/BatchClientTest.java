@@ -137,7 +137,7 @@ public class BatchClientTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue("Scale up operation", result);
         writeEvents(writer);
 
@@ -145,7 +145,7 @@ public class BatchClientTest {
         map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        result = controller.scaleStream(stream, Arrays.asList(1, 2, 3), map, executor).getFuture().get();
+        result = controller.scaleStream(stream, Arrays.asList(1L, 2L, 3L), map, executor).getFuture().get();
         assertTrue("Scale down operation result", result);
         writeEvents(writer);
 

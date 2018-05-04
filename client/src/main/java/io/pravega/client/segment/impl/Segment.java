@@ -27,6 +27,7 @@ public class Segment implements Serializable, Comparable<Segment> {
     @NonNull
     private final String streamName;
     private final int segmentNumber;
+    private final long segmentId;
 
     /**
      * Creates a new instance of Segment class.
@@ -35,10 +36,11 @@ public class Segment implements Serializable, Comparable<Segment> {
      * @param streamName The stream name that the segment belongs to.
      * @param number     ID number for the segment.
      */
-    public Segment(String scope, String streamName, int number) {
+    public Segment(String scope, String streamName, long number) {
         this.scope = scope;
         this.streamName = streamName;
-        this.segmentNumber = number;
+        this.segmentNumber = Segment.getPrimaryId(number);
+        this.segmentId = number;
     }
 
     public String getScopedStreamName() {
@@ -86,6 +88,18 @@ public class Segment implements Serializable, Comparable<Segment> {
         } else {
             throw new IllegalArgumentException("Not a valid segment name");
         }
+    }
+
+    public static int getPrimaryId(long segmentId) {
+        return (int) segmentId;
+    }
+
+    public static int getSecondaryId(long segmentId) {
+        return (int) (segmentId >> 32);
+    }
+
+    public static long computeSegmentId(int primaryId, int secondaryId) {
+        return (long) secondaryId << 32 | (primaryId & 0xFFFFFFFFL);
     }
 
     @Override

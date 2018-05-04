@@ -189,7 +189,7 @@ public final class ModelHelper {
      * @param streamCut Stream cut
      * @return map of segment to position
      */
-    public static Map<Integer, Long> encode(Controller.StreamCut streamCut) {
+    public static Map<Long, Long> encode(Controller.StreamCut streamCut) {
         return streamCut.getCutMap();
     }
 
@@ -287,7 +287,7 @@ public final class ModelHelper {
      * @param streamCut map of segment to position
      * @return stream cut
      */
-    public static Controller.StreamCut decode(final String scope, final String stream, Map<Integer, Long> streamCut) {
+    public static Controller.StreamCut decode(final String scope, final String stream, Map<Long, Long> streamCut) {
         return Controller.StreamCut.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllCut(streamCut).build();
     }
 
@@ -318,7 +318,7 @@ public final class ModelHelper {
         return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
     }
 
-    public static final SegmentId createSegmentId(final String scope, final String stream, final int segmentNumber) {
+    public static final SegmentId createSegmentId(final String scope, final String stream, final long segmentNumber) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentId.newBuilder()
@@ -328,7 +328,7 @@ public final class ModelHelper {
     }
 
     public static final SegmentRange createSegmentRange(final String scope, final String stream,
-            final int segmentNumber, final double rangeMinKey, final double rangeMaxKey) {
+            final long segmentNumber, final double rangeMinKey, final double rangeMaxKey) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentRange.newBuilder()
@@ -338,7 +338,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
+    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Long>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(

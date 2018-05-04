@@ -327,10 +327,10 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
-    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamCut, "streamCut");
         long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
@@ -368,7 +368,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -399,7 +399,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
+    public CompletableFuture<Boolean> startScale(final Stream stream, final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
@@ -467,7 +467,7 @@ public class ControllerImpl implements Controller {
         });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges) {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
@@ -612,7 +612,8 @@ public class ControllerImpl implements Controller {
             log.debug("Received the following data from the controller {}", successors.getSegmentsList());
             Map<SegmentWithRange, List<Integer>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
-                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
+                // TODO: shivesh
+                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList().stream().map(Segment::getPrimaryId).collect(Collectors.toList()));
             }
             return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {

@@ -115,7 +115,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+            controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
 
             Transaction<String> txn2 = test.beginTxn();
 

@@ -22,7 +22,7 @@ public class ScaleOpEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
-    private final List<Integer> segmentsToSeal;
+    private final List<Long> segmentsToSeal;
     private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
     private final boolean runOnlyIfStarted;
     private final long scaleTime;

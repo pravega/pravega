@@ -223,7 +223,7 @@ public class MetricsTest {
 
             //Seal segment 0, create segment 1
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
-                    Collections.singletonList(0),
+                    Collections.singletonList(0L),
                     map,
                     executorService).getFuture();
             Assert.assertTrue(scaleStatus.get());

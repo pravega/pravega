@@ -32,5 +32,5 @@ public class StreamCutRecord implements Serializable {
     /**
      * Actual Stream cut.
      */
-    final Map<Integer, Long> streamCut;
+    final Map<Long, Long> streamCut;
 }
