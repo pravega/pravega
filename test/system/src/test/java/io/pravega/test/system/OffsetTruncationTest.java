@@ -25,6 +25,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -154,8 +155,8 @@ public class OffsetTruncationTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                      .stream(SCOPE + "/" + STREAM).build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
         // Write events to the Stream.
@@ -171,7 +172,9 @@ public class OffsetTruncationTest {
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
         // Read again, now expecting to read events from the offset defined in truncate call onwards.
-        futures = readDummyEvents(clientFactory, READER_GROUP, PARALLELISM);
+        String newReaderGroupName = READER_GROUP + "new";
+        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        futures = readDummyEvents(clientFactory, newReaderGroupName, PARALLELISM);
         Futures.allOf(futures).join();
         assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(),
                 totalEvents - (truncatedEvents * PARALLELISM));
