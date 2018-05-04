@@ -12,6 +12,7 @@ package io.pravega.test.system;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -144,23 +145,27 @@ public class StreamCutsTest {
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE))
                                                                             .stream(Stream.of(SCOPE, STREAM_TWO))
                                                                             .build());
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
+
         // First, write half of events in each Stream.
         writeDummyEvents(clientFactory, STREAM_ONE, totalEvents / 2);
         writeDummyEvents(clientFactory, STREAM_TWO, totalEvents / 2);
         log.debug("Finished writing events to streams.");
 
         // Second, get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
-        @Cleanup
-        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
-        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup, sliceSize);
+        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup, sliceSize, executor);
         log.debug("Finished creating StreamCuts.");
 
         // Third, ensure that reader groups can correctly read slices from different Streams.
         int groupId = 0;
         Map<Stream, StreamCut> startingPoint = null;
-        for (Map<Stream, StreamCut> endingPoint : streamSlices) {
-            ReaderGroupConfig config = (groupId == 0) ? ReaderGroupConfig.builder().endingStreamCuts(endingPoint).build() :
-                    ReaderGroupConfig.builder().startingStreamCuts(startingPoint).endingStreamCuts(endingPoint).build();
+        for (Map<Stream, StreamCut> endingPoint: streamSlices) {
+            ReaderGroupConfig config = (groupId == 0) ?
+                    ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE)).stream(Stream.of(SCOPE, STREAM_TWO))
+                                     .endingStreamCuts(endingPoint).build() :
+                    ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE)).stream(Stream.of(SCOPE, STREAM_TWO))
+                                     .startingStreamCuts(startingPoint).endingStreamCuts(endingPoint).build();
 
             // Create a new reader group per stream cut slice and read only events within the cut.
             String readerGroupId = READER_GROUP + String.valueOf(groupId);
@@ -184,7 +189,8 @@ public class StreamCutsTest {
 
     // Start utils region
 
-    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup, int slice) {
+    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup,
+                                                                                     int slice, ScheduledExecutorService executor) {
         @Cleanup
         EventStreamReader<T> reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -200,7 +206,8 @@ public class StreamCutsTest {
 
                 // Get a StreamCut each for each slice.
                 if (validEvents % slice == 0) {
-                    Map<Stream, StreamCut> newCut = readerGroup.getStreamCuts();
+                    Checkpoint cp = readerGroup.initiateCheckpoint("checkpoint" + String.valueOf(validEvents), executor).join();
+                    Map<Stream, StreamCut> newCut = cp.asImpl().getPositions();
                     log.debug("Creating {} StreamCuts in a snapshot at event {}.", streamCuts.size(), validEvents);
                     for (Stream stream: newCut.keySet())
                         log.debug("Stream {}, StreamCut info: {}", stream.getScopedName(), newCut.get(stream).asImpl().toString());
