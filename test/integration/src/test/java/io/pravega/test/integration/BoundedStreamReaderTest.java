@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -26,6 +25,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -56,7 +56,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNull;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -288,8 +288,10 @@ public class BoundedStreamReaderTest {
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
                 ReaderConfig.builder().build());
-        EventRead<String> res = reader2.readNextEvent(10000);
-        assertNull("Null is expected since the stream is already truncated", res.getEvent());
+
+        assertThrows(TruncatedDataException.class, () -> reader2.readNextEvent(10000));
+        //subsequent read should return data present post truncation, Event3 is returned here since stream was truncated @ offset 30 * 2.
+        readAndVerify(reader2, 3);
     }
 
     /*

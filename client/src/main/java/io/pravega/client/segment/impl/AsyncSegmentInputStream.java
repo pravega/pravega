@@ -29,7 +29,11 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
      * @param offset The offset in the segment to read from
      * @param length The suggested number of bytes to read. (Note the result may contain either more or less than this
      *            value.)
-     * @return A future for the result of the read call. 
+     * @return A future for the result of the read call. If an exception occurred, it will be completed with the causing
+     * exception. Notable exceptions:
+     * * {@link SegmentTruncatedException} If the segment is truncated or it does not exist.
+     * * {@link io.pravega.client.stream.impl.ConnectionClosedException} If the connection is closed due an exception while performing the read.
+     * * {@link io.pravega.common.util.RetriesExhaustedException} If the configured number of retry attempts to read failed.
      */
     public abstract CompletableFuture<SegmentRead> read(long offset, int length);
 

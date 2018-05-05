@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.task.TaskStoreFactory;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class InMemoryTaskMetadataStoreTests extends TaskMetadataStoreTests {
     @Override
     public void cleanupTaskStore() throws IOException {
         if (executor != null) {
-            executor.shutdown();
+            ExecutorServiceHelpers.shutdown(executor);
         }
     }
 }

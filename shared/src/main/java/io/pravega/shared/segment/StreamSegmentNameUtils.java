@@ -19,9 +19,14 @@ public final class StreamSegmentNameUtils {
     //region Members
 
     /**
-     * This is appended to the end of the Segment/Transaction name to indicate it stores its custom attributes.
+     * This is appended to the end of the Segment/Transaction name to indicate it stores its State.
      */
     private static final String STATE_SUFFIX = "$state";
+
+    /**
+     * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
+     */
+    private static final String ATTRIBUTE_SUFFIX = "$attributes";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
@@ -95,8 +100,19 @@ public final class StreamSegmentNameUtils {
      * @return The result.
      */
     public static String getStateSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX), "segmentName is already a state segment name");
+        Preconditions.checkArgument(!segmentName.endsWith(STATE_SUFFIX), "segmentName is already a state segment name");
         return segmentName + STATE_SUFFIX;
+    }
+
+    /**
+     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing extended attributes.
+     *
+     * @param segmentName The name of the Segment to get the Attribute segment name for.
+     * @return The result.
+     */
+    public static String getAttributeSegmentName(String segmentName) {
+        Preconditions.checkArgument(!segmentName.endsWith(ATTRIBUTE_SUFFIX), "segmentName is already an attribute segment name");
+        return segmentName + ATTRIBUTE_SUFFIX;
     }
 
     /**
@@ -108,7 +124,7 @@ public final class StreamSegmentNameUtils {
      * @return The result.
      */
     public static String getHeaderSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.contains(HEADER_SUFFIX), "segmentName is already a segment header name");
+        Preconditions.checkArgument(!segmentName.endsWith(HEADER_SUFFIX), "segmentName is already a segment header name");
         return segmentName + HEADER_SUFFIX;
     }
 

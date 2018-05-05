@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.TableHelper;
@@ -77,7 +78,7 @@ public class ZkStreamTest {
     public void stopZookeeper() throws Exception {
         cli.close();
         zkTestServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test

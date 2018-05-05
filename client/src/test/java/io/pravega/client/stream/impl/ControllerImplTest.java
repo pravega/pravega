@@ -704,7 +704,7 @@ public class ControllerImplTest {
 
     @After
     public void tearDown() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
         testGRPCServer.shutdownNow();
     }
 
@@ -1204,7 +1204,7 @@ public class ControllerImplTest {
             });
         }
         createCount.acquire();
-        executorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
     }
 
@@ -1236,7 +1236,7 @@ public class ControllerImplTest {
             });
         }
         createCount.acquire();
-        executorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
     }
     

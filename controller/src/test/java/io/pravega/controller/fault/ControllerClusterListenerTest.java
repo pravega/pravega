@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -30,6 +31,7 @@ import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.test.common.TestingServerStarter;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -108,8 +110,7 @@ public class ControllerClusterListenerTest {
     @After
     public void shutdown() throws Exception {
         clusterZK.close();
-        executor.shutdownNow();
-        executor.awaitTermination(2, TimeUnit.SECONDS);
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
         curatorClient.close();
         zkServer.close();
     }
