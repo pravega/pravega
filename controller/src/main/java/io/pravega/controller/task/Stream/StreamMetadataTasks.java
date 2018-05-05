@@ -485,8 +485,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
-        return writeEvent(event).thenCompose(x ->
-                streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
+        // TODO: remove this transformation in #2469
+        return writeEvent(event).thenCompose(x -> transformSegmentList(scope, stream, segmentsToSeal, context)
+                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToBeSealed, newRanges, scaleTimestamp, false,
                         context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -510,7 +511,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 response.setEpoch(startScaleResponse.getActiveEpoch());
                             }
                             return response.build();
-                        }));
+                        })));
     }
 
     /**
