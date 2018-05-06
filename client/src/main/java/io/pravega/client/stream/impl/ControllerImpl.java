@@ -966,7 +966,6 @@ public class ControllerImpl implements Controller {
         RPCAsyncCallback(long traceId, String method) {
             this.traceId = traceId;
             this.method = method;
-
         }
 
         @Override
@@ -976,7 +975,7 @@ public class ControllerImpl implements Controller {
 
         @Override
         public void onError(Throwable t) {
-            log.warn("gRPC call for {} with trace id {} failed with server error.", traceId, method, t);
+            log.warn("gRPC call for {} with trace id {} failed with server error.", method, traceId, t);
             future.completeExceptionally(t);
         }
 

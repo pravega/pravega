@@ -14,12 +14,10 @@ import java.util.Collection;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper methods that perform various checks and throw exceptions if certain conditions are met.
  */
-@Slf4j
 public final class Exceptions {
 
     /**
