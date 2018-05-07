@@ -90,10 +90,7 @@ public class AutoScaleTask {
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
-        // TODO: temporary id resolution for benefit of clients posting old id from AutoScaleProcessor in segment store.
-        // Will be fixed as part of #2469 once we fix Segment.fromScopedName
-        return streamMetadataTasks.resolveOldSegmentId(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
-                .thenCompose(segmentId -> streamMetadataStore.getSegment(request.getScope(), request.getStream(), segmentId, context, executor)
+        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
                 .thenComposeAsync(segment -> {
                     // do not go above scale factor. Minimum scale factor is 2 though.
                     int numOfSplits = Math.min(Math.max(2, request.getNumOfSplits()), Math.max(2, policy.getScaleFactor()));
@@ -104,8 +101,8 @@ public class AutoScaleTask {
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                 segment.getKeyStart() + (delta * (i + 1))));
                     }
-                    return postScaleRequest(request, Lists.newArrayList(segmentId), simpleEntries);
-                }, executor));
+                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries);
+                }, executor);
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
@@ -114,26 +111,23 @@ public class AutoScaleTask {
             return CompletableFuture.completedFuture(null);
         }
 
-        // TODO: temporary id resolution for benefit of clients posting old id from AutoScaleProcessor in segment store.
-        // Will be fixed as part of #2469 once we fix Segment.fromScopedName
-        return streamMetadataTasks.resolveOldSegmentId(request.getScope(), request.getStream(), request.getSegmentNumber(), context)
-                .thenCompose(segmentId -> streamMetadataStore.markCold(request.getScope(),
+        return streamMetadataStore.markCold(request.getScope(),
                 request.getStream(),
-                segmentId,
+                request.getSegmentNumber(),
                 request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
                 context, executor)
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
                 .thenApply(activeSegments -> {
                     assert activeSegments != null;
                     final Optional<Segment> currentOpt = activeSegments.stream()
-                            .filter(y -> y.getSegmentId() == segmentId).findAny();
+                            .filter(y -> y.getSegmentId() == request.getSegmentNumber()).findAny();
                     if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
                         // if we are already at min-number of segments, we cant scale down, we have put the marker,
                         // we should simply return and do nothing.
                         return null;
                     } else {
                         final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
-                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getSegmentId() == segmentId)
+                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getSegmentId() == request.getSegmentNumber())
                                 .sorted(Comparator.comparingDouble(Segment::getKeyStart))
                                 .collect(Collectors.toList());
                         return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
@@ -178,7 +172,7 @@ public class AutoScaleTask {
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
-                }));
+                });
     }
 
     /**

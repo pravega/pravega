@@ -67,10 +67,6 @@ public class TableHelper {
             SegmentRecord record = recordOpt.get();
             long creationTime;
             int epoch = getSecondaryId(segmentId);
-            // TODO: epoch = 0 is a temporary check till clients continue to send int based segment ids (#2469)
-            if (epoch == 0) {
-                epoch = record.getCreationEpoch();
-            }
 
             if (epoch == record.getCreationEpoch()) {
                 creationTime = record.getStartTime();
@@ -82,7 +78,7 @@ public class TableHelper {
                 creationTime = historyRecord.get().getScaleTime();
             }
 
-            return new Segment(computeSegmentId(primaryId, epoch),
+            return new Segment(segmentId,
                     epoch,
                     creationTime,
                     record.getRoutingKeyStart(),

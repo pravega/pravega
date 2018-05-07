@@ -88,6 +88,7 @@ import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static java.util.stream.Collectors.summarizingInt;
+import static java.util.stream.Collectors.summarizingLong;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -328,9 +329,8 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        // TODO: #2469 remove segment id computation with 0 secondary id
         return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> StreamSegmentNameUtils.computeSegmentId(x.getKey().getSegmentNumber(), 0), Map.Entry::getValue)));
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
     private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
@@ -613,10 +613,9 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return resultFuture.thenApply(successors -> {
             log.debug("Received the following data from the controller {}", successors.getSegmentsList());
-            Map<SegmentWithRange, List<Integer>> result = new HashMap<>();
+            Map<SegmentWithRange, List<Long>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
-                // TODO: Remove this with issue #2469 when client starts supporting new id scheme
-                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList().stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toList()));
+                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
             return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {
@@ -662,8 +661,8 @@ public class ControllerImpl implements Controller {
     private Set<Segment> getSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
         //input validation.
         val fromSCSummary = lowerBound.asImpl().getPositions().keySet()
-                                      .stream().collect(summarizingInt(Segment::getSegmentNumber));
-        val toSCSummary = upperBound.stream().collect(summarizingInt(Segment::getSegmentNumber));
+                                      .stream().collect(summarizingLong(Segment::getSegmentId));
+        val toSCSummary = upperBound.stream().collect(summarizingLong(Segment::getSegmentId));
         Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
                 "Overlapping StreamCuts cannot be provided");
         Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
@@ -684,7 +683,7 @@ public class ControllerImpl implements Controller {
                     .getSegmentToPredecessor().keySet();
             for (Segment successor : successors) {
                 //Successor segment number can never be larger than the highest segment number in upperBound.
-                Preconditions.checkArgument(successor.getSegmentNumber() <= toSCSummary.getMax(),
+                Preconditions.checkArgument(successor.getSegmentId() <= toSCSummary.getMax(),
                         "Overlapping streamCuts, lowerBound streamCut should be strictly lower than the upperBound StreamCut.");
                 if (!segments.contains(successor)) {
                     segments.add(successor);
@@ -704,13 +703,15 @@ public class ControllerImpl implements Controller {
      * @return Segments which reside between fromStreamCut and currentSegments.
      */
     private List<Segment> getKnownSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
-        int highestCut = lowerBound.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
-        int lowestCurrent = upperBound.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+        long highestCut = lowerBound.asImpl().getPositions().keySet().stream().mapToLong(s -> s.getSegmentId()).max().getAsLong();
+        long lowestCurrent = upperBound.stream().mapToLong(s -> s.getSegmentId()).min().getAsLong();
         if (highestCut >= lowestCurrent) {
             return Collections.emptyList();
         }
-        final List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
-        for (int num = highestCut + 1; num < lowestCurrent; num++) {
+        // TODO: shivesh: changed the logic here!!
+        final List<Segment> result = new ArrayList<>((int) (lowestCurrent - highestCut));
+        // TODO: shivesh
+        for (long num = highestCut + 1; num < lowestCurrent; num++) {
             result.add(new Segment(lowerBound.asImpl().getStream().getScope(), lowerBound.asImpl().getStream().getStreamName(), num));
         }
         return result;
@@ -754,7 +755,7 @@ public class ControllerImpl implements Controller {
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             client.getURI(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
-                    segment.getSegmentNumber()),
+                    segment.getSegmentId()),
                     callback);
             return callback.getFuture();
         }, this.executor);
@@ -776,7 +777,7 @@ public class ControllerImpl implements Controller {
             RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>();
             client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
-                    segment.getSegmentNumber()),
+                    segment.getSegmentId()),
                     callback);
             return callback.getFuture();
         }, this.executor);

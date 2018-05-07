@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -109,10 +110,8 @@ public class SegmentHelper {
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
-        // actual segment id as opposed to only primary id
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), controllerToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -172,7 +171,7 @@ public class SegmentHelper {
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, (int) segmentId), offset, delegationToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), offset, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -230,10 +229,8 @@ public class SegmentHelper {
             }
         };
 
-        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
-        // actual segment id as opposed to only primary id
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -301,10 +298,8 @@ public class SegmentHelper {
             }
         };
 
-        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
-        // actual segment id as opposed to only primary id
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -362,7 +357,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
+                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -429,7 +424,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
+                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -491,7 +486,7 @@ public class SegmentHelper {
         };
 
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), txId, delegationToken);
+                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -541,10 +536,8 @@ public class SegmentHelper {
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        // TODO: After client is updated to handle new scheme (#2469) we should send scoped stream name that makes use of
-        // actual segment id as opposed to only primary id
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), extracted.getLeft(), extracted.getRight(), delegationToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -592,7 +585,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                Segment.getScopedName(scope, stream, getPrimaryId(segmentId)), delegationToken);
+                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }

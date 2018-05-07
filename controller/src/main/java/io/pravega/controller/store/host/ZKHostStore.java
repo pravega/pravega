@@ -124,7 +124,7 @@ public class ZKHostStore implements HostControllerStore {
     
     @Override
     public Host getHostForSegment(String scope, String stream, long segmentId) {
-        String qualifiedName = Segment.getScopedName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
+        String qualifiedName = StreamSegmentNameUtils.getScopedName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

@@ -14,6 +14,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import java.io.Serializable;
 
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
 import lombok.NonNull;
 
@@ -26,7 +27,7 @@ public class Segment implements Serializable, Comparable<Segment> {
     private final String scope;
     @NonNull
     private final String streamName;
-    private final int segmentNumber;
+    private final long segmentId;
 
     /**
      * Creates a new instance of Segment class.
@@ -35,42 +36,24 @@ public class Segment implements Serializable, Comparable<Segment> {
      * @param streamName The stream name that the segment belongs to.
      * @param number     ID number for the segment.
      */
-    public Segment(String scope, String streamName, int number) {
+    public Segment(String scope, String streamName, long number) {
         this.scope = scope;
         this.streamName = streamName;
-        this.segmentNumber = number;
+        this.segmentId = number;
     }
 
     public String getScopedStreamName() {
-        StringBuffer sb = new StringBuffer();
-        if (scope != null) {
-            sb.append(scope);
-            sb.append('/');
-        }
-        sb.append(streamName);
-        return sb.toString();
+        return StreamSegmentNameUtils.getScopedStreamName(scope, streamName);
     }
 
     public String getScopedName() {
-        return getScopedName(scope, streamName, segmentNumber);
-    }
-
-    public static String getScopedName(String scope, String streamName, int segmentNumber) {
-        StringBuffer sb = new StringBuffer();
-        if (!Strings.isNullOrEmpty(scope)) {
-            sb.append(scope);
-            sb.append('/');
-        }
-        sb.append(streamName);
-        sb.append('/');
-        sb.append(segmentNumber);
-        return sb.toString();
+        return StreamSegmentNameUtils.getScopedName(scope, streamName, segmentId);
     }
 
     public Stream getStream() {
         return new StreamImpl(scope, streamName);
     }
-    
+
     /**
      * Parses fully scoped name, and creates the segment.
      *
@@ -78,11 +61,12 @@ public class Segment implements Serializable, Comparable<Segment> {
      * @return Segment name.
      */
     public static Segment fromScopedName(String qualifiedName) {
+        if (qua)
         String[] tokens = qualifiedName.split("[/#]");
-        if (tokens.length == 2) {
+        if (tokens.length == 3) {
             return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));
-        } else if (tokens.length >= 3) {
-            return new Segment(tokens[0], tokens[1], Integer.parseInt(tokens[2]));
+        } else if (tokens.length >= 4) {
+            return new Segment(tokens[0], tokens[1], StreamSegmentNameUtils.computeSegmentId(Integer.parseInt(tokens[2]), Integer.parseInt(tokens[2])));
         } else {
             throw new IllegalArgumentException("Not a valid segment name");
         }
@@ -95,7 +79,7 @@ public class Segment implements Serializable, Comparable<Segment> {
             result = streamName.compareTo(o.streamName);
         }
         if (result == 0) {
-            result = Integer.compare(segmentNumber, o.segmentNumber);
+            result = Long.compare(segmentId, o.segmentId);
         }
         return result;
     }

@@ -92,7 +92,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
 
         if (aggregates == null &&
-                StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName) == null) {
+                !StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
             loadAsynchronously(streamSegmentName);
         }
 

@@ -52,7 +52,7 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
-        String parentStreamSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
+        String parentStreamSegmentName = StreamSegmentNameUtils.getPrimaryStreamSegemntName(streamSegmentName);
         if (parentStreamSegmentName != null) {
             // This is a Transaction. Map it to the parent's Container.
             return mapStreamSegmentNameToContainerId(parentStreamSegmentName);

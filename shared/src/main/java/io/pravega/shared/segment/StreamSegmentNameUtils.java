@@ -10,6 +10,8 @@
 package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+
 import java.util.UUID;
 
 /**
@@ -42,6 +44,11 @@ public final class StreamSegmentNameUtils {
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
+
+    /**
+     * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
+     */
+    private static final String SECONDARY_ID_DELIMITER = "#secondary.";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -91,6 +98,39 @@ public final class StreamSegmentNameUtils {
             return null;
         }
         return transactionName.substring(0, endOfStreamNamePos);
+    }
+
+    // TODO: shivesh update javadoc
+    /**
+     * Checks if the given stream segment name is formatted for a Transaction Segment or regular segment.
+     *
+     * @param streamSegmentName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
+     * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
+     */
+    public static boolean isTransactionSegment(String streamSegmentName) {
+        // Check to see if the given name is a properly formatted Transaction.
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSACTION_DELIMITER);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > streamSegmentName.length()) {
+            return false;
+        }
+        return true;
+    }
+
+    // TODO: shivesh update javadoc
+    /**
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
+     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
+     *
+     * @param streamSegmentName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
+     * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
+     */
+    public static String getPrimaryStreamSegemntName(String streamSegmentName) {
+        if (isTransactionSegment(streamSegmentName)) {
+            return getParentStreamSegmentName(streamSegmentName);
+        } else {
+            int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
+            return streamSegmentName.substring(0, endOfStreamNamePos);
+        }
     }
 
     /**
@@ -183,5 +223,39 @@ public final class StreamSegmentNameUtils {
      */
     public static int getSecondaryId(long segmentId) {
         return (int) (segmentId >> 32);
+    }
+
+    public static String getScopedStreamName(String scope, String streamName) {
+        return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    public static String getScopedName(String scope, String streamName, long segmentId) {
+        int secondaryId = getSecondaryId(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, streamName);
+        sb.append(SECONDARY_ID_DELIMITER);
+        sb.append(secondaryId);
+        return sb.toString();
+    }
+
+    public static String getScopedPrimaryName(String scope, String streamName, long segmentId) {
+        return getScopedPrimaryNameInternal(scope, streamName, segmentId).toString();
+    }
+
+    private static StringBuffer getScopedPrimaryNameInternal(String scope, String streamName, long segmentId) {
+        int segmentNumber= getPrimaryId(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, streamName);
+        sb.append('/');
+        sb.append(segmentNumber);
+        return sb;
+    }
+
+    private static StringBuffer getScopedStreamNameInternal(String scope, String streamName) {
+        StringBuffer sb = new StringBuffer();
+        if (!Strings.isNullOrEmpty(scope)) {
+            sb.append(scope);
+            sb.append('/');
+        }
+        sb.append(streamName);
+        return sb;
     }
 }

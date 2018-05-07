@@ -977,16 +977,16 @@ public class ControllerImplTest {
 
     @Test
     public void testGetSegmentsImmediatlyFollowing() throws Exception {
-        CompletableFuture<Map<Segment, List<Integer>>> successors;
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
+        CompletableFuture<Map<Segment, List<Long>>> successors;
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 2))
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 2L))
                 .get(0).longValue());
-        assertEquals(30, successors.get().get(new Segment("scope1", "stream1", 3))
+        assertEquals(30, successors.get().get(new Segment("scope1", "stream1", 3L))
                 .get(0).longValue());
 
-        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
+        successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         AssertExtensions.assertThrows("Should throw Exception", successors, throwable -> true);
     }

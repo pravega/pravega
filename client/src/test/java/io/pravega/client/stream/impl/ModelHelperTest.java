@@ -37,7 +37,7 @@ public class ModelHelperTest {
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
-    private static Segment createSegmentId(String streamName, int number) {
+    private static Segment createSegmentId(String streamName, long number) {
         return new Segment("scope", streamName, number);
     }
 
@@ -70,10 +70,10 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2)));
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2L)));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
-        assertEquals(2, segment.getSegmentNumber());
+        assertEquals(2L, segment.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -198,7 +198,7 @@ public class ModelHelperTest {
     public void encodeSegmentRange() {
         Controller.SegmentRange range = createSegmentRange(0.1, 0.5);
         SegmentWithRange result = ModelHelper.encode(range);
-        assertEquals(0, result.getSegment().getSegmentNumber());
+        assertEquals(0, result.getSegment().getSegmentId());
         assertEquals("testScope", result.getSegment().getScope());
         assertEquals("testStream", result.getSegment().getStreamName());
 

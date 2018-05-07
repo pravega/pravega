@@ -159,7 +159,7 @@ public class ReaderGroupStateManager {
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReinitializationRequiredException {
-        final Map<Segment, List<Integer>> segmentToPredecessor;
+        final Map<Segment, List<Long>> segmentToPredecessor;
         if (fetchSuccesors) {
             val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
             synchronized (this) {

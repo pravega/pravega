@@ -61,10 +61,9 @@ public final class ModelHelper {
      */
     public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
-        // TODO: remove getPrimaryId with #2469
         return new Segment(segment.getStreamInfo().getScope(),
                 segment.getStreamInfo().getStream(),
-                StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber()));
+                segment.getSegmentNumber());
     }
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
@@ -218,7 +217,7 @@ public final class ModelHelper {
      */
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "segment");
-        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     /**
@@ -294,19 +293,19 @@ public final class ModelHelper {
         return Controller.StreamCut.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllCut(streamCut).build();
     }
 
-    public static final Set<Integer> getSegmentsFromPositions(final List<PositionInternal> positions) {
+    public static final Set<Long> getSegmentsFromPositions(final List<PositionInternal> positions) {
         Preconditions.checkNotNull(positions, "positions");
         return positions.stream()
-            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
+            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentId))
             .collect(Collectors.toSet());
     }
     
-    public static final Map<Integer, Long> toSegmentOffsetMap(final PositionInternal position) {
+    public static final Map<Long, Long> toSegmentOffsetMap(final PositionInternal position) {
         Preconditions.checkNotNull(position, "position");
         return position.getOwnedSegmentsWithOffsets()
             .entrySet()
             .stream()
-            .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
+            .map(e -> new SimpleEntry<>(e.getKey().getSegmentId(), e.getValue()))
             .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 

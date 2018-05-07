@@ -58,11 +58,11 @@ public class BatchClientImplTest {
 
         Iterator<SegmentRange> unBoundedSegments = client.getSegments(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator();
         assertTrue(unBoundedSegments.hasNext());
-        assertEquals(0, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(0L, unBoundedSegments.next().asImpl().getSegment().getSegmentId());
         assertTrue(unBoundedSegments.hasNext());
-        assertEquals(1, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(1L, unBoundedSegments.next().asImpl().getSegment().getSegmentId());
         assertTrue(unBoundedSegments.hasNext());
-        assertEquals(2, unBoundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(2L, unBoundedSegments.next().asImpl().getSegment().getSegmentId());
         assertFalse(unBoundedSegments.hasNext());
     }
 
@@ -77,11 +77,11 @@ public class BatchClientImplTest {
 
         Iterator<SegmentRange> boundedSegments = client.getSegments(stream, getSreamCut(5L, 0, 1, 2), getSreamCut(15L, 0, 1, 2)).getIterator();
         assertTrue(boundedSegments.hasNext());
-        assertEquals(0, boundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(0L, boundedSegments.next().asImpl().getSegment().getSegmentId());
         assertTrue(boundedSegments.hasNext());
-        assertEquals(1, boundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(1L, boundedSegments.next().asImpl().getSegment().getSegmentId());
         assertTrue(boundedSegments.hasNext());
-        assertEquals(2, boundedSegments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(2L, boundedSegments.next().asImpl().getSegment().getSegmentId());
         assertFalse(boundedSegments.hasNext());
     }
 
@@ -96,11 +96,11 @@ public class BatchClientImplTest {
 
         Iterator<SegmentRange> segments = client.getSegments(stream, null, null).getIterator();
         assertTrue(segments.hasNext());
-        assertEquals(0, segments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(0L, segments.next().asImpl().getSegment().getSegmentId());
         assertTrue(segments.hasNext());
-        assertEquals(1, segments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(1L, segments.next().asImpl().getSegment().getSegmentId());
         assertTrue(segments.hasNext());
-        assertEquals(2, segments.next().asImpl().getSegment().getSegmentNumber());
+        assertEquals(2L, segments.next().asImpl().getSegment().getSegmentId());
         assertFalse(segments.hasNext());
     }
 

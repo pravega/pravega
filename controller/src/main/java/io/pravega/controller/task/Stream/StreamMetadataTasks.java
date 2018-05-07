@@ -322,12 +322,11 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         // 1. get stream cut
-        return transformStreamCut(scope, stream, streamCut, contextOpt)
-                .thenCompose(streamCutTransformed -> startTruncation(scope, stream, streamCutTransformed, context)
+        return startTruncation(scope, stream, streamCut, context)
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCutTransformed, context))
+                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn("Unable to start truncation for {}/{}", scope, stream);
@@ -337,26 +336,8 @@ public class StreamMetadataTasks extends TaskBase {
                 .exceptionally(ex -> {
                     log.warn("Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex);
-                }));
+                });
     }
-
-    // region temporary
-    private CompletableFuture<Map<Long, Long>> transformStreamCut(String scope, String stream, Map<Long, Long> streamCutOld, OperationContext contextOpt) {
-        return Futures.keysAllOfWithResults(streamCutOld.entrySet().stream().collect(Collectors.toMap(x -> resolveOldSegmentId(scope, stream, x.getKey(), contextOpt), Map.Entry::getValue)));
-    }
-
-    private CompletableFuture<List<Long>> transformSegmentList(String scope, String stream, List<Long> segments, OperationContext contextOpt) {
-        return Futures.allOfWithResults(segments.stream().map(x -> resolveOldSegmentId(scope, stream, x, contextOpt)).collect(Collectors.toList()));
-    }
-
-    public CompletableFuture<Long> resolveOldSegmentId(String scope, String stream, long segmentId, OperationContext contextOpt) {
-        if (getSecondaryId(segmentId) == 0) {
-            return streamMetadataStore.getSegment(scope, stream, segmentId, contextOpt, executor).thenApply(Segment::getSegmentId);
-        } else {
-            return CompletableFuture.completedFuture(segmentId);
-        }
-    }
-    // endregion
 
     private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -485,9 +466,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
-        // TODO: remove this transformation in #2469
-        return writeEvent(event).thenCompose(x -> transformSegmentList(scope, stream, segmentsToSeal, context)
-                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToBeSealed, newRanges, scaleTimestamp, false,
+        return writeEvent(event)
+                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
                         context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -511,7 +491,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 response.setEpoch(startScaleResponse.getActiveEpoch());
                             }
                             return response.build();
-                        })));
+                        }));
     }
 
     /**
@@ -615,16 +595,14 @@ public class StreamMetadataTasks extends TaskBase {
      * @return returns list of new segments created as part of this scale operation.
      */
     public CompletableFuture<List<Segment>> startScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
-        // TODO: remove the temporary transformation step after external clients start using new id scheme (issue #2469
-        return withRetries(() -> transformSegmentList(scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal(), context)
-                .thenCompose(segmentsToSeal -> streamMetadataStore.startScale(scaleInput.getScope(),
+        return withRetries(() -> streamMetadataStore.startScale(scaleInput.getScope(),
                         scaleInput.getStream(),
-                        segmentsToSeal,
+                        scaleInput.getSegmentsToSeal(),
                         scaleInput.getNewRanges(),
                         scaleInput.getScaleTime(),
                         runOnlyIfStarted,
                         context,
-                        executor)), executor)
+                        executor), executor)
                 .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(),
                         State.SCALING, context, executor)
                         .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scaleInput.getScope(),

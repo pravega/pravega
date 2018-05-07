@@ -24,6 +24,7 @@ import lombok.val;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingInt;
+import static java.util.stream.Collectors.summarizingLong;
 
 @Data
 @Builder
@@ -204,10 +205,11 @@ public class ReaderGroupConfig implements Serializable {
                         .forEach(s -> Preconditions.checkArgument(startPositions.get(s) <= endPositions.get(s),
                                 "Segment offset in startStreamCut should be <= segment offset in endStreamCut."));
 
+           // TODO: shivesh
            val fromSCSummary = startPositions.keySet()
-                                             .stream().collect(summarizingInt(Segment::getSegmentNumber));
+                                             .stream().collect(summarizingLong(Segment::getSegmentId));
            val toSCSummary = endPositions.keySet()
-                                         .stream().collect(summarizingInt(Segment::getSegmentNumber));
+                                         .stream().collect(summarizingLong(Segment::getSegmentId));
            Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
                    "Start stream cut must precede end stream cut.");
            Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),

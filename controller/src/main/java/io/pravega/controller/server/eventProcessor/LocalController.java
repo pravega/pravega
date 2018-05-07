@@ -139,7 +139,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
-                                                               .collect(Collectors.toMap(e -> StreamSegmentNameUtils.computeSegmentId(e.getKey().getSegmentNumber(), 0),
+                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                        Map.Entry::getValue));
         return truncateStream(scope, stream, segmentToOffsetMap);
     }
@@ -340,9 +340,8 @@ public class LocalController implements Controller {
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
-                    Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
-                    // TODO: replace primary id with segment id after client handles long segment id. #2469
-                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list.stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toList())));
+                    Map<SegmentWithRange, List<Long>> map = new HashMap<>();
+                    x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
                     return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
     }
@@ -361,12 +360,12 @@ public class LocalController implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
-                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
+                    segment.getSegmentId())).thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
-        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     @Override

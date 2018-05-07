@@ -156,7 +156,7 @@ public class AutoScaleProcessor {
                 log.info("sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -178,7 +178,7 @@ public class AutoScaleProcessor {
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
+                        segment.getSegmentId(), AutoScaleEvent.DOWN, timestamp, 0, silent);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
                         // mute only scale downs
