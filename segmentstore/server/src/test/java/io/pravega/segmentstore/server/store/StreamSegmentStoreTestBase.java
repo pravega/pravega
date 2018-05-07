@@ -120,6 +120,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
+    @Test
     public void testEndToEnd() throws Exception {
 
         // Phase 1: Create segments and add some appends.
