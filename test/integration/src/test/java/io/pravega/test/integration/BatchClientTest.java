@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -23,8 +24,11 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
@@ -53,6 +57,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -173,6 +178,38 @@ public class BatchClientTest {
         ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);
         assertEquals(1, dataAtOffset.size());
         assertEquals(DATA_OF_SIZE_30, dataAtOffset.get(0));
+
+        //Test with Stream Truncation.
+        //1. create a StreamCut after 2 events. (offset = 2 * 30 = 60)
+        StreamCut streamCut60L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 60L));
+        //2. truncate stream
+        assertTrue("truncate stream", controller.truncateStream(SCOPE, STREAM, streamCut60L).join());
+        //3. fetch Segments
+        ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        //expected segments = 1+ 3 + 2 = 6
+        assertEquals("Expected number of segments post truncation", 6, segmentsPostTruncation.size());
+        List<String> eventsPostTruncation = new ArrayList<>();
+        segmentsPostTruncation.forEach(segInfo -> {
+            @Cleanup
+            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo, serializer);
+            eventsPostTruncation.addAll(Lists.newArrayList(segmentIterator));
+        });
+        assertEquals("Event count post truncation", 7, eventsPostTruncation.size());
+
+        //Test with truncation post fetching segments from batch client.
+        //1. create a StreamCut at the end of segment 0 ( offset = 3 * 30 = 90)
+        StreamCut streamCut90L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 90L));
+        //2. truncate stream.
+        assertTrue("truncate stream", controller.truncateStream(SCOPE, STREAM, streamCut90L).join());
+        //3. use SegmentRange obtained before truncation.
+        SegmentRange s0 = segmentsPostTruncation.stream().filter(segmentRange -> segmentRange.getSegmentNumber() == 0).findFirst().get();
+        //4. Read non existent segment.
+        assertThrows(TruncatedDataException.class, () -> {
+            List<String> eventList = new ArrayList<>();
+            @Cleanup
+            SegmentIterator<String> segmentIterator = batchClient.readSegment(s0, serializer);
+            eventList.addAll(Lists.newArrayList(segmentIterator));
+        });
     }
 
     private void writeEvents(EventStreamWriter<String> writer) throws InterruptedException, java.util.concurrent.ExecutionException {
