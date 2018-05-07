@@ -27,9 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
-import static io.pravega.test.system.framework.Utils.REST_PORT;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
@@ -38,10 +36,14 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private final double cpu = 0.5;
     private final double mem = 700.0;
     private final URI zkUri;
+    private final int controllerPort;
+    private final int restPort;
 
-    public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
+    public PravegaControllerDockerService(final String serviceName, final URI zkUri, final int controllerPort, final int restPort) {
         super(serviceName);
         this.zkUri = zkUri;
+        this.controllerPort = controllerPort;
+        this.restPort = restPort;
     }
 
     @Override
@@ -64,9 +66,9 @@ public class PravegaControllerDockerService extends DockerBasedService {
         Map<String, String> stringBuilderMap = new HashMap<>();
         stringBuilderMap.put("ZK_URL", zk);
         stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", serviceName);
-        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(DOCKER_CONTROLLER_PORT));
-        stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(DOCKER_CONTROLLER_PORT));
-        stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(controllerPort));
+        stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(controllerPort));
+        stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(restPort));
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
         stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
@@ -100,8 +102,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .endpointSpec(EndpointSpec.builder()
                         .ports(Arrays.asList(PortConfig.builder()
-                                        .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
-                                PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
+                                        .publishedPort(controllerPort).targetPort(controllerPort).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
+                                PortConfig.builder().publishedPort(restPort).targetPort(restPort).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
                                 build())
                 .build();
         return spec;
