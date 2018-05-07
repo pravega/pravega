@@ -9,11 +9,9 @@
  */
 package io.pravega.shared.controller.event;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.AbstractMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
