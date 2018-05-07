@@ -18,6 +18,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
@@ -29,8 +30,10 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -155,11 +158,18 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
-        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
-        synchronized (this) {
-            latestDelegationToken = successors.getDelegationToken();
+    void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReinitializationRequiredException {
+        final Map<Segment, List<Integer>> segmentToPredecessor;
+        if (fetchSuccesors) {
+            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+            synchronized (this) {
+                latestDelegationToken = successors.getDelegationToken();
+            }
+            segmentToPredecessor = successors.getSegmentToPredecessor();
+        } else {
+            segmentToPredecessor = Collections.emptyMap();
         }
+
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
@@ -167,7 +177,7 @@ public class ReaderGroupStateManager {
             } else {
                 log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
                 reinitRequired.set(false);
-                updates.add(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
             }
         });
         if (reinitRequired.get()) {
@@ -219,6 +229,16 @@ public class ReaderGroupStateManager {
                        .max((s1, s2) -> Double.compare(hashHelper.hashToRange(s1.getScopedName()),
                                                        hashHelper.hashToRange(s2.getScopedName())))
                        .orElse(null);
+    }
+
+    /**
+     * Fetch the configured end offset for a configured segment. If end offset is not configured return Long.MAX_VALUE.
+     *
+     * @param segment Segment.
+     * @return endOffset of the segment.
+     */
+    long getEndOffsetForSegment(Segment segment) {
+        return Optional.ofNullable(sync.getState().getEndSegments().get(segment)).orElse(Long.MAX_VALUE);
     }
 
     /**
@@ -312,15 +332,15 @@ public class ReaderGroupStateManager {
         Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);
@@ -379,6 +399,7 @@ public class ReaderGroupStateManager {
             if (!s.hasOngoingCheckpoint()) {
                 CreateCheckpoint newCp = new CreateCheckpoint();
                 u.add(newCp);
+                u.add(new ClearCheckpointsBefore(newCp.getCheckpointId()));
                 log.debug("Created new checkpoint: {} currentState is: {}", newCp, s);
             }
         });

@@ -11,12 +11,13 @@ package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
+import java.io.Serializable;
 
 /**
  * This is used to represent range bounded portion of a Segment.
  */
 @Beta
-public interface SegmentRange {
+public interface SegmentRange extends Serializable {
 
     /**
      * Returns the segment number of Segment.
@@ -31,10 +32,10 @@ public interface SegmentRange {
     String getStreamName();
 
     /**
-     * Returns the scope name.
+     * Returns the scope name of the stream the segment is associated with.
      * @return The scope name.
      */
-    String getScopeName();
+    String getScope();
 
     /**
      * Returns the start offset of the segment.

@@ -26,30 +26,26 @@ import org.apache.hadoop.ipc.RemoteException;
 final class HDFSExceptionHelpers {
 
     /**
-     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions and re-throws them as such.
+     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions.
      *
      * @param segmentName Name of the stream segment on which the exception occurs.
      * @param e           The exception to be translated.
-     * @return Nothing. This method always throws.
+     * @return  The exception to be thrown.
      */
-    static <T> T throwException(String segmentName, Throwable e) throws StreamSegmentException {
+    static <T> StreamSegmentException convertException(String segmentName, Throwable e) {
         if (e instanceof RemoteException) {
             e = ((RemoteException) e).unwrapRemoteException();
         }
 
         if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            throw new StreamSegmentNotExistsException(segmentName, e);
+            return new StreamSegmentNotExistsException(segmentName, e);
+        } else if (e instanceof FileAlreadyExistsException) {
+            return new StreamSegmentExistsException(segmentName, e);
+        } else if (e instanceof AclException) {
+            return new StreamSegmentSealedException(segmentName, e);
+        } else {
+            throw Lombok.sneakyThrow(e);
         }
-
-        if (e instanceof FileAlreadyExistsException) {
-            throw new StreamSegmentExistsException(segmentName, e);
-        }
-
-        if (e instanceof AclException) {
-            throw new StreamSegmentSealedException(segmentName, e);
-        }
-
-        throw Lombok.sneakyThrow(e);
     }
 
     /**

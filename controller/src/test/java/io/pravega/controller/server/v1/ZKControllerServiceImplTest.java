@@ -93,18 +93,18 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory,  false, "");
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
-                new SealStreamTask(streamMetadataTasks, streamStore, executorService),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
@@ -122,7 +122,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     @Override
     public void tearDown() throws Exception {
         if (executorService != null) {
-            executorService.shutdown();
+            ExecutorServiceHelpers.shutdown(executorService);
         }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();

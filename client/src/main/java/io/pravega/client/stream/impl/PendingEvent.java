@@ -34,23 +34,14 @@ public class PendingEvent {
     /**
      * Callback to be invoked when the data is written.
      */
-    private final CompletableFuture<Boolean> ackFuture;
-    /**
-     * If this is not null the data should only be written if the segment is of this length before the data is added.
-     */
-    private final Long expectedOffset;
+    private final CompletableFuture<Void> ackFuture;
     
-    public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Boolean> ackFuture) {
-        this(routingKey, data, ackFuture, null);
-    }
-    
-    public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Boolean> ackFuture, Long expectedOffset) {
+    public PendingEvent(String routingKey, ByteBuffer data, CompletableFuture<Void> ackFuture) {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(ackFuture);
         Preconditions.checkArgument(data.remaining() <= MAX_WRITE_SIZE, "Write size too large: %s", data.remaining());
         this.routingKey = routingKey;
         this.data = data;
         this.ackFuture = ackFuture;
-        this.expectedOffset = expectedOffset;
     }
 }

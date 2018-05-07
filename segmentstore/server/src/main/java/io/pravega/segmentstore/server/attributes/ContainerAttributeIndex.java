@@ -1,0 +1,47 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.segmentstore.server.attributes;
+
+import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Defines a Collection of Attribute Index objects.
+ */
+public interface ContainerAttributeIndex {
+    /**
+     * Gets or creates an AttributeIndex instance and initializes it.
+     *
+     * @param streamSegmentId The Id of the Segment to create the AttributeIndex for.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the requested AttributeIndex.
+     */
+    CompletableFuture<AttributeIndex> forSegment(long streamSegmentId, Duration timeout);
+
+    /**
+     * Deletes any existing attribute data pertaining to the given Segment.
+     *
+     * @param metadata The SegmentMetadata for the Segment whose Attribute data to delete.
+     * @param timeout  Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation finished.
+     */
+    CompletableFuture<Void> delete(SegmentMetadata metadata, Duration timeout);
+
+    /**
+     * Removes all internal indices that point to the given StreamSegments from memory. This does not delete the data itself.
+     *
+     * @param segmentIds A Collection of SegmentIds for the Segments to clean up. If this is null, then all the Segment Ids
+     *                   registered in this ContainerAttributeIndex are eligible for removal.
+     */
+    void cleanup(Collection<Long> segmentIds);
+}

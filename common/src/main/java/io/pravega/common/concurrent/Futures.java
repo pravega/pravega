@@ -270,13 +270,63 @@ public final class Futures {
      * @return A new CompletableFuture that will be completed either with the result of future (if it completed normally),
      * or with the result of handler when applied to the exception of future, should future complete exceptionally.
      */
-    public static <T> CompletableFuture<? extends T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
+    public static <T> CompletableFuture<T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<T>> handler) {
         return future.handle((r, ex) -> {
             if (ex == null) {
                 return CompletableFuture.completedFuture(r);
             }
             return handler.apply(ex);
         }).thenCompose(f -> f);
+    }
+
+    /**
+     * Same as CompletableFuture.exceptionally(), except that it allows certain exceptions, as defined by the isExpected parameter.
+     * If such an exception is caught, the given exceptionValue is then returned. All other Exceptions will be re-thrown.
+     *
+     * @param future         The original CompletableFuture to attach to.
+     * @param isExpected     A Predicate that can check whether an Exception is expected or not.
+     * @param exceptionValue The value to return in case the thrown Exception if of type exceptionClass.
+     * @param <T>            The Type of the Future's result.
+     * @return A new CompletableFuture that will complete either:
+     * - With the same result as the original Future if that one completed normally
+     * - With exceptionValue if the original Future completed with an expected exception.
+     * - Exceptionally with the original Future's exception if none of the above are true.
+     */
+    public static <T> CompletableFuture<T> exceptionallyExpecting(CompletableFuture<T> future, Predicate<Throwable> isExpected, T exceptionValue) {
+        return future.exceptionally(ex -> {
+            if (isExpected.test(Exceptions.unwrap(ex))) {
+                return exceptionValue;
+            }
+            throw new CompletionException(ex);
+        });
+    }
+
+    /**
+     * Same as exceptionallyExpecting(), except that it allows executing/returning a Future as a result in case of an
+     * expected exception.
+     * If such an exception is caught, the given exceptionFutureSupplier is invoked and its result is then returned.
+     * All other Exceptions will be re-thrown.
+     *
+     * @param future                  The original CompletableFuture to attach to.
+     * @param isExpected              A Predicate that can check whether an Exception is expected or not.
+     * @param exceptionFutureSupplier A Supplier that returns a CompletableFuture which will be invoked in case the thrown
+     *                                Exception if of type exceptionClass.
+     * @param <T>                     The Type of the Future's result.
+     * @return A new CompletableFuture that will complete either:
+     * - With the same result as the original Future if that one completed normally
+     * - With exceptionValue if the original Future completed with an expected exception.
+     * - Exceptionally with the original Future's exception if none of the above are true.
+     */
+    public static <T> CompletableFuture<T> exceptionallyComposeExpecting(CompletableFuture<T> future, Predicate<Throwable> isExpected,
+                                                                         Supplier<CompletableFuture<T>> exceptionFutureSupplier) {
+        return exceptionallyCompose(future,
+                ex -> {
+                    if (isExpected.test(Exceptions.unwrap(ex))) {
+                        return exceptionFutureSupplier.get();
+                    } else {
+                        return Futures.failedFuture(ex);
+                    }
+                });
     }
 
     /**

@@ -195,7 +195,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             if (!shutdown) {
                 log.info("Shutting down ControllerNameResolver");
                 if (this.scheduledExecutor != null) {
-                    this.scheduledExecutor.shutdownNow();
+                    ExecutorServiceHelpers.shutdown(this.scheduledExecutor);
                 }
                 shutdown = true;
             }
