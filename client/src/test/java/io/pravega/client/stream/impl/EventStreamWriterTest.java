@@ -22,7 +22,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
-import io.pravega.test.common.Async;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -352,7 +352,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(bad.unacked.isEmpty());
         assertEquals(1, outputStream.unacked.size());
-        outputStream.unacked.get(0).getAckFuture().complete(true);
+        outputStream.unacked.get(0).getAckFuture().complete(null);
         txn.flush();
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
@@ -524,7 +524,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
-        Async.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             writer.flush(); // blocking on flush.
         }, () -> {
             outputStream.releaseFlush(); // trigger release with a segmentSealedException.
@@ -569,10 +569,10 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
-        Async.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             writer.flush(); // blocking on flush.
         }, () -> {
-            Async.testBlocking(() -> {
+            AssertExtensions.assertBlocks(() -> {
                 writer.writeEvent("foo");
             }, () -> {
                 outputStream.releaseFlush(); // trigger release with a segmentSealedException.
@@ -616,7 +616,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
 
-        Async.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             writer.close(); // closed invokes flush internally; this call is blocking on flush.
         }, () -> {
             outputStream.releaseFlush(); // trigger release with a segmentSealedException.

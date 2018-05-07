@@ -25,7 +25,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ReusableLatch;
-import io.pravega.test.common.Async;
+import io.pravega.test.common.AssertExtensions;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -188,14 +188,14 @@ public class SynchronizerTest {
         assertEquals(new RevisionImpl(segment, 2, 2), state1.getRevision());
 
         client.visableLength = 3;
-        Async.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             sync.fetchUpdates();
         }, () -> updates[2].latch.release());
         RevisionedImpl state2 = sync.getState();
         assertEquals(new RevisionImpl(segment, 3, 3), state2.getRevision());
 
         client.visableLength = 4;
-        Async.testBlocking(() -> {
+        AssertExtensions.assertBlocks(() -> {
             sync.fetchUpdates();
         }, () -> {
             client.visableLength = 3;

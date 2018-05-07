@@ -13,6 +13,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -32,8 +35,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
@@ -41,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -58,10 +64,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
     // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
+    private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
+    private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
+    private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds() * 10);
@@ -70,7 +80,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .include(ServiceConfig.builder()
                                   .with(ServiceConfig.CONTAINER_COUNT, 4)
-                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE))
+                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
+                                  .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE))
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
@@ -215,17 +226,35 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
                                                HashMap<String, Long> lengths, StreamSegmentStore store) {
         val segmentFutures = new ArrayList<CompletableFuture<Void>>();
+        val halfAttributeCount = ATTRIBUTE_UPDATES_PER_SEGMENT / 2;
         for (String segmentName : segmentNames) {
+            // Add half the attribute updates now.
+            for (int i = 0; i < halfAttributeCount; i++) {
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
+            }
+
+            // Add some appends.
             for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
                 byte[] appendData = getAppendData(segmentName, i);
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                segmentFutures.add(store.append(segmentName, appendData, null, TIMEOUT));
+                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+            }
+
+            // Add the rest of the attribute updates.
+            for (int i = 0; i < halfAttributeCount; i++) {
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
             }
         }
 
         return Futures.allOf(segmentFutures);
+    }
+
+    private Collection<AttributeUpdate> createAttributeUpdates() {
+        return ATTRIBUTES.stream()
+                .map(id -> new AttributeUpdate(id, AttributeUpdateType.Accumulate, 1))
+                .collect(Collectors.toList());
     }
 
     private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
@@ -346,6 +375,23 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
                 Assert.assertEquals("Unexpected value for isSealed for segment " + segmentName, expectSealed, sp.isSealed());
                 Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
+
+                // Check attributes.
+                val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
+                for (UUID attributeId : ATTRIBUTES) {
+                    Assert.assertEquals("Unexpected attribute value from getAttributes().",
+                            EXPECTED_ATTRIBUTE_VALUE, (long) allAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+
+                    if (Attributes.isCoreAttribute(attributeId)) {
+                        // Core attributes must always be available from getInfo
+                        Assert.assertEquals("Unexpected core attribute value from getInfo().",
+                                EXPECTED_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+                    } else {
+                        val extAttrValue = sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+                        Assert.assertTrue("Unexpected extended attribute value from getInfo()",
+                                extAttrValue == Attributes.NULL_ATTRIBUTE_VALUE || extAttrValue == EXPECTED_ATTRIBUTE_VALUE);
+                    }
+                }
             }
         }
     }

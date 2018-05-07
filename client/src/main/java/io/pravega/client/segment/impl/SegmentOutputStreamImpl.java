@@ -29,7 +29,6 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
-import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
@@ -345,13 +344,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 failConnection(e);
             }
         }
-        
-        @Override
-        public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
-            log.debug("Received ConditionalCheckFailed: {}", dataNotAppended);
-            long eventNumber = dataNotAppended.getEventNumber();
-            conditionalFail(eventNumber);
-        }
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
@@ -363,7 +355,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              .map(entry -> new Append(segmentName, writerId, entry.getKey(),
                                                                       Unpooled.wrappedBuffer(entry.getValue()
                                                                                                   .getData()),
-                                                                      entry.getValue().getExpectedOffset()))
+                                                                      null))
                                              .collect(Collectors.toList());
             ClientConnection connection = state.getConnection();
             if (connection == null) {
@@ -387,7 +379,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void ackUpTo(long ackLevel) {
             for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
                 if (toAck != null) {
-                    toAck.getAckFuture().complete(true);
+                    toAck.getAckFuture().complete(null);
                 }
             }
             state.releaseIfEmptyInflight();
@@ -402,14 +394,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
             checkState(inFlightBelowPreviousAckLevel == null, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
                        previousAckLevel, ackLevel, inFlightBelowPreviousAckLevel);
-        }
-
-        private void conditionalFail(long eventNumber) {
-            PendingEvent toAck = state.removeSingleInflight(eventNumber);
-            if (toAck != null) {
-                toAck.getAckFuture().complete(false);
-            }
-            state.releaseIfEmptyInflight();
         }
 
         @Override
@@ -444,8 +428,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             long eventNumber = state.addToInflight(event);
             try {
-                Append append = new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                        event.getExpectedOffset());
+                Append append = new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()), null);
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {

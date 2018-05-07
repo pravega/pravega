@@ -25,6 +25,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -150,6 +151,7 @@ public class MultiReadersEndToEndTest {
     private Collection<Integer> readAllEvents(final int numParallelReaders, ClientFactory clientFactory,
                                               final String readerGroupName, final int numSegments) {
         ConcurrentLinkedQueue<Integer> read = new ConcurrentLinkedQueue<>();
+        @Cleanup("shutdownNow")
         final ExecutorService executorService = Executors.newFixedThreadPool(
                 numParallelReaders, new ThreadFactoryBuilder().setNameFormat("testreader-pool-%d").build());
         List<Future<?>> futures = new ArrayList<>();
@@ -180,7 +182,7 @@ public class MultiReadersEndToEndTest {
 
         // Wait until all readers are done.
         futures.forEach(f -> Futures.getAndHandleExceptions(f, RuntimeException::new));
-        executorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService);
         return read;
     }
     

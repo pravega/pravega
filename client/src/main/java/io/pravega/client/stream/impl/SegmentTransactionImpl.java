@@ -30,7 +30,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")
-    private final LinkedList<CompletableFuture<Boolean>> outstanding = new LinkedList<>();
+    private final LinkedList<CompletableFuture<Void>> outstanding = new LinkedList<>();
     private final AtomicReference<Throwable> txnFailedCause = new AtomicReference<>();
 
     SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
@@ -43,7 +43,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     public void writeEvent(Type event) throws TxnFailedException {
         checkFailed();
         ByteBuffer buffer = serializer.serialize(event);
-        CompletableFuture<Boolean> ack = new CompletableFuture<Boolean>();
+        CompletableFuture<Void> ack = new CompletableFuture<Void>();
         PendingEvent pendingEvent = new PendingEvent(null, buffer, ack);
         synchronized (lock) {
             out.write(pendingEvent);
@@ -62,7 +62,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 
     @GuardedBy("lock")
     private void removeCompleted() {
-        for (Iterator<CompletableFuture<Boolean>> iter = outstanding.iterator(); iter.hasNext();) {
+        for (Iterator<CompletableFuture<Void>> iter = outstanding.iterator(); iter.hasNext();) {
             val ack = iter.next();
             if (ack.isDone()) {
                 Throwable exception = Futures.getException(ack);

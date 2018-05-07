@@ -22,6 +22,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -107,7 +108,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
-        CompletableFuture<Boolean> ackFuture = new CompletableFuture<Boolean>();
+        CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
             synchronized (writeSealLock) {                
                 SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
@@ -119,22 +120,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
             }
         }
-
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        ackFuture.whenComplete((bool, exception) -> {
-            if (exception != null) {
-                result.completeExceptionally(exception);
-            } else {
-                if (bool) {
-                    result.complete(null);
-                } else {
-                    result.completeExceptionally(new IllegalStateException("Condition failed for non-conditional " +
-                            "write!?"));
-                }
-            }
-        });
-
-        return result;
+        return ackFuture;
     }
     
     @GuardedBy("writeSealLock")
@@ -387,7 +373,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 }
             }
         }
-        retransmitPool.shutdown();
+        ExecutorServiceHelpers.shutdown(retransmitPool);
     }
 
     @Override
