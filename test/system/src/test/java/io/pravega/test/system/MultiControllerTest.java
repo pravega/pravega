@@ -58,7 +58,7 @@ public class MultiControllerTest {
             zkService.start(true);
         }
         List<URI> zkUris = zkService.getServiceDetails();
-        log.info("zookeeper service details: {}", zkUris);
+        log.info("Zookeeper service details: {}", zkUris);
 
         Service controllerService = Utils.createPravegaControllerService("multicontroller", zkUris.get(0));
         if (!controllerService.isRunning()) {
@@ -67,7 +67,6 @@ public class MultiControllerTest {
         Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
 
         List<URI> conUris = controllerService.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
 
     }
@@ -85,7 +84,6 @@ public class MultiControllerTest {
         }
 
         List<URI> conUris = controllerService1.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
@@ -112,7 +110,7 @@ public class MultiControllerTest {
     }
 
     @After
-    public void tearDown() throws ExecutionException {
+    public void tearDown() {
         ExecutorServiceHelpers.shutdown(EXECUTOR_SERVICE);
         if (controllerService1 != null && controllerService1.isRunning()) {
             controllerService1.stop();
@@ -179,6 +177,7 @@ public class MultiControllerTest {
             Assert.assertTrue(createScopeWithSimpleRetry(
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerClientDiscover.get()).get());
         }
+
     }
 
     CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, ControllerImpl controllerClient) {
