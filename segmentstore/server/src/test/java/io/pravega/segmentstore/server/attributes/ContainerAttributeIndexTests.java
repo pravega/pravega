@@ -398,7 +398,19 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
         val context = new TestContext(NO_SNAPSHOT_CONFIG);
         populateSegments(context);
 
-        // Create one index before main segment deletion and make sure the attribute file is there.
+        // Verify we cannot create new indices for deleted segments.
+        val deletedSegment = context.containerMetadata.mapStreamSegmentId(SEGMENT_NAME + "deleted", SEGMENT_ID + 1);
+        deletedSegment.setLength(0);
+        deletedSegment.setStorageLength(0);
+        deletedSegment.markDeleted();
+        AssertExtensions.assertThrows(
+                "forSegment() worked on deleted segment.",
+                () -> context.index.forSegment(deletedSegment.getId(), TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+        Assert.assertFalse("Attribute segment was created in Storage for a deleted Segment..",
+                context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(deletedSegment.getName()), TIMEOUT).join());
+
+        // Create one index before main segment deletion.
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
@@ -420,14 +432,6 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
                 "seal() worked on deleted segment.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
-
-        // Verify we cannot create new indices.
-        AssertExtensions.assertThrows(
-                "forSegment() worked on deleted segment.",
-                () -> context.index.forSegment(SEGMENT_ID, TIMEOUT),
-                ex -> ex instanceof StreamSegmentNotExistsException);
-        Assert.assertFalse("Attribute segment exists in Storage after a deletion was detected.",
-                context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT).join());
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config, boolean expectSnapshots) {
