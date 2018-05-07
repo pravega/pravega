@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.controller.event;
 
-import com.google.common.base.Preconditions;
 import lombok.Data;
 
 import java.util.AbstractMap;
@@ -28,10 +27,6 @@ public class ScaleOpEvent implements ControllerEvent {
     private final long scaleTime;
 
     public ScaleOpEvent(String scope, String stream, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRange, boolean runOnlyIfStarted, long scaleTime) {
-        Preconditions.checkNotNull(segmentsToSeal);
-        Preconditions.checkArgument(!segmentsToSeal.isEmpty());
-        Preconditions.checkNotNull(newRange);
-        Preconditions.checkArgument(!newRange.isEmpty());
         this.scope = scope;
         this.stream = stream;
         this.segmentsToSeal = segmentsToSeal;
