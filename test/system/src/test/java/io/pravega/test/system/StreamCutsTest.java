@@ -12,7 +12,6 @@ package io.pravega.test.system;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -139,7 +138,8 @@ public class StreamCutsTest {
      * This test verifies the correct operation of readers using StreamCuts. Concretely, the test creates two streams
      * with different number of segments and it writes some events (TOTAL_EVENTS) in them. Afterwards, the test creates
      * a list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
-     * readers can be initialized at these StreamCut intervals and that only CUT_SIZE events are read.
+     * readers can be initialized at these StreamCut intervals and that only CUT_SIZE events are read. Finally, this
+     * test also verifies that an existing reader group can be reset to the starting position in the stream.
      */
     @Test
     public void streamCutsTest() {
@@ -159,12 +159,13 @@ public class StreamCutsTest {
         log.debug("Finished writing events to streams.");
 
         // Second, get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
-        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup, executor);
+        List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup);
         log.debug("Finished creating StreamCuts.");
 
         // Third, ensure that reader groups can correctly read slices from different Streams.
-        int groupId = 0;
+        int readEvents, groupId = 0;
         Map<Stream, StreamCut> startingPoint = null;
+        final int parallelSegments = PARALLELISM_ONE + PARALLELISM_TWO;
         ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
                                                                                     .stream(Stream.of(SCOPE, STREAM_ONE))
                                                                                     .stream(Stream.of(SCOPE, STREAM_TWO));
@@ -177,16 +178,21 @@ public class StreamCutsTest {
             // Create a new reader group per stream cut slice and read in parallel only events within the cut.
             final String readerGroupId = READER_GROUP + String.valueOf(groupId);
             readerGroupManager.createReaderGroup(readerGroupId, configBuilder.build());
-            final int parallelSegments = PARALLELISM_ONE + PARALLELISM_TWO;
-            int readEvents = readDummyEvents(clientFactory, readerGroupId, parallelSegments).stream()
-                                                                                            .map(CompletableFuture::join)
-                                                                                            .reduce((a, b) -> a + b).get();
+            readEvents = readDummyEvents(clientFactory, readerGroupId, parallelSegments).stream()
+                                                                                        .map(CompletableFuture::join)
+                                                                                        .reduce((a, b) -> a + b).get();
             log.debug("Read events by group {}: {}.", readerGroupId, readEvents);
             assertEquals("Expected events read: ", CUT_SIZE, readEvents);
             startingPoint = endingPoint;
             groupId++;
         }
 
+        // Test that a reader group can be reset correctly.
+        readerGroup.resetReaderGroup(configBuilder.startingStreamCuts(streamSlices.get(0)).build());
+        log.debug("Resetting existing reader group {} to stream cut {}.", READER_GROUP, streamSlices.get(0));
+        readEvents = readDummyEvents(clientFactory, readerGroup.getGroupName(),
+                parallelSegments).stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get();
+        assertEquals("Expected read events: ", TOTAL_EVENTS - CUT_SIZE, readEvents);
         log.debug("All events correctly read from StreamCut slices on multiple Streams. StreamCuts test passed.");
     }
 
@@ -198,8 +204,7 @@ public class StreamCutsTest {
 
     // Start utils region
 
-    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup,
-                                                                                     ScheduledExecutorService executor) {
+    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup) {
         @Cleanup
         EventStreamReader<T> reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -219,11 +224,10 @@ public class StreamCutsTest {
                 // Get a StreamCut each defined number of events.
                 if (validEvents % CUT_SIZE == 0 && validEvents > 0) {
                     reader.close();
-                    log.debug("Starting checkpoint {}.", "checkpoint" + String.valueOf(validEvents));
-                    Checkpoint cp = readerGroup.initiateCheckpoint("checkpoint" + String.valueOf(validEvents), executor).join();
                     log.debug("Adding a StreamCut positioned at event {}.", validEvents);
-                    streamCuts.add( cp.asImpl().getPositions());
-                    reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(), ReaderConfig.builder().build());
+                    streamCuts.add(readerGroup.getStreamCuts());
+                    reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
+                            ReaderConfig.builder().build());
                 }
             } while (validEvents < TOTAL_EVENTS);
 
