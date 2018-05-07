@@ -26,8 +26,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-
+import static io.pravega.test.system.framework.Utils.ALTERNATIVE_CONTROLLER_PORT;
+import static io.pravega.test.system.framework.Utils.ALTERNATIVE_REST_PORT;
+import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
+import static io.pravega.test.system.framework.Utils.REST_PORT;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
@@ -36,14 +39,17 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private final double cpu = 0.5;
     private final double mem = 700.0;
     private final URI zkUri;
-    private final int controllerPort;
-    private final int restPort;
+    private int controllerPort = DOCKER_CONTROLLER_PORT;
+    private int restPort = REST_PORT;
 
-    public PravegaControllerDockerService(final String serviceName, final URI zkUri, final int controllerPort, final int restPort) {
+    public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
         super(serviceName);
         this.zkUri = zkUri;
-        this.controllerPort = controllerPort;
-        this.restPort = restPort;
+        if (!serviceName.equals("controller")) {
+            this.controllerPort = ALTERNATIVE_CONTROLLER_PORT;
+            this.restPort = ALTERNATIVE_REST_PORT;
+        }
+
     }
 
     @Override

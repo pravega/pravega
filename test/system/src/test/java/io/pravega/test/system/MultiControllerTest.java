@@ -44,8 +44,6 @@ import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
-    private static final int CONTROLLER_PORT = 9093;
-    private static final int REST_PORT = 9094;
     private Service controllerService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
@@ -60,7 +58,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("Zookeeper service details: {}", zkUris);
 
-        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller", CONTROLLER_PORT, REST_PORT);
+        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -78,7 +76,7 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller", CONTROLLER_PORT, REST_PORT);
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -86,7 +84,7 @@ public class MultiControllerTest {
         List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() == CONTROLLER_PORT
+        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() ==  Utils.ALTERNATIVE_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
