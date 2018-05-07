@@ -72,7 +72,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(120);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds() * 10);
 
@@ -120,7 +120,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test(timeout = 300000)
     public void testEndToEnd() throws Exception {
 
         // Phase 1: Create segments and add some appends.
