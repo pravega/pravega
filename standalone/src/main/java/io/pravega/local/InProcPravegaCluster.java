@@ -11,7 +11,6 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.common.util.ConfigBuilder;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -243,28 +242,24 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
-        ConfigBuilder<ServiceConfig> serviceConfigBuilder = ServiceConfig.builder()
-                                                       .with(ServiceConfig.CONTAINER_COUNT, containerCount)
-                                                       .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
-                                                       .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
-                                                       .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
-                                                       .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
-                                                       .with(ServiceConfig.ENABLE_TLS, this.enableTls)
-                                                       .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
-                                                               ServiceConfig.DataLogType.INMEMORY :
-                                                               ServiceConfig.DataLogType.BOOKKEEPER)
-                                                       .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                                               ServiceConfig.StorageType.INMEMORY :
-                                                               ServiceConfig.StorageType.FILESYSTEM);
-        if (this.enableTls) {
-            serviceConfigBuilder = serviceConfigBuilder.with(ServiceConfig.KEY_FILE, this.keyFile)
-                    .with(ServiceConfig.CERT_FILE, this.certFile);
-        }
-
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
-                .include(serviceConfigBuilder)
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.CONTAINER_COUNT, containerCount)
+                        .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
+                        .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                        .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
+                        .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
+                        .with(ServiceConfig.ENABLE_TLS, this.enableTls)
+                        .with(ServiceConfig.KEY_FILE, this.keyFile == null ? "" : this.keyFile)
+                        .with(ServiceConfig.CERT_FILE, this.certFile == null ? "" : this.certFile)
+                        .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
+                                ServiceConfig.DataLogType.INMEMORY :
+                                ServiceConfig.DataLogType.BOOKKEEPER)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
+                                ServiceConfig.StorageType.INMEMORY :
+                                ServiceConfig.StorageType.FILESYSTEM))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
