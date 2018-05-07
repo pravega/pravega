@@ -101,7 +101,8 @@ public class AutoScaleTask {
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                 segment.getKeyStart() + (delta * (i + 1))));
                     }
-                    // add the last entry such that is key end matches original segments key end. This is because of doubles preceision
+                    // add the last entry such that is key end matches original segments key end.
+                    // This is because of doubles precision which may mean `start + n * ((end - start) / n)` may not equal `end`.
                     simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * (numOfSplits -1),
                             segment.getKeyEnd()));
 
