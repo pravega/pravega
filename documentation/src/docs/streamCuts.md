@@ -9,33 +9,38 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: StreamCuts
 
-This section describes about StreamCuts and how it can be used with streaming clients and batch clients.
-Pre-requisites: You should be familiar with Pravega Concepts (see Pravega Concepts).
+This section describes about `StreamCut`s and how it can be used with streaming clients and batch clients.
+Pre-requisites: You should be familiar with Pravega Concepts (see http://pravega.io/docs/latest/pravega-concepts/).
 
 ## Definition
 
-StreamCut represents a consistent position in the stream. It essentially contains a set of segment
-and offset pairs for a single stream which represents the complete keyspace. The offset always points to
-the event boundary and hence there will be no offset pointing to an incomplete event.
+As you may already know, a Pravega stream is formed by one or multiple parallel segments for storing/reading events.
+A Pravega stream is elastic, which means that the number of parallel segments may change along time to accommodate
+fluctuating workloads. That said, a `StreamCut` represents a consistent position in the stream. It essentially
+contains a set of segmentand offset pairs for a single stream which represents the complete keyspace at a given
+point in time. The offset always points to the event boundary and hence there will be no offset pointing to
+an incomplete event.
 
-Given that data can be continuously added to a stream, the streamcut representing the tail of the
-stream(with the newest event) is an ever changing one. Similarly the stream cut representing the
-head of the stream(with the oldest event) is an ever changing one as the stream retention policy
+Given that data can be continuously added to a stream, the `StreamCut` representing the tail of the
+stream (with the newest event) is an ever changing one. Similarly the `StreamCut` representing the
+head of the stream (with the oldest event) is an ever changing one as the stream retention policy
 could truncate the stream. ```StreamCut.UNBOUNDED``` is used to represent such a position in the stream and
 the user can use it to specify this ever changing stream position (both head and tail of the stream).
 
-It should be noted that streamcuts obtained using the streaming client and batch client can be used
+It should be noted that `StreamCut`s obtained using the streaming client and batch client can be used
 interchangeably.
 
 ## StreamCut with Streaming clients.
 
-StreamCut(s) can be obtained from a Reader group using the following api.
-```io.pravega.client.stream.ReaderGroup.getStreamCuts ```. This api returns a ```Map<Stream, StreamCut>``` which
-contains a StreamCut for every stream managed by the ReaderGroup.
+A ReaderGroup is a named collection of Readers that together, in parallel, read Events from a given Stream. Every
+Reader is always associated with a ReaderGroup. `StreamCut`(s) can be obtained from a ReaderGroup using the
+following api ```io.pravega.client.stream.ReaderGroup.getStreamCuts ```. This api returns a
+```Map<Stream, StreamCut>``` which represents the last known position of the Readers for all the streams managed by
+the ReaderGroup.
 
-A StreamCut can be used to configure a ReaderGroup to enable bounded processing of a Stream. The start
-and/or end StreamCut of a Stream can be passed as part of the ReaderGroup configuration. The below example
-shows the different ways to use StreamCuts as part of the reader group configuration.
+A `StreamCut` can be used to configure a ReaderGroup to enable bounded processing of a Stream. The start
+and/or end `StreamCut` of a Stream can be passed as part of the ReaderGroup configuration. The below example
+shows the different ways to use `StreamCut`s as part of the ReaderGroup configuration.
 
 ```java
 /*
@@ -49,13 +54,11 @@ shows the different ways to use StreamCuts as part of the reader group configura
  *   - Stream "s4" from the current head of the stream upto the tail of the stream.
  */
 ReaderGroupConfig.builder()
-                .disableAutomaticCheckpoints()
                 .stream("scope/s1", startStreamCut1, endStreamCut1)
                 .stream("scope/s2", startStreamCut2)
-		        .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
+                .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
                 .stream("scope/s4")
                 .build();
-
 ```
 
 The below API can be used to reset an existing ReaderGroup with a new ReaderGroup configuration instead creating a
@@ -68,7 +71,7 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 ```
 ## StreamCut with BatchClient.
 
-StreamCut representing the current head and current tail of a stream can be obtained using below BatchClient API.
+`StreamCut` representing the current head and current tail of a stream can be obtained using below BatchClient API.
 ```
 /*
  * The API io.pravega.client.batch.BatchClient.getStreamInfo(Stream stream) fetches the StreamCut representing the
