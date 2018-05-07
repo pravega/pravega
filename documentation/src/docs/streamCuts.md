@@ -17,7 +17,7 @@ Pre-requisites: You should be familiar with Pravega Concepts (see http://pravega
 As you may already know, a Pravega stream is formed by one or multiple parallel segments for storing/reading events.
 A Pravega stream is elastic, which means that the number of parallel segments may change along time to accommodate
 fluctuating workloads. That said, a `StreamCut` represents a consistent position in the stream. It essentially
-contains a set of segmentand offset pairs for a single stream which represents the complete keyspace at a given
+contains a set of segment and offset pairs for a single stream which represents the complete keyspace at a given
 point in time. The offset always points to the event boundary and hence there will be no offset pointing to
 an incomplete event.
 
@@ -75,8 +75,8 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 ```
 /*
  * The API io.pravega.client.batch.BatchClient.getStreamInfo(Stream stream) fetches the StreamCut representing the
- * current head and tail of the stream. StreamInfo.getHeadStreamCut() and StreamInfo.getTailStreamCut() can be used to
- * fetch the streamCuts.
+ * current head and tail of the stream. StreamInfo.getHeadStreamCut() and StreamInfo.getTailStreamCut() can be
+ * used to fetch the StreamCuts.
  */
 CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
