@@ -9,11 +9,11 @@
  */
 package io.pravega.test.common;
 
-import org.junit.After;
-import org.junit.Before;
-
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import org.junit.After;
+import org.junit.Before;
 
 /**
  * Base class for a Unit Test class that makes extensive use of Thread Pools.
@@ -30,8 +30,9 @@ public abstract class ThreadPooledTestSuite {
     }
 
     @After
-    public void after() {
-        this.executorService.shutdown();
+    public void after() throws InterruptedException {
+        this.executorService.shutdownNow();
+        this.executorService.awaitTermination(5, TimeUnit.SECONDS);
     }
 
     /**

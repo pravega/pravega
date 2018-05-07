@@ -10,7 +10,6 @@
 package io.pravega.test.common;
 
 import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Random;
@@ -48,4 +47,5 @@ public class TestUtils {
         throw new IllegalStateException(
                 String.format("Could not assign port in range %d - %d", BASE_PORT, MAX_PORT_COUNT + BASE_PORT));
     }
+
 }

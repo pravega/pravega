@@ -77,6 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Cleanup;
 import lombok.val;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -114,7 +115,6 @@ public class ControllerImplTest {
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
     private NettyServerBuilder serverBuilder;
-    private Credentials creds;
 
     @Before
     public void setup() throws IOException {
@@ -688,7 +688,6 @@ public class ControllerImplTest {
         if (testSecure) {
          serverBuilder = serverBuilder.useTransportSecurity(new File("../config/cert.pem"),
                  new File("../config/key.pem"));
-         creds = new DefaultCredentials("1111_aaaa", "admin");
         }
         testGRPCServer = serverBuilder
                 .build()
@@ -705,7 +704,7 @@ public class ControllerImplTest {
 
     @After
     public void tearDown() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
         testGRPCServer.shutdownNow();
     }
 
@@ -720,6 +719,7 @@ public class ControllerImplTest {
         } else {
             builder = builder.usePlaintext(true);
         }
+        @Cleanup
         final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
                                                                         .trustStore("../config/cert.pem")
@@ -755,6 +755,7 @@ public class ControllerImplTest {
         } else {
             builder = builder.usePlaintext(true);
         }
+        @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
                                                                         .trustStore("../config/cert.pem")
@@ -774,6 +775,7 @@ public class ControllerImplTest {
     public void testRetries() throws IOException, ExecutionException, InterruptedException {
 
         // Verify retries exhausted error after multiple attempts.
+        @Cleanup
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
@@ -799,6 +801,7 @@ public class ControllerImplTest {
 
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
+        @Cleanup
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
@@ -1201,7 +1204,7 @@ public class ControllerImplTest {
             });
         }
         createCount.acquire();
-        executorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
     }
 
@@ -1233,7 +1236,7 @@ public class ControllerImplTest {
             });
         }
         createCount.acquire();
-        executorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
     }
     

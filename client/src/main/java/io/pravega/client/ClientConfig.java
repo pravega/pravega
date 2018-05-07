@@ -12,6 +12,8 @@ package io.pravega.client;
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
+
+import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
@@ -20,16 +22,21 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class contains configuration that is passed on to Pravega client.
  * Please note that this is an experimental object and the contents and their interpretation may change
  * in future.
  */
+@Slf4j
 @Data
 @Beta
 @Builder(toBuilder = true)
-public class ClientConfig {
+public class ClientConfig implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
         This is used if the controller endpoints are static and can be directly accessed.
@@ -73,6 +80,9 @@ public class ClientConfig {
                 controllerURI = URI.create("tcp://localhost");
             }
             extractCredentials();
+            if (credentials == null) {
+                log.warn("The credentials are not specified or could not be extracted.");
+            }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
 
@@ -107,8 +117,7 @@ public class ClientConfig {
                                                    .stream()
                                                    .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
                                                    .collect(Collectors.toMap(entry ->
-                                                                   entry.getKey().toString().replace("_", "."),
-                                                           value -> (String) value.getValue()));
+                                                                   entry.getKey().toString(), value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
             } else {
@@ -120,7 +129,8 @@ public class ClientConfig {
             Map<String, String> retVal = env.entrySet()
                                             .stream()
                                             .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
-                                            .collect(Collectors.toMap(entry -> (String) entry.getKey(), value -> (String) value.getValue()));
+                                            .collect(Collectors.toMap(entry -> (String) entry.getKey().toString().replace("_", "."),
+                                                    value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
             } else {

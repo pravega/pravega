@@ -10,9 +10,15 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import lombok.EqualsAndHashCode;
+
 import java.util.Map;
 
+@EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
+    
+    private static final long serialVersionUID = 1L;
+
     private final ImmutableMap<String, String> credsMap;
 
     public DefaultCredentials(String password, String userName) {

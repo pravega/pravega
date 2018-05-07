@@ -15,6 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
@@ -49,6 +51,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
+    @Override
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -61,6 +64,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         super.setup();
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -114,6 +118,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
                 (r, e, s) -> false);
         zkClient2.start();
 
+        @Cleanup("shutdownNow")
         ScheduledExecutorService executor2 = Executors.newScheduledThreadPool(10);
         String hostId = UUID.randomUUID().toString();
 
@@ -148,6 +153,6 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         zkServer2.close();
         streamMetadataTasks2.close();
         connectionFactory.close();
-        executor2.shutdown();
+        ExecutorServiceHelpers.shutdown(executor2);
     }
 }

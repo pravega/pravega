@@ -190,6 +190,7 @@ public class ControllerImplLBTest {
         testRPCServer3.shutdownNow();
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
+        @Cleanup
         final ControllerImpl client = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder().controllerURI(URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2)).build())
                 .retryAttempts(1).build(), executor);

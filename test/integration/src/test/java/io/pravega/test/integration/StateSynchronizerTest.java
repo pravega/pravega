@@ -69,6 +69,7 @@ public class StateSynchronizerTest {
 
     @Data
     private static class TestUpdate implements Update<TestState>, InitialUpdate<TestState>, Serializable {
+        private static final long serialVersionUID = 1L;
         private final String value;
 
         @Override

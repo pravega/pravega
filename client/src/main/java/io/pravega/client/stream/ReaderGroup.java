@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
  * calling {@link #readerOffline(String, Position)}
  */
-public interface ReaderGroup extends ReaderGroupNotificationListener {
+public interface ReaderGroup extends ReaderGroupNotificationListener, AutoCloseable {
 
     /**
      * Returns metrics for this reader group.
@@ -90,8 +90,9 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * Reset a reader group with the provided {@link ReaderGroupConfig}.
      *
      * <p>- The stream(s) that are part of the reader group
-     * can be specified using {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String)} and
-     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut)}.</p>
+     * can be specified using {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String)},
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut)} and
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut, StreamCut)}.</p>
      * <p>- To reset a reader group to a given checkpoint use
      * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromCheckpoint(Checkpoint)} api.</p>
      * <p>- To reset a reader group to a given StreamCut use
@@ -142,4 +143,10 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * @return Map of streams that this group is reading from to the corresponding cuts.
      */
     Map<Stream, StreamCut> getStreamCuts();
+    
+    /**
+     * Closes the reader group, freeing any resources associated with it.
+     */
+    @Override
+    public void close();
 }

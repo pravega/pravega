@@ -15,6 +15,7 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.test.common.AssertExtensions;
 import java.util.UUID;
+import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -28,12 +29,13 @@ public class SegmentTransactionTest {
     public void testFlush() throws TxnFailedException, SegmentSealedException {
         UUID uuid = UUID.randomUUID();
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
+        @Cleanup
         SegmentTransactionImpl<String> txn = new SegmentTransactionImpl<>(uuid, outputStream, new JavaSerializer<String>());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 PendingEvent event = (PendingEvent) invocation.getArgument(0);
-                event.getAckFuture().complete(true);
+                event.getAckFuture().complete(null);
                 return null;
             }
         }).when(outputStream).write(Mockito.any(PendingEvent.class));

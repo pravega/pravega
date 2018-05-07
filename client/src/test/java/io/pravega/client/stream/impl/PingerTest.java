@@ -9,11 +9,16 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,11 +26,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
-
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Stream;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,8 +65,8 @@ public class PingerTest {
     }
 
     @After
-    public void tearDown() throws Exception {
-        executor.shutdownNow();
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test
@@ -88,7 +88,7 @@ public class PingerTest {
         final EventWriterConfig smallTxnLeaseTime = EventWriterConfig.builder()
                                                                      .transactionTimeoutTime(SECONDS.toMillis(10))
                                                                      .build();
-
+        @Cleanup
         Pinger pinger = new Pinger(smallTxnLeaseTime, stream, controller, executor);
         pinger.startPing(txnID);
 

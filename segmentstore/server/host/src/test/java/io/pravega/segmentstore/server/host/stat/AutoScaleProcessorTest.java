@@ -16,39 +16,30 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class AutoScaleProcessorTest {
+public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "scope";
     private static final String STREAM1 = "stream1";
     private static final String STREAM2 = "stream2";
     private static final String STREAM3 = "stream3";
     private static final String STREAM4 = "stream4";
-    ScheduledExecutorService maintenanceExecutor;
     private boolean authEnabled = false;
 
-    @Before
-    public void setup() {
-        maintenanceExecutor = Executors.newSingleThreadScheduledExecutor();
-    }
-
-    @After
-    public void teardown() {
-        maintenanceExecutor.shutdown();
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
     }
 
     @Test (timeout = 10000)
@@ -94,7 +85,7 @@ public class AutoScaleProcessorTest {
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                maintenanceExecutor);
+                executorService());
 
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         String streamSegmentName2 = Segment.getScopedName(SCOPE, STREAM2, 0);
@@ -149,7 +140,7 @@ public class AutoScaleProcessorTest {
                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                 .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                 .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                maintenanceExecutor);
+                executorService());
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,7 +30,7 @@ public abstract class OperationTestsBase<T extends Operation> {
      */
     @Test
     public void testSerialization() throws Exception {
-        Random random = new Random();
+        Random random = RandomFactory.create();
         T baseOp = createOperation(random);
 
         // Verify we cannot serialize without a valid Sequence Number.

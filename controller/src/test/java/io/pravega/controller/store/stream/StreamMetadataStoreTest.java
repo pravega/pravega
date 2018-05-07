@@ -14,6 +14,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.retention.BucketChangeListener;
@@ -86,7 +87,7 @@ public abstract class StreamMetadataStoreTest {
 
     @After
     public void tearDown() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test
@@ -440,6 +441,7 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> scale3SealedSegments = Arrays.asList(4, 5, 6);
         long scaleTs3 = System.currentTimeMillis();
 
+        @SuppressWarnings("unchecked")
         PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);
 
@@ -485,6 +487,7 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> segmentsToSeal = Arrays.asList(0, 1);
         long scaleTs = System.currentTimeMillis();
 
+        @SuppressWarnings("unchecked")
         PersistentStreamBase<Integer> streamObj = (PersistentStreamBase<Integer>) ((AbstractStreamMetadataStore) store)
                 .getStream(scope, stream, null);
         PersistentStreamBase<Integer> streamObjSpied = spy(streamObj);
@@ -518,11 +521,14 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> segmentsToSeal2 = Arrays.asList(0);
         long scaleTs2 = System.currentTimeMillis();
 
-        streamObjSpied.getHistoryTable()
-                .thenCompose(historyTable -> streamObjSpied.getSegmentTable()
+        streamObjSpied.getHistoryIndex()
+            .thenCompose(historyIndex -> streamObjSpied.getHistoryTable()
+                .thenCompose(historyTable -> streamObjSpied.getSegmentIndex()
+                    .thenCompose(segmentIndex -> streamObjSpied.getSegmentTable()
                         .thenCompose(segmentTable -> streamObjSpied.createEpochTransitionNode(
-                                TableHelper.computeEpochTransition(historyTable.getData(), segmentTable.getData(),
-                                        segmentsToSeal2, Arrays.asList(segment2p), scaleTs2).toByteArray())))
+                                TableHelper.computeEpochTransition(historyIndex.getData(), historyTable.getData(),
+                                        segmentIndex.getData(), segmentTable.getData(), segmentsToSeal2,
+                                        Arrays.asList(segment2p), scaleTs2).toByteArray())))))
                 .thenCompose(x -> store.setState(scope, stream, State.SCALING, null, executor))
                 .thenCompose(x -> store.scaleCreateNewSegments(scope, stream, null, executor))
                 .thenCompose(x -> store.scaleNewSegmentsCreated(scope, stream, null, executor))

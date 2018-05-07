@@ -14,11 +14,11 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
@@ -30,14 +30,17 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -61,6 +64,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
  * successor to that segment.
  */
+@Slf4j
 public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
@@ -98,17 +102,13 @@ public class ReaderGroupStateManager {
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
-    static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
-                                      ReaderGroupConfig config, Map<Segment, Long> segments) {
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments));
-    }
-
     /**
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader(long initialAllocationDelay) {
         boolean alreadyAdded = sync.updateState((state, updates) -> {
             if (state.getSegments(readerId) == null) {
+                log.debug("Adding reader {} to reader grop. CurrentState is: {}", readerId, state);
                 updates.add(new AddReader(readerId));
                 return false;
             } else {
@@ -141,6 +141,7 @@ public class ReaderGroupStateManager {
             if (segments == null) {
                 return;
             }
+            log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
             if (lastPosition != null && !lastPosition.asImpl().getOwnedSegments().containsAll(segments)) {
                 throw new IllegalArgumentException(
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
@@ -157,18 +158,26 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
-        val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
-        synchronized (this) {
-            latestDelegationToken = successors.getDelegationToken();
+    void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReinitializationRequiredException {
+        final Map<Segment, List<Integer>> segmentToPredecessor;
+        if (fetchSuccesors) {
+            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+            synchronized (this) {
+                latestDelegationToken = successors.getDelegationToken();
+            }
+            segmentToPredecessor = successors.getSegmentToPredecessor();
+        } else {
+            segmentToPredecessor = Collections.emptyMap();
         }
+
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
             } else {
+                log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
                 reinitRequired.set(false);
-                updates.add(new SegmentCompleted(readerId, segmentCompleted, successors.getSegmentToPredecessor()));
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
             }
         });
         if (reinitRequired.get()) {
@@ -220,6 +229,16 @@ public class ReaderGroupStateManager {
                        .max((s1, s2) -> Double.compare(hashHelper.hashToRange(s1.getScopedName()),
                                                        hashHelper.hashToRange(s2.getScopedName())))
                        .orElse(null);
+    }
+
+    /**
+     * Fetch the configured end offset for a configured segment. If end offset is not configured return Long.MAX_VALUE.
+     *
+     * @param segment Segment.
+     * @return endOffset of the segment.
+     */
+    long getEndOffsetForSegment(Segment segment) {
+        return Optional.ofNullable(sync.getState().getEndSegments().get(segment)).orElse(Long.MAX_VALUE);
     }
 
     /**
@@ -279,6 +298,7 @@ public class ReaderGroupStateManager {
     private void compactIfNeeded() {
         //Make sure it has been a while, and compaction are staggered.
         if (sync.bytesWrittenSinceCompaction() > MIN_BYTES_BETWEEN_COMPACTIONS && Math.random() < COMPACTION_PROBABILITY) {
+            log.debug("Compacting reader group state {}", sync.getState());
             sync.compact(s -> new ReaderGroupState.CompactReaderGroupState(s));
         }
     }
@@ -312,15 +332,15 @@ public class ReaderGroupStateManager {
         Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return Collections.EMPTY_MAP;
+                return Collections.<Segment, Long>emptyMap();
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return Collections.EMPTY_MAP;
+                return Collections.<Segment, Long>emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return Collections.EMPTY_MAP;
+                return Collections.<Segment, Long>emptyMap();
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);
@@ -377,7 +397,10 @@ public class ReaderGroupStateManager {
         }
         sync.updateState((s, u) -> {
             if (!s.hasOngoingCheckpoint()) {
-                u.add(new CreateCheckpoint());
+                CreateCheckpoint newCp = new CreateCheckpoint();
+                u.add(newCp);
+                u.add(new ClearCheckpointsBefore(newCp.getCheckpointId()));
+                log.debug("Created new checkpoint: {} currentState is: {}", newCp, s);
             }
         });
         checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));

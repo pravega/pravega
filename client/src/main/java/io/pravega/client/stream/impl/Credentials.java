@@ -9,12 +9,15 @@
  */
 package io.pravega.client.stream.impl;
 
+import java.io.Serializable;
 import java.util.Map;
 
 /**
  * This interface represents the credentials passed to Pravega for authentication and authorizing the access.
+ *
+ * All implementations must support Java serialization.
  */
-public interface Credentials {
+public interface Credentials extends Serializable {
     /**
      * Returns the authentication type.
      * Pravega can support multiple authentication types in a single deployment.

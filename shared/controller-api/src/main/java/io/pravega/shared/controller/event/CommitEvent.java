@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 @Data
 @AllArgsConstructor
 public class CommitEvent implements ControllerEvent {
+    private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
     private final int epoch;
