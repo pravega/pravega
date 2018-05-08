@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -1251,7 +1252,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return Futures.exceptionallyExpecting(
                 future,
                 ex -> (ex instanceof StreamSegmentSealedException && this.metadata.isSealedInStorage())
-                        || (ex instanceof StreamSegmentNotExistsException && (this.metadata.isMerged() || this.metadata.isDeleted())),
+                        || ((ex instanceof StreamSegmentNotExistsException || ex instanceof StreamSegmentMergedException)
+                        && (this.metadata.isMerged() || this.metadata.isDeleted())),
                 null);
     }
 
