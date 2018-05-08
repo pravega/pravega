@@ -29,6 +29,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -174,6 +176,7 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
+        @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                         .controllerURI(controllerURI)
