@@ -20,7 +20,15 @@ import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -34,6 +42,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -272,9 +281,8 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @RequiredArgsConstructor
-    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
-
+    @Builder
+    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState> {
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         private final Map<Segment, Long> endSegments;
@@ -283,6 +291,44 @@ public class ReaderGroupState implements Revisioned {
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, revision, config, segments, endSegments);
         }
+        
+        private static class ReaderGroupStateInitBuilder implements ObjectBuilder<ReaderGroupStateInit> {
+        }
+        
+        static class EventPointerSerializer extends VersionedSerializer.WithBuilder<ReaderGroupStateInit, ReaderGroupStateInitBuilder> {
+            @Override
+            protected ReaderGroupStateInitBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
+                builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                ElementDeserializer<Segment> keyDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                builder.segments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readCompactLong));
+                builder.endSegments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readCompactLong));
+            }
+
+            private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
+                ByteBuffer bytes = state.config.toBytes();
+                revisionDataOutput.writeArray(bytes.array(), bytes.arrayOffset(), bytes.remaining());
+                ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+                revisionDataOutput.writeMap(state.segments, keySerializer,
+                                            (out, offset) -> out.writeCompactLong(offset));
+                revisionDataOutput.writeMap(state.endSegments, keySerializer,
+                                            (out, offset) -> out.writeCompactLong(offset));
+            }
+        }
+        
     }
     
     static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState>, Serializable {

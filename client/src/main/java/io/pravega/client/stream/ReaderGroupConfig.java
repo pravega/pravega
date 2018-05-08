@@ -11,15 +11,25 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.val;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -30,6 +40,7 @@ import static java.util.stream.Collectors.summarizingInt;
 public class ReaderGroupConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
     private final long groupRefreshTimeMillis;
     @Getter
     private final long automaticCheckpointIntervalMillis;
@@ -37,7 +48,7 @@ public class ReaderGroupConfig implements Serializable {
     private final Map<Stream, StreamCut> startingStreamCuts;
     private final Map<Stream, StreamCut> endingStreamCuts;
 
-   public static class ReaderGroupConfigBuilder {
+   public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 120000; //default value
 
@@ -163,6 +174,7 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
+       @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
                    "Stream names that the reader group can read from cannot be empty");
@@ -221,5 +233,52 @@ public class ReaderGroupConfig implements Serializable {
                }
            });
        }
-   }
+    }
+
+    private static class ReaderGroupConfigSerializer
+            extends VersionedSerializer.WithBuilder<ReaderGroupConfig, ReaderGroupConfigBuilder> {
+        @Override
+        protected ReaderGroupConfigBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
+            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
+            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
+            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
+            ElementDeserializer<StreamCut> valueDeserializer = StreamCutImpl.SERIALIZER::deserialize;
+            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.endingStreamCuts(revisionDataInput.readMap(in -> Stream.of(in.readUTF()), valueDeserializer));
+        }
+
+        private void write00(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> StreamCutImpl.SERIALIZER.serialize(out, cut.asImpl());
+            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static ReaderGroupConfig fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
 }

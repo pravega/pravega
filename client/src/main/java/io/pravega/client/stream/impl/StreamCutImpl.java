@@ -38,7 +38,7 @@ import lombok.SneakyThrows;
 @EqualsAndHashCode(callSuper = false)
 public class StreamCutImpl extends StreamCutInternal {
 
-    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
+    public static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
 
     private final Stream stream;
 
