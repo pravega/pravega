@@ -502,33 +502,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        // Seal and Merge can execute concurrently, as long as they are invoked in the correct order (first Seal, then Merge).
-        // If Seal fails for whatever reason (except already sealed), then Merge will also fail because the txn is not sealed,
-        // but invoking them in parallel does provide benefits in terms of reduced latency.
+        // TODO: change SegmentStore to auto-seal before merging (https://github.com/pravega/pravega/issues/2558)
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        final CompletableFuture<Void> seal = segmentStore
-                .sealStreamSegment(transactionName, TIMEOUT)
-                .exceptionally(this::ignoreSegmentSealed)
-                .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
+        segmentStore.sealStreamSegment(transactionName, TIMEOUT)
+                    .exceptionally(this::ignoreSegmentSealed)
+                    .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
                         .exceptionally(e -> {
                             // gobble up any errors from stat recording so we do not affect rest of the flow.
-                            log.error("exception while computing stats while merging txn {}", e);
+                            log.error("exception while computing stats while merging txn {}", commitTx, e);
                             return null;
-                        }));
-        final CompletableFuture<Void> merge = segmentStore
-                .mergeStreamSegment(commitTx.getSegment(), transactionName, TIMEOUT)
-                .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())));
-
-        CompletableFuture.allOf(seal, merge)
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                        log.info("Stream segment is already merged '{}'.", transactionName);
-                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
-                        return null;
-                    } else {
-                        return handleException(requestId, transactionName, "Commit transaction", e);
-                    }
-                });
+                        }))
+                    .thenCompose(v -> segmentStore.mergeStreamSegment(commitTx.getSegment(), transactionName, TIMEOUT))
+                    .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())))
+                    .exceptionally(e -> {
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
+                            log.info("Stream segment is already merged '{}'.", transactionName);
+                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                            return null;
+                        } else {
+                            return handleException(requestId, transactionName, "Commit transaction", e);
+                        }
+                    });
     }
 
     @Override
