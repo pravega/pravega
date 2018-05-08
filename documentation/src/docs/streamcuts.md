@@ -9,8 +9,8 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: StreamCuts
 
-This section describes about `StreamCut`s and how it can be used with streaming clients and batch clients.
-Pre-requisites: You should be familiar with Pravega Concepts (see http://pravega.io/docs/latest/pravega-concepts/).
+This section describes about `StreamCut`s and how they can be used with streaming clients and batch clients.
+Pre-requisites: You should be familiar with [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/).
 
 ## Definition
 
@@ -30,7 +30,7 @@ the user can use it to specify this ever changing stream position (both head and
 It should be noted that `StreamCut`s obtained using the streaming client and batch client can be used
 interchangeably.
 
-## StreamCut with Streaming clients.
+## StreamCut with Streaming clients
 
 A ReaderGroup is a named collection of Readers that together, in parallel, read Events from a given Stream. Every
 Reader is always associated with a ReaderGroup. `StreamCut`(s) can be obtained from a ReaderGroup using the
@@ -69,7 +69,7 @@ ReaderGroup.
  */
 io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 ```
-## StreamCut with BatchClient.
+## StreamCut with BatchClient
 
 `StreamCut` representing the current head and current tail of a stream can be obtained using below BatchClient API.
 ```
