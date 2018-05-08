@@ -85,7 +85,7 @@ public class PositionImpl extends PositionInternal {
     private static class PositionBuilder implements ObjectBuilder<PositionImpl> {
     }
     
-    public static class EventPointerSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
+    private static class EventPointerSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
         @Override
         protected PositionBuilder newBuilder() {
             return builder();
