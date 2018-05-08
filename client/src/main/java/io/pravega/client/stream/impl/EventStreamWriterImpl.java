@@ -335,8 +335,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             flushInternal();
         }
     }
-    
-    private void flushInternal() {        
+
+    private void flushInternal() {
         boolean success = false;
         while (!success) {
             success = true;
@@ -351,7 +351,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
         }
     }
-    
+
     @Override
     public void close() {
         if (closed.getAndSet(true)) {
