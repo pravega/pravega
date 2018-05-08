@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.test.common.TestingServerStarter;
@@ -58,7 +59,7 @@ public class StreamTest {
     public void tearDown() throws Exception {
         cli.close();
         zkTestServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 10000)

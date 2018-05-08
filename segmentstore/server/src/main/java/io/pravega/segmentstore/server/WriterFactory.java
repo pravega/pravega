@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.storage.Storage;
 
 /**
@@ -21,8 +22,11 @@ public interface WriterFactory {
      * @param containerMetadata Metadata for the container that this Writer will be for.
      * @param operationLog      The OperationLog to attach to.
      * @param readIndex         The ReadIndex to attach to (to provide feedback for mergers).
+     * @param attributeIndex    The ContainerAttributeIndex to attach to (to durably store Extended Attributes for
+     *                          processed appends).
      * @param storage           The Storage adapter to use.
      * @return An instance of a class that implements the Writer interface.
      */
-    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Storage storage);
+    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
+                        ContainerAttributeIndex attributeIndex, Storage storage);
 }

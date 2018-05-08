@@ -22,6 +22,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -391,7 +392,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         } finally {
             writeFlushLock.readLock().unlock();
         }
-        retransmitPool.shutdown();
+        ExecutorServiceHelpers.shutdown(retransmitPool);
     }
 
     @Override

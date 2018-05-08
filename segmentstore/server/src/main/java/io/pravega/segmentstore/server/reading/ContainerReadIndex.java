@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -227,18 +226,17 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void cleanup(Iterator<Long> segmentIds) {
+    public void cleanup(Collection<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         List<Long> removed = new ArrayList<>();
         List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
             if (segmentIds == null) {
-                segmentIds = new ArrayList<>(this.readIndices.keySet()).iterator();
+                segmentIds = new ArrayList<>(this.readIndices.keySet());
             }
 
-            while (segmentIds.hasNext()) {
-                long streamSegmentId = segmentIds.next();
+            for (long streamSegmentId : segmentIds) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted() || !segmentMetadata.isActive()) {

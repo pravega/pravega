@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -64,8 +65,8 @@ public class PingerTest {
     }
 
     @After
-    public void tearDown() throws Exception {
-        executor.shutdownNow();
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test
