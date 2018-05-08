@@ -9,12 +9,22 @@
  */
 package io.pravega.local;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.test.common.AssertExtensions;
+import java.net.URI;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Unit tests for secure standalone cluster.
  */
+@Slf4j
 public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override
@@ -22,6 +32,31 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
         this.authEnabled = true;
         this.tlsEnabled = true;
         super.setUp();
+    }
+
+    /**
+     * Create the test stream.
+     *
+     * @throws Exception on any errors.
+     */
+    @Test
+    public void failingCreateTestStream()
+            throws Exception {
+        Assert.assertNotNull("Pravega not initialized", localPravega);
+        String scope = "Scope";
+        String streamName = "Stream";
+        int numSegments = 10;
+
+        ClientConfig clientConfig = ClientConfig.builder()
+                                                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                                .validateHostName(false)
+                                                .build();
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+
+        AssertExtensions.assertThrows(RuntimeException.class,
+                () -> streamManager.createScope(scope));
     }
 
     @After

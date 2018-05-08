@@ -150,7 +150,7 @@ public final class Exceptions {
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
         return arg;
     }
-    
+
     /**
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException
      * if the Map arg argument has a size of zero.
