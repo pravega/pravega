@@ -486,14 +486,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug("Creating transaction {} ", createTransaction);
 
         long requestId = createTransaction.getRequestId();
-        segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT)
+        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(createTransaction.getSegment(), createTransaction.getTxid());
+        segmentStore.createStreamSegment(txnName, attributes, TIMEOUT)
                 .thenAccept(txName -> connection.send(new TransactionCreated(requestId, createTransaction.getSegment(), createTransaction.getTxid())))
                 .exceptionally(e -> handleException(requestId, createTransaction.getSegment(), "Create transaction", e));
     }
 
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         long requestId = commitTx.getRequestId();
         log.debug("Committing transaction {} ", commitTx);
 
@@ -505,7 +505,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         // Seal and Merge can execute concurrently, as long as they are invoked in the correct order (first Seal, then Merge).
         // If Seal fails for whatever reason (except already sealed), then Merge will also fail because the txn is not sealed,
         // but invoking them in parallel does provide benefits in terms of reduced latency.
-        val seal = segmentStore
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
+        final CompletableFuture<Void> seal = segmentStore
                 .sealStreamSegment(transactionName, TIMEOUT)
                 .exceptionally(this::ignoreSegmentSealed)
                 .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
@@ -514,8 +515,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             log.error("exception while computing stats while merging txn {}", e);
                             return null;
                         }));
-        val merge = segmentStore
-                .mergeTransaction(transactionName, TIMEOUT)
+        final CompletableFuture<Void> merge = segmentStore
+                .mergeStreamSegment(commitTx.getSegment(), transactionName, TIMEOUT)
                 .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())));
 
         CompletableFuture.allOf(seal, merge)

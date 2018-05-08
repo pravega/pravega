@@ -791,7 +791,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
         ensureInitializedAndNotClosed();
-        assert !this.metadata.isTransaction() : "Cannot merge into a Transaction StreamSegment.";
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeIfNecessary");
 
         StorageOperation first = this.operations.getFirst();
@@ -864,7 +863,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.
                     StorageOperation processedOperation = this.operations.removeFirst();
                     assert processedOperation != null && processedOperation instanceof MergeTransactionOperation : "First outstanding operation was not a MergeTransactionOperation";
-                    assert ((MergeTransactionOperation) processedOperation).getTransactionSegmentId() == transactionMetadata.getId() : "First outstanding operation was a MergeTransactionOperation for the wrong Transaction id.";
+                    MergeTransactionOperation mop = (MergeTransactionOperation) processedOperation;
+                    assert mop.getTransactionSegmentId() == transactionMetadata.getId() : "First outstanding operation was a MergeTransactionOperation for the wrong Transaction id.";
                     int newCount = this.mergeTransactionCount.decrementAndGet();
                     assert newCount >= 0 : "Negative value for mergeTransactionCount";
 
@@ -882,7 +882,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     updateMetadata(segmentProperties);
-                    updateMetadataForTransactionPostMerger(transactionMetadata);
+                    updateMetadataForTransactionPostMerger(transactionMetadata, mop.getStreamSegmentId());
                 }, this.executor)
                 .thenComposeAsync(v -> this.dataSource.deleteAllAttributes(transactionMetadata, timer.getRemaining()), this.executor)
                 .thenApply(v -> {
@@ -942,9 +942,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that will indicate when the operation completed.
      */
     private CompletableFuture<Void> sealAttributes(Duration timeout) {
-        return this.metadata.isTransaction()
-                ? CompletableFuture.completedFuture(null) // Transactions' indices will be deleted anyway.
-                : handleAttributeException(this.dataSource.sealAttributes(this.metadata.getId(), timeout));
+        return handleAttributeException(this.dataSource.sealAttributes(this.metadata.getId(), timeout));
     }
 
     //endregion
@@ -1197,7 +1195,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     int newCount = this.mergeTransactionCount.decrementAndGet();
                     assert newCount >= 0 : "Negative value for mergeTransactionCount";
 
-                    updateMetadataForTransactionPostMerger(transactionMeta);
+                    updateMetadataForTransactionPostMerger(transactionMeta, processedOperation.getStreamSegmentId());
                     return new FlushResult().withMergedBytes(op.getLength());
                 }, this.executor);
     }
@@ -1273,10 +1271,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // All exceptions thrown from here are RuntimeExceptions (as opposed from DataCorruptionExceptions); they are indicative
         // of bad code (objects got routed to wrong SegmentAggregators) and not data corruption.
         if (operation instanceof MergeTransactionOperation) {
-            Preconditions.checkArgument(
-                    !this.metadata.isTransaction(),
-                    "MergeTransactionOperations can only be added to the parent StreamSegment; received '%s'.", operation);
-
             // Since we are a stand-alone StreamSegment; verify that the Operation has us as a parent (target).
             Preconditions.checkArgument(
                     operation.getStreamSegmentId() == this.metadata.getId(),
@@ -1439,12 +1433,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     @SneakyThrows(StreamSegmentNotExistsException.class)
-    private void updateMetadataForTransactionPostMerger(UpdateableSegmentMetadata transactionMetadata) {
+    private void updateMetadataForTransactionPostMerger(UpdateableSegmentMetadata transactionMetadata, long targetSegmentId) {
         // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is marked as deleted.
         transactionMetadata.markDeleted();
 
         // Complete the merger (in the ReadIndex and whatever other listeners we might have).
-        this.dataSource.completeMerge(transactionMetadata.getParentId(), transactionMetadata.getId());
+        this.dataSource.completeMerge(targetSegmentId, transactionMetadata.getId());
     }
 
     /**

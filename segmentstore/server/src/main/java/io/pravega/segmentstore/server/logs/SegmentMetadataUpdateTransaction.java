@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
@@ -47,8 +48,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     private final Map<UUID, Long> attributeValues;
     @Getter
     private final long id;
-    @Getter
-    private final long parentId;
     @Getter
     private final String name;
     @Getter
@@ -84,7 +83,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     SegmentMetadataUpdateTransaction(SegmentMetadata baseMetadata, boolean recoveryMode) {
         this.recoveryMode = recoveryMode;
         this.id = baseMetadata.getId();
-        this.parentId = baseMetadata.getParentId();
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
         this.startOffset = baseMetadata.getStartOffset();
@@ -308,15 +306,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param operation The Operation.
      * @throws BadOffsetException              If the operation's Offset is not between the current StartOffset and current
      *                                         EndOffset (SegmentLength - 1).
-     * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the
-     *                                         StreamSegment or Container (ex: Segment is a Transaction).
      */
-    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException, MetadataUpdateException {
+    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException {
         ensureSegmentId(operation);
-        if (isTransaction()) {
-            throw new MetadataUpdateException(this.containerId, "Cannot truncate a Transaction Segment: " + operation);
-        }
-
         if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() > this.length) {
             String msg = String.format("Truncation Offset must be at least %d and at most %d, given %d.",
                                        this.startOffset, this.length, operation.getStreamSegmentOffset());
@@ -344,11 +336,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new StreamSegmentSealedException(this.name);
         }
 
-        if (isTransaction()) {
-            throw new MetadataUpdateException(this.containerId,
-                    "Cannot merge a StreamSegment into a Transaction Segment: " + operation.toString());
-        }
-
         // Check that the Transaction has been properly sealed and has its length set.
         if (!transactionMetadata.isSealed()) {
             throw new StreamSegmentNotSealedException(this.name);
@@ -373,8 +360,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException        If the operation is for a different stream segment.
      * @throws StreamSegmentNotSealedException If the Segment is not sealed.
      * @throws StreamSegmentMergedException    If the Segment is already merged.
+     * @throws StreamSegmentTruncatedException If the Segment is truncated.
      */
-    void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws StreamSegmentNotSealedException, StreamSegmentMergedException {
+    void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws StreamSegmentNotSealedException,
+            StreamSegmentMergedException, StreamSegmentTruncatedException {
         Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
                 "operation", "Invalid Operation Transaction Segment Id.");
 
@@ -384,6 +373,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.sealed) {
             throw new StreamSegmentNotSealedException(this.name);
+        }
+
+        if (this.startOffset > 0) {
+            throw new StreamSegmentTruncatedException(this.name, "Segment cannot be merged because it is truncated.", null);
         }
 
         if (!this.recoveryMode) {

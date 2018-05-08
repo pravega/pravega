@@ -132,7 +132,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
-                UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
+                UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId);
                 transactionMetadata.setLength(0);
                 transactionMetadata.setStorageLength(0);
             }
@@ -153,9 +153,10 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 long transactionId = mapper
-                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), null, Duration.ZERO)
-                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
+                        .createNewStreamSegment(transactionName, null, Duration.ZERO)
+                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(transactionName, Duration.ZERO)).join();
                 result.put(transactionId, streamSegmentId);
             }
         }

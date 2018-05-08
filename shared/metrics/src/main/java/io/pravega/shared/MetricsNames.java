@@ -46,8 +46,7 @@ public final class MetricsNames {
     public static final String CONTAINER_GET_INFO_COUNT = "container_get_info_count";
     public static final String CONTAINER_CREATE_SEGMENT_COUNT = "container_create_segment_count";
     public static final String CONTAINER_DELETE_SEGMENT_COUNT = "container_delete_segment_count";
-    public static final String CONTAINER_CREATE_TXN_COUNT = "container_create_txn_count";
-    public static final String CONTAINER_MERGE_TXN_COUNT = "container_merge_txn_count";
+    public static final String CONTAINER_MERGE_SEGMENT_COUNT = "container_merge_segment_count";
     public static final String CONTAINER_SEAL_COUNT = "container_seal_count";
     public static final String CONTAINER_TRUNCATE_COUNT = "container_truncate_count";
     public static final String PROCESS_OPERATIONS_LATENCY = "process_operations_latency";

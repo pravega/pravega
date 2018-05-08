@@ -51,9 +51,7 @@ import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
  * Base class for any test that verifies the functionality of a StreamSegmentStore class.
@@ -73,8 +71,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds() * 10);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -264,7 +260,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
                 mergeFutures.add(store.sealStreamSegment(transactionName, TIMEOUT)
-                        .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
+                        .thenCompose(v -> store.mergeStreamSegment(parentName, transactionName, TIMEOUT)));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
@@ -311,31 +307,20 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
-        // Create the Transaction.
-        ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
+        // Create the Transactions and collect their names.
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
         for (String segmentName : segmentNames) {
+            val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
+            transactions.put(segmentName, txnList);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                futures.add(store.createTransaction(segmentName, UUID.randomUUID(), null, TIMEOUT));
+                String txnName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                txnList.add(txnName);
+                futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
             }
         }
 
         Futures.allOf(futures).join();
-
-        // Get the Transaction names and index them by parent segment names.
-        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
-        for (CompletableFuture<String> transactionFuture : futures) {
-            String transactionName = transactionFuture.join();
-            String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-            assert parentName != null : "Transaction created with invalid parent";
-            ArrayList<String> segmentTransactions = transactions.get(parentName);
-            if (segmentTransactions == null) {
-                segmentTransactions = new ArrayList<>();
-                transactions.put(parentName, segmentTransactions);
-            }
-
-            segmentTransactions.add(transactionName);
-        }
-
         return transactions;
     }
 

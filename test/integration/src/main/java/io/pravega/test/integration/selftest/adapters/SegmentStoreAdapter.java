@@ -33,6 +33,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -188,16 +189,19 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureRunning();
-        return this.streamSegmentStore.createTransaction(parentStream, UUID.randomUUID(), null, timeout);
+        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, UUID.randomUUID());
+        return this.streamSegmentStore.createStreamSegment(txnName, null, timeout)
+                                      .thenApply(v -> txnName);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
+        String parentSegment = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName); // TODO: fix this API
         return this.streamSegmentStore
                 .sealStreamSegment(transactionName, timer.getRemaining())
-                .thenCompose(v -> this.streamSegmentStore.mergeTransaction(transactionName, timer.getRemaining()));
+                .thenCompose(v -> this.streamSegmentStore.mergeStreamSegment(parentSegment, transactionName, timer.getRemaining()));
     }
 
     @Override
