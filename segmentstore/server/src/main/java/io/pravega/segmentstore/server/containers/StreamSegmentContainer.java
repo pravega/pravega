@@ -41,7 +41,7 @@ import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -436,7 +436,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .getOrAssignStreamSegmentId(targetStreamSegment, timer.getRemaining(),
                         targetSegmentId -> this.segmentMapper.getOrAssignStreamSegmentId(sourceStreamSegment, timer.getRemaining(),
                                 sourceSegmentId -> {
-                                    Operation op = new MergeTransactionOperation(targetSegmentId, sourceSegmentId);
+                                    Operation op = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
                                     return this.durableLog.add(op, timer.getRemaining());
                                 }))
                 .thenComposeAsync(v -> this.stateStore.remove(sourceStreamSegment, timer.getRemaining()), this.executor);

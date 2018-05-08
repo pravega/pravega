@@ -26,7 +26,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
@@ -312,11 +312,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
             } else if (operation instanceof StreamSegmentSealOperation) {
                 segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
-            } else if (operation instanceof MergeTransactionOperation) {
-                MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
-                transactionMetadata.preProcessAsTransactionSegment(mbe);
-                segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
+            } else if (operation instanceof MergeSegmentOperation) {
+                MergeSegmentOperation mbe = (MergeSegmentOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getSourceSegmentId());
+                transactionMetadata.preProcessAsSourceSegment(mbe);
+                segmentMetadata.preProcessAsTargetSegment(mbe, transactionMetadata);
             } else if (operation instanceof UpdateAttributesOperation) {
                 segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {
@@ -354,12 +354,12 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
             } else if (operation instanceof StreamSegmentSealOperation) {
                 segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
-            } else if (operation instanceof MergeTransactionOperation) {
-                MergeTransactionOperation mto = (MergeTransactionOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getTransactionSegmentId());
-                transactionMetadata.acceptAsTransactionSegment(mto);
+            } else if (operation instanceof MergeSegmentOperation) {
+                MergeSegmentOperation mto = (MergeSegmentOperation) operation;
+                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getSourceSegmentId());
+                transactionMetadata.acceptAsSourceSegment(mto);
                 transactionMetadata.setLastUsed(operation.getSequenceNumber());
-                segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
+                segmentMetadata.acceptAsTargetSegment(mto, transactionMetadata);
             } else if (operation instanceof UpdateAttributesOperation) {
                 segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {

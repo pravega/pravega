@@ -16,7 +16,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -56,7 +56,7 @@ public class OperationMetadataUpdaterTests {
      * * StreamSegmentMapOperation
      * * StreamSegmentAppendOperation
      * * StreamSegmentSealOperation
-     * * MergeTransactionOperation
+     * * MergeSegmentOperation
      */
     @Test
     public void testSingleTransaction() throws Exception {
@@ -291,7 +291,7 @@ public class OperationMetadataUpdaterTests {
     private void mergeTransaction(long transactionId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata)
             throws Exception {
         long parentSegmentId = updater.getStreamSegmentMetadata(transactionId).getAttributes().get(PARENT_ID);
-        val op = new MergeTransactionOperation(parentSegmentId, transactionId);
+        val op = new MergeSegmentOperation(parentSegmentId, transactionId);
         process(op, updater);
         if (referenceMetadata != null) {
             referenceMetadata.getStreamSegmentMetadata(transactionId).markMerged();

@@ -375,7 +375,7 @@ public class RollingStorage implements SyncStorage {
         if (shouldConcatNatively(source, target)) {
             // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
             // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
-            // having a lot of very small SegmentChunks around if the application has a lot of small transactions.
+            // having a lot of very small SegmentChunks around if we end up doing a lot of concatenations.
             log.debug("Concat '{}' into '{}' using native method.", source, target);
             SegmentChunk lastTarget = target.lastChunk();
             if (lastTarget == null || lastTarget.isSealed()) {
