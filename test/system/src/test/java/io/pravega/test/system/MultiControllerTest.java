@@ -29,8 +29,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -39,7 +37,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 
 @Slf4j
@@ -47,6 +44,7 @@ import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
+    private ControllerImpl controllerClient = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
@@ -144,11 +142,13 @@ public class MultiControllerTest {
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
                 createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
                 throwable -> throwable instanceof RetriesExhaustedException);
+        controllerClient.close();
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
                     createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
                     throwable -> throwable instanceof RetriesExhaustedException);
+            controllerClient.close();
         }
 
         log.info("multiControllerTest execution completed");
@@ -157,6 +157,7 @@ public class MultiControllerTest {
     private void withControllerURIDirect() throws ExecutionException, InterruptedException {
         Assert.assertTrue(createScopeWithSimpleRetry(
                 "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
+        controllerClient.close();
     }
 
     private void withControllerURIDiscover() throws ExecutionException, InterruptedException {
@@ -164,6 +165,7 @@ public class MultiControllerTest {
             Assert.assertTrue(createScopeWithSimpleRetry(
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()).get());
         }
+        controllerClient.close();
 
     }
 
@@ -176,8 +178,7 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        @Cleanup
-        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
+        controllerClient = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                         .controllerURI(controllerURI)
                         .build())
