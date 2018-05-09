@@ -139,7 +139,8 @@ public class OffsetTruncationTest {
     /**
      * This test verifies that truncation works specifying an offset that applies to multiple segments. To this end,
      * the test first writes a set of events on a Stream (with multiple segments) and truncates it at a specified offset
-     * (truncatedEvents). The tests asserts that readers only read the remaining events that have not been truncated.
+     * (truncatedEvents). The tests asserts that readers first get a TruncatedDataException as they are attempting to
+     * read a truncated segment, and then they only read the remaining events that have not been truncated.
      */
     @Test
     public void offsetTruncationTest() {

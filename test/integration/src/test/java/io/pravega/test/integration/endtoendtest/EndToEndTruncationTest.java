@@ -170,8 +170,8 @@ public class EndToEndTruncationTest {
 
     /**
      * This test checks the basic operation of truncation with offsets. The test first writes two events on a Stream
-     * (1 segment) and then truncates the Stream after the first event. We verify that a new reader reds only the second
-     * event written, as the first has been truncated.
+     * (1 segment) and then truncates the Stream after the first event. We verify that a new reader first gets a
+     * TruncatedDataException and then it reads only the second event written, as the first has been truncated.
      *
      * @throws ReinitializationRequiredException If a checkpoint or reset is performed on the reader group.
      */
@@ -226,7 +226,8 @@ public class EndToEndTruncationTest {
     /**
      * This test verifies that truncation works specifying an offset that applies to multiple segments. To this end,
      * the test first writes a set of events on a Stream (with multiple segments) and truncates it at a specified offset
-     * (truncatedEvents). The tests asserts that readers (only) read the remaining events that have not been truncated.
+     * (truncatedEvents). The tests asserts that readers gets a TruncatedDataException after truncation and then it
+     * (only) reads the remaining events that have not been truncated.
      */
     @Test(timeout = 30000)
     public void testParallelSegmentOffsetTruncation() {
