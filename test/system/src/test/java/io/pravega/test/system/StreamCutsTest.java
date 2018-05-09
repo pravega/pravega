@@ -19,7 +19,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -204,6 +204,7 @@ public class StreamCutsTest {
 
     // Start utils region
 
+    @SneakyThrows
     private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup) {
         @Cleanup
         EventStreamReader<T> reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
@@ -230,9 +231,8 @@ public class StreamCutsTest {
                             ReaderConfig.builder().build());
                 }
             } while (validEvents < TOTAL_EVENTS);
-
-        } catch (ReinitializationRequiredException | RuntimeException e) {
-            log.error("Exception while reading event: ", e);
+        } finally {
+            reader.close();
         }
 
         return streamCuts;
@@ -257,6 +257,7 @@ public class StreamCutsTest {
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r))).collect(toList());
     }
 
+    @SneakyThrows
     private <T> int readEvents(EventStreamReader<T> reader) {
         EventRead<T> event;
         int validEvents = 0;
@@ -267,10 +268,8 @@ public class StreamCutsTest {
                     validEvents++;
                 }
             } while (event.getEvent() != null || event.isCheckpoint());
-
+        } finally {
             reader.close();
-        } catch (ReinitializationRequiredException | RuntimeException e) {
-            log.error("Exception while reading event: ", e);
         }
 
         return validEvents;
