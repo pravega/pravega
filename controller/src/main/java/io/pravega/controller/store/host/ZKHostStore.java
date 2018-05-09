@@ -10,7 +10,6 @@
 package io.pravega.controller.store.host;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.util.ZKUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -26,8 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
-
-import static io.pravega.controller.store.stream.Segment.*;
 
 /**
  * Zookeeper based implementation of the HostControllerStore.
@@ -124,7 +121,7 @@ public class ZKHostStore implements HostControllerStore {
     
     @Override
     public Host getHostForSegment(String scope, String stream, long segmentId) {
-        String qualifiedName = StreamSegmentNameUtils.getScopedName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
+        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

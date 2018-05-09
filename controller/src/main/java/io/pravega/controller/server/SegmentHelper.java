@@ -11,7 +11,6 @@ package io.pravega.controller.server;
 
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
@@ -111,7 +110,7 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), controllerToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -171,7 +170,7 @@ public class SegmentHelper {
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), offset, delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), offset, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -230,7 +229,7 @@ public class SegmentHelper {
         };
 
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -299,7 +298,7 @@ public class SegmentHelper {
         };
 
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -357,7 +356,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -424,7 +423,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -486,7 +485,7 @@ public class SegmentHelper {
         };
 
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedPrimaryName(scope, stream, segmentId), txId, delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -537,7 +536,7 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), extracted.getLeft(), extracted.getRight(), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -585,7 +584,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                StreamSegmentNameUtils.getScopedName(scope, stream, segmentId), delegationToken);
+                StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }

@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
@@ -86,10 +85,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 executorService());
 
-        String streamSegmentName1 = StreamSegmentNameUtils.getScopedName(SCOPE, STREAM1, 0L);
-        String streamSegmentName2 = StreamSegmentNameUtils.getScopedName(SCOPE, STREAM2, 0L);
-        String streamSegmentName3 = StreamSegmentNameUtils.getScopedName(SCOPE, STREAM3, 0L);
-        String streamSegmentName4 = StreamSegmentNameUtils.getScopedName(SCOPE, STREAM4, 0L);
+        String streamSegmentName1 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
+        String streamSegmentName2 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM2, 0L);
+        String streamSegmentName3 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM3, 0L);
+        String streamSegmentName4 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM4, 0L);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
         monitor.notifyCreated(streamSegmentName2, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
         monitor.notifyCreated(streamSegmentName3, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
@@ -140,7 +139,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                 .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 executorService());
-        String streamSegmentName1 = StreamSegmentNameUtils.getScopedName(SCOPE, STREAM1, 0L);
+        String streamSegmentName1 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
         assertTrue(Futures.await(scaleDownFuture));

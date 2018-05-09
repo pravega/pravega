@@ -9,10 +9,10 @@
  */
 package io.pravega.client.segment.impl;
 
-import com.google.common.base.Strings;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import java.io.Serializable;
+import java.util.List;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
@@ -47,7 +47,7 @@ public class Segment implements Serializable, Comparable<Segment> {
     }
 
     public String getScopedName() {
-        return StreamSegmentNameUtils.getScopedName(scope, streamName, segmentId);
+        return StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
 
     public Stream getStream() {
@@ -61,14 +61,22 @@ public class Segment implements Serializable, Comparable<Segment> {
      * @return Segment name.
      */
     public static Segment fromScopedName(String qualifiedName) {
-        if (qua)
-        String[] tokens = qualifiedName.split("[/#]");
-        if (tokens.length == 3) {
-            return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));
-        } else if (tokens.length >= 4) {
-            return new Segment(tokens[0], tokens[1], StreamSegmentNameUtils.computeSegmentId(Integer.parseInt(tokens[2]), Integer.parseInt(tokens[2])));
+        if (StreamSegmentNameUtils.isTransactionSegment(qualifiedName)) {
+            String originalSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(qualifiedName);
+            return fromScopedName(originalSegmentName);
         } else {
-            throw new IllegalArgumentException("Not a valid segment name");
+            List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
+            if (tokens.size() == 2) {
+                String scope = null;
+                String streamName = tokens.get(0);
+                long segmentId = Long.parseLong(tokens.get(1));
+                return new Segment(scope, streamName, segmentId);
+            } else {
+                String scope = tokens.get(0);
+                String streamName = tokens.get(1);
+                long segmentId = Long.parseLong(tokens.get(2));
+                return new Segment(scope, streamName, segmentId);
+            }
         }
     }
 
