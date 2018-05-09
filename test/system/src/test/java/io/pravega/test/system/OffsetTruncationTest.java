@@ -28,6 +28,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -54,6 +55,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -171,13 +173,17 @@ public class OffsetTruncationTest {
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
+        // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
+        final String newGroupName = READER_GROUP + "new";
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, PARALLELISM)).join());
+
         // Read again, now expecting to read events from the offset defined in truncate call onwards.
-        String newReaderGroupName = READER_GROUP + "new";
-        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
-        futures = readDummyEvents(clientFactory, newReaderGroupName, PARALLELISM);
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        futures = readDummyEvents(clientFactory, newGroupName, PARALLELISM);
         Futures.allOf(futures).join();
-        assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(),
-                totalEvents - (truncatedEvents * PARALLELISM));
+        assertEquals("Expected read events: ", totalEvents - (truncatedEvents * PARALLELISM),
+                (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
         log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.",
                 truncatedEvents * PARALLELISM);
     }
@@ -211,7 +217,7 @@ public class OffsetTruncationTest {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
+    private <T> int readEvents(EventStreamReader<T> reader, int limit) throws TruncatedDataException {
         EventRead<T> event;
         int validEvents = 0;
         try {
@@ -223,8 +229,10 @@ public class OffsetTruncationTest {
             } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
 
             reader.close();
-        } catch (ReinitializationRequiredException | RuntimeException e) {
+        } catch (ReinitializationRequiredException e) {
             log.error("Exception while reading event: ", e);
+        } finally {
+            reader.close();
         }
 
         return validEvents;

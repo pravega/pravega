@@ -31,12 +31,14 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -65,6 +67,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static java.util.stream.Collectors.toList;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 @Slf4j
 public class EndToEndTruncationTest {
@@ -210,11 +213,14 @@ public class EndToEndTruncationTest {
         // Verify that a new reader reads from event 1 onwards.
         final String newReaderGroupName = readerGroupName + "new";
         groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        reader = clientFactory.createReader(newReaderGroupName + "2", newReaderGroupName, new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        assertEquals("Expected read event: ", "1", reader.readNextEvent(1000).getEvent());
-        assertNull(reader.readNextEvent(1000).getEvent());
-        reader.close();
+        @Cleanup
+        final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
+                newReaderGroupName, new JavaSerializer<>(), ReaderConfig.builder().build());
+
+        // Check that we get a TruncatedDataException after truncating the active segment and then read the expected event.
+        assertThrows(TruncatedDataException.class, () -> newReader.readNextEvent(1000).getEvent());
+        assertEquals("Expected read event: ", "1", newReader.readNextEvent(1000).getEvent());
+        assertNull(newReader.readNextEvent(1000).getEvent());
     }
 
     /**
@@ -255,10 +261,14 @@ public class EndToEndTruncationTest {
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
         assertTrue(streamManager.truncateStream(scope, streamName, streamCut));
 
-        // Read again, now expecting to read events from the offset defined in truncate call onwards.
-        final String newReaderGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        futures = readDummyEvents(clientFactory, newReaderGroupName, parallelism);
+        // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
+        final String newGroupName = readerGroupName + "new";
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, parallelism)).join());
+
+        // Read again, now expecting to read from the offset defined in truncate call onwards.
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        futures = readDummyEvents(clientFactory, newGroupName, parallelism);
         Futures.allOf(futures).join();
         assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
                 (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
@@ -343,8 +353,8 @@ public class EndToEndTruncationTest {
      * reads all the events and reaches the end of segment, it contacts the Controller to retrieve subsequent segments
      * (if any). However, the Stream-related metadata to answer this request has been previously deleted. The current
      * behavior is that the Controller keeps looking for the Stream metadata for a non-negligible period of time (+100
-     * sec.) while the client waits for a response. After this period, an exception is thrown to the client, which is
-     * expected in this situation.
+     * sec.) while the client waits for a response. After this period, a RetriesExhaustedException is thrown to the
+     * client, which is expected in this situation.
      */
     @Test(timeout = 200000)
     public void testDeleteStreamWhileReading() {
@@ -370,16 +380,15 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroup, parallelism);
+        final List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroup, parallelism);
 
         // Wait some time to let readers read and then execute deletion.
         Exceptions.handleInterrupted(() -> Thread.sleep(500));
         assertTrue(streamManager.sealStream(scope, streamName));
         assertTrue(streamManager.deleteStream(scope, streamName));
 
-        //Wait for readers to complete and check that they have read all the events in segment.
-        Futures.allOf(futures).join();
-        assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(), totalEvents);
+        // At the control plane, we expect a RetriesExhaustedException as readers try to get successor segments from a deleted stream.
+        assertThrows(RetriesExhaustedException.class, () -> Futures.allOf(futures).join());
         assertTrue(!streamManager.deleteStream(scope, streamName));
     }
 
@@ -398,7 +407,7 @@ public class EndToEndTruncationTest {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
+    private <T> int readEvents(EventStreamReader<T> reader, int limit) throws TruncatedDataException, RetriesExhaustedException {
         final int timeout = 1000;
         final int interReadWait = 50;
         EventRead<T> event;
@@ -413,8 +422,17 @@ public class EndToEndTruncationTest {
             } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
 
             reader.close();
-        } catch (ReinitializationRequiredException | RuntimeException e) {
-            log.error("Exception while reading event: ", e);
+        } catch (ReinitializationRequiredException e) {
+            e.printStackTrace();
+        } catch (TruncatedDataException e) {
+            reader.close();
+            throw new TruncatedDataException(e.getCause());
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof RetriesExhaustedException) {
+                throw new RetriesExhaustedException(e.getCause());
+            } else {
+                throw e;
+            }
         }
 
         return validEvents;
