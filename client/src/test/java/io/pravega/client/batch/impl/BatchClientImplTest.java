@@ -75,7 +75,7 @@ public class BatchClientImplTest {
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         BatchClientImpl client = new BatchClientImpl(mockController, connectionFactory);
 
-        Iterator<SegmentRange> boundedSegments = client.getSegments(stream, getSreamCut(5L, 0, 1, 2), getSreamCut(15L, 0, 1, 2)).getIterator();
+        Iterator<SegmentRange> boundedSegments = client.getSegments(stream, getStreamCut(5L, 0, 1, 2), getStreamCut(15L, 0, 1, 2)).getIterator();
         assertTrue(boundedSegments.hasNext());
         assertEquals(0, boundedSegments.next().asImpl().getSegment().getSegmentNumber());
         assertTrue(boundedSegments.hasNext());
@@ -196,7 +196,7 @@ public class BatchClientImplTest {
         return connectionFactory;
     }
 
-    private StreamCut getSreamCut(long offset, int... segments) {
+    private StreamCut getStreamCut(long offset, int... segments) {
         final Map<Segment, Long> positionMap = Arrays.stream(segments).boxed()
                                                      .collect(Collectors.toMap(s -> new Segment("scope", STREAM, s),
                                                              s -> offset));
