@@ -56,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -408,7 +409,8 @@ public class EndToEndTruncationTest {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) throws TruncatedDataException, RetriesExhaustedException {
+    @SneakyThrows
+    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
         final int timeout = 1000;
         final int interReadWait = 50;
         EventRead<T> event;
@@ -423,8 +425,6 @@ public class EndToEndTruncationTest {
             } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
 
             reader.close();
-        } catch (ReinitializationRequiredException e) {
-            e.printStackTrace();
         } catch (TruncatedDataException e) {
             reader.close();
             throw new TruncatedDataException(e.getCause());

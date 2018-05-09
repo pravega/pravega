@@ -23,7 +23,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -46,6 +45,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -218,7 +218,8 @@ public class OffsetTruncationTest {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) throws TruncatedDataException {
+    @SneakyThrows
+    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
         EventRead<T> event;
         int validEvents = 0;
         try {
@@ -228,10 +229,6 @@ public class OffsetTruncationTest {
                     validEvents++;
                 }
             } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
-
-            reader.close();
-        } catch (ReinitializationRequiredException e) {
-            log.error("Exception while reading event: ", e);
         } finally {
             reader.close();
         }
