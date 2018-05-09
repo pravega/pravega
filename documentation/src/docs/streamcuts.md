@@ -14,18 +14,20 @@ Pre-requisites: You should be familiar with [Pravega Concepts](http://pravega.io
 
 ## Definition
 
-As you may already know, a Pravega stream is formed by one or multiple parallel segments for storing/reading events.
-A Pravega stream is elastic, which means that the number of parallel segments may change along time to accommodate
-fluctuating workloads. That said, a `StreamCut` represents a consistent position in the stream. It essentially
-contains a set of segment and offset pairs for a single stream which represents the complete keyspace at a given
+A Pravega stream is formed by one or multiple parallel segments for storing/reading events. A Pravega stream
+is elastic, which means that the number of parallel segments may change along time to accommodate
+fluctuating workloads. That said, a `StreamCut` represents a consistent position in the stream. It contains
+a set of segment and offset pairs for a single stream which represents the complete keyspace at a given
 point in time. The offset always points to the event boundary and hence there will be no offset pointing to
 an incomplete event.
 
-Given that data can be continuously added to a stream, the `StreamCut` representing the tail of the
-stream (with the newest event) is an ever changing one. Similarly the `StreamCut` representing the
-head of the stream (with the oldest event) is an ever changing one as the stream retention policy
-could truncate the stream. ```StreamCut.UNBOUNDED``` is used to represent such a position in the stream and
-the user can use it to specify this ever changing stream position (both head and tail of the stream).
+The `StreamCut` representing the tail of the stream (with the newest event) is an ever changing one since
+events can be continuously added to the stream and the `StreamCut` pointing to the tail of the stream with
+newer events would have a different value. Similarly the `StreamCut` representing the head of the
+stream (with the oldest event) is an ever changing one as the stream retention policy could truncate the stream
+and the `StreamCut` pointing to the head of the stream post truncation would have a different value.
+```StreamCut.UNBOUNDED``` is used to represent such a position in the stream and the user can use it to
+specify this ever changing stream position (both head and tail of the stream).
 
 It should be noted that `StreamCut`s obtained using the streaming client and batch client can be used
 interchangeably.
