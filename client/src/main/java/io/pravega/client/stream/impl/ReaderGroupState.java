@@ -27,7 +27,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -424,8 +423,7 @@ public class ReaderGroupState implements Revisioned {
     /**
      * Abstract class from which all state updates extend.
      */
-    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
+    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState> {
 
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
@@ -448,9 +446,9 @@ public class ReaderGroupState implements Revisioned {
     /**
      * Adds a reader to the reader group. (No segments are initially assigned to it)
      */
+    @Builder
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         private final String readerId;
 
         /**
@@ -464,14 +462,44 @@ public class ReaderGroupState implements Revisioned {
             }
             state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
         }
+        
+        private static class AddReaderBuilder implements ObjectBuilder<AddReader> {
+
+        }
+
+        private static class AddReaderSerializer extends VersionedSerializer.WithBuilder<AddReader, AddReaderBuilder> {
+            @Override
+            protected AddReaderBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, AddReaderBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+            }
+
+            private void write00(AddReader object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+            }
+        }
     }
     
     /**
      * Remove a reader from reader group, releasing all segments it owned.
      */
+    @Builder
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+
         private final String readerId;
         private final Map<Segment, Long> ownedSegments;
         
@@ -503,14 +531,47 @@ public class ReaderGroupState implements Revisioned {
             state.distanceToTail.remove(readerId);
             state.checkpointState.removeReader(readerId, finalPositions);
         }
+        
+        private static class RemoveReaderBuilder implements ObjectBuilder<RemoveReader> {
+
+        }
+
+        private static class RemoveReaderSerializer
+                extends VersionedSerializer.WithBuilder<RemoveReader, RemoveReaderBuilder> {
+            @Override
+            protected RemoveReaderBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, RemoveReaderBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.ownedSegments(in.readMap(i -> Segment.fromScopedName(i.readUTF()), RevisionDataInput::readLong));
+            }
+
+            private void write00(RemoveReader object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeMap(object.ownedSegments, (o, segment) -> o.writeUTF(segment.getScopedName()), RevisionDataOutput::writeLong);
+            }
+        }
     }
 
     /**
      * Release a currently owned segment.
      */
+    @Builder
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+        
         private final String readerId;
         private final Segment segment;
         private final long offset;
@@ -527,6 +588,40 @@ public class ReaderGroupState implements Revisioned {
                         readerId + " asked to release a segment that was not assigned to it " + segment);
             }
             state.unassignedSegments.put(segment, offset);
+        }
+
+        private static class ReleaseSegmentBuilder implements ObjectBuilder<ReleaseSegment> {
+
+        }
+
+        private static class ReleaseSegmentSerializer
+                extends VersionedSerializer.WithBuilder<ReleaseSegment, ReleaseSegmentBuilder> {
+            @Override
+            protected ReleaseSegmentBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, ReleaseSegmentBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.segment(Segment.fromScopedName(in.readUTF()));
+                builder.offset(in.readLong());
+            }
+
+            private void write00(ReleaseSegment object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeUTF(object.segment.getScopedName());
+                out.writeLong(object.offset);
+            }
         }
     }
 
