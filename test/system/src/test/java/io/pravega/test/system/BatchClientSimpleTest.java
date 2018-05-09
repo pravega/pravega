@@ -32,6 +32,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -50,6 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -62,6 +64,7 @@ import org.junit.runner.RunWith;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -208,9 +211,12 @@ public class BatchClientSimpleTest {
         log.debug("Truncating stream at event {}.", offsetEvents);
         assertTrue(controller.truncateStream(SCOPE, STREAM, streamCut).join());
         StreamCut initialPosition = batchClient.getStreamInfo(stream).join().getHeadStreamCut();
-        ranges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
+        final List<SegmentRange> newRanges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
+
+        // Assert that the first access to the segments throws a SegmentTruncatedException and then read non-truncated events.
+        assertThrows(TruncatedDataException.class, () -> readFromRanges(newRanges, batchClient));
         assertEquals("Expected events read: ", (totalEvents - offsetEvents) + totalEvents * batchIterations,
-                    readFromRanges(ranges, batchClient));
+                    readFromRanges(newRanges, batchClient));
         log.debug("Events correctly read from Stream: simple batch client test passed.");
     }
 
@@ -255,22 +261,18 @@ public class BatchClientSimpleTest {
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
     }
 
+    @SneakyThrows
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {
         EventRead<T> event;
         int validEvents = 0;
-        try {
-            do {
-                event = reader.readNextEvent(1000);
-                if (event.getEvent() != null) {
-                    validEvents++;
-                }
-            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
+        do {
+            event = reader.readNextEvent(1000);
+            if (event.getEvent() != null) {
+                validEvents++;
+            }
+        } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
 
-            reader.close();
-        } catch (ReinitializationRequiredException | RuntimeException e) {
-            log.error("Exception while reading event: ", e);
-        }
-
+        reader.close();
         return validEvents;
     }
 
