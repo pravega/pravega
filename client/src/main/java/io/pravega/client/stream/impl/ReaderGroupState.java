@@ -331,8 +331,9 @@ public class ReaderGroupState implements Revisioned {
         
     }
     
-    static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
+    @Builder
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState> {
 
         private final ReaderGroupConfig config;
         private final CheckpointState checkpointState;
@@ -364,6 +365,59 @@ public class ReaderGroupState implements Revisioned {
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
                                         futureSegments, assignedSegments, unassignedSegments, endSegments);
+        }
+        
+        private static class CompactReaderGroupStateBuilder implements ObjectBuilder<CompactReaderGroupState> {
+            
+        }
+        
+        static class CompactReaderGroupStateSerializer extends VersionedSerializer.WithBuilder<CompactReaderGroupState, CompactReaderGroupStateBuilder> {
+            @Override
+            protected CompactReaderGroupStateBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput revisionDataInput, CompactReaderGroupStateBuilder builder) throws IOException {
+                ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
+                ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
+                builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
+                                                                 in -> new HashSet<>(in.readCollection(RevisionDataInput::readInt))));
+                builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
+                                                                   in -> in.readMap(segmentDeserializer, longDeserializer)));
+                builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+                builder.endSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+            }
+
+            private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
+                ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
+                ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+                ByteBuffer bytes = object.config.toBytes();
+                revisionDataOutput.writeArray(bytes.array(), bytes.arrayOffset(), bytes.remaining());
+                bytes = object.checkpointState.toBytes();
+                revisionDataOutput.writeArray(bytes.array(), bytes.arrayOffset(), bytes.remaining());
+                revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
+                revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
+                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeInt));
+                revisionDataOutput.writeMap(object.assignedSegments, stringSerializer,
+                                            (out, obj) -> out.writeMap(obj, segmentSerializer, longSerializer));
+                revisionDataOutput.writeMap(object.unassignedSegments, segmentSerializer, longSerializer);
+                revisionDataOutput.writeMap(object.endSegments, segmentSerializer, longSerializer);
+            }
         }
     }
     
