@@ -89,6 +89,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     /**
      * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory is closed when {@link ConnectionFactory#close()} is invoked.
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
@@ -133,7 +134,6 @@ public class ClientFactoryImpl implements ClientFactory {
         this.condFactory = condFactory;
         this.metaFactory = metaFactory;
     }
-
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
