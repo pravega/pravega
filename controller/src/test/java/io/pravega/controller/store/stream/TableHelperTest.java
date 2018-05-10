@@ -735,7 +735,7 @@ public class TableHelperTest {
         // epoch 2
         epoch++;
         long fourSegmentId = computeSegmentId(4, 2);
-        long fiveSegmentId = computeSegmentId(4, 2);
+        long fiveSegmentId = computeSegmentId(5, 2);
 
         List<Long> newSegments2 = Lists.newArrayList(0L, twoSegmentId, fourSegmentId, fiveSegmentId);
         newRanges = new ArrayList<>();
