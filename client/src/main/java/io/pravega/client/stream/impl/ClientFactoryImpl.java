@@ -50,6 +50,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.val;
@@ -65,6 +66,8 @@ public class ClientFactoryImpl implements ClientFactory {
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
+    // Flag to indicate if controller client needs to be closed when {@link ClientFactory.close} is invoked.
+    private final AtomicBoolean closeController = new AtomicBoolean(false);
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -97,6 +100,19 @@ public class ClientFactoryImpl implements ClientFactory {
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
                 new ConditionalOutputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
+    }
+
+    /**
+     * Creates a new instance of ClientFactory class.
+     *
+     * @param scope             The scope string.
+     * @param config            The ClientConfig.
+     * @param connectionFactory The reference to Connection Factory implementation.
+     */
+    public ClientFactoryImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
+        this(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
+                connectionFactory.getInternalExecutor()), connectionFactory);
+        this.closeController.set(true);
     }
 
     @VisibleForTesting
@@ -191,6 +207,9 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public void close() {
+        if(closeController.get()) {
+            controller.close();
+        }
         connectionFactory.close();
     }
 

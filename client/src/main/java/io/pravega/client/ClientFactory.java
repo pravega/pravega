@@ -27,8 +27,6 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
 import java.net.URI;
 import lombok.val;
 
@@ -74,8 +72,7 @@ public interface ClientFactory extends AutoCloseable {
      */
     static ClientFactory withScope(String scope, ClientConfig config) {
         val connectionFactory = new ConnectionFactoryImpl(config);
-        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+        return new ClientFactoryImpl(scope, config, connectionFactory);
     }
 
     /**
