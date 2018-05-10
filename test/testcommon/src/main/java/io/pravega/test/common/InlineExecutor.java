@@ -37,9 +37,9 @@ public class InlineExecutor implements ScheduledExecutorService {
             executor.submit(command).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            Lombok.sneakyThrow(e);
+            throw Lombok.sneakyThrow(e);
         } catch (ExecutionException e) {
-            Lombok.sneakyThrow(e.getCause());
+            throw Lombok.sneakyThrow(e.getCause());
         }
     }
 
