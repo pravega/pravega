@@ -31,7 +31,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -63,7 +62,6 @@ import org.junit.runner.RunWith;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -206,14 +204,13 @@ public class BatchClientSimpleTest {
 
         assertEquals("Expected events read: .", totalEvents * batchIterations, readEvents);
 
-        // Test the client when we select to start reading a Stream from a truncation point.
+        // Truncate the stream in first place.
         log.debug("Truncating stream at event {}.", offsetEvents);
         assertTrue(controller.truncateStream(SCOPE, STREAM, streamCut).join());
-        StreamCut initialPosition = batchClient.getStreamInfo(stream).join().getHeadStreamCut();
-        final List<SegmentRange> newRanges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
 
-        // Assert that the first access to the segments throws a SegmentTruncatedException and then read non-truncated events.
-        assertThrows(TruncatedDataException.class, () -> readFromRanges(newRanges, batchClient));
+        // Test the batch client when we select to start reading a Stream from a truncation point.
+        StreamCut initialPosition = batchClient.getStreamInfo(stream).join().getHeadStreamCut();
+        List<SegmentRange> newRanges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
         assertEquals("Expected events read: ", (totalEvents - offsetEvents) + totalEvents * batchIterations,
                     readFromRanges(newRanges, batchClient));
         log.debug("Events correctly read from Stream: simple batch client test passed.");
