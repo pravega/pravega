@@ -32,6 +32,7 @@ pages:
       - 'Working with Reader Group notifications': 'reader-group-notifications.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
       - 'Working with Transactions': 'transactions.md'
+      - 'Working with StreamCuts': 'streamcuts.md'
   - Running Pravega:
       - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
