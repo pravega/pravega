@@ -83,8 +83,8 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
 ```
-
-BatchClient api ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
+BatchClient can be used to perform bounded processing of the stream given the start and end `StreamCut`s. BatchClient
+api ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
 fetch segments which reside between the given startStreamCut and endStreamCut. With the retrieved segment information
 the user can consume all the events in parallel without adhering to time ordering of events.
 
