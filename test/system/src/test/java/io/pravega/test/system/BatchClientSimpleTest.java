@@ -188,12 +188,13 @@ public class BatchClientSimpleTest {
         List<SegmentRange> ranges = Lists.newArrayList(batchClient.getSegments(stream, streamCut, StreamCut.UNBOUNDED).getIterator());
         assertEquals("Expected events read: ", totalEvents - offsetEvents, readFromRanges(ranges, batchClient));
 
-        // Emulate the behavior of Hadoop client: i) Get tail of Stream, ii) Read from tail until end, iii) repeat.
+        // Emulate the behavior of Hadoop client: i) Get tail of Stream, ii) Read from current point until tail, iii) repeat.
         log.debug("Reading in batch iterations.");
         StreamCut currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
         int readEvents = 0;
         for (int i = 0; i < batchIterations; i++) {
             writeDummyEvents(clientFactory, STREAM, totalEvents);
+
             // Read all the existing events in parallel segments from the previous tail to the current one.
             ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
             assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
