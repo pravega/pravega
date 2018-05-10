@@ -100,11 +100,16 @@ public class AutoScaleTask {
                     double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
-                    for (int i = 0; i < numOfSplits; i++) {
+                    for (int i = 0; i < numOfSplits - 1; i++) {
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                 segment.getKeyStart() + (delta * (i + 1))));
                     }
-                    return postScaleRequest(request, Lists.newArrayList(segmentId), simpleEntries);
+                    // add the last entry such that is key end matches original segments key end.
+                    // This is because of doubles precision which may mean `start + n * ((end - start) / n)` may not equal `end`.
+                    simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * (numOfSplits -1),
+                            segment.getKeyEnd()));
+
+                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries);
                 }, executor));
     }
 
