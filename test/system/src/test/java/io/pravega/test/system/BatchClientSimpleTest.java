@@ -27,7 +27,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -265,14 +264,17 @@ public class BatchClientSimpleTest {
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {
         EventRead<T> event;
         int validEvents = 0;
-        do {
-            event = reader.readNextEvent(1000);
-            if (event.getEvent() != null) {
-                validEvents++;
-            }
-        } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
+        try {
+            do {
+                event = reader.readNextEvent(1000);
+                if (event.getEvent() != null) {
+                    validEvents++;
+                }
+            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
+        } finally {
+            reader.close();
+        }
 
-        reader.close();
         return validEvents;
     }
 
