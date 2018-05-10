@@ -41,6 +41,6 @@ public class AdminCommandState implements AutoCloseable {
 
     @Override
     public void close() {
-        this.executor.shutdown();
+        ExecutorServiceHelpers.shutdown(this.executor);
     }
 }

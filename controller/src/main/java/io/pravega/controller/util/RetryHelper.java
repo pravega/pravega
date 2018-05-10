@@ -34,7 +34,6 @@ public class RetryHelper {
     public static <U> U withRetries(Supplier<U> supplier, Predicate<Throwable> predicate, int numOfTries) {
         return Retry.withExpBackoff(100, 2, numOfTries, 1000)
                 .retryWhen(predicate)
-                .throwingOn(RuntimeException.class)
                 .run(supplier::get);
     }
 
@@ -43,7 +42,6 @@ public class RetryHelper {
         return Retry
                 .withExpBackoff(100, 2, numOfTries, 10000)
                 .retryWhen(predicate)
-                .throwingOn(RuntimeException.class)
                 .runAsync(futureSupplier, executor);
     }
 

@@ -136,7 +136,10 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        throw new NotImplementedException("truncation using StreamCut object not supported in local controller");
+        final Map<Integer, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
+                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
+                                                                       Map.Entry::getValue));
+        return truncateStream(scope, stream, segmentToOffsetMap);
     }
 
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
@@ -344,6 +347,11 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
         throw new NotImplementedException("getSuccessors");
+    }
+
+    @Override
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        throw new NotImplementedException("getSegments");
     }
 
     @Override

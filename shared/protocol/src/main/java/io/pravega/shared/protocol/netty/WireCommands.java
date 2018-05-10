@@ -49,7 +49,7 @@ public final class WireCommands {
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     
-    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as SegmentMetadata.NULL_ATTRIBUTE_VALUE
+    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as Attributes.NULL_ATTRIBUTE_VALUE
     
     private static final Map<Integer, WireCommandType> MAPPING;
     static {
@@ -96,6 +96,11 @@ public final class WireCommands {
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
         }
+        
+        @Override
+        public long getRequestId() {
+            return 0;
+        }
     }
 
     @Data
@@ -123,6 +128,11 @@ public final class WireCommands {
             String correctHost = in.readUTF();
             return new WrongHost(requestId, segment, correctHost);
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -146,6 +156,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentIsSealed(requestId, segment);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -173,6 +188,11 @@ public final class WireCommands {
             String segment = in.readUTF();
             long startOffset = in.readLong();
             return new SegmentIsTruncated(requestId, segment, startOffset);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -203,6 +223,11 @@ public final class WireCommands {
         public String toString() {
             return "Segment already exists: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -232,6 +257,11 @@ public final class WireCommands {
         public String toString() {
             return "No such segment: " + segment;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
     }
 
     @Data
@@ -260,6 +290,11 @@ public final class WireCommands {
         @Override
         public String toString() {
             return "No such transaction: " + txn;
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -291,6 +326,16 @@ public final class WireCommands {
         public String toString() {
             return "Invalid event number: " + eventNumber +" for writer: "+ writerId;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
     }
 
     @Data
@@ -314,6 +359,11 @@ public final class WireCommands {
             long requestId = in.readLong();
             String operationName = in.readUTF();
             return new OperationUnsupported(requestId, operationName);
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
     }
 
@@ -374,13 +424,23 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(type.getCode());
+            out.writeInt(data.readableBytes());
             out.write(data.array(), data.arrayOffset(), data.readableBytes());
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            byte[] msg = new byte[length];
+        public static Event readFrom(DataInput in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.EVENT.getCode()) {
+                throw new InvalidMessageException("Was expecting EVENT but found: "+ typeCode);
+            }
+            int eventLength = in.readInt();
+            if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
+                throw new InvalidMessageException("Was expecting length: "+length+" but found: "+ eventLength);
+            }
+            byte[] msg = new byte[eventLength];
             in.readFully(msg);
-            return new Event(wrappedBuffer(msg));
+            return new Event(wrappedBuffer(msg));            
         }
     }
 
@@ -491,12 +551,12 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class ConditionalAppend implements WireCommand {
+    public static final class ConditionalAppend implements WireCommand, Request {
         final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
         final UUID writerId;
         final long eventNumber;
         final long expectedOffset;
-        final ByteBuf data;
+        final Event event;
 
 
         @Override
@@ -505,27 +565,26 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
-            if (data == null) {
-                out.writeInt(0);
-            } else {
-                out.writeInt(data.readableBytes());
-                out.write(data.array(), data.arrayOffset(), data.readableBytes());
-            }
+            event.writeFields(out);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            int dataLength = in.readInt();
-            byte[] data;
-            if (dataLength > 0) {
-                data = new byte[dataLength];
-                in.readFully(data);
-            } else {
-                data = new byte[0];
-            }
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, wrappedBuffer(data));
+            Event event = Event.readFrom(in, length - 8 * 4);
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -590,6 +649,11 @@ public final class WireCommands {
 
             return new DataAppended(writerId, offset, previousEventNumber);
         }
+        
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
     }
 
     @Data
@@ -614,6 +678,11 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             return new ConditionalCheckFailed(writerId, offset);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
         }
     }
 
@@ -644,6 +713,11 @@ public final class WireCommands {
             int suggestedLength = in.readInt();
             String delegationToken = in.readUTF();
             return new ReadSegment(segment, offset, suggestedLength, delegationToken);
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -684,6 +758,11 @@ public final class WireCommands {
             byte[] data = new byte[dataLength];
             in.readFully(data);
             return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data));
+        }
+
+        @Override
+        public long getRequestId() {
+            return offset;
         }
     }
 
@@ -1427,6 +1506,11 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) {
             return new KeepAlive();
+        }
+
+        @Override
+        public long getRequestId() {
+            return -1;
         }
     }
 

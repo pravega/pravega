@@ -19,6 +19,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -215,9 +216,9 @@ public final class SegmentStoreMetrics {
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
         }
 
-        public void operationsCompleted(Collection<CompletableOperation> operations, Duration commitElapsed) {
+        public void operationsCompleted(Collection<List<CompletableOperation>> operations, Duration commitElapsed) {
             operationsCompleted(operations.size(), commitElapsed);
-            operations.forEach(o -> {
+            operations.stream().flatMap(List::stream).forEach(o -> {
                 long millis = o.getTimer().getElapsedMillis();
                 this.operationLatency.reportSuccessValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportSuccessValue(millis);
@@ -263,6 +264,7 @@ public final class SegmentStoreMetrics {
         private final String appendCount;
         private final String appendOffsetCount;
         private final String updateAttributesCount;
+        private final String getAttributesCount;
         private final String readCount;
         private final String getInfoCount;
         private final String createSegmentCount;
@@ -276,6 +278,7 @@ public final class SegmentStoreMetrics {
             this.appendCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_APPEND_COUNT, containerId);
             this.appendOffsetCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerId);
             this.updateAttributesCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerId);
+            this.getAttributesCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerId);
             this.readCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_READ_COUNT, containerId);
             this.getInfoCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_GET_INFO_COUNT, containerId);
             this.createSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerId);
@@ -304,6 +307,10 @@ public final class SegmentStoreMetrics {
 
         public void updateAttributes() {
             DYNAMIC_LOGGER.recordMeterEvents(this.updateAttributesCount, 1);
+        }
+
+        public void getAttributes() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.getAttributesCount, 1);
         }
 
         public void read() {

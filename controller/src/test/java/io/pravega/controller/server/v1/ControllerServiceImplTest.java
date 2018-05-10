@@ -536,7 +536,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
     }
 
-    private boolean checkGRPCException(Throwable e, Class expectedCause) {
+    private boolean checkGRPCException(Throwable e, Class<? extends Exception> expectedCause) {
         return e instanceof StatusRuntimeException && e.getCause().getClass() == expectedCause;
     }
 

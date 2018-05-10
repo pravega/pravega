@@ -19,7 +19,12 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -34,6 +39,9 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
+import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -45,6 +53,8 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -54,8 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -64,10 +74,13 @@ import lombok.val;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
+    private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
+            .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     private final String traceObjectId;
     private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
+    private final ContainerAttributeIndex attributeIndex;
     private final Writer writer;
     private final Storage storage;
     private final AsyncMap<String, SegmentState> stateStore;
@@ -88,12 +101,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param config                   The ContainerConfig to use for this StreamSegmentContainer.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
+     * @param attributeIndexFactory    The AttributeIndexFactory to use to create Attribute Indices.
      * @param writerFactory            The WriterFactory to use to create Writers.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
      * @param executor                 An Executor that can be used to run async tasks.
      */
     StreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
-                           WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
+                           AttributeIndexFactory attributeIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
@@ -108,7 +122,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
-        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
+        this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage, this.durableLog);
+        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.attributeIndex, this.storage);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
         this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
@@ -283,7 +298,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
     }
 
@@ -297,7 +312,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
     }
 
@@ -311,8 +326,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
-                    return this.durableLog.add(operation, timer.getRemaining());
+                    return processAttributeUpdaterOperation(operation, timer);
                 });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        ensureRunning();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("getAttributes", streamSegmentName, attributeIds);
+        this.metrics.getAttributes();
+
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> CACHE_ATTRIBUTES_RETRY.runAsync(() ->
+                        getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer), this.executor));
     }
 
     @Override
@@ -324,7 +352,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                        streamSegmentId -> CompletableFuture.completedFuture(this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining())));
+                        streamSegmentId -> {
+                            try {
+                                return CompletableFuture.completedFuture(this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                            } catch (StreamSegmentNotExistsException ex) {
+                                return Futures.failedFuture(ex);
+                            }
+                        });
     }
 
     @Override
@@ -383,6 +417,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             deletionFutures.add(this.storage
                     .openWrite(toDelete.getName())
                     .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
+                    .thenComposeAsync(v -> this.attributeIndex.delete(toDelete, timer.getRemaining()), this.executor)
                     .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor)
                     .exceptionally(ex -> {
                         ex = Exceptions.unwrap(ex);
@@ -477,6 +512,109 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Helpers
 
     /**
+     * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
+     * update failure due to the attribute value missing from the in-memory cache.
+     *
+     * @param operation The Operation to process.
+     * @param timer     Timer for the operation.
+     * @param <T>       Type of the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Operation has been successfully
+     * processed. If it failed, it will be completed with an appropriate exception.
+     */
+    private <T extends Operation & AttributeUpdaterOperation> CompletableFuture<Void> processAttributeUpdaterOperation(T operation, TimeoutTimer timer) {
+        Collection<AttributeUpdate> updates = operation.getAttributeUpdates();
+        if (updates == null || updates.isEmpty()) {
+            // No need for extra complicated handling.
+            return this.durableLog.add(operation, timer.getRemaining());
+        }
+
+        return Futures.exceptionallyCompose(
+                this.durableLog.add(operation, timer.getRemaining()),
+                ex -> {
+                    // We only retry BadAttributeUpdateExceptions if it has the PreviousValueMissing flag set.
+                    ex = Exceptions.unwrap(ex);
+                    if (ex instanceof BadAttributeUpdateException && ((BadAttributeUpdateException) ex).isPreviousValueMissing()) {
+                        // Get the missing attributes and load them into the cache, then retry the operation, exactly once.
+                        SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(operation.getStreamSegmentId());
+                        Collection<UUID> attributeIds = updates.stream()
+                                .map(AttributeUpdate::getAttributeId)
+                                .filter(id -> !Attributes.isCoreAttribute(id))
+                                .collect(Collectors.toList());
+                        if (!attributeIds.isEmpty()) {
+                            // This only makes sense if a core attribute was missing.
+                            return getAndCacheAttributes(segmentMetadata, attributeIds, true, timer)
+                                    .thenComposeAsync(attributes -> {
+                                        // Final attempt - now that we should have the attributes cached.
+                                        return this.durableLog.add(operation, timer.getRemaining());
+                                    }, this.executor);
+                        }
+                    }
+
+                    // Anything else is non-retryable; rethrow.
+                    return Futures.failedFuture(ex);
+                });
+    }
+
+    /**
+     * Gets the values of the given (Core and Extended) Attribute Ids for the given segment.
+     *
+     * @param segmentMetadata The SegmentMetadata for the Segment to retrieve attribute values for.
+     * @param attributeIds    A Collection of AttributeIds to retrieve.
+     * @param cache           If true, any Extended Attribute value that is not present in the SegmentMetadata cache will
+     *                        be added to that (using a conditional updateAttributes() call) before completing.
+     * @param timer           Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation failed,
+     * it will be completed with the appropriate exception. If cache==true and the conditional call to updateAttributes()
+     * could not be completed because of a conflicting update, it will be failed with BadAttributeUpdateException, in which
+     * case a retry is warranted.
+     */
+    private CompletableFuture<Map<UUID, Long>> getAndCacheAttributes(SegmentMetadata segmentMetadata, Collection<UUID> attributeIds, boolean cache, TimeoutTimer timer) {
+        // Collect Core Attributes and Cached Extended Attributes.
+        Map<UUID, Long> result = new HashMap<>();
+        Map<UUID, Long> metadataAttributes = segmentMetadata.getAttributes();
+        ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
+        attributeIds.forEach(attributeId -> {
+            Long v = metadataAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
+            if (v != Attributes.NULL_ATTRIBUTE_VALUE) {
+                result.put(attributeId, v);
+            } else if (!Attributes.isCoreAttribute(attributeId)) {
+                extendedAttributeIds.add(attributeId);
+            }
+        });
+
+        // Collect remaining Extended Attributes.
+        CompletableFuture<Map<UUID, Long>> r = this.attributeIndex
+                .forSegment(segmentMetadata.getId(), timer.getRemaining())
+                .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor);
+
+        if (cache && !segmentMetadata.isSealed() && extendedAttributeIds.size() > 0) {
+            // Add them to the cache if requested.
+            r = r.thenComposeAsync(extendedAttributes -> {
+                // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
+                // complete if the attribute is not currently set). If it has some value, then a concurrent update
+                // must have changed it and we cannot update anymore.
+                // Also make sure we insert (a NULL value) for those missing attributes as well).
+                ArrayList<AttributeUpdate> updates = new ArrayList<>();
+                extendedAttributes.forEach((id, value) -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, value)));
+                extendedAttributeIds.stream()
+                                    .filter(id -> !extendedAttributes.containsKey(id))
+                                    .forEach(id -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE)));
+
+                // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
+                // invoke this one again.
+                return this.durableLog.add(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
+                                      .thenApply(v -> extendedAttributes);
+            }, this.executor);
+        }
+
+        // Compile the final result.
+        return r.thenApply(extendedAttributes -> {
+            result.putAll(extendedAttributes);
+            return result;
+        });
+    }
+
+    /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
      * regardless of the trigger (eviction or deletion).
      *
@@ -484,7 +622,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     protected void notifyMetadataRemoved(Collection<SegmentMetadata> segments) {
         if (segments.size() > 0) {
-            this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
+            Collection<Long> segmentIds = segments.stream().map(SegmentMetadata::getId).collect(Collectors.toList());
+            this.readIndex.cleanup(segmentIds);
+            this.attributeIndex.cleanup(segmentIds);
         }
     }
 

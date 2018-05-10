@@ -9,9 +9,10 @@
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.client.batch.SegmentInfo;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -21,7 +22,6 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -49,29 +49,27 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")
+    private final ConditionalOutputStream conditional;
+    @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
-    private final Controller controller;
-    private final String delegationToken;
 
     private final Object lock = new Object();
 
     @Override
     public Revision writeConditionally(Revision latestRevision, T value) {
-        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        boolean wasWritten;
         long offset = latestRevision.asImpl().getOffsetInSegment();
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
-        try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
-            synchronized (lock) {
-                out.write(event);
-                out.flush();
+        synchronized (lock) {
+            try {
+                wasWritten = conditional.write(serialized, offset);
+            } catch (SegmentSealedException e) {
+                throw new CorruptedStateException("Unexpected end of segment ", e);
             }
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        if (Futures.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
+        if (wasWritten) {
             long newOffset = getNewOffset(offset, size);
             log.trace("Wrote from {} to {}", offset, newOffset);
             return new RevisionImpl(segment, newOffset, 0);
@@ -87,10 +85,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public void writeUnconditionally(T value) {
-        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        CompletableFuture<Void> ack = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
+            PendingEvent event = new PendingEvent(null, serialized, ack);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
                 out.write(event);
@@ -99,14 +97,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        Futures.getAndHandleExceptions(wasWritten, RuntimeException::new);
+        Futures.getAndHandleExceptions(ack, RuntimeException::new);
     }
 
     @Override
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = meta.getSegmentInfo(delegationToken);
+            SegmentInfo segmentInfo = meta.getSegmentInfo();
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException("Data at the supplied revision has been truncated.");
@@ -119,7 +117,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchLatestRevision() {
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentSegmentLength(delegationToken);
+            long streamLength = meta.fetchCurrentSegmentLength();
             return new RevisionImpl(segment, streamLength, 0);
         }
     }
@@ -151,11 +149,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 try {
                     data = in.read();
                 } catch (EndOfSegmentException e) {
-                    throw new IllegalStateException(
-                        "SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
-            } catch (SegmentTruncatedException e) {
-                throw new TruncatedDataException(e);
-            }
+                    throw new IllegalStateException("SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
+                } catch (SegmentTruncatedException e) {
+                    throw new TruncatedDataException(e);
+                }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);
             }
@@ -176,19 +173,19 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
         long newValue = newLocation == null ? NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
         synchronized (lock) {
-            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue, delegationToken);
+            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
     }
 
     @Override
     public Revision fetchOldestRevision() {
-        long startingOffset = meta.getSegmentInfo(delegationToken).getStartingOffset();
+        long startingOffset = meta.getSegmentInfo().getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment(), delegationToken);
+        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
     }
 
     @Override
@@ -199,6 +196,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             } catch (SegmentSealedException e) {
                 log.warn("Error closing segment writer {}", out);
             }
+            conditional.close();
             meta.close();
             in.close();
         }

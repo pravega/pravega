@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -126,7 +127,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.exit(-1);
             return;
         }
-
+        @Cleanup
         ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort);
         runner.initialize();
         runner.start();

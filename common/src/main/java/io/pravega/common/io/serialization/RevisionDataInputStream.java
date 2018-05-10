@@ -10,10 +10,10 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import java.io.DataInputStream;
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
      */
     @VisibleForTesting
     int getLength() {
-        return ((BoundedInputStream) this.in).bound;
+        return ((BoundedInputStream) this.in).getBound();
     }
 
     @Override
@@ -176,75 +176,6 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         }
 
         return result;
-    }
-
-    //endregion
-
-    //region BoundedInputStream Implementation
-
-    /**
-     * InputStream wrapper that counts how many bytes were read and prevents over-reading.
-     */
-    @NotThreadSafe
-    private static class BoundedInputStream extends FilterInputStream {
-        private final int bound;
-        private int remaining;
-
-        BoundedInputStream(InputStream inputStream, int bound) {
-            super(inputStream);
-            this.bound = bound;
-            this.remaining = bound;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // Skip over the remaining bytes. Do not close the underlying InputStream.
-            if (this.remaining > 0) {
-                int toSkip = this.remaining;
-                long skipped = skip(toSkip);
-                if (skipped != toSkip) {
-                    throw new SerializationException(String.format("Read %d fewer byte(s) than expected only able to skip %d.", toSkip, skipped));
-                }
-            } else if (this.remaining < 0) {
-                throw new SerializationException(String.format("Read more bytes than expected (%d).", -this.remaining));
-            }
-        }
-
-        @Override
-        public int read() throws IOException {
-            // Do not allow reading more than we should.
-            int r = this.remaining > 0 ? super.read() : -1;
-            if (r >= 0) {
-                this.remaining--;
-            }
-
-            return r;
-        }
-
-        @Override
-        public int read(byte[] buffer, int offset, int length) throws IOException {
-            int readLength = Math.min(length, this.remaining);
-            int r = this.in.read(buffer, offset, readLength);
-            if (r > 0) {
-                this.remaining -= r;
-            } else if (length > 0 && this.remaining <= 0) {
-                // We have reached our bound.
-                return -1;
-            }
-            return r;
-        }
-
-        @Override
-        public long skip(long count) throws IOException {
-            long r = this.in.skip(Math.min(count, this.remaining));
-            this.remaining -= r;
-            return r;
-        }
-
-        @Override
-        public int available() throws IOException {
-            return Math.min(this.in.available(), this.remaining);
-        }
     }
 
     //endregion

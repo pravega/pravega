@@ -12,13 +12,14 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
  * This is an abstract class which acts an intermediate class to make the actual StreamCut implementation opaque.
  */
 public abstract class StreamCutInternal implements StreamCut {
-
+    
     /**
      * Get {@link Stream} for the StreamCut.
      * @return The stream.
@@ -30,4 +31,9 @@ public abstract class StreamCutInternal implements StreamCut {
      * @return Map of Segment to its offset.
      */
     public abstract Map<Segment, Long> getPositions();
+    
+    
+    public static StreamCutInternal fromBytes(ByteBuffer cut) {
+        return StreamCutImpl.fromBytes(cut);
+    }
 }

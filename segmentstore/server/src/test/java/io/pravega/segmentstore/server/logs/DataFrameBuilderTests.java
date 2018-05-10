@@ -120,7 +120,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
             await(() -> commitFrames.size() >= order.size(), 20);
 
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
+            List<DataFrame.DataFrameEntryIterator> frames = dataLog.getAllEntries(readItem ->
+                    DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
 
             // Check the correctness of the commit callback.
@@ -155,7 +156,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         List<DataFrameBuilder.CommitArgs> successCommits = Collections.synchronizedList(new ArrayList<>());
 
         // Keep a reference to the builder (once created) so we can inspect its failure cause).
-        val builderRef = new AtomicReference<DataFrameBuilder>();
+        val builderRef = new AtomicReference<DataFrameBuilder<TestLogItem>>();
         val attemptCount = new AtomicInteger();
         BiConsumer<Throwable, DataFrameBuilder.CommitArgs> errorCallback = (ex, a) -> {
             attemptCount.decrementAndGet();
@@ -197,9 +198,10 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         await(() -> successCommits.size() >= attemptCount.get(), 20);
 
         // Read all committed items.
-        val reader = new DataFrameReader<TestLogItem>(dataLog, new TestSerializer(), CONTAINER_ID);
+        @Cleanup
+        val reader = new DataFrameReader<>(dataLog, new TestSerializer(), CONTAINER_ID);
         val readItems = new ArrayList<TestLogItem>();
-        DataFrameReader.ReadResult<TestLogItem> readItem;
+        DataFrameRecord<TestLogItem> readItem;
         while ((readItem = reader.getNext()) != null) {
             readItems.add(readItem.getItem());
         }
@@ -209,14 +211,14 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Items read back do not match expected values.", expectedItems, readItems, TestLogItem::equals);
 
         // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-        List<DataFrame> frames = dataLog.getAllEntries(ri -> DataFrame.from(ri.getPayload(), ri.getLength()));
+        val frames = dataLog.getAllEntries(ri -> DataFrame.read(ri.getPayload(), ri.getLength(), ri.getAddress()));
 
         // Check the correctness of the commit callback.
         AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, frames.size());
         Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
     }
 
-    private void checkFailureCause(DataFrameBuilder builder, Predicate<Throwable> exceptionTester) {
+    private void checkFailureCause(DataFrameBuilder<TestLogItem> builder, Predicate<Throwable> exceptionTester) {
         Throwable causingException = builder.failureCause();
         Assert.assertTrue("Unexpected failure cause for DataFrameBuilder: " + builder.failureCause(),
                 exceptionTester.test(causingException));
@@ -256,7 +258,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
+            val frames = dataLog.getAllEntries(readItem -> DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
@@ -310,7 +312,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
+            val frames = dataLog.getAllEntries(readItem -> DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }

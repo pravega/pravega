@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
@@ -32,7 +33,6 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
@@ -668,9 +668,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
      */
     private void testCreateAlreadyExists(String segmentName, BiFunction<StreamSegmentMapper, Collection<AttributeUpdate>, CompletableFuture<?>> createSegment) {
         final String stateSegmentName = StreamSegmentNameUtils.getStateSegmentName(segmentName);
-        final Map<UUID, Long> correctAttributes = Collections.singletonMap(UUID.randomUUID(), 123L);
+        final Map<UUID, Long> originalAttributes = ImmutableMap.of(UUID.randomUUID(), 123L, Attributes.EVENT_COUNT, 1L);
+        final Map<UUID, Long> expectedAttributes = Attributes.getCoreNonNullAttributes(originalAttributes);
         final Collection<AttributeUpdate> correctAttributeUpdates =
-                correctAttributes.entrySet().stream()
+                originalAttributes.entrySet().stream()
                                  .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                                  .collect(Collectors.toList());
         final Map<UUID, Long> badAttributes = Collections.singletonMap(UUID.randomUUID(), 456L);
@@ -695,7 +696,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StreamSegmentExistsException);
         val state1 = store.get(segmentName, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate correctly created segment",
-                correctAttributes, state1.getAttributes());
+                expectedAttributes, state1.getAttributes());
 
         // 2. Segment Exists, but with empty State File: State file re-created & no exception bubbled up.
         storage.openWrite(stateSegmentName)
@@ -706,7 +707,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         createSegment.apply(mapper, correctAttributeUpdates).join();
         val state2 = store.get(segmentName, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (missing state file)",
-                correctAttributes, state2.getAttributes());
+                expectedAttributes, state2.getAttributes());
 
         // 3. Segment Exists, but with corrupted State File: State file re-created & no exception bubbled up.
         storage.openWrite(stateSegmentName)
@@ -722,7 +723,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         createSegment.apply(mapper, correctAttributeUpdates).join();
         val state3 = store.get(segmentName, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (corrupted state file)",
-                correctAttributes, state3.getAttributes());
+                expectedAttributes, state3.getAttributes());
 
         // 4. Segment Exists with non-zero length, but with empty/corrupted State File: State File re-created and exception thrown.
         storage.openWrite(stateSegmentName)
@@ -737,7 +738,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StreamSegmentExistsException);
         val state4 = store.get(segmentName, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate segment with non-zero length",
-                correctAttributes, state4.getAttributes());
+                expectedAttributes, state4.getAttributes());
     }
 
     private String getName(long segmentId) {
@@ -778,7 +779,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         long segmentId = context.metadata.getStreamSegmentId(segmentName, false);
         Assert.assertEquals("Segment '" + segmentName + "' has been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
 
-        val attributes = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        val attributes = Attributes.getCoreNonNullAttributes(attributeUpdates.stream()
+                .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
         val actualAttributes = context.stateStore.get(segmentName, TIMEOUT).join().getAttributes();
         AssertExtensions.assertMapEquals("Wrong attributes.", attributes, actualAttributes);
     }
@@ -787,37 +789,27 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicLong seqNo = new AtomicLong();
         context.operationLog.addHandler = op -> {
             long currentSeqNo = seqNo.incrementAndGet();
-            if (op instanceof StreamSegmentMapOperation) {
-                StreamSegmentMapOperation mapOp = (StreamSegmentMapOperation) op;
-                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    mapOp.setStreamSegmentId(currentSeqNo);
-                }
-
-                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
-                segmentMetadata.setStorageLength(0);
-                segmentMetadata.setLength(mapOp.getLength());
-                segmentMetadata.setStartOffset(mapOp.getStartOffset());
-                if (mapOp.isSealed()) {
-                    segmentMetadata.markSealed();
-                }
-
-                segmentMetadata.updateAttributes(mapOp.getAttributes());
-            } else if (op instanceof TransactionMapOperation) {
-                TransactionMapOperation mapOp = (TransactionMapOperation) op;
-                if (mapOp.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    mapOp.setStreamSegmentId(currentSeqNo);
-                }
-
-                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
-                segmentMetadata.setStorageLength(0);
-                segmentMetadata.setLength(mapOp.getLength());
-                segmentMetadata.setStartOffset(mapOp.getStartOffset());
-                if (mapOp.isSealed()) {
-                    segmentMetadata.markSealed();
-                }
-
-                segmentMetadata.updateAttributes(mapOp.getAttributes());
+            UpdateableSegmentMetadata sm;
+            Assert.assertTrue("Unexpected operation type.", op instanceof StreamSegmentMapOperation);
+            StreamSegmentMapOperation mop = (StreamSegmentMapOperation) op;
+            if (mop.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+                mop.setStreamSegmentId(currentSeqNo);
             }
+
+            if (mop.isTransaction()) {
+                sm = context.metadata.mapStreamSegmentId(mop.getStreamSegmentName(), mop.getStreamSegmentId(), mop.getParentStreamSegmentId());
+            } else {
+                sm = context.metadata.mapStreamSegmentId(mop.getStreamSegmentName(), mop.getStreamSegmentId());
+            }
+
+            sm.setStorageLength(0);
+            sm.setLength(mop.getLength());
+            sm.setStartOffset(mop.getStartOffset());
+            if (mop.isSealed()) {
+                sm.markSealed();
+            }
+
+            sm.updateAttributes(mop.getAttributes());
 
             return CompletableFuture.completedFuture(null);
         };

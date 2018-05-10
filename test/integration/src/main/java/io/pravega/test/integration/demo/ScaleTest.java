@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -126,7 +127,7 @@ public class ScaleTest {
             future.get();
 
             log.info("All scaling test PASSED");
-            executor.shutdown();
+            ExecutorServiceHelpers.shutdown(executor);
             System.exit(0);
         } catch (Throwable t) {
             log.error("test failed with {}", t);

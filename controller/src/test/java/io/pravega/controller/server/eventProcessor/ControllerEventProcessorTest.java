@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -93,7 +94,7 @@ public class ControllerEventProcessorTest {
     public void tearDown() throws Exception {
         zkClient.close();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 10000)

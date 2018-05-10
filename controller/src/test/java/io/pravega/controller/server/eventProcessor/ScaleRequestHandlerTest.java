@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -20,6 +19,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -42,17 +42,18 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Consumer;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -61,11 +62,16 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ScaleRequestHandlerTest {
@@ -106,7 +112,7 @@ public class ScaleRequestHandlerTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
@@ -138,43 +144,43 @@ public class ScaleRequestHandlerTest {
         streamTransactionMetadataTasks.close();
         zkClient.close();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
-    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 30000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
         // Send number of splits = 1
-        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
-        CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
-        CompletableFuture<ScaleOpEvent> request2 = new CompletableFuture<>();
-        EventStreamWriter<ControllerEvent> writer = createWriter(x -> {
-            if (!request1.isDone()) {
-                final ArrayList<AbstractMap.SimpleEntry<Double, Double>> expected = new ArrayList<>();
-                double start = 2.0 / 3.0;
-                double end = 1.0;
-                double middle = (start + end) / 2;
-                expected.add(new AbstractMap.SimpleEntry<>(start, middle));
-                expected.add(new AbstractMap.SimpleEntry<>(middle, end));
-                checkRequest(request1, x, Lists.newArrayList(2), expected);
-            } else if (!request2.isDone()) {
-                final ArrayList<AbstractMap.SimpleEntry<Double, Double>> expected = new ArrayList<>();
-                double start = 2.0 / 3.0;
-                double end = 1.0;
-                expected.add(new AbstractMap.SimpleEntry<>(start, end));
-                checkRequest(request2, x, Lists.newArrayList(3, 4), expected);
-            }
-        });
+        EventWriterMock writer = new EventWriterMock();
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        assertTrue(Futures.await(multiplexer.process(request)));
-        assertTrue(Futures.await(request1));
-        assertTrue(Futures.await(multiplexer.process(request1.get())));
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
 
-        // verify that the event is posted successfully
+        // verify that one scaleOp event is written into the stream
+        assertEquals(1, writer.queue.size());
+        ControllerEvent event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        ScaleOpEvent scaleOpEvent = (ScaleOpEvent) event;
+        double start = 2.0 / 3.0;
+        double end = 1.0;
+        double middle = (start + end) / 2;
+        assertEquals(2, scaleOpEvent.getNewRanges().size());
+        double delta = 0.0000000000001;
+        assertEquals(start, scaleOpEvent.getNewRanges().get(0).getKey(), delta);
+        assertEquals(middle, scaleOpEvent.getNewRanges().get(0).getValue(), delta);
+        assertEquals(middle, scaleOpEvent.getNewRanges().get(1).getKey(), delta);
+        assertEquals(end, scaleOpEvent.getNewRanges().get(1).getValue(), delta);
+        assertEquals(1, scaleOpEvent.getSegmentsToSeal().size());
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(2));
+
+        assertTrue(Futures.await(multiplexer.process(scaleOpEvent)));
+
+        // verify that the event is processed successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
@@ -183,19 +189,34 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        // process first scale down event. it should only mark the segment as cold
+        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        assertTrue(Futures.await(multiplexer.process(scaleDownEvent)));
+        assertTrue(writer.queue.isEmpty());
 
-        assertTrue(Futures.await(multiplexer.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
-
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
+        assertTrue(streamStore.isCold(scope, stream, 4, null, executor).join());
 
-        request = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        assertTrue(Futures.await(multiplexer.process(scaleDownEvent2)));
+        assertTrue(streamStore.isCold(scope, stream, 3, null, executor).join());
 
-        assertTrue(Futures.await(multiplexer.process(request)));
-        assertTrue(Futures.await(request2));
-        assertTrue(Futures.await(multiplexer.process(request2.get())));
+        // verify that a new event has been posted
+        assertEquals(1, writer.queue.size());
+        event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        scaleOpEvent = (ScaleOpEvent) event;
+        assertEquals(1, scaleOpEvent.getNewRanges().size());
+        assertEquals(start, scaleOpEvent.getNewRanges().get(0).getKey(), delta);
+        assertEquals(end, scaleOpEvent.getNewRanges().get(0).getValue(), delta);
+        assertEquals(2, scaleOpEvent.getSegmentsToSeal().size());
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(3));
+        assertTrue(scaleOpEvent.getSegmentsToSeal().contains(4));
+
+        // process scale down event
+        assertTrue(Futures.await(multiplexer.process(scaleOpEvent)));
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
@@ -218,60 +239,74 @@ public class ScaleRequestHandlerTest {
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
-    private void checkRequest(CompletableFuture<ScaleOpEvent> request, ControllerEvent in, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> expected) {
-        if (in instanceof ScaleOpEvent) {
-            ScaleOpEvent event = (ScaleOpEvent) in;
-            if (!event.isRunOnlyIfStarted() && event.getScope().equals(scope) &&
-                    event.getStream().equals(stream) && Sets.newHashSet(event.getSegmentsToSeal()).equals(Sets.newHashSet(segmentsToSeal)) &&
-                    Sets.newHashSet(event.getNewRanges()).equals(Sets.newHashSet(expected))) {
-                request.complete(event);
-            } else {
-                request.completeExceptionally(new RuntimeException());
-            }
+    @Test
+    public void testScaleRange() throws ExecutionException, InterruptedException {
+        // key range values taken from issue #2543
+        Segment segment = new Segment(2, 1, 100L, 0.1706574888245243, 0.7085170563088633);
+        doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyInt(), any(), any());
 
-        } else {
-            request.completeExceptionally(new RuntimeException());
-        }
+        AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
+        // Send number of splits = 1
+        EventWriterMock writer = new EventWriterMock();
+
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
+
+        reset(streamStore);
+        // verify that one scaleOp event is written into the stream
+        assertEquals(1, writer.queue.size());
+        ControllerEvent event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        ScaleOpEvent scaleOpEvent = (ScaleOpEvent) event;
+
+        assertEquals(2, scaleOpEvent.getNewRanges().size());
+        assertEquals(0.1706574888245243, scaleOpEvent.getNewRanges().get(0).getKey(), 0.0);
+        assertEquals(0.7085170563088633, scaleOpEvent.getNewRanges().get(1).getValue(), 0.0);
+        assertTrue(scaleOpEvent.getNewRanges().get(0).getValue().doubleValue() == scaleOpEvent.getNewRanges().get(1).getKey().doubleValue());
     }
 
-    private EventStreamWriter<ControllerEvent> createWriter(Consumer<ControllerEvent> consumer) {
-        return new EventStreamWriter<ControllerEvent>() {
-            @Override
-            public CompletableFuture<Void> writeEvent(ControllerEvent event) {
-                consumer.accept(event);
-                return CompletableFuture.completedFuture(null);
-            }
+    private static class EventWriterMock implements EventStreamWriter<ControllerEvent> {
+        BlockingQueue<ControllerEvent> queue = new LinkedBlockingQueue<>();
 
-            @Override
-            public CompletableFuture<Void>  writeEvent(String routingKey, ControllerEvent event) {
-                consumer.accept(event);
-                return CompletableFuture.completedFuture(null);
-            }
+        @Override
+        public CompletableFuture<Void> writeEvent(ControllerEvent event) {
+            queue.add(event);
+            return CompletableFuture.completedFuture(null);
+        }
 
-            @Override
-            public Transaction<ControllerEvent> beginTxn() {
-                return null;
-            }
+        @Override
+        public CompletableFuture<Void>  writeEvent(String routingKey, ControllerEvent event) {
+            queue.add(event);
+            return CompletableFuture.completedFuture(null);
+        }
 
-            @Override
-            public Transaction<ControllerEvent> getTxn(UUID transactionId) {
-                return null;
-            }
+        @Override
+        public Transaction<ControllerEvent> beginTxn() {
+            return null;
+        }
 
-            @Override
-            public EventWriterConfig getConfig() {
-                return null;
-            }
+        @Override
+        public Transaction<ControllerEvent> getTxn(UUID transactionId) {
+            return null;
+        }
 
-            @Override
-            public void flush() {
+        @Override
+        public EventWriterConfig getConfig() {
+            return null;
+        }
 
-            }
+        @Override
+        public void flush() {
 
-            @Override
-            public void close() {
+        }
 
-            }
-        };
+        @Override
+        public void close() {
+
+        }
     }
 }

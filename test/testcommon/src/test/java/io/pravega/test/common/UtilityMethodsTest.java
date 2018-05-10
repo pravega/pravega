@@ -9,6 +9,7 @@
  */
 package io.pravega.test.common;
 
+import lombok.Cleanup;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -40,6 +41,7 @@ public class UtilityMethodsTest {
         final int threadCount = 5;
         Callable<Integer> task = () -> TestUtils.getAvailableListenPort();
         List<Callable<Integer>> tasks = Collections.nCopies(threadCount, task);
+        @Cleanup("shutdownNow")
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
         List<Future<Integer>> futures = executorService.invokeAll(tasks);
         Set<Integer> resultList = new HashSet<>(futures.size());

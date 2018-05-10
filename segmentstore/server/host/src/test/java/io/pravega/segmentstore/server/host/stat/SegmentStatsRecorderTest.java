@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -94,8 +95,7 @@ public class SegmentStatsRecorderTest {
 
     @After
     public void cleanup() {
-        executor.shutdown();
-        maintenanceExecutor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor, maintenanceExecutor);
     }
 
     @Test(timeout = 10000)

@@ -10,6 +10,7 @@
 package io.pravega.client.netty.impl;
 
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
@@ -57,15 +58,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
-    private static final Integer POOL_SIZE = Integer.valueOf(
-            System.getProperty("pravega.client.internal.threadpool.size",
-                    String.valueOf(Runtime.getRuntime().availableProcessors())));
     private EventLoopGroup group;
     private boolean nio = false;
     private final ClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
-                                                                                                    "clientInternal");
+    private final ScheduledExecutorService executor;
     private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     /**
@@ -73,6 +70,12 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
      * @param clientConfig Configuration object holding details about connection to the segmentstore.
      */
     public ConnectionFactoryImpl(ClientConfig clientConfig) {
+        this(clientConfig, null);
+    }
+
+    @VisibleForTesting
+    public ConnectionFactoryImpl(ClientConfig clientConfig, Integer numThreadsInPool) {
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(getNumThreads(numThreadsInPool), "clientInternal");
         this.clientConfig = clientConfig;
         try {
             this.group = new EpollEventLoopGroup();
@@ -83,6 +86,17 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         }
     }
 
+    private int getNumThreads(Integer numThreadsInPool) {
+        if (numThreadsInPool != null) {
+            return numThreadsInPool;
+        }
+        String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
+        if (configuredThreads != null) {
+            return Integer.parseInt(configuredThreads);
+        }
+        return Runtime.getRuntime().availableProcessors();
+    }
+    
     @Override
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location);
@@ -174,7 +188,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         if (closed.compareAndSet(false, true)) {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();
-            executor.shutdown();
+            ExecutorServiceHelpers.shutdown(executor);
         }
     }
 

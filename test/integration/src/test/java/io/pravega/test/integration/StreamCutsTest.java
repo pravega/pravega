@@ -30,7 +30,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -93,7 +93,7 @@ public class StreamCutsTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -123,9 +123,10 @@ public class StreamCutsTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
-        ReaderGroup readerGroup = groupManager.createReaderGroup("cuts", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton("test"));
+        groupManager.createReaderGroup("cuts", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().stream("test/test").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("cuts");
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "cuts", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -141,7 +142,7 @@ public class StreamCutsTest {
         validateCuts(readerGroup, cuts, Collections.singleton("test/test/0"));
 
         // Scale the stream to verify that we get more segments in the cut.
-        Stream stream = new StreamImpl("test", "test");
+        Stream stream = Stream.of("test", "test");
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);

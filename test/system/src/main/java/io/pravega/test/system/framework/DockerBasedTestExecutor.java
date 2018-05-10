@@ -19,6 +19,7 @@ import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -44,13 +45,14 @@ public class DockerBasedTestExecutor implements TestExecutor {
 
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
-    private final AtomicReference<String> id = new AtomicReference();
+    private final AtomicReference<String> id = new AtomicReference<String>();
     private final String masterIp = Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     private final DockerClient client = DefaultDockerClient.builder().uri("http://" + masterIp
              + ":" + DOCKER_CLIENT_PORT).build();
     private final String expectedDockerApiVersion = "1.22";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
+    @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         try {
@@ -79,7 +81,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
-                        executorService.shutdown();
+                        ExecutorServiceHelpers.shutdown(executorService);
                     } catch (DockerException e) {
                         throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get " +
                                 "container exit status and test result.", e);
@@ -95,6 +97,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                 });
     }
 
+    @Override
     public void stopTestExecution() {
         try {
             Exceptions.handleInterrupted(() -> client.stopContainer(id.get(), 0));

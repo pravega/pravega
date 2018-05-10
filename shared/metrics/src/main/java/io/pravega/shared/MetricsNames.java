@@ -41,6 +41,7 @@ public final class MetricsNames {
     public static final String CONTAINER_APPEND_COUNT = "container_append_count";
     public static final String CONTAINER_APPEND_OFFSET_COUNT = "container_append_offset_count";
     public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = "container_update_attributes_count";
+    public static final String CONTAINER_GET_ATTRIBUTES_COUNT = "container_get_attributes_count";
     public static final String CONTAINER_READ_COUNT = "container_read_count";
     public static final String CONTAINER_GET_INFO_COUNT = "container_get_info_count";
     public static final String CONTAINER_CREATE_SEGMENT_COUNT = "container_create_segment_count";

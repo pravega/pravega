@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
@@ -21,6 +22,8 @@ import org.junit.Test;
  * Unit tests for the SegmentState class.
  */
 public class SegmentStateTests {
+    private static final UUID CORE_ATTRIBUTE = Attributes.EVENT_COUNT;
+
     /**
      * Tests the serialization/deserialization of the class.
      */
@@ -35,14 +38,18 @@ public class SegmentStateTests {
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
             Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());
-            AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
+            val expectedAttributes = Attributes.getCoreNonNullAttributes(original.getAttributes());
+            AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
         }
     }
 
     private SegmentState create(int attributeCount) {
         HashMap<UUID, Long> attributes = new HashMap<>();
-        for (int i = 0; i < attributeCount; i++) {
-            attributes.put(UUID.randomUUID(), (long) i);
+
+        // One Core Attribute, and the rest are all Extended Attributes.
+        attributes.put(CORE_ATTRIBUTE, (long) attributes.size());
+        while (attributes.size() < attributeCount) {
+            attributes.put(UUID.randomUUID(), (long) attributes.size());
         }
 
         return new SegmentState(attributeCount, StreamSegmentInformation

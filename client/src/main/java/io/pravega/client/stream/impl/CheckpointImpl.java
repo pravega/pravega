@@ -15,20 +15,27 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.SneakyThrows;
 
 @EqualsAndHashCode
 public class CheckpointImpl implements Checkpoint {
 
-    private static final long serialVersionUID = 1L;
+    private static final CheckpointSerializer SERIALIZER = new CheckpointSerializer();
     @Getter
     private final String name;
-    @Getter(value = AccessLevel.PACKAGE)
+    @Getter
     private final Map<Stream, StreamCut> positions;
     
     CheckpointImpl(String name, Map<Segment, Long> segmentPositions) {
@@ -47,8 +54,60 @@ public class CheckpointImpl implements Checkpoint {
         this.positions = positionBuilder.build();
     }
     
+    @lombok.Builder(builderClassName = "CheckpointBuilder")
+    private CheckpointImpl(Map<Stream, StreamCut> positions, String name) {
+        this.name = name;
+        this.positions = positions;
+    }
+    
     @Override
     public CheckpointImpl asImpl() {
         return this;
-    }    
+    }
+
+    private static class CheckpointBuilder implements ObjectBuilder<CheckpointImpl> {
+    }
+    
+    public static class CheckpointSerializer extends VersionedSerializer.WithBuilder<CheckpointImpl, CheckpointBuilder> {
+        @Override
+        protected CheckpointBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, CheckpointBuilder builder) throws IOException {
+            builder.name(revisionDataInput.readUTF());
+            Map<Stream, StreamCut> map = revisionDataInput.readMap(in -> Stream.of(in.readUTF()),
+                                                                   StreamCutImpl.SERIALIZER::deserialize);
+            builder.positions(map);
+        }
+
+        private void write00(CheckpointImpl checkpoint, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(checkpoint.getName());
+            Map<Stream, StreamCut> map = checkpoint.getPositions();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
+                                        (out, cut) -> StreamCutImpl.SERIALIZER.serialize(out, cut.asImpl()));
+        }
+    }
+
+    @Override
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+    
+    @SneakyThrows(IOException.class)
+    public static Checkpoint fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
 }

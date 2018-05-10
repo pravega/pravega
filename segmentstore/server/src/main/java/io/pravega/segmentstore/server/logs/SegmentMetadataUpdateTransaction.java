@@ -20,7 +20,6 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.contracts.TooManyAttributesException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
@@ -216,11 +215,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
-     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
-     *                                     maximum allowed number of Attributes.
      */
     void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadOffsetException, BadAttributeUpdateException, TooManyAttributesException {
+            BadOffsetException, BadAttributeUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -260,11 +257,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
-     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
-     *                                     maximum allowed number of Attributes.
      */
     void preProcessOperation(UpdateAttributesOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadAttributeUpdateException, TooManyAttributesException {
+            BadAttributeUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -404,34 +399,31 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param attributeUpdates The Updates to process (if any).
      * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
      *                                     the segment.
-     * @throws TooManyAttributesException  If, as a result of applying the given updates, the Segment would exceed the
-     *                                     maximum allowed number of Attributes.
      */
-    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException, TooManyAttributesException {
+    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
         if (attributeUpdates == null) {
             return;
         }
 
-        int newAttributeCount = this.attributeValues.size();
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
-            long previousValue = this.attributeValues.getOrDefault(u.getAttributeId(), SegmentMetadata.NULL_ATTRIBUTE_VALUE);
+            boolean hasValue = this.attributeValues.containsKey(u.getAttributeId());
+            long previousValue = hasValue ? this.attributeValues.get(u.getAttributeId()) : Attributes.NULL_ATTRIBUTE_VALUE;
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
-                    boolean hasValue = previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE;
                     if (hasValue && u.getValue() <= previousValue) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                        throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Expected greater than '%s'.", previousValue));
                     }
 
                     break;
                 case ReplaceIfEquals:
                     // Verify value against existing value, if any.
-                    if (u.getComparisonValue() != previousValue) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                    if (u.getComparisonValue() != previousValue || !hasValue) {
+                        throw new BadAttributeUpdateException(this.name, u, !hasValue,
                                 String.format("Expected existing value to be '%s', actual '%s'.",
                                         u.getComparisonValue(), previousValue));
                     }
@@ -439,14 +431,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case None:
                     // Verify value is not already set.
-                    if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                        throw new BadAttributeUpdateException(this.name, u,
+                    if (hasValue) {
+                        throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Attribute value already set (%s).", previousValue));
                     }
 
                     break;
                 case Accumulate:
-                    if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
+                    if (hasValue) {
                         u.setValue(previousValue + u.getValue());
                     }
 
@@ -454,23 +446,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 case Replace:
                     break;
                 default:
-                    throw new BadAttributeUpdateException(this.name, u, "Unexpected update type: " + updateType);
+                    throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
-
-            if (previousValue == SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() != SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                // This attribute did not exist and is about to be added.
-                newAttributeCount++;
-            } else if (previousValue != SegmentMetadata.NULL_ATTRIBUTE_VALUE && u.getValue() == SegmentMetadata.NULL_ATTRIBUTE_VALUE) {
-                // This attribute existed and is about to be removed.
-                newAttributeCount--;
-            }
-        }
-
-        if (newAttributeCount > SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT && newAttributeCount > this.attributeValues.size()) {
-            // We only want to prevent exceeding the max attribute count if the number of attributes increased. Should
-            // we ever want to decrease this limit in the future, we need to make sure that we can still remove/replace
-            // attributes of existing segments, but not increase their count.
-            throw new TooManyAttributesException(this.name, SegmentMetadata.MAXIMUM_ATTRIBUTE_COUNT);
         }
     }
 
@@ -525,14 +502,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         this.sealed = true;
-
-        // Clear all dynamic attributes.
-        this.attributeValues.entrySet().forEach(e -> {
-            if (Attributes.isDynamic(e.getKey())) {
-                e.setValue(SegmentMetadata.NULL_ATTRIBUTE_VALUE);
-            }
-        });
-
         this.isChanged = true;
     }
 

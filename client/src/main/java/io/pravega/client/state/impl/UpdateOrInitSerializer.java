@@ -24,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public final class UpdateOrInitSerializer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
         implements Serializer<UpdateOrInit<StateT>>, Serializable {
+    
+    private static final long serialVersionUID = 1L;
     private static final int INITIALIZATION = 1;
     private static final int UPDATE = 2;
     private final Serializer<UpdateT> updateSerializer;

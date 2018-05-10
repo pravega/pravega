@@ -95,7 +95,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
             batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
         }
         try {
-            cmd.process(processor);
+            processor.process(cmd);
         } catch (Exception e) {
             processor.processingFailure(e);
         }
