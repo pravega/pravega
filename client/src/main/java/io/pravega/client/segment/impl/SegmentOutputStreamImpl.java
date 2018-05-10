@@ -118,8 +118,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         private boolean encounteredSeal() {
             synchronized (lock) {
+                boolean result = state.sealEncountered.compareAndSet(false, true);
                 waitingInflight.release();
-                return state.sealEncountered.compareAndSet(false, true);
+                return result;
             }
         }
         
