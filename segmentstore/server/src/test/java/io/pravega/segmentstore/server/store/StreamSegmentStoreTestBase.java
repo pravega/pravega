@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -58,6 +59,7 @@ import org.junit.rules.Timeout;
 /**
  * Base class for any test that verifies the functionality of a StreamSegmentStore class.
  */
+@Slf4j
 public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //region Test Configuration
 
@@ -226,14 +228,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
                                                HashMap<String, Long> lengths, StreamSegmentStore store) {
         val segmentFutures = new ArrayList<CompletableFuture<Void>>();
-        /*
         val halfAttributeCount = ATTRIBUTE_UPDATES_PER_SEGMENT / 2;
-         */
         for (String segmentName : segmentNames) {
             // Add half the attribute updates now.
-            /*for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
-            }*/
+            for (int i = 0; i < halfAttributeCount; i++) {
+                int finalI = i;
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.info("Completed attrs {}", finalI);
+                }));
+            }
 
             // Add some appends.
             for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
@@ -241,13 +244,19 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                int finalI = i;
+                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.info("Completed append {}", finalI);
+                }));
             }
 
             // Add the rest of the attribute updates.
-            /*for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
-            }*/
+            for (int i = 0; i < halfAttributeCount; i++) {
+                int finalI = i;
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.info("Completed second attr {}", finalI);
+                }));
+            }
         }
 
         return Futures.allOf(segmentFutures);
@@ -362,6 +371,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     private void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
                                     boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
+        log.info("Checking segment status");
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
@@ -378,7 +388,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected value for isSealed for segment " + segmentName, expectSealed, sp.isSealed());
                 Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
 
-                /* Check attributes.
+                // Check attributes.
                 val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
                 for (UUID attributeId : ATTRIBUTES) {
                     Assert.assertEquals("Unexpected attribute value from getAttributes().",
@@ -394,7 +404,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                 extAttrValue == Attributes.NULL_ATTRIBUTE_VALUE || extAttrValue == EXPECTED_ATTRIBUTE_VALUE);
                     }
                 }
-                */
             }
         }
     }
