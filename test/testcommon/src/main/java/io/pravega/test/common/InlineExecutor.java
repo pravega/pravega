@@ -21,57 +21,48 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import lombok.Lombok;
 
 /**
- * An Executor that runs commands synchronously that the ordering is deterministic and there is no
- * delay when they are submitted. Tasks are run on a background thread. (Even though for non-delayed
- * tasks the calling thread blocks on the result.)
+ * An Executor that runs commands that don't have a delay inline when they are submitted.
+ * Delayed tasks are run on a background thread.
  */
 public class InlineExecutor implements ScheduledExecutorService {
-    private final ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(1);
+    private final ScheduledExecutorService delayedExecutor = new ScheduledThreadPoolExecutor(1);
 
     @Override
     public void execute(Runnable command) {
-        try {
-            executor.submit(command).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw Lombok.sneakyThrow(e);
-        } catch (ExecutionException e) {
-            throw Lombok.sneakyThrow(e.getCause());
-        }
+        command.run();
     }
 
     @Override
     public void shutdown() {
-        executor.shutdown();
+        delayedExecutor.shutdown();
     }
 
     @Override
     public List<Runnable> shutdownNow() {
-        return executor.shutdownNow();
+        return delayedExecutor.shutdownNow();
     }
 
     @Override
     public boolean isShutdown() {
-        return executor.isShutdown();
+        return delayedExecutor.isShutdown();
     }
 
     @Override
     public boolean isTerminated() {
-        return executor.isTerminated();
+        return delayedExecutor.isTerminated();
     }
 
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        return executor.awaitTermination(timeout, unit);
+        return delayedExecutor.awaitTermination(timeout, unit);
     }
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
         try {
-            return CompletableFuture.completedFuture(executor.submit(task).get());
+            return CompletableFuture.completedFuture(task.call());
         } catch (Exception e) {
             return failedFuture(e);
         }
@@ -80,7 +71,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
         try {
-            executor.submit(task).get();
+            task.run();
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             return failedFuture(e);
@@ -90,7 +81,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     @Override
     public Future<?> submit(Runnable task) {
         try {
-            executor.submit(task).get();
+            task.run();
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             return failedFuture(e);
@@ -116,7 +107,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
         for (Callable<T> task : tasks) {
             try {
-                return executor.submit(task).get();
+                return task.call();
             } catch (Exception e) {
                 continue;
             }
@@ -132,22 +123,22 @@ public class InlineExecutor implements ScheduledExecutorService {
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        return executor.schedule(command, delay, unit);
+        return delayedExecutor.schedule(command, delay, unit);
     }
 
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        return executor.schedule(callable, delay, unit);
+        return delayedExecutor.schedule(callable, delay, unit);
     }
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
+        return delayedExecutor.scheduleAtFixedRate(command, initialDelay, period, unit);
     }
 
     @Override
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        return executor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
+        return delayedExecutor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 
     private static <T> CompletableFuture<T> failedFuture(Throwable exception) {
