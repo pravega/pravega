@@ -25,7 +25,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
     //region Members
 
     private final Runnable runnable;
-    private final Retry.RetryAndThrowBase<Exception> retry;
+    private final Retry.RetryAndThrowBase<? extends Throwable> retry;
     private final Consumer<Throwable> failureCallback;
     private final ScheduledExecutorService executor;
     @GuardedBy("this")
@@ -47,7 +47,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
      * @param failureCallback A Consumer to invoke if the runnable was unable to complete after applying the Retry policy.
      * @param executor        An Executor to run the task on.
      */
-    public SequentialAsyncProcessor(Runnable runnable, Retry.RetryAndThrowBase<Exception> retry, Consumer<Throwable> failureCallback, ScheduledExecutorService executor) {
+    public SequentialAsyncProcessor(Runnable runnable, Retry.RetryAndThrowBase<? extends Throwable> retry, Consumer<Throwable> failureCallback, ScheduledExecutorService executor) {
         this.runnable = Preconditions.checkNotNull(runnable, "runnable");
         this.retry = Preconditions.checkNotNull(retry, "retry");
         this.failureCallback = Preconditions.checkNotNull(failureCallback, "failureCallback");
