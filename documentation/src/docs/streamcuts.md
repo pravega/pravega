@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: StreamCuts
 
-This section describes about `StreamCut`s and how they can be used with streaming clients and batch clients.
+This section describes `StreamCut`s and how they can be used with streaming clients and batch clients.
 Pre-requisites: You should be familiar with [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/).
 
 ## Definition
@@ -32,7 +32,7 @@ specify this ever changing stream position (both head and tail of the stream).
 It should be noted that `StreamCut`s obtained using the streaming client and batch client can be used
 interchangeably.
 
-## StreamCut with Streaming clients
+## StreamCut with Reader
 
 A ReaderGroup is a named collection of Readers that together, in parallel, read Events from a given Stream. Every
 Reader is always associated with a ReaderGroup. `StreamCut`(s) can be obtained from a ReaderGroup using the
@@ -89,4 +89,4 @@ fetch segments which reside between the given startStreamCut and endStreamCut. W
 the user can consume all the events in parallel without adhering to time ordering of events.
 
 It must be noted that passing ```StreamCut.UNBOUNDED``` to startStreamCut and endStreamCut will result in using the
-current head of stream and the current tail of the respectively.
+current head of stream and the current tail of the stream, respectively.
