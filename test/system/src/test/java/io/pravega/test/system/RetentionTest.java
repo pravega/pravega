@@ -43,6 +43,7 @@ import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -165,6 +166,12 @@ public class RetentionTest {
         //expectation is it should have been truncated and we should find stream to be empty
         assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(6000));
 
-       log.debug("The stream is already truncated.Simple retention test passed.");
+        //verify reader functionality is unaffected post truncation
+        String event = "newEvent";
+        writer.writeEvent(event);
+        log.info("Writing event: {}", event);
+        Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
+
+        log.debug("The stream is already truncated.Simple retention test passed.");
     }
 }
