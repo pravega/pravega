@@ -49,8 +49,7 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
         val wasInvoked = new Semaphore(0);
         val waitOn = new CompletableFuture<Void>();
         val retry = Retry.withExpBackoff(1, 2, 3)
-                         .retryWhen(t -> true)
-                         .throwingOn(Exception.class);
+                         .retryWhen(t -> true);
         val error = new AtomicReference<Throwable>();
         val p = new SequentialAsyncProcessor(
                 () -> {
@@ -91,8 +90,7 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
                                  finished.complete(null);
                              }
                              return Exceptions.unwrap(t) instanceof IntentionalException;
-                         })
-                         .throwingOn(Exception.class);
+                         });
         val error = new CompletableFuture<Throwable>();
         val p = new SequentialAsyncProcessor(
                 () -> {

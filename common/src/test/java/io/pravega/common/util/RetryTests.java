@@ -235,7 +235,6 @@ public class RetryTests {
         try {
             Retry.withExpBackoff(10, 10, 10)
                     .retryWhen(e -> i.getAndIncrement() != 1)
-                    .throwingOn(RuntimeException.class)
                     .run(() -> {
                         throw new Exception("test");
                     });
