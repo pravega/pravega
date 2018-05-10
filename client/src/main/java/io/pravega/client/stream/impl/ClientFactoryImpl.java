@@ -207,7 +207,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public void close() {
-        if(closeController.get()) {
+        if (closeController.get()) {
             controller.close();
         }
         connectionFactory.close();
