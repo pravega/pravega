@@ -33,8 +33,8 @@ public class StateRecordSerializer extends VersionedSerializer.WithBuilder<State
         if (ordinal < State.values().length) {
             builder.state(State.values()[ordinal]);
         } else {
-            // TODO: what happens if newer states are added and we are trying to deserialize a higher revisioned data from
-            // lower revision code for an enum.
+            // TODO: {@link https://github.com/pravega/pravega/issues/2573} handle if newer states are added and we
+            // are trying to deserialize a higher revisioned data from lower revision code for an enum.
             // We are going to throw a meaningful exception here. Choosing a default like UNKNOWN may not be a good idea
             // because state represents some ongoing processing. And we cannot abandon any processing mid way lest we
             // introduce inconsistencies in our metadata.

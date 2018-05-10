@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream.tables.serializers;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -36,8 +35,8 @@ public class StreamTruncationRecordSerializer
                         StreamTruncationRecord.StreamTruncationRecordBuilder streamTruncationRecordBuilder)
             throws IOException {
         streamTruncationRecordBuilder
-                .streamCut(ImmutableMap.copyOf(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong)))
-                .cutEpochMap(ImmutableMap.copyOf(revisionDataInput.readMap(DataInput::readInt, DataInput::readInt)))
+                .streamCut(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong))
+                .cutEpochMap(revisionDataInput.readMap(DataInput::readInt, DataInput::readInt))
                 .deletedSegments(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readInt)))
                 .toDelete(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readInt)))
                 .updating(revisionDataInput.readBoolean());
