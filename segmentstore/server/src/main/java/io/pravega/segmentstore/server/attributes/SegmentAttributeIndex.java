@@ -954,21 +954,21 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
             // Fetch existing data.
             byte[] existingData = SegmentAttributeIndex.this.cache.get(getKey());
-            Map<UUID, UUID> values = CacheEntryLayout.getAllValues(existingData);
+            Map<UUID, VersionedValue> values = CacheEntryLayout.getAllValues(existingData);
 
             // Merge new values.
             boolean changed = false;
             for (Map.Entry<UUID, Long> e : attributeValues) {
-                UUID existing = values.getOrDefault(e.getKey(), null);
-                if (existing == null || existing.version() < version) {
+                VersionedValue existing = values.getOrDefault(e.getKey(), null);
+                if (existing == null || existing.version < version) {
                     if (e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
                         values.remove(e.getKey());
                         changed |= existing != null;
                     } else {
                         // As per the CacheEntryLayout contract, we create a UUID with MSB set to Version and LSB set to Value
                         // in order to pass it down for serialization.
-                        values.put(e.getKey(), new UUID(version, e.getValue()));
-                        changed |= existing == null || existing.getLeastSignificantBits() != e.getValue();
+                        values.put(e.getKey(), new VersionedValue(version, e.getValue()));
+                        changed |= existing == null || existing.value != e.getValue();
                     }
                 }
             }

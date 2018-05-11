@@ -72,21 +72,20 @@ class CacheEntryLayout {
      * Gets all the Attribute Ids and their Values encoded in the given serialization.
      *
      * @param data The Cache Entry serialization.
-     * @return A modifiable Map (UUID, UUID) representing the result. The Keys are Attribute Ids, while the Values are UUIDs
-     * whose MSBs are the Version for that Value, and LSBs are the Attribute Values themselves. This result is undefined if
-     * data was not previously encoded using this CacheEntryLayout.
+     * @return A modifiable Map (UUID, VersionedValue) representing the result. This result is undefined if data was not
+     * previously encoded using this CacheEntryLayout.
      */
-    static Map<UUID, UUID> getAllValues(byte[] data) {
+    static Map<UUID, VersionedValue> getAllValues(byte[] data) {
         if (data == null) {
             return new HashMap<>();
         }
 
         int count = getCount(data);
-        Map<UUID, UUID> result = new HashMap<>();
+        Map<UUID, VersionedValue> result = new HashMap<>();
         int offset = HEADER_LENGTH;
         for (int i = 0; i < count; i++) {
             result.put(new UUID(BitConverter.readLong(data, offset), BitConverter.readLong(data, offset + Long.BYTES)),
-                    new UUID(BitConverter.readLong(data, offset + VERSION_OFFSET), BitConverter.readLong(data, offset + VALUE_OFFSET)));
+                    new VersionedValue(BitConverter.readLong(data, offset + VERSION_OFFSET), BitConverter.readLong(data, offset + VALUE_OFFSET)));
             offset += RECORD_LENGTH;
         }
 
@@ -97,14 +96,12 @@ class CacheEntryLayout {
      * Serializes the given Attribute Values into the given array, or creates a new one if they cannot fit.
      *
      * @param buffer     The buffer to attempt to reuse.
-     * @param values     An Iterator that returns (UUID, UUID) pairs. Similarly to getAllValues(), the Keys are Attribute Ids,
-     *                   while the Values are UUIDs whose MSBs are the Version for that Value, and LSBs are the Attribute Values
-     *                   themselves.
+     * @param values     An Iterator that returns (UUID, VersionedValue) pairs.
      * @param valueCount The number of items that will be returned by the values iterator.
      * @return Either buffer, if the new serialization can fit in it, or a new byte array of a larger size which contains
      * the serialization. If a new byte array is returned, the incoming buffer is not touched.
      */
-    static byte[] setValues(byte[] buffer, Iterator<Map.Entry<UUID, UUID>> values, int valueCount) {
+    static byte[] setValues(byte[] buffer, Iterator<Map.Entry<UUID, VersionedValue>> values, int valueCount) {
         int size = HEADER_LENGTH + RECORD_LENGTH * valueCount;
         if (buffer == null || buffer.length < size) {
             buffer = new byte[size];
@@ -113,11 +110,11 @@ class CacheEntryLayout {
         BitConverter.writeInt(buffer, 0, valueCount);
         int offset = HEADER_LENGTH;
         while (values.hasNext()) {
-            Map.Entry<UUID, UUID> e = values.next();
+            Map.Entry<UUID, VersionedValue> e = values.next();
             offset += BitConverter.writeLong(buffer, offset, e.getKey().getMostSignificantBits());
             offset += BitConverter.writeLong(buffer, offset, e.getKey().getLeastSignificantBits());
-            offset += BitConverter.writeLong(buffer, offset, e.getValue().getMostSignificantBits());
-            offset += BitConverter.writeLong(buffer, offset, e.getValue().getLeastSignificantBits());
+            offset += BitConverter.writeLong(buffer, offset, e.getValue().version);
+            offset += BitConverter.writeLong(buffer, offset, e.getValue().value);
         }
 
         return buffer;

@@ -38,9 +38,9 @@ public class CacheEntryLayoutTests {
         Function<UUID, Long> getValue = id -> id.getMostSignificantBits() + id.getLeastSignificantBits();
         Function<UUID, Long> getVersion = id -> id.getLeastSignificantBits() - id.getMostSignificantBits();
         val values = ATTRIBUTE_IDS.stream()
-                                  .map(id -> (Map.Entry<UUID, UUID>) new AbstractMap.SimpleImmutableEntry<>(id, new UUID(getVersion.apply(id), getValue.apply(id))))
+                                  .map(id -> (Map.Entry<UUID, VersionedValue>) new AbstractMap.SimpleImmutableEntry<>(id, new VersionedValue(getVersion.apply(id), getValue.apply(id))))
                                   .collect(Collectors.toList());
-        val expectedValues = ImmutableMap.<UUID, UUID>builder().putAll(values).build();
+        val expectedValues = ImmutableMap.<UUID, VersionedValue>builder().putAll(values).build();
 
         // Serialize the data.
         byte[] buffer = new byte[ATTRIBUTE_IDS.size() * 1000];
@@ -60,7 +60,7 @@ public class CacheEntryLayoutTests {
             val actualId = CacheEntryLayout.getAttributeId(data, i);
             val actualValue = CacheEntryLayout.getValue(data, i);
             Assert.assertEquals("Attribute Ids out of order.", expected.getKey(), actualId);
-            Assert.assertEquals("Attribute Values out of order.", expected.getValue().getLeastSignificantBits(), actualValue);
+            Assert.assertEquals("Attribute Values out of order.", expected.getValue().value, actualValue);
         }
     }
 }
