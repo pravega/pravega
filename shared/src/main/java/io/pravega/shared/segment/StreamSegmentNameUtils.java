@@ -129,6 +129,10 @@ public final class StreamSegmentNameUtils {
             return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
         } else {
             int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
+            if (endOfStreamNamePos < 0) {
+                // secondary id delimiter not present in the name, return the full name
+                return streamSegmentName;
+            }
             return streamSegmentName.substring(0, endOfStreamNamePos);
         }
     }

@@ -14,7 +14,6 @@ import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
@@ -98,8 +97,6 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, time);
 
-        segment = TableHelper.getSegment(10L, segmentIndex3, segmentTable3, historyIndex, historyTable);
-        assertEquals(segment.getSegmentId(), computeSegmentId(10, 2));
         segment = TableHelper.getSegment(computeSegmentId(10, 2), segmentIndex3, segmentTable3, historyIndex, historyTable);
         assertEquals(segment.getSegmentId(), computeSegmentId(10, 2));
         assertEquals(15, TableHelper.getSegmentCount(segmentIndex3, segmentTable3));
@@ -902,7 +899,7 @@ public class TableHelperTest {
         Segment four = new Segment(fourId, epoch, timestamp, 0.16, 0.33);
         Segment five = new Segment(fiveId, epoch, timestamp, 0.33, 0.5);
         Segment six = new Segment(sixId, epoch, timestamp, 0.5, 0.66);
-        Segment seven = new Segment(sevenId, epoch, timestamp, 0.66, 83);
+        Segment seven = new Segment(sevenId, epoch, timestamp, 0.66, 0.83);
         Segment eight = new Segment(eightId, epoch, timestamp, 0.83, 1);
         Segment nine = new Segment(nineId, epoch, timestamp, 0.0, 0.5);
         Segment ten = new Segment(tenId, epoch, timestamp, 0.5, 1);
@@ -987,15 +984,16 @@ public class TableHelperTest {
         long eight = computeSegmentId(8, 1);
         long nine = computeSegmentId(9, 2);
         long ten = computeSegmentId(10, 2);
-        Map<Long, Long> fromStreamCut = new HashMap<>();
-        fromStreamCut.put(zero, 0L);
-        fromStreamCut.put(one, 0L);
-        fromStreamCut.put(two, 0L);
         List<byte[]> list = setupTablesForStreamCut();
         byte[] segmentIndex = list.get(0);
         byte[] segmentTable = list.get(1);
         byte[] historyIndex = list.get(2);
         byte[] historyTable = list.get(3);
+
+        Map<Long, Long> fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero, 0L);
+        fromStreamCut.put(one, 0L);
+        fromStreamCut.put(two, 0L);
 
         List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
         assertEquals(11, segments.size());
@@ -1016,123 +1014,134 @@ public class TableHelperTest {
         segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
         assertEquals(6, segments.size());
         // 0, 3, 4, 5, 9, 10
-        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one || x.getSegmentId() == two || x.getSegmentId() == six
-                || x.getSegmentId() == seven || x.getSegmentId() == eight));
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one || x.getSegmentId() == two || x.getSegmentId() == six ||
+                x.getSegmentId() == seven || x.getSegmentId() == eight));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(six, 0L);
+        fromStreamCut.put(seven, 0L);
+        fromStreamCut.put(eight, 0L);
+        fromStreamCut.put(nine, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        assertEquals(5, segments.size());
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one || x.getSegmentId() == two || x.getSegmentId() == three ||
+                x.getSegmentId() == four || x.getSegmentId() == five));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(ten, 0L);
+        fromStreamCut.put(nine, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        assertEquals(2, segments.size());
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one || x.getSegmentId() == two || x.getSegmentId() == three ||
+                x.getSegmentId() == four || x.getSegmentId() == five || x.getSegmentId() == six || x.getSegmentId() == seven ||
+                x.getSegmentId() == eight));
     }
 
-//    @Test
-//    public void testGetSegmentsWithValidStreamCuts() throws Exception {
-//        long zero = StreamSegmentNameUtils.computeSegmentId(0, 0);
-//        long one = StreamSegmentNameUtils.computeSegmentId(1, 0);
-//        long six = StreamSegmentNameUtils.computeSegmentId(6, 0);
-//        long seven = StreamSegmentNameUtils.computeSegmentId(7, 0);
-//
-//        Map<Long, Long> startSegments = new HashMap<>();
-//        startSegments.put(zero, 4L);
-//        startSegments.put(one, 6L);
-//
-//        Map<Long, Long> endSegments = new HashMap<>();
-//        endSegments.put(new Segment(scope, stream, 6), 10L);
-//        endSegments.put(new Segment(scope, stream, 7), 10L);
-//        StreamCut endSC = new StreamCutImpl(s, endSegments);
-//
-//        Set<Segment> result = controllerClient.getSegments(cut, endSC).get().getSegments();
-//        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
-//                new Segment(scope, stream, 2), new Segment(scope, stream, 3),
-//                new Segment(scope, stream, 4), new Segment(scope, stream, 5),
-//                new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
-//                result);
-//    }
-//
-//    @Test(expected = IllegalArgumentException.class)
-//    public void testGetSegmentsWithOverlappingStreamCuts() throws Exception {
-//        String scope = "scope1";
-//        String stream = "stream1";
-//        Stream s = new StreamImpl(scope, stream);
-//
-//        Map<Segment, Long> startSegments = new HashMap<>();
-//        startSegments.put(new Segment(scope, stream, 3), 4L);
-//        startSegments.put(new Segment(scope, stream, 2), 4L);
-//        startSegments.put(new Segment(scope, stream, 1), 6L);
-//        StreamCut cut = new StreamCutImpl(s, startSegments);
-//
-//        Map<Segment, Long> endSegments = new HashMap<>();
-//        endSegments.put(new Segment(scope, stream, 0), 10L);
-//        endSegments.put(new Segment(scope, stream, 7), 10L);
-//        StreamCut endSC = new StreamCutImpl(s, endSegments);
-//
-//        controllerClient.getSegments(cut, endSC).get().getSegments();
-//    }
-//
-//    @Test(expected = IllegalArgumentException.class)
-//    public void testGetSegmentsWithPartialOverlapStreamCuts() throws Exception {
-//        String scope = "scope1";
-//        String stream = "stream1";
-//        Stream s = new StreamImpl(scope, stream);
-//
-//        Map<Segment, Long> startSegments = new HashMap<>();
-//        startSegments.put(new Segment(scope, stream, 0), 4L);
-//        startSegments.put(new Segment(scope, stream, 7), 6L);
-//        StreamCut cut = new StreamCutImpl(s, startSegments);
-//
-//        Map<Segment, Long> endSegments = new HashMap<>();
-//        endSegments.put(new Segment(scope, stream, 5), 10L);
-//        endSegments.put(new Segment(scope, stream, 4), 10L);
-//        endSegments.put(new Segment(scope, stream, 6), 10L);
-//        StreamCut endSC = new StreamCutImpl(s, endSegments);
-//
-//        controllerClient.getSegments(cut, endSC).get().getSegments();
-//    }
-//
-//    @Test
-//    public void testGetSegmentsWithValidStreamCut() throws Exception {
-//        Map<Segment, Long> startSegments = new HashMap<>();
-//        startSegments.put(new Segment(scope, stream, 0), 4L);
-//        startSegments.put(new Segment(scope, stream, 1), 6L);
-//        startSegments.put(new Segment(scope, stream, 7), 6L);
-//        startSegments.put(new Segment(scope, stream, 8), 6L);
-//        StreamCut cut = new StreamCutImpl(s, startSegments);
-//
-//        Map<Segment, Long> endSegments = new HashMap<>();
-//        endSegments.put(new Segment(scope, stream, 3), 10L);
-//        endSegments.put(new Segment(scope, stream, 4), 10L);
-//        endSegments.put(new Segment(scope, stream, 5), 10L);
-//        endSegments.put(new Segment(scope, stream, 10), 10L);
-//        StreamCut endSC = new StreamCutImpl(s, endSegments);
-//
-//        Set<Segment> segments = controllerClient.getSegments(cut, endSC).get().getSegments();
-//        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
-//                new Segment(scope, stream, 8), new Segment(scope, stream, 7),
-//                new Segment(scope, stream, 3), new Segment(scope, stream, 4),
-//                new Segment(scope, stream, 5), new Segment(scope, stream, 10),
-//                new Segment(scope, stream, 6)),
-//                segments);
-//    }
-//
-//    @Test(expected = IllegalArgumentException.class)
-//    public void testGetSegmentsWithPartialOverlapStreamCut() throws Exception {
-//        String scope = "scope1";
-//        String stream = "stream8";
-//        Stream s = new StreamImpl(scope, stream);
-//
-//        Map<Segment, Long> startSegments = new HashMap<>();
-//        startSegments.put(new Segment(scope, stream, 0), 4L);
-//        startSegments.put(new Segment(scope, stream, 5), 6L);
-//        startSegments.put(new Segment(scope, stream, 6), 6L);
-//        startSegments.put(new Segment(scope, stream, 2), 6L);
-//        StreamCut cut = new StreamCutImpl(s, startSegments);
-//
-//        Map<Segment, Long> endSegments = new HashMap<>();
-//        endSegments.put(new Segment(scope, stream, 8), 10L);
-//        endSegments.put(new Segment(scope, stream, 7), 10L);
-//        endSegments.put(new Segment(scope, stream, 1), 10L);
-//        endSegments.put(new Segment(scope, stream, 3), 10L);
-//        endSegments.put(new Segment(scope, stream, 4), 10L);
-//        StreamCut endSC = new StreamCutImpl(s, endSegments);
-//
-//        controllerClient.getSegments(cut, endSC).get().getSegments();
-//    }
+    @Test
+    public void testGetSegmentsBetweenStreamCuts() throws Exception {
+        long zero = computeSegmentId(0, 0);
+        long one = computeSegmentId(1, 0);
+        long two = computeSegmentId(2, 0);
+        long three = computeSegmentId(3, 1);
+        long four = computeSegmentId(4, 1);
+        long five = computeSegmentId(5, 1);
+        long six = computeSegmentId(6, 1);
+        long seven = computeSegmentId(7, 1);
+        long eight = computeSegmentId(8, 1);
+        long nine = computeSegmentId(9, 2);
+        long ten = computeSegmentId(10, 2);
+        List<byte[]> list = setupTablesForStreamCut();
+        byte[] segmentIndex = list.get(0);
+        byte[] segmentTable = list.get(1);
+        byte[] historyIndex = list.get(2);
+        byte[] historyTable = list.get(3);
+
+        // to before from
+        Map<Long, Long> fromStreamCut = new HashMap<>();
+        fromStreamCut.put(three, 0L);
+        fromStreamCut.put(four, 0L);
+        fromStreamCut.put(one, 0L);
+        fromStreamCut.put(two, 0L);
+
+        Map<Long, Long> toStreamCut = new HashMap<>();
+        toStreamCut.put(zero, 0L);
+        toStreamCut.put(one, 0L);
+        toStreamCut.put(two, 0L);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, toStreamCut));
+
+        // to and from overlap
+        Map<Long, Long> fromStreamCutOverlap = new HashMap<>();
+        fromStreamCutOverlap.put(three, 0L);
+        fromStreamCutOverlap.put(four, 0L);
+        fromStreamCutOverlap.put(one, 0L);
+        fromStreamCutOverlap.put(two, 0L);
+
+        Map<Long, Long> toStreamCutOverlap = new HashMap<>();
+        toStreamCutOverlap.put(zero, 0L);
+        toStreamCutOverlap.put(five, 0L);
+        toStreamCutOverlap.put(six, 0L);
+        toStreamCutOverlap.put(two, 0L);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutOverlap, toStreamCutOverlap));
+
+        Map<Long, Long> fromPartialOverlap = new HashMap<>();
+        fromPartialOverlap.put(zero, 0L);
+        fromPartialOverlap.put(five, 0L);
+        fromPartialOverlap.put(six, 0L);
+        fromPartialOverlap.put(two, 0L);
+
+        Map<Long, Long> toPartialOverlap = new HashMap<>();
+        toPartialOverlap.put(eight, 0L);
+        toPartialOverlap.put(seven, 0L);
+        toPartialOverlap.put(one, 0L);
+        toPartialOverlap.put(three, 0L);
+        toPartialOverlap.put(four, 0L);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromPartialOverlap, toPartialOverlap));
+
+        // Success cases
+        Map<Long, Long> fromStreamCutSuccess = new HashMap<>();
+        fromStreamCutSuccess.put(zero, 0L);
+        fromStreamCutSuccess.put(one, 0L);
+        fromStreamCutSuccess.put(two, 0L);
+
+        Map<Long, Long> toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(zero, 0L);
+        toStreamCutSuccess.put(five, 0L);
+        toStreamCutSuccess.put(six, 0L);
+        toStreamCutSuccess.put(two, 0L);
+        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutSuccess, toStreamCutSuccess);
+        assertEquals(5, segments.size());
+        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == zero || x.getSegmentId() == one || x.getSegmentId() == two ||
+                x.getSegmentId() == five || x.getSegmentId() == six));
+
+        fromStreamCutSuccess = new HashMap<>();
+        fromStreamCutSuccess.put(zero, 0L);
+        fromStreamCutSuccess.put(five, 0L);
+        fromStreamCutSuccess.put(six, 0L);
+        fromStreamCutSuccess.put(two, 0L);
+
+        toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(nine, 0L);
+        toStreamCutSuccess.put(ten, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutSuccess, toStreamCutSuccess);
+        assertEquals(10, segments.size());
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one));
+
+        // empty from
+        toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(zero, 0L);
+        toStreamCutSuccess.put(five, 0L);
+        toStreamCutSuccess.put(six, 0L);
+        toStreamCutSuccess.put(two, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, Collections.emptyMap(), toStreamCutSuccess);
+        assertEquals(5, segments.size());
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == three || x.getSegmentId() == four || x.getSegmentId() == seven ||
+                x.getSegmentId() == eight || x.getSegmentId() == nine || x.getSegmentId() == ten));
+    }
     // endregion
+
     private Pair<byte[], byte[]> createSegmentTableAndIndex(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
 

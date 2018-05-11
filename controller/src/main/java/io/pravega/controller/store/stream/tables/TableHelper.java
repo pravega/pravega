@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -248,17 +247,18 @@ public class TableHelper {
                                                                  final Map<Long, Long> from,
                                                                  final Map<Long, Long> to) {
         Preconditions.checkArgument(!(from.isEmpty() && to.isEmpty()));
-
-        Set<Long> segments = new HashSet<>();
         // 1. compute epoch cut map for from and to
         Map<Segment, Integer> fromEpochCutMap = from.isEmpty() ? Collections.emptyMap() :
-                computeEpochCutMapWithSegment(segmentIndex, segmentTable, historyIndex, historyTable, from);
+                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, from);
         Map<Segment, Integer> toEpochCutMap = to.isEmpty() ? Collections.emptyMap() :
-                computeEpochCutMapWithSegment(segmentIndex, segmentTable, historyIndex, historyTable, to);
+                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, to);
+        Preconditions.checkArgument(greaterThan(toEpochCutMap, fromEpochCutMap, to, from));
+
+        Set<Long> segments = new HashSet<>();
 
         // if from is empty, lower bound becomes lowest possible epoch = 0
         final int fromLowEpoch = fromEpochCutMap.values().stream().min(Comparator.naturalOrder()).orElse(0);
-        final int fromHighEpoch = toEpochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(0);
+        final int fromHighEpoch = fromEpochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(0);
 
         // if to is empty, upper bound becomes highest epoch
         final int highestEpoch = HistoryRecord.readLatestRecord(historyIndex, historyTable, true).get().getEpoch();
@@ -266,7 +266,7 @@ public class TableHelper {
         final int toHighEpoch = toEpochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(highestEpoch);
 
         // 2. loop from.lowestEpoch till to.highestEpoch
-        for(int epoch = fromLowEpoch; epoch <= toHighEpoch; epoch++) {
+        for (int epoch = fromLowEpoch; epoch <= toHighEpoch; epoch++) {
             HistoryRecord epochRecord = HistoryRecord.readRecord(epoch, historyIndex, historyTable, false).get();
 
             // for epochs that cleanly lie between from.high and to.low epochs we can include all segments present in them

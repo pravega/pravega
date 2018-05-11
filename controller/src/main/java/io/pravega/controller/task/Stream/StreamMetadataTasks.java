@@ -80,7 +80,6 @@ import org.apache.commons.lang3.NotImplementedException;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
 import static io.pravega.shared.MetricsNames.nameFromStream;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
 
 /**
  * Collection of metadata update tasks on stream.

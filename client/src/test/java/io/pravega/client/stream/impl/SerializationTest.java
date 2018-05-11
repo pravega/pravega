@@ -76,8 +76,8 @@ public class SerializationTest {
     
     @Test
     public void testSegment() {
-        Segment segmnet = Segment.fromScopedName("foo/bar/2");
-        assertEquals("foo/bar/2", segmnet.getScopedName());   
+        Segment segmnet = Segment.fromScopedName("foo/bar/2#secondary.0");
+        assertEquals("foo/bar/2#secondary.0", segmnet.getScopedName());
     }
     
     @Test

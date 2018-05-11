@@ -194,7 +194,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
-        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, four, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent)));
         assertTrue(writer.queue.isEmpty());
 
@@ -203,7 +203,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, four, null, executor).join());
 
-        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, three, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent2)));
         assertTrue(streamStore.isCold(scope, stream, three, null, executor).join());
 
