@@ -12,7 +12,6 @@ package io.pravega.client.stream;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import java.io.Serializable;
 
 /**
  * A stream can be thought of as an unbounded sequence of events.
@@ -23,7 +22,7 @@ import java.io.Serializable;
  * Strongly Consistent (Events are either in the stream or they are not, and not subject to reordering once written)
  * Scalable (The rate of events in a stream can greatly exceed the capacity of any single host)
  */
-public interface Stream extends Serializable {
+public interface Stream {
     /**
      * Gets the scope of this stream.
      *

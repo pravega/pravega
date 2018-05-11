@@ -31,6 +31,8 @@ public class Utils {
     public static final int REST_PORT = 9091;
     public static final String DOCKER_NETWORK = "docker-network";
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
+    public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
+    public static final int ALTERNATIVE_REST_PORT = 9094;
 
     /**
      * Get Configuration from environment or system property.
@@ -53,10 +55,14 @@ public class Utils {
                 new BookkeeperService("bookkeeper", zkUri);
     }
 
-    public static Service createPravegaControllerService(final URI zkUri) {
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
         return DOCKER_BASED
-                ? new PravegaControllerDockerService("controller", zkUri)
-                : new PravegaControllerService("controller", zkUri);
+                ? new PravegaControllerDockerService(serviceName, zkUri)
+                : new PravegaControllerService(serviceName, zkUri);
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri) {
+        return createPravegaControllerService(zkUri, "controller");
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {

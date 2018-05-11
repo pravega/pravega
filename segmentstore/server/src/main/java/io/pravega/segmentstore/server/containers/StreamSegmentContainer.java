@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -63,6 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -72,9 +74,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
-    private static final Retry.RetryAndThrowBase<Exception> CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
-            .retryWhen(ex -> ex instanceof BadAttributeUpdateException)
-            .throwingOn(Exception.class);
+    private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
+            .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     private final String traceObjectId;
     private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;

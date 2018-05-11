@@ -56,7 +56,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -104,7 +103,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata,
                                                      OperationLog durableLog, Storage storage) {
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, ForkJoinPool.commonPool());
+                storage, executorService());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
@@ -148,7 +147,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                                                              ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, ForkJoinPool.commonPool());
+                storage, executorService());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 

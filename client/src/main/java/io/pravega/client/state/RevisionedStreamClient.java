@@ -80,7 +80,7 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
     boolean compareAndSetMark(Revision expected, Revision newLocation);
     
     /**
-     * Removes all data through the revision provided (inclusive). This will update
+     * Removes all data through the revision provided. This will update
      * {@link #fetchOldestRevision()} to the provided revision. After this call returns if
      * {@link #readFrom(Revision)} is called with an older revision it will throw.
      * 

@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -130,12 +130,11 @@ class BookKeeperLog implements DurableDataLog {
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
-    private Retry.RetryAndThrowBase<Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
+    private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
         int initialDelay = writeTimeout / maxWriteAttempts;
         int maxDelay = writeTimeout * maxWriteAttempts;
         return Retry.withExpBackoff(initialDelay, 2, maxWriteAttempts, maxDelay)
-                    .retryWhen(ex -> true) // Retry for every exception.
-                    .throwingOn(Exception.class);
+                    .retryWhen(ex -> true); // Retry for every exception.
     }
 
     private void handleWriteProcessorFailures(Throwable exception) {
