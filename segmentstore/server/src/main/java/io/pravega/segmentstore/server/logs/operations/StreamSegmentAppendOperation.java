@@ -95,6 +95,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
      *
      * @return A Collection of Attribute updates, or null if no updates are available.
      */
+    @Override
     public Collection<AttributeUpdate> getAttributeUpdates() {
         return this.attributeUpdates;
     }

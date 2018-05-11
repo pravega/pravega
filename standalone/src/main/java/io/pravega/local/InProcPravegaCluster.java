@@ -261,7 +261,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tcp" : "tls") + "://localhost:"
+                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
                                                                                 + controllerPorts[0])
                                          .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
                                          .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)

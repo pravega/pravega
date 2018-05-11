@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.StreamCut;
+import java.nio.ByteBuffer;
 import lombok.EqualsAndHashCode;
 
 /**
@@ -18,7 +19,13 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode
 public final class UnboundedStreamCut implements StreamCut {
+    private static final long serialVersionUID = 1L;
 
+    @Override
+    public ByteBuffer toBytes() {
+        return ByteBuffer.allocate(0);
+    }
+    
     @Override
     public StreamCutInternal asImpl() {
         return null;

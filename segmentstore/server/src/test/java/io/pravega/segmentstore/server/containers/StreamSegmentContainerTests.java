@@ -134,6 +134,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final int TEST_TIMEOUT_MILLIS = 100 * 1000;
+    private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
+    private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
@@ -345,7 +347,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final List<UUID> allAttributes = Stream.concat(extendedAttributes.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final TestContainerConfig containerConfig = new TestContainerConfig();
-        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
         @Cleanup
         TestContext context = new TestContext();
@@ -443,11 +445,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testExtendedAttributesConditionalUpdates() throws Exception {
-        final UUID ea1 = UUID.randomUUID();
-        final UUID ea2 = UUID.randomUUID();
+        final UUID ea1 = new UUID(0, 1);
+        final UUID ea2 = new UUID(0, 2);
         final List<UUID> allAttributes = Stream.of(ea1, ea2).collect(Collectors.toList());
+
+        // We set a longer Segment Expiration time, since this test executes more operations than the others.
         final TestContainerConfig containerConfig = new TestContainerConfig();
-        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG));
         AtomicInteger expectedAttributeValue = new AtomicInteger(0);
 
         @Cleanup
@@ -507,12 +511,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Verify results.
+        // 4. Evict the segment from memory, then verify results.
+        localContainer.triggerMetadataCleanup(segmentNames).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         for (String segmentName : segmentNames) {
             // Verify all attribute values.
-            SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            val attributeValues = localContainer.getAttributes(segmentName, allAttributes, true, TIMEOUT).join();
+            val sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             for (val attributeId : allAttributes) {
-                Assert.assertEquals("Unexpected value for attribute " + attributeId + " for segment " + segmentName,
+                Assert.assertEquals("Unexpected value for non-cached attribute " + attributeId + " for segment " + segmentName,
+                        expectedAttributeValue.get(), (long) attributeValues.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+                Assert.assertEquals("Unexpected value for metadata attribute " + attributeId + " for segment " + segmentName,
                         expectedAttributeValue.get(), (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
             }
         }
@@ -1078,7 +1086,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Map<UUID, Long> expectedAttributes = new HashMap<>();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
-        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
         @Cleanup
         TestContext context = new TestContext(containerConfig);
@@ -1161,7 +1169,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final byte[] appendData = "hello".getBytes();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
-        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
         @Cleanup
         TestContext context = new TestContext(containerConfig);
@@ -1469,7 +1477,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.loop(
                 () -> !successfulMap.isDone(),
                 () -> Futures
-                        .delayedFuture(Duration.ofMillis(250), executorService())
+                        .delayedFuture(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT), executorService())
                         .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
                         .thenAccept(successfulMap::complete)
                         .exceptionally(ex -> {
