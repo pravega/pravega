@@ -61,7 +61,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     private static final String READER_GROUP = "testStreamcutsStreamRG" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     private static final int TOTAL_EVENTS = 5000;
-    private static final int CUT_SIZE = 1000;
+    private static final int CUT_SIZE = 500;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
