@@ -135,8 +135,9 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      * This test verifies the correct operation of readers using StreamCuts. Concretely, the test creates two streams
      * with different number of segments and it writes some events (TOTAL_EVENTS) in them. Afterwards, the test creates
      * a list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
-     * readers can be initialized at these StreamCut intervals and that only CUT_SIZE events are read. Finally, this
-     * test also verifies that an existing reader group can be reset to the starting position in the stream.
+     * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
+     * the test checks the correctness of different combinations of intervals that has not been sequentially created.
+     * Finally, this test checks that an existing reader group can be reset to read from the first StreamCut created.
      */
     @Test
     public void streamCutsTest() {
