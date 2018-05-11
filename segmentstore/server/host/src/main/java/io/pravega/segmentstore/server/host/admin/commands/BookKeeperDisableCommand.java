@@ -21,10 +21,9 @@ import lombok.val;
  */
 public class BookKeeperDisableCommand extends BookKeeperCommand {
     private static final int MAX_RETRIES = 10;
-    private static final Retry.RetryAndThrowBase<Exception> DISABLE_RETRY = Retry
+    private static final Retry.RetryAndThrowBase<? extends Exception> DISABLE_RETRY = Retry
             .withExpBackoff(100, 2, MAX_RETRIES, 1000)
-            .retryWhen(ex -> ex instanceof DataLogWriterNotPrimaryException)
-            .throwingOn(Exception.class);
+            .retryWhen(ex -> ex instanceof DataLogWriterNotPrimaryException);
 
     /**
      * Creates a new instance of the BookKeeperDisableCommand.
