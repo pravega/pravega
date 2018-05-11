@@ -377,6 +377,24 @@ public interface StreamMetadataStore {
                                                                                      final Executor executor);
 
     /**
+     * Given two stream cuts, this method return a list of segments that lie between given stream cuts.
+     *
+     * @param scope      stream scope
+     * @param streamName stream name.
+     * @param from       from stream cut
+     * @param to         to stream cut
+     * @param context    operation context
+     * @param executor   callers executor
+     * @return Future which when completed contains list of segments between given stream cuts.
+     */
+    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final String scope,
+                                                           final String streamName,
+                                                           final Map<Long, Long> from,
+                                                           final Map<Long, Long> to,
+                                                           final OperationContext context,
+                                                           final Executor executor);
+
+    /**
      * Scales in or out the currently set of active segments of a stream.
      *
      * @param scope          stream scope

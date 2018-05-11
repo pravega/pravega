@@ -368,7 +368,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 })));
     }
 
-    @Override public CompletableFuture<Map<Long, List<Long>>> getSuccessorsWithPredecessors(final long segmentId) {
+    @Override
+    public CompletableFuture<Map<Long, List<Long>>> getSuccessorsWithPredecessors(final long segmentId) {
         // Ensure the order, we should first get history table followed by segment table because during scale we first write to
         // segment table followed by history table. So if a record exists in history table, then we are guaranteed to find it in
         // segment table.
@@ -393,7 +394,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 )));
     }
 
-    @Override public CompletableFuture<List<Long>> getActiveSegments() {
+    @Override
+    public CompletableFuture<List<Long>> getActiveSegments() {
         return verifyLegalState()
                 .thenCompose(v -> getHistoryIndex()
                         .thenCompose(historyIndex -> getHistoryTable()
@@ -432,6 +434,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return getHistoryIndex()
                 .thenCompose(historyIndex -> getHistoryTable()
                         .thenApply(historyTable -> TableHelper.getSegmentsInEpoch(historyIndex.getData(), historyTable.getData(), epoch)));
+    }
+
+    @Override
+    public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(Map<Long, Long> from, Map<Long, Long> to) {
+        return getHistoryIndex()
+                .thenCompose(historyIndex -> getHistoryTable()
+                        .thenCompose(historyTable -> getSegmentIndex()
+                                .thenCompose(segmentIndex -> getSegmentTable()
+                                        .thenApply(segmentTable ->
+                                                TableHelper.findSegmentsBetweenStreamCuts(historyIndex.getData(), historyTable.getData(),
+                                                        segmentIndex.getData(), segmentTable.getData(), from, to)))));
     }
 
     /**

@@ -454,6 +454,18 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void getSegmentsBetween(Controller.StreamCutRange request, StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    SegmentId segment1 = ModelHelper.createSegmentId("scope1", "stream1", 0);
+                    SegmentId segment2 = ModelHelper.createSegmentId("scope1", "stream1", 1);
+                    responseObserver.onNext(Controller.StreamCutRangeResponse.newBuilder().build());
+                    responseObserver.onCompleted();
+                }  else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(ScaleResponse.newBuilder()
@@ -1238,156 +1250,5 @@ public class ControllerImplTest {
         createCount.acquire();
         ExecutorServiceHelpers.shutdown(executorService);
         assertTrue(success.get());
-    }
-    
-    @Test
-    public void testCutpointSuccessors() throws Exception {
-        String scope = "scope1";
-        String stream = "stream1";
-        Stream s = new StreamImpl(scope, stream);
-        Map<Segment, Long> segments = new HashMap<>();
-        segments.put(new Segment(scope, stream, 0), 4L);
-        segments.put(new Segment(scope, stream, 1), 6L);
-        StreamCut cut = new StreamCutImpl(s, segments);
-        Set<Segment> successors = controllerClient.getSuccessors(cut).get().getSegments();
-        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
-                                     new Segment(scope, stream, 2), new Segment(scope, stream, 3),
-                                     new Segment(scope, stream, 4), new Segment(scope, stream, 5),
-                                     new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
-                     successors);
-    }
-
-    @Test
-    public void testGetSegmentsWithValidStreamCuts() throws Exception {
-        String scope = "scope1";
-        String stream = "stream1";
-        Stream s = new StreamImpl(scope, stream);
-
-        Map<Segment, Long> startSegments = new HashMap<>();
-        startSegments.put(new Segment(scope, stream, 0), 4L);
-        startSegments.put(new Segment(scope, stream, 1), 6L);
-        StreamCut cut = new StreamCutImpl(s, startSegments);
-
-        Map<Segment, Long> endSegments = new HashMap<>();
-        endSegments.put(new Segment(scope, stream, 6), 10L);
-        endSegments.put(new Segment(scope, stream, 7), 10L);
-        StreamCut endSC = new StreamCutImpl(s, endSegments);
-
-        Set<Segment> result = controllerClient.getSegments(cut, endSC).get().getSegments();
-        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
-                new Segment(scope, stream, 2), new Segment(scope, stream, 3),
-                new Segment(scope, stream, 4), new Segment(scope, stream, 5),
-                new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
-                result);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsWithOverlappingStreamCuts() throws Exception {
-        String scope = "scope1";
-        String stream = "stream1";
-        Stream s = new StreamImpl(scope, stream);
-
-        Map<Segment, Long> startSegments = new HashMap<>();
-        startSegments.put(new Segment(scope, stream, 3), 4L);
-        startSegments.put(new Segment(scope, stream, 2), 4L);
-        startSegments.put(new Segment(scope, stream, 1), 6L);
-        StreamCut cut = new StreamCutImpl(s, startSegments);
-
-        Map<Segment, Long> endSegments = new HashMap<>();
-        endSegments.put(new Segment(scope, stream, 0), 10L);
-        endSegments.put(new Segment(scope, stream, 7), 10L);
-        StreamCut endSC = new StreamCutImpl(s, endSegments);
-
-        controllerClient.getSegments(cut, endSC).get().getSegments();
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsWithPartialOverlapStreamCuts() throws Exception {
-        String scope = "scope1";
-        String stream = "stream1";
-        Stream s = new StreamImpl(scope, stream);
-
-        Map<Segment, Long> startSegments = new HashMap<>();
-        startSegments.put(new Segment(scope, stream, 0), 4L);
-        startSegments.put(new Segment(scope, stream, 7), 6L);
-        StreamCut cut = new StreamCutImpl(s, startSegments);
-
-        Map<Segment, Long> endSegments = new HashMap<>();
-        endSegments.put(new Segment(scope, stream, 5), 10L);
-        endSegments.put(new Segment(scope, stream, 4), 10L);
-        endSegments.put(new Segment(scope, stream, 6), 10L);
-        StreamCut endSC = new StreamCutImpl(s, endSegments);
-
-        controllerClient.getSegments(cut, endSC).get().getSegments();
-    }
-
-    /*
-     Segment mapping of stream8 used for the below tests.
-
-     +-------+------+-------
-     |       |   8  |
-     |   2   +------|
-     |       |   7  |   10
-     +-------+ -----|
-     |       |   6  |
-     |  1    +------+-------
-     |       |   5  |
-     +-------+------|
-     |       |   4  |   9
-     |  0    +------|
-     |       |   3  |
-     +-------+------+--------
-     */
-    @Test
-    public void testGetSegmentsWithValidStreamCut() throws Exception {
-        String scope = "scope1";
-        String stream = "stream8";
-        Stream s = new StreamImpl(scope, stream);
-
-        Map<Segment, Long> startSegments = new HashMap<>();
-        startSegments.put(new Segment(scope, stream, 0), 4L);
-        startSegments.put(new Segment(scope, stream, 1), 6L);
-        startSegments.put(new Segment(scope, stream, 7), 6L);
-        startSegments.put(new Segment(scope, stream, 8), 6L);
-        StreamCut cut = new StreamCutImpl(s, startSegments);
-
-        Map<Segment, Long> endSegments = new HashMap<>();
-        endSegments.put(new Segment(scope, stream, 3), 10L);
-        endSegments.put(new Segment(scope, stream, 4), 10L);
-        endSegments.put(new Segment(scope, stream, 5), 10L);
-        endSegments.put(new Segment(scope, stream, 10), 10L);
-        StreamCut endSC = new StreamCutImpl(s, endSegments);
-
-        Set<Segment> segments = controllerClient.getSegments(cut, endSC).get().getSegments();
-        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
-                new Segment(scope, stream, 8), new Segment(scope, stream, 7),
-                new Segment(scope, stream, 3), new Segment(scope, stream, 4),
-                new Segment(scope, stream, 5), new Segment(scope, stream, 10),
-                new Segment(scope, stream, 6)),
-                segments);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetSegmentsWithPartialOverlapStreamCut() throws Exception {
-        String scope = "scope1";
-        String stream = "stream8";
-        Stream s = new StreamImpl(scope, stream);
-
-        Map<Segment, Long> startSegments = new HashMap<>();
-        startSegments.put(new Segment(scope, stream, 0), 4L);
-        startSegments.put(new Segment(scope, stream, 5), 6L);
-        startSegments.put(new Segment(scope, stream, 6), 6L);
-        startSegments.put(new Segment(scope, stream, 2), 6L);
-        StreamCut cut = new StreamCutImpl(s, startSegments);
-
-        Map<Segment, Long> endSegments = new HashMap<>();
-        endSegments.put(new Segment(scope, stream, 8), 10L);
-        endSegments.put(new Segment(scope, stream, 7), 10L);
-        endSegments.put(new Segment(scope, stream, 1), 10L);
-        endSegments.put(new Segment(scope, stream, 3), 10L);
-        endSegments.put(new Segment(scope, stream, 4), 10L);
-        StreamCut endSC = new StreamCutImpl(s, endSegments);
-
-        controllerClient.getSegments(cut, endSC).get().getSegments();
     }
 }

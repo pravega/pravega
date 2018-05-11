@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +53,7 @@ public class TableHelper {
     /**
      * Segment Table records are indexed and and it is O(constant) operation to get segment offset given segmentIndex.
      *
-     * @param segmentId segment id
+     * @param segmentId    segment id
      * @param segmentIndex segment table index
      * @param segmentTable segment table
      * @param historyIndex history index
@@ -135,6 +136,7 @@ public class TableHelper {
      * Get active segments at given timestamp.
      * Perform binary search on index table to find the record corresponding to timestamp.
      * Once we find the segments, compare them to truncationRecord and take the more recent of the two.
+     *
      * @param timestamp        timestamp
      * @param historyIndex     history index
      * @param historyTable     history table
@@ -144,8 +146,8 @@ public class TableHelper {
      * @return list of active segments.
      */
     public static List<Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
-                                                            final byte[] segmentIndex, final byte[] segmentTable,
-                                                            final StreamTruncationRecord truncationRecord) {
+                                               final byte[] segmentIndex, final byte[] segmentTable,
+                                               final StreamTruncationRecord truncationRecord) {
         final HistoryRecord record = findRecordInHistoryTable(timestamp, historyIndex, historyTable);
 
         List<Long> segments;
@@ -197,6 +199,7 @@ public class TableHelper {
 
     /**
      * Method to compute new truncation record by applying supplied streamCut on previous truncation record.
+     *
      * @param historyIndex             history index
      * @param historyTable             history table
      * @param segmentIndex             segment index
@@ -231,6 +234,66 @@ public class TableHelper {
     }
 
     /**
+     * Method to compute new truncation record by applying supplied streamCut on previous truncation record.
+     * @param historyIndex             history index
+     * @param historyTable             history table
+     * @param segmentIndex             segment index
+     * @param segmentTable             segment table
+     * @param from                     stream cut to truncate at.
+     * @param to                       stream cut to truncate at.
+     * @return
+     */
+    public static List<Segment> findSegmentsBetweenStreamCuts(final byte[] historyIndex, final byte[] historyTable,
+                                                                 final byte[] segmentIndex, final byte[] segmentTable,
+                                                                 final Map<Long, Long> from,
+                                                                 final Map<Long, Long> to) {
+        Preconditions.checkArgument(!(from.isEmpty() && to.isEmpty()));
+
+        Set<Long> segments = new HashSet<>();
+        // 1. compute epoch cut map for from and to
+        Map<Segment, Integer> fromEpochCutMap = from.isEmpty() ? Collections.emptyMap() :
+                computeEpochCutMapWithSegment(segmentIndex, segmentTable, historyIndex, historyTable, from);
+        Map<Segment, Integer> toEpochCutMap = to.isEmpty() ? Collections.emptyMap() :
+                computeEpochCutMapWithSegment(segmentIndex, segmentTable, historyIndex, historyTable, to);
+
+        // if from is empty, lower bound becomes lowest possible epoch = 0
+        final int fromLowEpoch = fromEpochCutMap.values().stream().min(Comparator.naturalOrder()).orElse(0);
+        final int fromHighEpoch = toEpochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(0);
+
+        // if to is empty, upper bound becomes highest epoch
+        final int highestEpoch = HistoryRecord.readLatestRecord(historyIndex, historyTable, true).get().getEpoch();
+        final int toLowEpoch = toEpochCutMap.values().stream().min(Comparator.naturalOrder()).orElse(highestEpoch);
+        final int toHighEpoch = toEpochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(highestEpoch);
+
+        // 2. loop from.lowestEpoch till to.highestEpoch
+        for(int epoch = fromLowEpoch; epoch <= toHighEpoch; epoch++) {
+            HistoryRecord epochRecord = HistoryRecord.readRecord(epoch, historyIndex, historyTable, false).get();
+
+            // for epochs that cleanly lie between from.high and to.low epochs we can include all segments present in them
+            // because they are guaranteed to be greater than `from` and less than `to` stream cuts.
+            if (epoch >= fromHighEpoch && epoch <= toLowEpoch) {
+                segments.addAll(epochRecord.getSegments());
+            } else {
+                // 3. for each segment in epoch.segments, find overlaps in from and to
+                epochRecord.getSegments().stream().filter(x -> !segments.contains(x)).forEach(segmentId -> {
+                    // 4. if segment.number >= from.segmentNumber && segment.number <= to.segmentNumber include segment.number
+                    Segment epochSegment = getSegment(segmentId, segmentIndex, segmentTable, historyIndex, historyTable);
+                    boolean greatThanFrom = fromEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
+                            .allMatch(x -> x.getSegmentId() <= epochSegment.getSegmentId());
+                    boolean lessThanTo = toEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
+                            .allMatch(x -> epochSegment.getSegmentId() <= x.getSegmentId());
+                    if (greatThanFrom && lessThanTo) {
+                        segments.add(epochSegment.getSegmentId());
+                    }
+                });
+            }
+        }
+
+        return segments.stream().map(segmentId -> getSegment(segmentId, segmentIndex, segmentTable, historyIndex, historyTable))
+                .collect(Collectors.toList());
+    }
+
+    /**
      * A method to compute size of stream in bytes from start till given stream cut.
      * Note: this computed size is absolute size and even if the stream has been truncated, this size is computed for the
      * entire amount of data that was written into the stream.
@@ -252,8 +315,7 @@ public class TableHelper {
         Preconditions.checkNotNull(sealedSegmentsRecord);
         Preconditions.checkNotNull(segmentTable);
         Preconditions.checkArgument(!streamCut.isEmpty());
-        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
-        Map<Segment, Integer> cutMapSegments = transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap);
+        Map<Segment, Integer> epochCutMap = computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
         AtomicLong size = new AtomicLong();
         Map<Long, Long> sealedSegmentSizeMap = sealedSegmentsRecord.getSealedSegmentsSizeMap();
 
@@ -270,7 +332,7 @@ public class TableHelper {
 
             size.addAndGet(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
                 Segment epochSegment = getSegment(epochSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
-                return cutMapSegments.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getSegmentId() == epochSegment.getSegmentId() ||
+                return epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getSegmentId() == epochSegment.getSegmentId() ||
                         (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).map(sealedSegmentSizeMap::get).reduce((x, y) -> x + y).orElse(0L));
             historyRecordOpt = HistoryRecord.fetchNext(historyRecord, historyIndex, historyTable, true);
@@ -845,6 +907,31 @@ public class TableHelper {
                 ImmutableMap.copyOf(newSegments));
     }
 
+
+    private static Map<Segment, Integer> computeEpochCutMapWithSegment(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
+                                                                              byte[] segmentTable, Map<Long, Long> streamCut) {
+        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
+        return transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap);
+    }
+
+    /**
+     * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
+     * epochs they were found in closest to truncation point.
+     * This data structure is used to find active segments wrt a stream cut.
+     * So for example:
+     * epoch 0: 0, 1
+     * epoch 1: 0, 2, 3
+     * epoch 2: 0, 2, 4, 5
+     * epoch 3: 0, 4, 5, 6, 7
+     *
+     * Following is a valid stream cut {0/offset, 3/offset, 6/offset, 7/offset}
+     * This spans from epoch 1 till epoch 3. Any request for segments at epoch 1 or 2 or 3 will need to have this stream cut
+     * applied on it to find segments that are available for consumption.
+     *
+     * This method takes a stream cut and maps it to highest epochs per segment in the stream cut.
+     * So in the above example, the map produced for {0/offset, 3/offset, 6/offset, 7/offset} will be
+     * {0/3, 3/1, 6/3, 7/3}
+     */
     private static Map<Long, Integer> computeEpochCutMap(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
                                                                               byte[] segmentTable, Map<Long, Long> streamCut) {
         Map<Long, Integer> epochStreamCutMap = new HashMap<>();
@@ -870,7 +957,7 @@ public class TableHelper {
 
         return epochStreamCutMap;
     }
-    
+
     private static Set<Long> computeToDelete(Map<Segment, Integer> epochCutMap, byte[] historyIndex, byte[] historyTable,
                                                                   byte[] segmentIndex, byte[] segmentTable, Set<Long> deletedSegments) {
         Set<Long> toDelete = new HashSet<>();

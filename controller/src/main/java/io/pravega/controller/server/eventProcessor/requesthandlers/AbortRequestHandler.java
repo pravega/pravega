@@ -120,7 +120,6 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
 
         return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
                 .retryWhen(RetryableException::isRetryable)
-                .throwingOn(RuntimeException.class)
                 .runAsync(() -> segmentHelper.abortTransaction(scope,
                         stream,
                         segmentId,

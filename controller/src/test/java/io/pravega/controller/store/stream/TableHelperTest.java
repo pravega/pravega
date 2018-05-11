@@ -14,13 +14,16 @@ import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -859,6 +862,277 @@ public class TableHelperTest {
                         streamCut5, finalTruncationRecord), e -> e instanceof IllegalArgumentException);
     }
 
+    // region stream cut test
+    /*
+     Segment mapping of stream8 used for the below tests.
+
+     +-------+------+-------+-------+
+     |       |   8  |       |       |
+     |   2   +------|       |       |
+     |       |   7  |   10  |       |
+     +-------+ -----|       |       |
+     |       |   6  |       |       |
+     |  1    +------+-------+-------+
+     |       |   5  |       |       |
+     +-------+------|       |       |
+     |       |   4  |   9   |       |
+     |  0    +------|       |       |
+     |       |   3  |       |       |
+     +-------+------+----------------
+     */
+    private List<byte[]> setupTablesForStreamCut() {
+        List<Segment> segments;
+        List<Long> newSegments;
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+        long timestamp = System.currentTimeMillis();
+        int epoch = 0;
+
+        long threeId = computeSegmentId(3, 1);
+        long fourId = computeSegmentId(4, 1);
+        long fiveId = computeSegmentId(5, 1);
+        long sixId = computeSegmentId(6, 1);
+        long sevenId = computeSegmentId(7, 1);
+        long eightId = computeSegmentId(8, 1);
+        long nineId = computeSegmentId(9, 2);
+        long tenId = computeSegmentId(10, 2);
+        Segment zero = new Segment(0L, epoch, timestamp, 0, 0.33);
+        Segment one = new Segment(1L, epoch, timestamp, 0.33, 0.66);
+        Segment two = new Segment(2L, epoch, timestamp, 0.66, 1.0);
+        Segment three = new Segment(threeId, epoch, timestamp, 0.0, 0.16);
+        Segment four = new Segment(fourId, epoch, timestamp, 0.16, 0.33);
+        Segment five = new Segment(fiveId, epoch, timestamp, 0.33, 0.5);
+        Segment six = new Segment(sixId, epoch, timestamp, 0.5, 0.66);
+        Segment seven = new Segment(sevenId, epoch, timestamp, 0.66, 83);
+        Segment eight = new Segment(eightId, epoch, timestamp, 0.83, 1);
+        Segment nine = new Segment(nineId, epoch, timestamp, 0.0, 0.5);
+        Segment ten = new Segment(tenId, epoch, timestamp, 0.5, 1);
+
+        segments = new LinkedList<>();
+        segments.add(zero);
+        segments.add(one);
+        segments.add(two);
+        newRanges = segments.stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+        newSegments = segments.stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
+
+        Pair<byte[], byte[]> segmentAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp);
+        byte[] segmentIndex = segmentAndIndex.getKey();
+        byte[] segmentTable = segmentAndIndex.getValue();
+        byte[] historyIndex = TableHelper.createHistoryIndex();
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, newSegments);
+
+        int nextHistoryOffset = historyTable.length;
+
+        // 2 -> 7, 8
+        // 1 -> 5, 6
+        // 0 -> 3, 4
+        segments = new LinkedList<>();
+        segments.add(three);
+        segments.add(four);
+        segments.add(five);
+        segments.add(six);
+        segments.add(seven);
+        segments.add(eight);
+        newRanges = segments.stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+        newSegments = segments.stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
+
+        epoch++;
+        timestamp = timestamp + 1;
+
+        segmentAndIndex = TableHelper.addNewSegmentsToSegmentTableAndIndex(3, epoch, segmentIndex, segmentTable, newRanges, timestamp);
+        segmentIndex = segmentAndIndex.getKey();
+        segmentTable = segmentAndIndex.getValue();
+
+        historyIndex = TableHelper.updateHistoryIndex(historyIndex, nextHistoryOffset);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyIndex, historyTable, newSegments);
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp);
+
+        // 6, 7, 8 -> 10
+        // 3, 4, 5 -> 9
+        segments = new LinkedList<>();
+        segments.add(nine);
+        segments.add(ten);
+        newRanges = segments.stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+        newSegments = segments.stream().map(x -> x.getSegmentId()).collect(Collectors.toList());
+
+        epoch++;
+        timestamp = timestamp + 1;
+        nextHistoryOffset = historyTable.length;
+
+        segmentAndIndex = TableHelper.addNewSegmentsToSegmentTableAndIndex(9, epoch, segmentIndex, segmentTable, newRanges, timestamp);
+        segmentIndex = segmentAndIndex.getKey();
+        segmentTable = segmentAndIndex.getValue();
+
+        historyIndex = TableHelper.updateHistoryIndex(historyIndex, nextHistoryOffset);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyIndex, historyTable, newSegments);
+        partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp);
+
+        return Lists.newArrayList(segmentIndex, segmentTable, historyIndex, historyTable);
+    }
+
+    @Test
+    public void testCutpointSuccessors() {
+        long zero = computeSegmentId(0, 0);
+        long one = computeSegmentId(1, 0);
+        long two = computeSegmentId(2, 0);
+        long three = computeSegmentId(3, 1);
+        long four = computeSegmentId(4, 1);
+        long five = computeSegmentId(5, 1);
+        long six = computeSegmentId(6, 1);
+        long seven = computeSegmentId(7, 1);
+        long eight = computeSegmentId(8, 1);
+        long nine = computeSegmentId(9, 2);
+        long ten = computeSegmentId(10, 2);
+        Map<Long, Long> fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero, 0L);
+        fromStreamCut.put(one, 0L);
+        fromStreamCut.put(two, 0L);
+        List<byte[]> list = setupTablesForStreamCut();
+        byte[] segmentIndex = list.get(0);
+        byte[] segmentTable = list.get(1);
+        byte[] historyIndex = list.get(2);
+        byte[] historyTable = list.get(3);
+
+        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        assertEquals(11, segments.size());
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero, 0L);
+        fromStreamCut.put(two, 0L);
+        fromStreamCut.put(five, 0L);
+        fromStreamCut.put(six, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        assertEquals(10, segments.size());
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero, 0L);
+        fromStreamCut.put(five, 0L);
+        fromStreamCut.put(ten, 0L);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        assertEquals(6, segments.size());
+        // 0, 3, 4, 5, 9, 10
+        assertTrue(segments.stream().noneMatch(x -> x.getSegmentId() == one || x.getSegmentId() == two || x.getSegmentId() == six
+                || x.getSegmentId() == seven || x.getSegmentId() == eight));
+    }
+
+//    @Test
+//    public void testGetSegmentsWithValidStreamCuts() throws Exception {
+//        long zero = StreamSegmentNameUtils.computeSegmentId(0, 0);
+//        long one = StreamSegmentNameUtils.computeSegmentId(1, 0);
+//        long six = StreamSegmentNameUtils.computeSegmentId(6, 0);
+//        long seven = StreamSegmentNameUtils.computeSegmentId(7, 0);
+//
+//        Map<Long, Long> startSegments = new HashMap<>();
+//        startSegments.put(zero, 4L);
+//        startSegments.put(one, 6L);
+//
+//        Map<Long, Long> endSegments = new HashMap<>();
+//        endSegments.put(new Segment(scope, stream, 6), 10L);
+//        endSegments.put(new Segment(scope, stream, 7), 10L);
+//        StreamCut endSC = new StreamCutImpl(s, endSegments);
+//
+//        Set<Segment> result = controllerClient.getSegments(cut, endSC).get().getSegments();
+//        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
+//                new Segment(scope, stream, 2), new Segment(scope, stream, 3),
+//                new Segment(scope, stream, 4), new Segment(scope, stream, 5),
+//                new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
+//                result);
+//    }
+//
+//    @Test(expected = IllegalArgumentException.class)
+//    public void testGetSegmentsWithOverlappingStreamCuts() throws Exception {
+//        String scope = "scope1";
+//        String stream = "stream1";
+//        Stream s = new StreamImpl(scope, stream);
+//
+//        Map<Segment, Long> startSegments = new HashMap<>();
+//        startSegments.put(new Segment(scope, stream, 3), 4L);
+//        startSegments.put(new Segment(scope, stream, 2), 4L);
+//        startSegments.put(new Segment(scope, stream, 1), 6L);
+//        StreamCut cut = new StreamCutImpl(s, startSegments);
+//
+//        Map<Segment, Long> endSegments = new HashMap<>();
+//        endSegments.put(new Segment(scope, stream, 0), 10L);
+//        endSegments.put(new Segment(scope, stream, 7), 10L);
+//        StreamCut endSC = new StreamCutImpl(s, endSegments);
+//
+//        controllerClient.getSegments(cut, endSC).get().getSegments();
+//    }
+//
+//    @Test(expected = IllegalArgumentException.class)
+//    public void testGetSegmentsWithPartialOverlapStreamCuts() throws Exception {
+//        String scope = "scope1";
+//        String stream = "stream1";
+//        Stream s = new StreamImpl(scope, stream);
+//
+//        Map<Segment, Long> startSegments = new HashMap<>();
+//        startSegments.put(new Segment(scope, stream, 0), 4L);
+//        startSegments.put(new Segment(scope, stream, 7), 6L);
+//        StreamCut cut = new StreamCutImpl(s, startSegments);
+//
+//        Map<Segment, Long> endSegments = new HashMap<>();
+//        endSegments.put(new Segment(scope, stream, 5), 10L);
+//        endSegments.put(new Segment(scope, stream, 4), 10L);
+//        endSegments.put(new Segment(scope, stream, 6), 10L);
+//        StreamCut endSC = new StreamCutImpl(s, endSegments);
+//
+//        controllerClient.getSegments(cut, endSC).get().getSegments();
+//    }
+//
+//    @Test
+//    public void testGetSegmentsWithValidStreamCut() throws Exception {
+//        Map<Segment, Long> startSegments = new HashMap<>();
+//        startSegments.put(new Segment(scope, stream, 0), 4L);
+//        startSegments.put(new Segment(scope, stream, 1), 6L);
+//        startSegments.put(new Segment(scope, stream, 7), 6L);
+//        startSegments.put(new Segment(scope, stream, 8), 6L);
+//        StreamCut cut = new StreamCutImpl(s, startSegments);
+//
+//        Map<Segment, Long> endSegments = new HashMap<>();
+//        endSegments.put(new Segment(scope, stream, 3), 10L);
+//        endSegments.put(new Segment(scope, stream, 4), 10L);
+//        endSegments.put(new Segment(scope, stream, 5), 10L);
+//        endSegments.put(new Segment(scope, stream, 10), 10L);
+//        StreamCut endSC = new StreamCutImpl(s, endSegments);
+//
+//        Set<Segment> segments = controllerClient.getSegments(cut, endSC).get().getSegments();
+//        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
+//                new Segment(scope, stream, 8), new Segment(scope, stream, 7),
+//                new Segment(scope, stream, 3), new Segment(scope, stream, 4),
+//                new Segment(scope, stream, 5), new Segment(scope, stream, 10),
+//                new Segment(scope, stream, 6)),
+//                segments);
+//    }
+//
+//    @Test(expected = IllegalArgumentException.class)
+//    public void testGetSegmentsWithPartialOverlapStreamCut() throws Exception {
+//        String scope = "scope1";
+//        String stream = "stream8";
+//        Stream s = new StreamImpl(scope, stream);
+//
+//        Map<Segment, Long> startSegments = new HashMap<>();
+//        startSegments.put(new Segment(scope, stream, 0), 4L);
+//        startSegments.put(new Segment(scope, stream, 5), 6L);
+//        startSegments.put(new Segment(scope, stream, 6), 6L);
+//        startSegments.put(new Segment(scope, stream, 2), 6L);
+//        StreamCut cut = new StreamCutImpl(s, startSegments);
+//
+//        Map<Segment, Long> endSegments = new HashMap<>();
+//        endSegments.put(new Segment(scope, stream, 8), 10L);
+//        endSegments.put(new Segment(scope, stream, 7), 10L);
+//        endSegments.put(new Segment(scope, stream, 1), 10L);
+//        endSegments.put(new Segment(scope, stream, 3), 10L);
+//        endSegments.put(new Segment(scope, stream, 4), 10L);
+//        StreamCut endSC = new StreamCutImpl(s, endSegments);
+//
+//        controllerClient.getSegments(cut, endSC).get().getSegments();
+//    }
+    // endregion
     private Pair<byte[], byte[]> createSegmentTableAndIndex(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -889,6 +1163,5 @@ public class TableHelperTest {
         return TableHelper.addNewSegmentsToSegmentTableAndIndex(startingSegNum, newEpoch, segmentIndex, segmentTable,
                 newRanges, eventTime);
     }
-
 }
 

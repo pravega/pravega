@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import java.nio.ByteBuffer;
 
 /**
  * Pravega provides to a reader the ability to read an isolated event. This feature
@@ -22,9 +23,6 @@ import io.pravega.client.stream.EventPointer;
  * pair. It also includes the length for efficient buffering.
  */
 public abstract class EventPointerInternal implements EventPointer {
-
-    private static final long serialVersionUID = 1L;
-
     /**
      * Get the segment object to fetch the event from.
      *
@@ -45,4 +43,8 @@ public abstract class EventPointerInternal implements EventPointer {
      * @return the event length.
      */
     abstract int getEventLength();
+    
+    public static EventPointer fromBytes(ByteBuffer eventPointer) {
+        return EventPointerImpl.fromBytes(eventPointer);
+    }
 }

@@ -172,6 +172,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void getSegmentsBetween(Controller.StreamCutRange request, StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
+        log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
+        String scope = request.getStreamInfo().getScope();
+        String stream = request.getStreamInfo().getStream();
+        authenticateExecuteAndProcessResults(v -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
+                () -> controllerService.getSegmentsBetweenStreamCuts(request)
+                        .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
+                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.getSegmentId()))
+                                        .collect(Collectors.toList()), getCurrentDelegationToken())),
+                responseObserver);
+    }
+
+    @Override
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
         log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());

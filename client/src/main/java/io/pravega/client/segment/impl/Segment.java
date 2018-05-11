@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.List;
 
@@ -22,7 +23,7 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-public class Segment implements Serializable, Comparable<Segment> {
+public class Segment implements Comparable<Segment>, Serializable {
     private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
@@ -54,6 +55,11 @@ public class Segment implements Serializable, Comparable<Segment> {
         return new StreamImpl(scope, streamName);
     }
 
+    @Override
+    public String toString() {
+        return getScopedName();
+    }
+    
     /**
      * Parses fully scoped name, and creates the segment.
      *
@@ -79,7 +85,7 @@ public class Segment implements Serializable, Comparable<Segment> {
             }
         }
     }
-
+    
     @Override
     public int compareTo(Segment o) {
         int result = scope.compareTo(o.scope);
@@ -90,5 +96,18 @@ public class Segment implements Serializable, Comparable<Segment> {
             result = Long.compare(segmentId, o.segmentId);
         }
         return result;
+    }
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(getScopedName());
+    }
+    
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return Segment.fromScopedName(value);
+        }
     }
 }

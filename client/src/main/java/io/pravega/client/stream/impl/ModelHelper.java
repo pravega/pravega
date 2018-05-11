@@ -26,7 +26,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -293,6 +292,14 @@ public final class ModelHelper {
         return Controller.StreamCut.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllCut(streamCut).build();
     }
 
+    public static Controller.StreamCutRange decode(final String scope, final String stream, Map<Long, Long> from, Map<Long, Long> to) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+
+        return Controller.StreamCutRange.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllFrom(from)
+                .putAllTo(to).build();
+    }
+
     public static final Set<Long> getSegmentsFromPositions(final List<PositionInternal> positions) {
         Preconditions.checkNotNull(positions, "positions");
         return positions.stream()
@@ -337,6 +344,16 @@ public final class ModelHelper {
                 .setSegmentId(createSegmentId(scope, stream, segmentNumber))
                 .setMinKey(rangeMinKey)
                 .setMaxKey(rangeMaxKey)
+                .build();
+    }
+
+    public static final Controller.StreamCutRangeResponse createStreamCutRangeResponse(final String scope, final String stream,
+                                                                                       final List<SegmentId> segments, String delegationToken) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return Controller.StreamCutRangeResponse.newBuilder()
+                .addAllSegments(segments)
+                .setDelegationToken(delegationToken)
                 .build();
     }
 

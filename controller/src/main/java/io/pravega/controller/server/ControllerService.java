@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -185,6 +186,21 @@ public class ControllerService {
                                         seg.getKeyStart(),
                                         seg.getKeyEnd())),
                         entry -> entry.getValue()))), executor);
+    }
+
+    public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {
+        Preconditions.checkNotNull(range, "segment");
+        Preconditions.checkArgument(!(range.getFromMap().isEmpty() && range.getToMap().isEmpty()));
+
+        String scope = range.getStreamInfo().getScope();
+        String stream = range.getStreamInfo().getStream();
+        OperationContext context = streamStore.createContext(scope, stream);
+        return streamStore.getSegmentsBetweenStreamCuts(scope,
+                stream,
+                range.getFromMap(),
+                range.getToMap(),
+                context,
+                executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,

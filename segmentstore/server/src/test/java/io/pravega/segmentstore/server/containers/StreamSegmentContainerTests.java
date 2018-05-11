@@ -444,8 +444,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testExtendedAttributesConditionalUpdates() throws Exception {
-        final UUID ea1 = UUID.randomUUID();
-        final UUID ea2 = UUID.randomUUID();
+        final UUID ea1 = new UUID(0, 1);
+        final UUID ea2 = new UUID(0, 2);
         final List<UUID> allAttributes = Stream.of(ea1, ea2).collect(Collectors.toList());
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
@@ -508,12 +508,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Verify results.
+        // 4. Evict the segment from memory, then verify results.
+        localContainer.triggerMetadataCleanup(segmentNames).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         for (String segmentName : segmentNames) {
             // Verify all attribute values.
-            SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            val attributeValues = localContainer.getAttributes(segmentName, allAttributes, true, TIMEOUT).join();
+            val sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             for (val attributeId : allAttributes) {
-                Assert.assertEquals("Unexpected value for attribute " + attributeId + " for segment " + segmentName,
+                Assert.assertEquals("Unexpected value for non-cached attribute " + attributeId + " for segment " + segmentName,
+                        expectedAttributeValue.get(), (long) attributeValues.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+                Assert.assertEquals("Unexpected value for metadata attribute " + attributeId + " for segment " + segmentName,
                         expectedAttributeValue.get(), (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
             }
         }

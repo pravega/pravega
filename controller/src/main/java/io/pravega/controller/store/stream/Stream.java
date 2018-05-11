@@ -162,6 +162,17 @@ interface Stream {
     CompletableFuture<Map<Long, List<Long>>> getSuccessorsWithPredecessors(final long segmentId);
 
     /**
+     * Method to get all segments between given stream cuts.
+     * Either from or to can be either well formed stream cuts OR empty sets indicating unbounded cuts.
+     * If from is unbounded, then head is taken as from, and if to is unbounded then tail is taken as the end.
+     *
+     * @param from from stream cut.
+     * @param to to stream cut.
+     * @return Future which when completed gives list of segments between given streamcuts.
+     */
+    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
+
+    /**
      * @return currently active segments
      */
     CompletableFuture<List<Long>> getActiveSegments();
