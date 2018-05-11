@@ -130,7 +130,7 @@ public class SelfTestRunner {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 30)
-                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600 * 1000)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600)
                                       .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
                                       .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                                       .with(ServiceConfig.KEY_FILE, "../config/key.pem"))

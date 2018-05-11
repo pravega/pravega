@@ -83,7 +83,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                   .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                                   .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
                                   .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
-                                  .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30 * 1000))
+                                  .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30))
 
             .include(ContainerConfig
                     .builder()

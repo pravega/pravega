@@ -46,8 +46,8 @@ public class ServiceConfig {
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
     public static final Property<String> KEY_FILE = Property.named("keyFile", "");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeMillis", 30 * 60 * 1000);
-    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeMillis", 5 * 1000);
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -266,7 +266,7 @@ public class ServiceConfig {
         long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
-        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
     }
 
     /**
