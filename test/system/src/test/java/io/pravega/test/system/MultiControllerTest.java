@@ -27,8 +27,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -44,7 +46,6 @@ import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
-    private ControllerImpl controllerClient = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
@@ -140,15 +141,14 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
+                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
                 throwable -> throwable instanceof RetriesExhaustedException);
-        controllerClient.close();
+
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                    createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
+                    () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
                     throwable -> throwable instanceof RetriesExhaustedException);
-            controllerClient.close();
         }
 
         log.info("multiControllerTest execution completed");
@@ -156,33 +156,41 @@ public class MultiControllerTest {
 
     private void withControllerURIDirect() throws ExecutionException, InterruptedException {
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
-        controllerClient.close();
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()));
     }
 
     private void withControllerURIDiscover() throws ExecutionException, InterruptedException {
         if (!DOCKER_BASED) {
             Assert.assertTrue(createScopeWithSimpleRetry(
-                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()).get());
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()));
         }
-        controllerClient.close();
 
     }
 
-    CompletableFuture<Boolean> createScopeWithSimpleRetry(String scopeName, URI controllerURI) {
+    private boolean createScopeWithSimpleRetry(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
         // Need to retry since there is a delay for the mesos DNS name to resolve correctly.
-        return Retry.withExpBackoff(500, 2, 10, 5000)
-                .retryingOn(Exception.class)
-                .throwingOn(IllegalArgumentException.class)
-                .runAsync(() -> createScope(scopeName, controllerURI), EXECUTOR_SERVICE);
-    }
-
-    private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        controllerClient = new ControllerImpl(ControllerImplConfig.builder()
+        @Cleanup
+        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                         .controllerURI(controllerURI)
                         .build())
                 .build(), EXECUTOR_SERVICE);
-        return controllerClient.createScope(scopeName);
+
+        CompletableFuture<Boolean> retryResult = Retry.withExpBackoff(500, 2, 10, 5000)
+                .retryingOn(Exception.class)
+                .throwingOn(IllegalArgumentException.class)
+                .runAsync(() -> controllerClient.createScope(scopeName), EXECUTOR_SERVICE);
+
+        return retryResult.get();
+    }
+
+    private boolean createScope(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
+        @Cleanup
+        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
+                .clientConfig(ClientConfig.builder()
+                        .controllerURI(controllerURI)
+                        .build())
+                .build(), EXECUTOR_SERVICE);
+        return controllerClient.createScope(scopeName).get();
     }
 }
