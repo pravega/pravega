@@ -333,6 +333,9 @@ public class InProcPravegaCluster implements AutoCloseable {
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                 .host("0.0.0.0")
                 .port(this.restServerPort)
+                .enableTls(this.enableTls)
+                .keyFilePath(this.keyFile)
+                .keyFilePasswordPath("../config/bookie.keystore.jks.passwd")
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
