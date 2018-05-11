@@ -8,11 +8,17 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 language: java
+install: true
 jdk:
  - oraclejdk8
+
+# the secure configurations in env:-> global: section is for BINTRAY_USER=<USER> and BINTRAY_KEY=<KEY> properties
+# which will be used for publishing artifacts to snapshot repository
 env:
   global:
     - GRADLE_OPTS="-Xms128m"
+    - secure: "EPL076YzDvzRIThkh5pbpgd/59vONUsncWg7uESuY/7P7ZVnksUFoE20/vQNo40OTgukkjgnTymb0uJ9jWFpQOnNw+LzdvhC4BtPSAg4SlEuIsOhj6qPdvYe8XhGZj0Z0yGcP7dwu18pgaNSTJ1iVRjPXlysgYOwl0JF/XcL7yzi486JTmmaFlsKUz9sikO00JUwml32DmyUCMsdgtfzKx4CvSepsFjgDlACErul+/kKButS74a9SzaBfLwxI1TFjni9JEMZGcK9pNP6Mi6//1kZcG2W0GWkmAqPo73VvBSaSR/zso/5mJNSsBv7f4eOwIh/Nkv74g4xmVds6wHxCQC77SedGpvVcXnmGVdXHL17sCOenuc1R70K2Qq00hMaDz/2kG497Estd96kpVUav680p8N8WPjEbHqfDY3k+/8MmBce8NWkPGUy4XdF4eJxLUJ8GEXRzR2v9JDY9A2gcNmSC6rwf0VedbopQ/fE5k8CKgvt9eZQM2nJE5ZzObakVssvYNNIexK0NprH0hQMLt68sLBAN7H8M57wbZSUEZD3e52SesK8h0xZIYty1leaUx/G/yo1wxOGNC4fGqyjPYNf04zDv/gnK11eeJBOu+t9T07PVn7XWBg0CdoX4XY+1Rlp8yWvQINXWwYSMhUu+xU1KyCp67qTD7MadZ/OjLE="
+    - secure: "CuLbIV4oqk9W1mNdy9Dz/YmOW/638ufJf+B83lxCky6l+Us6p5sGAyv+GZUWtYKpExFah3+lC6Fp8DOlQOsSpNz50bSEFzOWRKDyLui2btS06wXjPhp5M+dBZgPolTrrxb6BM7gGcA0sPkpFbDufblF7E/wmMiBUePsCnHiP3mGlR+Zxk/i44R3Ooy4ScoPGH8kB6i5S0YEF26WV+qDOv3/qRuMAQpCqWhovIvdNps/aZwvYYYvYLrx3sj/+menay/D23i1W2r4w4hdF2oLekkT+qY22dajTKkE+RpoIKDC1YYIz22jnSUN68DRQipsXD/S3IfK2HacvveopdDytHHy+RfYGvuToMnj7rwXf3ycSTLKYK0/kN4HVsNl4Nq1b9CuxZP5YETU51o0bX1BRw8H5cmGhrzZfmcouYEc7KMl51S+3ksP3fuM5ZH2iej3LVVk5sT19sDwo/xcbXZg7Pv2sCMJdnf9YSfhpXIiqC3ZNIA5sWJLQUJtccUCvlu76/6K8y+34Gz4YJXGYZHNQl+0g+b17dnhgJEG2hDV0cFlu7TJqVwFRijbRpRMitQng5+/cBYCiKPYxfg/iaqFxNfJoJXPe2QaYxkt72FzybtCQvNjlFAzf/KRs41jU9o+ZFBaD4X4jmdPRUouwtGP6k7QxnRcnrhiUHncbewcnhE8="
 
 jobs:
   include:
@@ -20,6 +26,13 @@ jobs:
       if: type IN (push, pull_request)
       install: ./gradlew assemble
       script: ./gradlew check
+      after_success:
+           - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
+
+    - stage: snapshot
+      if: branch = issue-publish-snapshots
+      install: ./gradlew assemble
+      script: ./gradlew check publish -PpublishUrl=jcenterSnapshot
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
 

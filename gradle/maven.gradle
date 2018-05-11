@@ -22,6 +22,17 @@ plugins.withId('maven') {
                             authentication(userName: publishUsername, password: publishPassword)
                         }
                     }
+                    else if (publishUrl == "jcenterSnapshot") {
+                        repository(url: "https://oss.jfrog.org/artifactory/oss-snapshot-local/") {
+                            if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                                authentication(userName: publishUsername, password: publishPassword)
+                            } else {
+                                def bintrayUser = System.getenv("BINTRAY_USER")
+                                def bintrayKey = System.getenv("BINTRAY_KEY")
+                                authentication(userName: bintrayUser, password: bintrayKey)
+                            }
+                        }
+                    }
                     else {
                         repository(url: publishUrl) {
                             // Only configure credentials if they are provided (allows publishing to the filesystem)
