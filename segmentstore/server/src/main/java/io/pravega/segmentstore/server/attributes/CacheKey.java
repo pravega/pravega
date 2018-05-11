@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.attributes;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BitConverter;
@@ -24,6 +25,7 @@ class CacheKey extends Cache.Key {
 
     private static final HashHelper HASH = HashHelper.seededWith(CacheKey.class.getName());
     private static final int SERIALIZATION_LENGTH = Long.BYTES + Long.BYTES;
+    @Getter
     private final long segmentId;
     @Getter
     private final int entryId;
@@ -42,6 +44,15 @@ class CacheKey extends Cache.Key {
         Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "segmentId");
         this.segmentId = segmentId;
         this.entryId = entryId;
+    }
+
+    @VisibleForTesting
+    CacheKey(byte[] serialization) {
+        Preconditions.checkNotNull(serialization, "serialization");
+        Preconditions.checkArgument(serialization.length == SERIALIZATION_LENGTH, "Invalid serialization length.");
+
+        this.segmentId = BitConverter.readLong(serialization, 0);
+        this.entryId = BitConverter.readInt(serialization, Long.BYTES);
     }
 
     //endregion

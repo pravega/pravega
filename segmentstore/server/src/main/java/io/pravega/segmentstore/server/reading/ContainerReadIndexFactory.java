@@ -18,6 +18,7 @@ import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Default implementation for ReadIndexFactory.
@@ -27,7 +28,7 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
     private final CacheFactory cacheFactory;
     private final ReadIndexConfig config;
     private final CacheManager cacheManager;
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     /**
      * Creates a new instance of the ContainerReadIndexFactory class.
@@ -42,16 +43,17 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
         this.cacheFactory = Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.cacheManager = Preconditions.checkNotNull(cacheManager, "cacheManager");
+        this.closed = new AtomicBoolean();
     }
 
     @Override
     public ReadIndex createReadIndex(ContainerMetadata containerMetadata, ReadOnlyStorage storage) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         return new ContainerReadIndex(this.config, containerMetadata, this.cacheFactory, storage, this.cacheManager, this.executorService);
     }
 
     @Override
     public void close() {
-        this.closed = true;
+        this.closed.set(true);
     }
 }

@@ -115,6 +115,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
     private final Cache cache;
     @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
+    @GuardedBy("cacheEntries")
     private final CacheEntry[] cacheEntries;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;

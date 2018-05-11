@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BitConverter;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -49,6 +50,7 @@ class CacheKey extends Cache.Key {
      *
      * @param serialization The serialization of the key.
      */
+    @VisibleForTesting
     CacheKey(byte[] serialization) {
         Preconditions.checkNotNull(serialization, "serialization");
         Preconditions.checkArgument(serialization.length == SERIALIZATION_LENGTH, "Invalid serialization length.");
