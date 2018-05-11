@@ -348,7 +348,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 // Segment sealed exception observed during a flush. Re-run flush on all the
                 // available writers.
                 success = false;
-                log.warn("Flush failed due to {}, it will be retried.", e.getMessage());
+                log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
             }
         }
         return success;
