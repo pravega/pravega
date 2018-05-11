@@ -58,7 +58,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -67,20 +66,20 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class BatchClientSimpleTest {
 
-    private static final String STREAM = "batchClientStream";
-    private static final String SCOPE = "batchClientScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final String READER_GROUP = "batchClientRG" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final int PARALLELISM = 4;
+    private static final String STREAM = "testBatchClientStream";
+    private static final String SCOPE = "testBatchClientScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String READER_GROUP = "testBatchClientRG" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final int RG_PARALLELISM = 4;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(RG_PARALLELISM);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
                                                                   .streamName(STREAM)
                                                                   .scalingPolicy(scalingPolicy).build();
-    private URI controllerURI;
-    private StreamManager streamManager;
+    private URI controllerURI = null;
+    private StreamManager streamManager = null;
 
     /**
      * This is used to setup the services required by the system test framework.
@@ -145,8 +144,8 @@ public class BatchClientSimpleTest {
      */
     @Test
     public void batchClientSimpleTest() {
-        final int totalEvents = PARALLELISM * 100;
-        final int offsetEvents = PARALLELISM * 20;
+        final int totalEvents = RG_PARALLELISM * 100;
+        final int offsetEvents = RG_PARALLELISM * 20;
         final int batchIterations = 4;
         final Stream stream = Stream.of(SCOPE, STREAM);
         @Cleanup
@@ -168,7 +167,7 @@ public class BatchClientSimpleTest {
         writeDummyEvents(clientFactory, STREAM, totalEvents);
 
         // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, READER_GROUP, PARALLELISM, offsetEvents);
+        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
         Futures.allOf(futures).join();
 
         // Create a stream cut on the specified offset position.
@@ -197,7 +196,7 @@ public class BatchClientSimpleTest {
 
             // Read all the existing events in parallel segments from the previous tail to the current one.
             ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
-            assertEquals("Expected number of segments: ", PARALLELISM, ranges.size());
+            assertEquals("Expected number of segments: ", RG_PARALLELISM, ranges.size());
             readEvents += readFromRanges(ranges, batchClient);
             log.debug("Events read in parallel so far: {}.", readEvents);
             currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
