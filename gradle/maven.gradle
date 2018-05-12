@@ -24,13 +24,9 @@ plugins.withId('maven') {
                     }
                     else if (publishUrl == "jcenterSnapshot") {
                         repository(url: "https://oss.jfrog.org/artifactory/oss-snapshot-local/") {
+                            System.out.println("bintray user: " + publishUsername)
                             if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
                                 authentication(userName: publishUsername, password: publishPassword)
-                            } else {
-                                def bintrayUser = System.getenv("BINTRAY_USER")
-                                def bintrayKey = System.getenv("BINTRAY_KEY")
-                                System.out.println("bintrayUser: " + bintrayUser)
-                                authentication(userName: bintrayUser, password: bintrayKey)
                             }
                         }
                     }
