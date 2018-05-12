@@ -29,6 +29,7 @@ plugins.withId('maven') {
                             } else {
                                 def bintrayUser = System.getenv("BINTRAY_USER")
                                 def bintrayKey = System.getenv("BINTRAY_KEY")
+                                System.out.println("bintrayUser: " + bintrayUser)
                                 authentication(userName: bintrayUser, password: bintrayKey)
                             }
                         }
