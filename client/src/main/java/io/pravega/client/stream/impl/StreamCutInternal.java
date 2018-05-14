@@ -14,11 +14,18 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import lombok.EqualsAndHashCode;
 
 /**
  * This is an abstract class which acts an intermediate class to make the actual StreamCut implementation opaque.
  */
 public abstract class StreamCutInternal implements StreamCut {
+    
+    /**
+     * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
+     * of the stream or the current TAIL of the stream.
+     */
+    public static final StreamCut UNBOUNDED = new UnboundedStreamCut();
     
     /**
      * Get {@link Stream} for the StreamCut.
@@ -35,5 +42,26 @@ public abstract class StreamCutInternal implements StreamCut {
     
     public static StreamCutInternal fromBytes(ByteBuffer cut) {
         return StreamCutImpl.fromBytes(cut);
+    }
+    
+    /**
+     * This class represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
+     * of the stream or the current TAIL of the stream.
+     */
+    @EqualsAndHashCode
+    private static final class UnboundedStreamCut implements StreamCut {
+        private static final long serialVersionUID = 1L;
+
+        private UnboundedStreamCut() {}
+        
+        @Override
+        public ByteBuffer toBytes() {
+            return ByteBuffer.allocate(0);
+        }
+        
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
     }
 }
