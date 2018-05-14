@@ -11,7 +11,6 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
@@ -256,7 +255,7 @@ public class ReaderGroupConfig implements Serializable {
             builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
             builder.groupRefreshTimeMillis(revisionDataInput.readLong());
             ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
-            ElementDeserializer<StreamCut> valueDeserializer = StreamCutImpl.SERIALIZER::deserialize;
+            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
             builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
             builder.endingStreamCuts(revisionDataInput.readMap(in -> Stream.of(in.readUTF()), valueDeserializer));
         }
@@ -265,7 +264,7 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
             revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
             ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> StreamCutImpl.SERIALIZER.serialize(out, cut.asImpl());
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeArray(new ByteArraySegment(cut.toBytes()));
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
         }

@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
@@ -157,8 +159,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
+        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(),
+                                   new ReaderGroupStateUpdatesSerializer(), clientFactory, controller,
+                                   connectionFactory);
     }
 
     @Override
@@ -168,8 +171,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteStream(scope,
-                                                                     NameUtils.getStreamForReaderGroup(groupName)),
-                                             RuntimeException::new);
+        Futures.getAndHandleExceptions(controller.deleteStream(scope, NameUtils.getStreamForReaderGroup(groupName)),
+                                       RuntimeException::new);
     }
 }

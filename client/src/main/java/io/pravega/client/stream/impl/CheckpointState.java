@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.ObjectBuilder;
@@ -31,9 +32,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
 @NotThreadSafe
+@EqualsAndHashCode
 public class CheckpointState {
     
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
@@ -172,7 +175,8 @@ public class CheckpointState {
         return sb.toString();
     }
 
-    private static class CheckpointStateBuilder implements ObjectBuilder<CheckpointState> {
+    @VisibleForTesting
+    static class CheckpointStateBuilder implements ObjectBuilder<CheckpointState> {
 
     }
 
