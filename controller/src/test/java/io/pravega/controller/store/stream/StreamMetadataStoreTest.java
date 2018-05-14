@@ -14,6 +14,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.retention.BucketChangeListener;
@@ -86,7 +87,7 @@ public abstract class StreamMetadataStoreTest {
 
     @After
     public void tearDown() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test

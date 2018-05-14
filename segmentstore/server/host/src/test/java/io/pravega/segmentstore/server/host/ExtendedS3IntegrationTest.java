@@ -31,6 +31,7 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -94,7 +95,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
-                .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder)))
+                .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         bookkeeper.getZkClient(), setup.getCoreExecutor()));
     }
@@ -108,10 +109,11 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
         private final ExtendedS3StorageConfig config;
+        private final ScheduledExecutorService storageExecutor;
 
-        LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config) {
-            Preconditions.checkNotNull(config, "config");
-            this.config = config;
+        LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
+            this.config = Preconditions.checkNotNull(config, "config");
+            this.storageExecutor = Preconditions.checkNotNull(executor, "executor");
         }
 
         @Override
@@ -125,7 +127,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), executorService());
+            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
         }
     }
     //endregion

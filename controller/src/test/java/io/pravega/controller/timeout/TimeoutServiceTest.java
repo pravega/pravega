@@ -132,7 +132,7 @@ public class TimeoutServiceTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
         client.close();
         storeClient.close();
         zkTestServer.close();

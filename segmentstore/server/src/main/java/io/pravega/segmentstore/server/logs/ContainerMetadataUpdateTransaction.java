@@ -16,6 +16,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -722,7 +723,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeBoolean(sm.isDeleted());
             output.writeLong(sm.getLastModified().getTime());
             output.writeLong(sm.getStartOffset());
-            output.writeMap(sm.getAttributes(), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+
+            // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
+            output.writeMap(Attributes.getCoreNonNullAttributes(sm.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
         }
 
         private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {

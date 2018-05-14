@@ -29,6 +29,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -87,7 +88,7 @@ public class UnreadBytesTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();

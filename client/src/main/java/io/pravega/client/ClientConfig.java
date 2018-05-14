@@ -12,6 +12,8 @@ package io.pravega.client;
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
+
+import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
@@ -31,7 +33,10 @@ import lombok.extern.slf4j.Slf4j;
 @Data
 @Beta
 @Builder(toBuilder = true)
-public class ClientConfig {
+public class ClientConfig implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
         This is used if the controller endpoints are static and can be directly accessed.

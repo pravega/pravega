@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -157,7 +158,7 @@ public class TaskTest {
         cli.close();
         zkServer.stop();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test

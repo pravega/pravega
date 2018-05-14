@@ -32,7 +32,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +43,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -71,7 +71,7 @@ public class BatchClientImpl implements BatchClient {
 
         //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = fetchTailStreamCut(stream);
-        CompletableFuture<StreamCut> currentHeadStreamCut = fetchStreamCut(stream, new Date(0L));
+        CompletableFuture<StreamCut> currentHeadStreamCut = fetchHeadStreamCut(stream);
         return currentTailStreamCut.thenCombine(currentHeadStreamCut,
                 (tailSC, headSC) -> new StreamInfo(stream.getScope(), stream.getStreamName(), tailSC, headSC));
     }
@@ -90,16 +90,19 @@ public class BatchClientImpl implements BatchClient {
 
     private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
                                                 final Optional<StreamCut> endStreamCut) {
+        val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
+        val endCut = endStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));
+
         //Validate that the stream cuts are for the requested stream.
-        startStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
-        endStreamCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
+        startCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
+        endCut.ifPresent(streamCut -> Preconditions.checkArgument(stream.equals(streamCut.asImpl().getStream())));
 
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
-        CompletableFuture<StreamCut> startSCFuture = startStreamCut.isPresent() ?
-                CompletableFuture.completedFuture(startStreamCut.get()) : fetchStreamCut(stream, new Date(0L));
-        CompletableFuture<StreamCut> endSCFuture = endStreamCut.isPresent() ?
-                CompletableFuture.completedFuture(endStreamCut.get()) : fetchTailStreamCut(stream);
+        CompletableFuture<StreamCut> startSCFuture = startCut.isPresent() ?
+                CompletableFuture.completedFuture(startCut.get()) : fetchHeadStreamCut(stream);
+        CompletableFuture<StreamCut> endSCFuture = endCut.isPresent() ?
+                CompletableFuture.completedFuture(endCut.get()) : fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
         CompletableFuture<StreamSegmentsIterator> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
@@ -107,9 +110,15 @@ public class BatchClientImpl implements BatchClient {
         return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
     }
 
-    private CompletableFuture<StreamCut> fetchStreamCut(final Stream stream, final Date from) {
-        return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), from.getTime())
-                         .thenApply(segmentLongMap -> new StreamCutImpl(stream, segmentLongMap));
+    private CompletableFuture<StreamCut> fetchHeadStreamCut(final Stream stream) {
+        //Fetch segments pointing to the current HEAD of the stream.
+        return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), 0L)
+                .thenApply( s -> {
+                    //fetch the correct start offset from Segment store.
+                    Map<Segment, Long> pos = s.keySet().stream().map(this::segmentToInfo)
+                            .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getStartingOffset));
+                    return new StreamCutImpl(stream, pos);
+                });
     }
 
     private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {

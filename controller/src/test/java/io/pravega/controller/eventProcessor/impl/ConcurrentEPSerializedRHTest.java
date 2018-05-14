@@ -198,7 +198,6 @@ public class ConcurrentEPSerializedRHTest {
             CompletableFuture<Void> result = new CompletableFuture<>();
             Retry.withExpBackoff(100, 1, 5, 100)
                     .retryWhen(RetryableException::isRetryable)
-                    .throwingOn(RuntimeException.class)
                     .runAsync(() -> event.process(null), executor)
                     .whenCompleteAsync((r, e) -> {
                         if (e != null) {
