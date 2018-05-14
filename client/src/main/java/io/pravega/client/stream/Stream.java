@@ -13,6 +13,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 
+import static io.pravega.shared.NameUtils.validateScopeName;
+import static io.pravega.shared.NameUtils.validateStreamName;
+
 /**
  * A stream can be thought of as an unbounded sequence of events.
  * A stream can be written to or read from.
@@ -52,9 +55,7 @@ public interface Stream {
      * @return Stream.
      */
     static Stream of(String scope, String streamName) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-        return new StreamImpl(scope, streamName);
+        return new StreamImpl(validateScopeName(scope), validateStreamName(streamName));
     }
 
     /**

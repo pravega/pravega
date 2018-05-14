@@ -11,7 +11,6 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.common.Exceptions;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,11 +18,12 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
 import java.util.stream.Collectors;
+
+import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 import lombok.val;
-import org.apache.commons.lang3.StringUtils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingInt;
@@ -61,7 +61,7 @@ public class ReaderGroupConfig implements Serializable {
         * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
         * readers of a ReaderGroup.
         *
-        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream, if it is null then {@link ReaderGroup#getScope()} is used for the scope.
         * @param streamName Stream name.
         * @param startStreamCut Start {@link StreamCut}.
         * @param endStreamCut End {@link StreamCut}.
@@ -69,11 +69,10 @@ public class ReaderGroupConfig implements Serializable {
         */
        public ReaderGroupConfigBuilder stream(final String scope, final String streamName,
                                               final StreamCut startStreamCut, final StreamCut endStreamCut) {
-
-           Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+           NameUtils.validateStreamName(streamName);
 
            final String scopedStreamName;
-           if (StringUtils.isBlank(scope)) {
+           if (scope == null) {
                scopedStreamName = streamName;
            } else {
                scopedStreamName = new StringBuilder(scope).append('/').append(streamName).toString();
@@ -108,12 +107,13 @@ public class ReaderGroupConfig implements Serializable {
        /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
         *
-        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream.
         * @param streamName Stream name.
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scope, final String streamName, final StreamCut startStreamCut) {
+           NameUtils.validateScopeName(scope);
            return stream(scope, streamName, startStreamCut, StreamCut.UNBOUNDED);
        }
 
@@ -133,11 +133,12 @@ public class ReaderGroupConfig implements Serializable {
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
         *
-        * @param scope Scope of the stream, if it is not specified then {@link ReaderGroup#getScope()} is used for the scope.
+        * @param scope Scope of the stream.
         * @param streamName Stream name.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder stream(final String scope, final String streamName) {
+           NameUtils.validateScopeName(scope);
            return stream(scope, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
