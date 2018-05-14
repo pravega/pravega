@@ -200,6 +200,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments (nothing)", this.traceObjectId);
                 return null;
+            } else if (segmentMetadata.isDeleted() || segmentMetadata.isMerged()) {
+                // Do not attempt to re-delete the Segment if already deleted or merged. That is more likely to cause
+                // issues in downstream components.
+                log.info("{}: DeleteStreamSegments {} ('{}') - no action (deleted={}, merged={}).", this.traceObjectId,
+                        segmentMetadata.getId(), segmentMetadata.getName(), segmentMetadata.isDeleted(), segmentMetadata.isMerged());
+                return null;
             }
 
             // Mark this segment as deleted.

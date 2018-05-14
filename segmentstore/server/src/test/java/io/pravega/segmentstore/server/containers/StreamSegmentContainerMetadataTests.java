@@ -186,16 +186,31 @@ public class StreamSegmentContainerMetadataTests {
         for (long i = 0; i < SEGMENT_COUNT; i++) {
             final long segmentId = segmentIds.size();
             segmentIds.add(segmentId);
-            m.mapStreamSegmentId(getName(segmentId), segmentId);
+            val sm = m.mapStreamSegmentId(getName(segmentId), segmentId);
+            if (i % 3 == 1) {
+                // Every 3i+1 Segment is deleted.
+                sm.markDeleted();
+            } else if (i % 3 == 2) {
+                // Every 3i+1 Segment is merged.
+                sm.markMerged();
+            }
         }
 
         // Delete segments.
         for (long segmentId : segmentIds) {
-            String name = m.getStreamSegmentMetadata(segmentId).getName();
-            deletedStreamSegmentIds.add(segmentId);
-
-            SegmentMetadata sm = m.deleteStreamSegment(name);
-            Assert.assertEquals("Unexpected SegmentMetadata returned.", segmentId, sm.getId());
+            SegmentMetadata existingMetadata = m.getStreamSegmentMetadata(segmentId);
+            boolean alreadyMergedOrDeleted = existingMetadata.isMerged() || existingMetadata.isDeleted();
+            SegmentMetadata sm = m.deleteStreamSegment(existingMetadata.getName());
+            if (alreadyMergedOrDeleted) {
+                Assert.assertNull("Expected deletion to not succeed for already deleted or merged Segment.", sm);
+                Assert.assertNotEquals("Not expecting isMerged to equal isDeleted.", existingMetadata.isMerged(), existingMetadata.isDeleted());
+            } else {
+                Assert.assertNotNull("Expected deletion to not succeed for non-deleted and non-merged Segment.", sm);
+                Assert.assertEquals("Unexpected SegmentMetadata returned.", segmentId, sm.getId());
+            }
+            if (existingMetadata.isDeleted()) {
+                deletedStreamSegmentIds.add(segmentId);
+            }
         }
 
         // Verify deleted segments have not been actually removed from the metadata.
@@ -205,7 +220,9 @@ public class StreamSegmentContainerMetadataTests {
         // Verify individual StreamSegmentMetadata.
         for (long segmentId : segmentIds) {
             boolean expectDeleted = deletedStreamSegmentIds.contains(segmentId);
-            Assert.assertEquals("Unexpected value for isDeleted.", expectDeleted, m.getStreamSegmentMetadata(segmentId).isDeleted());
+            val sm = m.getStreamSegmentMetadata(segmentId);
+            Assert.assertEquals("Unexpected value for isDeleted.", expectDeleted, sm.isDeleted());
+            Assert.assertNotEquals("Unexpected value for isMerged.", expectDeleted, sm.isMerged());
         }
     }
 
