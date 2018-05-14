@@ -138,6 +138,12 @@ public class BatchClientSimpleTest {
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
 
+    @After
+    public void tearDown() {
+        streamManager.close();
+        ExecutorServiceHelpers.shutdown(executor);
+    }
+
     /**
      * This test verifies the basic functionality of {@link BatchClient}, including stream metadata checks, segment
      * counts, parallel segment reads and reads with offsets using stream cuts.
@@ -214,12 +220,6 @@ public class BatchClientSimpleTest {
         assertEquals("Expected events read: ", (totalEvents - offsetEvents) + totalEvents * batchIterations,
                     readFromRanges(newRanges, batchClient));
         log.debug("Events correctly read from Stream: simple batch client test passed.");
-    }
-
-    @After
-    public void tearDown() {
-        streamManager.close();
-        ExecutorServiceHelpers.shutdown(executor);
     }
 
     // Start utils region
