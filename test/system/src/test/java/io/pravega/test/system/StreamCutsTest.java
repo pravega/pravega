@@ -45,7 +45,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -67,7 +66,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private URI controllerURI = null;
-    private StreamManager streamManager  = null;
+    private StreamManager streamManager = null;
+    private ReaderGroupConfig.ReaderGroupConfigBuilder baseRGConfigBuilder = null;
 
     /**
      * This is used to setup the services required by the system test framework.
@@ -129,6 +129,13 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         assertTrue("Creating stream two", streamManager.createStream(SCOPE, STREAM_TWO,
                 StreamConfiguration.builder().scope(SCOPE).streamName(STREAM_TWO)
                                    .scalingPolicy(ScalingPolicy.fixed(RG_PARALLELISM_TWO)).build()));
+        baseRGConfigBuilder = ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE)).stream(Stream.of(SCOPE, STREAM_TWO));
+    }
+
+    @After
+    public void tearDown() {
+        streamManager.close();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     /**
@@ -145,10 +152,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
-                                                                            .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                            .stream(Stream.of(SCOPE, STREAM_TWO))
-                                                                            .build());
+        readerGroupManager.createReaderGroup(READER_GROUP, baseRGConfigBuilder.build());
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
 
@@ -168,11 +172,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         combineSlicesAndVerify(readerGroupManager, clientFactory, streamSlices);
 
         // Finally, Test that a reader group can be reset correctly.
-        ReaderGroupConfig firsSliceConfig = ReaderGroupConfig.builder()
-                                                             .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                             .stream(Stream.of(SCOPE, STREAM_TWO))
-                                                             .startingStreamCuts(streamSlices.get(0))
-                                                             .build();
+        ReaderGroupConfig firsSliceConfig = baseRGConfigBuilder.startingStreamCuts(streamSlices.get(0)).build();
         readerGroup.resetReaderGroup(firsSliceConfig);
         log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, streamSlices.get(0));
         final int parallelSegments = RG_PARALLELISM_ONE + RG_PARALLELISM_TWO;
@@ -180,12 +180,6 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                 parallelSegments).stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get();
         assertEquals("Expected read events: ", TOTAL_EVENTS - CUT_SIZE, readEvents);
         log.info("All events correctly read from StreamCut slices on multiple Streams. StreamCuts test passed.");
-    }
-
-    @After
-    public void tearDown() {
-        streamManager.close();
-        ExecutorServiceHelpers.shutdown(executor);
     }
 
     // Start utils region
@@ -207,12 +201,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      */
     private void combineSlicesAndVerify(ReaderGroupManager manager, ClientFactory clientFactory,
                                         List<Map<Stream, StreamCut>> streamSlices) {
-        ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
-                                                                                    .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                                    .stream(Stream.of(SCOPE, STREAM_TWO));
+
         for (int i = 0; i < streamSlices.size()-1; i++) {
             List<Map<Stream, StreamCut>> combinationSlices = new ArrayList<>(streamSlices).subList(i, streamSlices.size());
-            configBuilder = configBuilder.startingStreamCuts(combinationSlices.remove(0));
+            ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = baseRGConfigBuilder.startingStreamCuts(combinationSlices.remove(0));
 
             // Remove the contiguous StreamCut to the starting one, as the slice [CN, CN+1) has been already tested.
             combinationSlices.remove(0);
@@ -248,11 +240,9 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         int readEvents, groupId = 0;
         Map<Stream, StreamCut> startingPoint = null;
         final int parallelSegments = RG_PARALLELISM_ONE + RG_PARALLELISM_TWO;
-        ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
-                                                                                    .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                                    .stream(Stream.of(SCOPE, STREAM_TWO));
+
         for (Map<Stream, StreamCut> endingPoint : streamSlices) {
-            configBuilder = configBuilder.endingStreamCuts(endingPoint);
+            ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = baseRGConfigBuilder.endingStreamCuts(endingPoint);
             if (startingPoint != null) {
                 configBuilder = configBuilder.startingStreamCuts(startingPoint);
             }

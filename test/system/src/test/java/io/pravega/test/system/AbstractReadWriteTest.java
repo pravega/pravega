@@ -22,14 +22,13 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-
 import static java.util.stream.Collectors.toList;
 
 /**
  * Abstract class that provides convenient event read/write methods for testing purposes.
  */
 @Slf4j
-class AbstractReadWriteTest {
+abstract class AbstractReadWriteTest {
 
     private static final int READ_TIMEOUT = 1000;
 
