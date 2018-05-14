@@ -25,6 +25,8 @@ import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.ssl.SSLContextConfigurator;
+import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
@@ -68,7 +70,17 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
-            httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
+            if (restServerConfig.isEnableTls()) {
+                SSLContextConfigurator sslCon = new SSLContextConfigurator();
+                sslCon.setKeyStoreFile(restServerConfig.getKeyFilePath());
+                sslCon.setKeyStorePass("1111_aaaa");
+                httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
+                        new SSLEngineConfigurator(sslCon, false, false, false));
+            } else {
+                httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
+            }
+        } catch (Exception e) {
+          log.error("Exception while creating HTTP server", e);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
