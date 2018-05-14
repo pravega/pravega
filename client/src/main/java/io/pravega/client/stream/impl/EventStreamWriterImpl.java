@@ -332,24 +332,26 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     public void flush() {
         Preconditions.checkState(!closed.get());
         synchronized (writeFlushLock) {
-            flushInternal();
+            boolean success = false;
+            while (!success) {
+                success = flushInternal();
+            }
         }
     }
 
-    private void flushInternal() {
-        boolean success = false;
-        while (!success) {
-            success = true;
-            for (SegmentOutputStream writer : selector.getWriters()) {
-                try {
-                    writer.flush();
-                } catch (SegmentSealedException e) {
-                    // Segment sealed exception observed during a flush. Re-run flush on all the available writers.
-                    success = false;
-                    log.warn("Flush failed due to {}, it will be retried.", e.getMessage());
-                }
+    private boolean flushInternal() {
+        boolean success = true;
+        for (SegmentOutputStream writer : selector.getWriters()) {
+            try {
+                writer.flush();
+            } catch (SegmentSealedException e) {
+                // Segment sealed exception observed during a flush. Re-run flush on all the
+                // available writers.
+                success = false;
+                log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
             }
         }
+        return success;
     }
 
     @Override
