@@ -36,7 +36,11 @@ public interface StreamCut extends Serializable {
         @Override
         public StreamCutInternal asImpl() {
             return null;
-        } 
+        }
+        
+        private Object readResolve() {
+            return UNBOUNDED;
+        }
     };
     
     /**
