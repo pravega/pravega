@@ -76,7 +76,7 @@ public abstract class PingTest {
 
     protected abstract String getURLScheme();
 
-    public static class DirectPingTest extends PingTest {
+    public static class SimplePingTest extends PingTest {
 
         @Override
         protected Client createJerseyClient() {
@@ -100,7 +100,7 @@ public abstract class PingTest {
         @Override
         protected Client createJerseyClient() {
             SslConfigurator sslConfig = SslConfigurator.newInstance()
-                                                       .trustStoreFile("/Users/kandha/IdeaProjects/pravega/config/bookie.truststore.jks");
+                                                       .trustStoreFile("../config/bookie.truststore.jks");
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
@@ -112,8 +112,8 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .enableTls(true)
-                                       .keyFilePath("/Users/kandha/IdeaProjects/pravega/config/bookie.keystore.jks")
-                                       .keyFilePasswordPath("/Users/kandha/IdeaProjects/pravega/config/bookie.keystore.jks.passwd")
+                                       .keyFilePath("../config/bookie.keystore.jks")
+                                       .keyFilePasswordPath("../config/bookie.keystore.jks.passwd")
                                        .build();
         }
 
