@@ -20,7 +20,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -40,7 +40,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -50,8 +49,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
-import static org.junit.Assert.assertEquals;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -71,7 +69,6 @@ public class RetentionTest {
             .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
-    private ScheduledExecutorService executorService;
 
 
 
@@ -167,15 +164,14 @@ public class RetentionTest {
 
         //try reading the event that was written earlier.
         //expectation is it should have been truncated and we should find stream to be empty
-        try {
-            String readEvent = reader.readNextEvent(6000).getEvent();
-            log.debug("Reading event: {} ", readEvent);
-            assertEquals(null, readEvent);
-        }  catch (ReinitializationRequiredException e) {
-            log.error("Unexpected request to reinitialize {}", e);
-            Assert.fail("Unexpected request to reinitialize.Test failed.");
-        }
+        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(6000));
 
-       log.debug("The stream is already truncated.Simple retention test passed.");
+        //verify reader functionality is unaffected post truncation
+        String event = "newEvent";
+        writer.writeEvent(event);
+        log.info("Writing event: {}", event);
+        Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
+
+        log.debug("The stream is already truncated.Simple retention test passed.");
     }
 }
