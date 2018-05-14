@@ -215,8 +215,8 @@ public interface RevisionDataOutput extends DataOutput {
     /**
      * Serializes the given byte array segment. Equivalent to calling writeArray(segment, segment.arrayOffset(), segment.getLength()).
      *
-     * @param array The byte array segment to serialize. Can be null (in which case an Empty array will be deserialized
-     *              by RevisionDataInput.readArray()).
+     * @param segment The byte array segment to serialize. Can be null (in which case an Empty array will be deserialized
+     *                by RevisionDataInput.readArray()).
      * @throws IOException If an IO Exception occurred.
      */
     default void writeArray(ByteArraySegment segment) throws IOException {
