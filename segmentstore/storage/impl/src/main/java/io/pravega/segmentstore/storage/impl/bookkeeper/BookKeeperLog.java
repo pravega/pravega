@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.SneakyThrows;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -400,37 +400,39 @@ class BookKeeperLog implements DurableDataLog {
             toExecute = this.writes.getWritesToExecute(maxTotalSize);
         }
 
-        // Execute the writes.
-        log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
-        for (int i = 0; i < toExecute.size(); i++) {
-            Write w = toExecute.get(i);
-            try {
-                // Record the beginning of a new attempt.
-                int attemptCount = w.beginAttempt();
-                if (attemptCount > this.config.getMaxWriteAttempts()) {
-                    // Retried too many times.
-                    throw new RetriesExhaustedException(w.getFailureCause());
+        if (toExecute.size() > 0) {
+            // Execute the writes.
+            log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
+            for (int i = 0; i < toExecute.size(); i++) {
+                Write w = toExecute.get(i);
+                try {
+                    // Record the beginning of a new attempt.
+                    int attemptCount = w.beginAttempt();
+                    if (attemptCount > this.config.getMaxWriteAttempts()) {
+                        // Retried too many times.
+                        throw new RetriesExhaustedException(w.getFailureCause());
+                    }
+
+                    // Invoke the BookKeeper write.
+                    w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
+                } catch (Throwable ex) {
+                    // Synchronous failure (or RetriesExhausted). Fail current write.
+                    boolean isFinal = !isRetryable(ex);
+                    w.fail(ex, isFinal);
+
+                    // And fail all remaining writes as well.
+                    for (int j = i + 1; j < toExecute.size(); j++) {
+                        toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
+                    }
+
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, i);
+                    return false;
                 }
-
-                // Invoke the BookKeeper write.
-                w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
-            } catch (Throwable ex) {
-                // Synchronous failure (or RetriesExhausted). Fail current write.
-                boolean isFinal = !isRetryable(ex);
-                w.fail(ex, isFinal);
-
-                // And fail all remaining writes as well.
-                for (int j = i + 1; j < toExecute.size(); j++) {
-                    toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
-                }
-
-                LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, i);
-                return false;
             }
-        }
 
-        // After every run where we did write, check if need to trigger a rollover.
-        this.rolloverProcessor.runAsync();
+            // After every run where we did write, check if need to trigger a rollover.
+            this.rolloverProcessor.runAsync();
+        }
         LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size());
         return true;
     }
