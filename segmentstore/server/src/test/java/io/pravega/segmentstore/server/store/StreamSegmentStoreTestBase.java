@@ -9,13 +9,17 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -24,10 +28,12 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -42,13 +48,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -58,6 +69,7 @@ import org.junit.rules.Timeout;
 /**
  * Base class for any test that verifies the functionality of a StreamSegmentStore class.
  */
+@Slf4j
 public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //region Test Configuration
 
@@ -66,6 +78,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
     private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
     private static final int THREADPOOL_SIZE_TEST = 3;
+    private static final int MAX_FENCING_ITERATIONS = 100;
+    private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
@@ -79,7 +93,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig.builder()
-                                  .with(ServiceConfig.CONTAINER_COUNT, 4)
+                    .with(ServiceConfig.CONTAINER_COUNT, 1)
                                   .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                                   .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE))
             .include(ContainerConfig
@@ -107,6 +121,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return THREADPOOL_SIZE_TEST;
     }
 
+    /**
+     * When overridden in a derived class, this method will return the number of milliseconds to wait between creating
+     * new instances of the Segment Store, for the fencing test.
+     */
+    protected int getFencingIterationDelayMillis() {
+        return 100;
+    }
+
     //endregion
 
     /**
@@ -122,78 +144,216 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testEndToEnd() throws Exception {
-
-        // Phase 1: Create segments and add some appends.
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, Long> startOffsets = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        try (val builder = createBuilder()) {
+        int instanceId = 0;
+
+        // Phase 1: Create segments and add some appends.
+        log.info("Starting Phase 1.");
+        try (val builder = createBuilder(++instanceId)) {
             val segmentStore = builder.createStreamSegmentService();
 
             // Create the StreamSegments.
             segmentNames = createSegments(segmentStore);
+            log.info("Created Segments: {}.", String.join(", ", segmentNames));
             transactionsBySegment = createTransactions(segmentNames, segmentStore);
+            log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
             // Add some appends.
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
             appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished appending data.");
+
             checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
+            log.info("Finished Phase 1");
         }
 
         // Phase 2: Force a recovery and merge all transactions.
-        try (val builder = createBuilder()) {
+        log.info("Starting Phase 2.");
+        try (val builder = createBuilder(++instanceId)) {
             val segmentStore = builder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
+            log.info("Finished checking reads.");
 
             // Merge all transactions.
             mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished merging transactions.");
+
             checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
+            log.info("Finished Phase 2.");
         }
 
         // Phase 3: Force a recovery, immediately check reads, then truncate and read at the same time.
-        try (val builder = createBuilder();
-             val readOnlyBuilder = createReadOnlyBuilder()) {
+        log.info("Starting Phase 3.");
+        try (val builder = createBuilder(++instanceId);
+             val readOnlyBuilder = createReadOnlyBuilder(instanceId)) {
             val segmentStore = builder.createStreamSegmentService();
             val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
+            log.info("Finished checking reads.");
 
             // Wait for all the data to move to Storage.
             waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished waiting for segments in Storage.");
+
             checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+            log.info("Finished Storage check.");
+
             checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
+            log.info("Finished checking reads while truncating.");
+
             checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
+            log.info("Finished Phase 3.");
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them.
-        try (val builder = createBuilder();
-             val readOnlyBuilder = createReadOnlyBuilder()) {
+        log.info("Starting Phase 4.");
+        try (val builder = createBuilder(++instanceId);
+             val readOnlyBuilder = createReadOnlyBuilder(instanceId)) {
             val segmentStore = builder.createStreamSegmentService();
             val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             // Seals.
             sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished sealing.");
+
             checkSegmentStatus(lengths, startOffsets, true, false, segmentStore);
 
             waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Finished waiting for segments in Storage.");
 
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
+            log.info("Finished deleting segments.");
+
             checkSegmentStatus(lengths, startOffsets, true, true, segmentStore);
+            log.info("Finished Phase 4.");
         }
+
+        log.info("Finished.");
+    }
+
+    /**
+     * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
+     * (writes, seals, creates, etc.) and a ReadOnlySegmentStore to verify the changes being persisted into Storage.
+     * * Appends
+     * * Reads
+     * * Segment and transaction creation
+     * * Transaction mergers
+     * * Recovery
+     *
+     * @throws Exception If an exception occurred.
+     */
+    @Test
+    public void testEndToEndWithFencing() throws Exception {
+        ArrayList<ServiceBuilder> builders = new ArrayList<>();
+        ArrayList<String> segmentNames = null;
+        HashMap<String, ArrayList<String>> transactionsBySegment;
+        ArrayList<String> segmentsAndTransactions;
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, Long> startOffsets = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        // Retry for Segment Store (Container) initialization. Normally we have the Controller coordinating which instances
+        // are the rightful survivors, however in this case we need to simulate some of this behavior ourselves, by being
+        // insistent. It is possible that previous instances meddle with the BKLog ZK metadata during the new instance's
+        // initialization, causing the new instance to wrongfully assume it's not the rightful survivor. A quick retry solves
+        // this problem, as there is no other kind of information available to disambiguate this.
+        val initRetry = Retry.withExpBackoff(10, 2, 10, TIMEOUT.toMillis() / 10)
+                .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogWriterNotPrimaryException);
+
+        // Regular operation retry.
+        val operationRetry = Retry.withExpBackoff(50, 2, 10, TIMEOUT.toMillis());
+
+        log.info("Starting.");
+        try {
+            AtomicReference<StreamSegmentStore> currentStore = new AtomicReference<>();
+            AtomicInteger fencingIteration = new AtomicInteger();
+            CompletableFuture<Void> done = null;
+            while (fencingIteration.get() < MAX_FENCING_ITERATIONS && (done == null || !done.isDone())) {
+                // Start a new Segment Store instance and fence out the previous one.
+                log.info("Starting Instance {}", fencingIteration.get() + 1);
+                initRetry.run(() -> {
+                    ServiceBuilder b = createBuilder(fencingIteration.get());
+                    builders.add(b);
+                    currentStore.set(b.createStreamSegmentService());
+                    fencingIteration.incrementAndGet();
+                    log.info("Instance {} Started", fencingIteration);
+                    return null;
+                });
+
+                // The following blob will only get executed once, and be done so asynchronously.
+                if (done == null) {
+                    // Create the StreamSegments and their transactions.
+                    segmentNames = createSegments(currentStore.get());
+                    segmentsAndTransactions = new ArrayList<>(segmentNames);
+                    log.info("Created Segments: {}.", String.join(", ", segmentNames));
+                    transactionsBySegment = createTransactions(segmentNames, currentStore.get());
+                    transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
+                    log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
+
+                    // Generate all the requests.
+                    AtomicInteger index = new AtomicInteger();
+                    val requests = Iterators.concat(
+                            createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths).iterator(),
+                            createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents).iterator(),
+                            createSealSegmentsRequests(segmentNames).iterator());
+
+                    // Execute all the requests asynchronously, one by one. We retry all expected exceptions, and when we do,
+                    // we make sure to execute them on the current Segment Store instance (since the previous one may be unusable).
+                    done = Futures.loop(
+                            requests::hasNext,
+                            () -> {
+                                int opIndex = index.getAndIncrement();
+                                log.debug("Initiating Operation #{} on iteration {}.", opIndex, fencingIteration);
+                                Function<StreamSegmentStore, CompletableFuture<Void>> request = requests.next();
+                                AtomicReference<StreamSegmentStore> requestStore = new AtomicReference<>(currentStore.get());
+                                return operationRetry
+                                        .retryWhen(ex -> {
+                                            requestStore.getAndSet(currentStore.get());
+                                            ex = Exceptions.unwrap(ex);
+                                            log.info("Operation #{} (Iteration = {}) failed due to {}.", opIndex, fencingIteration, ex.toString());
+                                            return isExpectedFencingException(ex);
+                                        })
+                                        .runAsync(() -> request.apply(requestStore.get()), executorService());
+                            },
+                            executorService());
+                }
+
+                // Wait a while between fencing iterations.
+                Thread.sleep(getFencingIterationDelayMillis());
+            }
+
+            done.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Check reads.
+            checkReads(segmentContents, currentStore.get());
+            log.info("Finished checking reads.");
+
+            // Delete everything.
+            deleteSegments(segmentNames, currentStore.get()).join();
+            log.info("Finished deleting segments.");
+            checkSegmentStatus(lengths, startOffsets, true, true, currentStore.get());
+        } finally {
+            log.info("Stopping all instances.");
+            builders.forEach(ServiceBuilder::close);
+        }
+
+        log.info("Finished.");
     }
 
     //region Helpers
 
-    private ServiceBuilder createBuilder() throws Exception {
-        val builderConfig = this.configBuilder.build();
-        val builder = createBuilder(builderConfig);
+    private ServiceBuilder createBuilder(int instanceId) throws Exception {
+        val builder = createBuilder(this.configBuilder, instanceId);
         builder.initialize();
         return builder;
     }
@@ -204,33 +364,36 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @param builderConfig The configuration to use.
      * @return The ServiceBuilder.
      */
-    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig);
+    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId);
 
-    private ServiceBuilder createReadOnlyBuilder() throws Exception {
+    private ServiceBuilder createReadOnlyBuilder(int instanceId) throws Exception {
         // Copy base config properties to a new object.
         val props = new Properties();
         this.configBuilder.build().forEach(props::put);
 
         // Create a new config (so we don't alter the base one) and set the ReadOnlySegmentStore to true).
-        val builderConfig = ServiceBuilderConfig.builder()
+        val configBuilder = ServiceBuilderConfig.builder()
                 .include(props)
                 .include(ServiceConfig.builder()
-                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true))
-                .build();
+                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true));
 
-        val builder = createBuilder(builderConfig);
+        val builder = createBuilder(configBuilder, instanceId);
         builder.initialize();
         return builder;
     }
 
-    private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
-                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
-        val segmentFutures = new ArrayList<CompletableFuture<Void>>();
+    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createAppendDataRequests(
+            Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths) {
+        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
         val halfAttributeCount = ATTRIBUTE_UPDATES_PER_SEGMENT / 2;
         for (String segmentName : segmentNames) {
+            if (isEmptySegment(segmentName)) {
+                continue;
+            }
+
             // Add half the attribute updates now.
             for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
+                result.add(store -> store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
             }
 
             // Add some appends.
@@ -239,16 +402,21 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                result.add(store -> store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
             }
 
             // Add the rest of the attribute updates.
             for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
+                result.add(store -> store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
             }
         }
 
-        return Futures.allOf(segmentFutures);
+        return result;
+    }
+
+    private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
+                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
+        return execute(createAppendDataRequests(segmentNames, segmentContents, lengths), store);
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates() {
@@ -257,13 +425,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
     }
 
-    private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
-                                                      HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
-        ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
+    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createMergeTransactionsRequests(
+            HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+            HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {
+
+        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                mergeFutures.add(store.sealStreamSegment(transactionName, TIMEOUT)
+                result.add(store -> store.sealStreamSegment(transactionName, TIMEOUT)
                         .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
 
                 // Update parent length.
@@ -276,16 +446,28 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        return Futures.allOf(mergeFutures);
+        return result;
+    }
+
+    private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                                      HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+        return execute(createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents), store);
+    }
+
+    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createSealSegmentsRequests(Collection<String> segmentNames) {
+        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
+        for (String segmentName : segmentNames) {
+            result.add(store -> Futures.toVoid(store.sealStreamSegment(segmentName, TIMEOUT)));
+        }
+        return result;
     }
 
     private CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
-        val result = new ArrayList<CompletableFuture<Long>>();
-        for (String segmentName : segmentNames) {
-            result.add(store.sealStreamSegment(segmentName, TIMEOUT));
-        }
+        return execute(createSealSegmentsRequests(segmentNames), store);
+    }
 
-        return Futures.allOf(result);
+    private CompletableFuture<Void> execute(ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> requests, StreamSegmentStore store) {
+        return Futures.allOf(requests.stream().map(r -> r.apply(store)).collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
@@ -306,6 +488,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             futures.add(store.createStreamSegment(segmentName, null, TIMEOUT));
         }
 
+        futures.add(store.createStreamSegment(EMPTY_SEGMENT_NAME, null, TIMEOUT));
         Futures.allOf(futures).join();
         return segmentNames;
     }
@@ -314,6 +497,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         // Create the Transaction.
         ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
         for (String segmentName : segmentNames) {
+            if (isEmptySegment(segmentName)) {
+                continue;
+            }
+
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 futures.add(store.createTransaction(segmentName, UUID.randomUUID(), null, TIMEOUT));
             }
@@ -337,6 +524,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
 
         return transactions;
+    }
+
+    private boolean isExpectedFencingException(Throwable ex) {
+        return ex instanceof DataLogWriterNotPrimaryException
+                || ex instanceof IllegalContainerStateException
+                || ex instanceof ContainerNotFoundException
+                || ex instanceof ObjectClosedException
+                || ex instanceof CancellationException; // This one may not be needed.
+    }
+
+    private boolean isEmptySegment(String segmentName) {
+        return segmentName.equals(EMPTY_SEGMENT_NAME);
     }
 
     private byte[] getAppendData(String segmentName, int appendId) {
