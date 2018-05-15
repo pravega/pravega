@@ -31,7 +31,7 @@ import lombok.SneakyThrows;
 @EqualsAndHashCode(callSuper = false)
 public class PositionImpl extends PositionInternal {
 
-    private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
+    private static final PositionSerializer SERIALIZER = new PositionSerializer();
     private final Map<Segment, Long> ownedSegments;
 
     /**
@@ -85,7 +85,7 @@ public class PositionImpl extends PositionInternal {
     private static class PositionBuilder implements ObjectBuilder<PositionImpl> {
     }
 
-    private static class EventPointerSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
+    private static class PositionSerializer extends VersionedSerializer.WithBuilder<PositionImpl, PositionBuilder> {
 
         @Override
         protected PositionBuilder newBuilder() {

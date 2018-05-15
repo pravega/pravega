@@ -19,7 +19,7 @@ import java.util.Map;
  * This is an abstract class which acts an intermediate class to make the actual StreamCut implementation opaque.
  */
 public abstract class StreamCutInternal implements StreamCut {
-
+    
     /**
      * Get {@link Stream} for the StreamCut.
      * @return The stream.
@@ -36,5 +36,4 @@ public abstract class StreamCutInternal implements StreamCut {
     public static StreamCutInternal fromBytes(ByteBuffer cut) {
         return StreamCutImpl.fromBytes(cut);
     }
-
 }
