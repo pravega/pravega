@@ -354,6 +354,11 @@ class BookKeeperLog implements DurableDataLog {
      * Write Processor main loop. This method is not thread safe and should only be invoked as part of the Write Processor.
      */
     private void processWritesSync() {
+        if (this.closed.get()) {
+            // BookKeeperLog is closed. No point in trying anything else.
+            return;
+        }
+
         if (getWriteLedger().ledger.isClosed()) {
             // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
             // the write processor upon finish, so the writes can be reattempted.
@@ -374,18 +379,42 @@ class BookKeeperLog implements DurableDataLog {
 
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
         val cs = this.writes.removeFinishedWrites();
-        if (cs.contains(WriteQueue.CleanupStatus.WriteFailed)) {
+        if (cs == WriteQueue.CleanupStatus.WriteFailed) {
             // We encountered a failed write. As such, we must close immediately and not process anything else.
             // Closing will automatically cancel all pending writes.
             close();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.WriteFailed);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
             return false;
-        } else if (cs.contains(WriteQueue.CleanupStatus.QueueEmpty)) {
+        } else if (cs == WriteQueue.CleanupStatus.QueueEmpty) {
             // Queue is empty - nothing else to do.
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.QueueEmpty);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
             return true;
         }
 
+        // Get the writes to execute from the queue.
+        List<Write> toExecute = getWritesToExecute();
+
+        // Execute the writes, if any.
+        boolean success = true;
+        if (!toExecute.isEmpty()) {
+            success = executeWrites(toExecute);
+
+            if (success) {
+                // After every run where we did write, check if need to trigger a rollover.
+                this.rolloverProcessor.runAsync();
+            }
+        }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size(), success);
+        return success;
+    }
+
+    /**
+     * Collects an ordered list of Writes to execute to BookKeeper.
+     *
+     * @return The list of Writes to execute.
+     */
+    private List<Write> getWritesToExecute() {
         // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
 
@@ -400,40 +429,45 @@ class BookKeeperLog implements DurableDataLog {
             toExecute = this.writes.getWritesToExecute(maxTotalSize);
         }
 
-        if (toExecute.size() > 0) {
-            // Execute the writes.
-            log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
-            for (int i = 0; i < toExecute.size(); i++) {
-                Write w = toExecute.get(i);
-                try {
-                    // Record the beginning of a new attempt.
-                    int attemptCount = w.beginAttempt();
-                    if (attemptCount > this.config.getMaxWriteAttempts()) {
-                        // Retried too many times.
-                        throw new RetriesExhaustedException(w.getFailureCause());
-                    }
+        return toExecute;
+    }
 
-                    // Invoke the BookKeeper write.
-                    w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
-                } catch (Throwable ex) {
-                    // Synchronous failure (or RetriesExhausted). Fail current write.
-                    boolean isFinal = !isRetryable(ex);
-                    w.fail(ex, isFinal);
-
-                    // And fail all remaining writes as well.
-                    for (int j = i + 1; j < toExecute.size(); j++) {
-                        toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
-                    }
-
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, i);
-                    return false;
+    /**
+     * Executes the given Writes to BookKeeper.
+     *
+     * @param toExecute The Writes to execute.
+     * @return True if all the writes succeeded, false if at least one failed (if a Write failed, all subsequent writes
+     * will be failed as well).
+     */
+    private boolean executeWrites(List<Write> toExecute) {
+        log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
+        for (int i = 0; i < toExecute.size(); i++) {
+            Write w = toExecute.get(i);
+            try {
+                // Record the beginning of a new attempt.
+                int attemptCount = w.beginAttempt();
+                if (attemptCount > this.config.getMaxWriteAttempts()) {
+                    // Retried too many times.
+                    throw new RetriesExhaustedException(w.getFailureCause());
                 }
-            }
 
-            // After every run where we did write, check if need to trigger a rollover.
-            this.rolloverProcessor.runAsync();
+                // Invoke the BookKeeper write.
+                w.getWriteLedger().ledger.asyncAddEntry(w.data.array(), w.data.arrayOffset(), w.data.getLength(), this::addCallback, w);
+            } catch (Throwable ex) {
+                // Synchronous failure (or RetriesExhausted). Fail current write.
+                boolean isFinal = !isRetryable(ex);
+                w.fail(ex, isFinal);
+
+                // And fail all remaining writes as well.
+                for (int j = i + 1; j < toExecute.size(); j++) {
+                    toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
+                }
+
+                return false;
+            }
         }
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size());
+
+        // Success.
         return true;
     }
 
