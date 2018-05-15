@@ -93,7 +93,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig.builder()
-                    .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                  .with(ServiceConfig.CONTAINER_COUNT, 4)
                                   .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                                   .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE))
             .include(ContainerConfig
@@ -530,8 +530,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return ex instanceof DataLogWriterNotPrimaryException
                 || ex instanceof IllegalContainerStateException
                 || ex instanceof ContainerNotFoundException
-                || ex instanceof ObjectClosedException
-                || ex instanceof CancellationException; // This one may not be needed.
+                || ex instanceof ObjectClosedException;
     }
 
     private boolean isEmptySegment(String segmentName) {
