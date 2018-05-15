@@ -73,3 +73,16 @@ HOST_IP=1.2.3.4 docker-compose up
 ```
 
 Clients can then connect to the controller at `${HOST_IP}:9090`.
+
+## Configuring standalone
+The configuration properties for standalone can be specified in `config/standalone-config.properties`. 
+These properties include ports for zookeeper, segmentstore and controller.
+
+They also contain other configurations related to security.
+
+## Running standalone with encryption and authentication enabled
+The configurations, `singlenode.enableTls` and `singlenode.enableauth` can be used to enable encryption and authentication respectively.
+by default both these settings are disabled.
+In case `enableTls` is set to true, the default certificates provided in the `conf` directory are used for setting up TLS.
+These can be overridden by specifying in the properties file. 
+

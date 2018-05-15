@@ -57,6 +57,9 @@ indexDirectories=/bk/index
 zkLedgersRootPath=/pravega/bookkeeper/ledgers
 ```
 
+#### Enabling encryption with Bookkeeper
+`TODO`
+
 ### Initializing Zookeeper paths
 
 The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers run:
@@ -79,6 +82,8 @@ Start the bookie:
 ```
 bin/bookkeeper bookie
 ```
+### Running Bookkeeper with encryption enabled
+`TODO`
 
 ---
 # Installing Pravega
@@ -152,3 +157,5 @@ Once the configuration changes have been made you can start the segment store wi
 ```
 bin/pravega-segmentstore
 ```
+## Runing Pravega Controller and Segment Store with security enabled
+`TODO`
