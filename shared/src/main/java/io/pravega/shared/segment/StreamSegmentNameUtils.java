@@ -125,16 +125,12 @@ public final class StreamSegmentNameUtils {
      * @return The primary part of StreamSegment.
      */
     public static String extractPrimaryStreamSegmentName(String streamSegmentName) {
-        if (isTransactionSegment(streamSegmentName)) {
-            return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
-        } else {
-            int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
-            if (endOfStreamNamePos < 0) {
-                // secondary id delimiter not present in the name, return the full name
-                return streamSegmentName;
-            }
-            return streamSegmentName.substring(0, endOfStreamNamePos);
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
+        if (endOfStreamNamePos < 0) {
+            // secondary id delimiter not present in the name, return the full name
+            return streamSegmentName;
         }
+        return streamSegmentName.substring(0, endOfStreamNamePos);
     }
 
     /**

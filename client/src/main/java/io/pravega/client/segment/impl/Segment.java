@@ -72,12 +72,12 @@ public class Segment implements Comparable<Segment>, Serializable {
             return fromScopedName(originalSegmentName);
         } else {
             List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
-            if (tokens.size() == 2) {
+            if (tokens.size() == 2) { // scope not present
                 String scope = null;
                 String streamName = tokens.get(0);
                 long segmentId = Long.parseLong(tokens.get(1));
                 return new Segment(scope, streamName, segmentId);
-            } else {
+            } else { // scope present
                 String scope = tokens.get(0);
                 String streamName = tokens.get(1);
                 long segmentId = Long.parseLong(tokens.get(2));

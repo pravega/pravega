@@ -32,8 +32,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
-
 /**
  * This actor processes commit txn events.
  * It does the following 2 operations in order.
@@ -163,6 +161,6 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         String failureMessage = String.format("Transaction = %s, error sending commit notification for segment %d",
                 txId, segment);
         return Retry.indefinitelyWithExpBackoff(failureMessage).runAsync(() -> segmentHelper.commitTransaction(scope,
-                stream, getPrimaryId(segment), txId, this.hostControllerStore, this.connectionFactory, delegationToken), executor);
+                stream, segment, txId, this.hostControllerStore, this.connectionFactory, delegationToken), executor);
     }
 }

@@ -55,8 +55,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
-
 /**
  * Stream controller RPC server implementation.
  */
@@ -159,7 +157,7 @@ public class ControllerService {
         // Divide current segments in segmentFutures into at most count positions.
         return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
             return segments.stream()
-                           .map(number -> ModelHelper.createSegmentId(scope, stream, getPrimaryId(number)))
+                           .map(number -> ModelHelper.createSegmentId(scope, stream, number))
                            .collect(Collectors.toMap(id -> id, id -> 0L));
             //TODO: Implement https://github.com/pravega/pravega/issues/191  (Which will supply a value besides 0)
         });
@@ -175,17 +173,17 @@ public class ControllerService {
                 context,
                 executor)
                 .thenComposeAsync(successors -> Futures.keysAllOfWithResults(successors.entrySet().stream()
-                                                                                       .collect(Collectors.toMap(
-                        entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
-                                segment.getStreamInfo().getStream(),
-                                entry.getKey(),
-                                context,
-                                executor)
-                                .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
-                                        segment.getStreamInfo().getStream(), getPrimaryId(seg.getSegmentId()),
-                                        seg.getKeyStart(),
-                                        seg.getKeyEnd())),
-                        entry -> entry.getValue()))), executor);
+                        .collect(Collectors.toMap(
+                                entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
+                                        segment.getStreamInfo().getStream(),
+                                        entry.getKey(),
+                                        context,
+                                        executor)
+                                        .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
+                                                segment.getStreamInfo().getStream(), seg.getSegmentId(),
+                                                seg.getKeyStart(),
+                                                seg.getKeyEnd())),
+                                entry -> entry.getValue()))), executor);
     }
 
     public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {
@@ -254,7 +252,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
         return ModelHelper.createSegmentRange(
-                scope, stream, getPrimaryId(segment.getSegmentId()), segment.getKeyStart(), segment.getKeyEnd());
+                scope, stream, segment.getSegmentId(), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,

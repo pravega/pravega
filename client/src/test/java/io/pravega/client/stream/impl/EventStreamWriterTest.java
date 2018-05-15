@@ -150,6 +150,8 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
             if (!sealed) {
                 acked.addAll(unacked);
                 unacked.clear();
+            } else {
+                throw new SegmentSealedException("Segment already sealed");
             }
         }
 

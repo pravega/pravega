@@ -314,6 +314,8 @@ public class EndToEndTruncationTest {
         map.put(0.5, 1.0);
         assertTrue(controller.scaleStream(stream, Lists.newArrayList(0L), map, executor).getFuture().join());
 
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         // Write rest of events to the new Stream segments.
         writeDummyEvents(clientFactory, streamName, totalEvents, totalEvents / 2);
 
@@ -326,8 +328,6 @@ public class EndToEndTruncationTest {
         // Let readers to consume some events and truncate segment while readers are consuming events
         Exceptions.handleInterrupted(() -> Thread.sleep(500));
         Map<Long, Long> streamCutPositions = new HashMap<>();
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         streamCutPositions.put(one, 0L);
         streamCutPositions.put(two, 0L);
         assertTrue(controller.truncateStream(scope, streamName, streamCutPositions).join());

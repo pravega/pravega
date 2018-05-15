@@ -670,6 +670,7 @@ public class TableHelper {
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
                 Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getPrimaryId(segmentWithRange.getKey()));
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
+                        // TODO: shivesh this check will break after rolling transaction, getPrimaryId
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
                         segmentOpt.get().getRoutingKeyEnd() == segmentWithRange.getValue().getValue());
