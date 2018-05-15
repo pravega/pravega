@@ -164,17 +164,16 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             Throwable ex = Exceptions.unwrap(t);
             log.warn("Exception while reading from Segment : {}", segmentId, ex);
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
-        }).throwingOn(RuntimeException.class)
-                .runAsync(() -> {
-                    return getConnection()
-                            .whenComplete((connection, ex) -> {
-                                if (ex != null) {
-                                    log.warn("Exception while establishing connection with Pravega " +
-                                            "node", ex);
-                                    closeConnection(new ConnectionFailedException(ex));
-                                }
-                            }).thenCompose(c -> sendRequestOverConnection(request, c));
-                }, connectionFactory.getInternalExecutor());
+        }).runAsync(() -> {
+            return getConnection()
+                    .whenComplete((connection, ex) -> {
+                        if (ex != null) {
+                            log.warn("Exception while establishing connection with Pravega " +
+                                    "node", ex);
+                            closeConnection(new ConnectionFailedException(ex));
+                        }
+                    }).thenCompose(c -> sendRequestOverConnection(request, c));
+        }, connectionFactory.getInternalExecutor());
     }
     
     @SneakyThrows(ConnectionFailedException.class)

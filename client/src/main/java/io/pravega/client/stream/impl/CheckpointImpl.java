@@ -69,6 +69,7 @@ public class CheckpointImpl implements Checkpoint {
     }
     
     private static class CheckpointSerializer extends VersionedSerializer.WithBuilder<CheckpointImpl, CheckpointBuilder> {
+
         @Override
         protected CheckpointBuilder newBuilder() {
             return builder();

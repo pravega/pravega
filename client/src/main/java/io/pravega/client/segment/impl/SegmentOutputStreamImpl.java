@@ -116,6 +116,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
            Exceptions.handleInterrupted(() -> waitingInflight.await());
         }
 
+        private boolean encounteredSeal() {
+            synchronized (lock) {
+                boolean result = state.sealEncountered.compareAndSet(false, true);
+                waitingInflight.release();
+                return result;
+            }
+        }
+        
         private boolean isAlreadySealed() {
             synchronized (lock) {
                 return connection == null && exception != null && exception instanceof SegmentSealedException;
@@ -212,15 +220,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 eventNumber++;
                 inflight.put(eventNumber, event);
-                waitingInflight.reset();
+                if (!sealEncountered.get()) {
+                    waitingInflight.reset();
+                }
                 return eventNumber;
-            }
-        }
-        
-        private PendingEvent removeSingleInflight(long inflightEventNumber) {
-            synchronized (lock) {
-                PendingEvent result = inflight.remove(inflightEventNumber);
-                return result;
             }
         }
         
@@ -305,7 +308,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
-            if (state.sealEncountered.compareAndSet(false, true)) {
+            if (state.encounteredSeal()) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                                  retrySchedule.getMaxDelay(),
                                                  t -> log.error(writerId + " to invoke sealed callback: ", t))
@@ -489,7 +492,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            if (state.isAlreadySealed()) {
+            if (state.sealEncountered.get()) {
                 throw new SegmentSealedException(segmentName + " sealed");
             }
         }

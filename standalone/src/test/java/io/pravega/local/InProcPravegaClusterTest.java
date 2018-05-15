@@ -35,7 +35,7 @@ import org.junit.Test;
 public class InProcPravegaClusterTest {
     boolean authEnabled = false;
     boolean tlsEnabled = false;
-    private LocalPravegaEmulator localPravega;
+    LocalPravegaEmulator localPravega;
 
     @Before
     public void setUp() throws Exception {

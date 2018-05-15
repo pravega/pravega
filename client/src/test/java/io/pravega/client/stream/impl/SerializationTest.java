@@ -212,5 +212,5 @@ public class SerializationTest {
     private String createString() {
         return RandomStringUtils.randomAlphabetic(5);
     }
-
 }
+
