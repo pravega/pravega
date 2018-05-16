@@ -99,8 +99,8 @@ public interface StreamSegmentStore {
      *                          This argument will be ignored if the StreamSegment is currently Sealed.
      * @param timeout           Timeout for the operation.
      * @return A Completable future that, when completed, will contain a Map of Attribute Ids to their latest values. If
-     * an attribute does not exist, it will not be populated in this map. If the operation failed, the future will be failed
-     * with the causing exception.
+     * an attribute does not exist, it will still be added to this map, but with a NULL_ATTRIBUTE_VALUE. If the operation
+     * failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
