@@ -78,7 +78,7 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
     }
 
     @Override
-    protected int getFencingIterationDelayMillis() {
-        return 5000;
+    protected double getFencingTestOperationMultiplier() {
+        return 0.3;
     }
 }
