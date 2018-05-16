@@ -147,7 +147,7 @@ public class ReaderGroupStateManager {
                         "When shutting down a reader: Given position does not match the segments it was assigned: \n"
                                 + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
             }
-            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
+            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });
     }
     
@@ -332,15 +332,15 @@ public class ReaderGroupStateManager {
         Map<Segment, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return Collections.emptyMap();
+                return Collections.<Segment, Long>emptyMap();
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
             Map<Segment, Long> acquired = new HashMap<>(toAcquire);

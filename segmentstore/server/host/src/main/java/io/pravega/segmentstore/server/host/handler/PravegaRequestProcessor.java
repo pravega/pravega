@@ -410,7 +410,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                createStreamsSegment.getDelegationToken(), READ_UPDATE, "Create Segment")) {
             return;
        }
-
+       log.debug("Creating stream segment {}", createStreamsSegment);
         segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
                     createStreamSegment.reportSuccessEvent(timer.getElapsed());

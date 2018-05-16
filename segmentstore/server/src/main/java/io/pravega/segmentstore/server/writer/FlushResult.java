@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
-
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 class FlushResult {
     private AtomicLong flushedBytes;
     private AtomicLong mergedBytes;
+    private AtomicInteger flushedAttributes;
 
     /**
      * Creates a new instance of the FlushResult class.
@@ -26,6 +27,7 @@ class FlushResult {
     FlushResult() {
         this.flushedBytes = new AtomicLong();
         this.mergedBytes = new AtomicLong();
+        this.flushedAttributes = new AtomicInteger();
     }
 
     /**
@@ -53,6 +55,18 @@ class FlushResult {
     }
 
     /**
+     * Adds a number of flushed attributes.
+     *
+     * @param flushedAttributes The value to add.
+     * @return This object.
+     */
+    FlushResult withFlushedAttributes(int flushedAttributes) {
+        Preconditions.checkArgument(flushedAttributes >= 0, "flushedAttributes must be a positive number.");
+        this.flushedAttributes.addAndGet(flushedAttributes);
+        return this;
+    }
+
+    /**
      * Adds the given FlushResult to this one.
      *
      * @param flushResult The flush result to add.
@@ -61,6 +75,7 @@ class FlushResult {
     FlushResult withFlushResult(FlushResult flushResult) {
         this.flushedBytes.addAndGet(flushResult.flushedBytes.get());
         this.mergedBytes.addAndGet(flushResult.mergedBytes.get());
+        this.flushedAttributes.addAndGet(flushResult.flushedAttributes.get());
         return this;
     }
 
@@ -78,8 +93,15 @@ class FlushResult {
         return this.mergedBytes.get();
     }
 
+    /**
+     * Gets a value indicating the number of attributes flushed.
+     */
+    int getFlushedAttributes() {
+        return this.flushedAttributes.get();
+    }
+
     @Override
     public String toString() {
-        return String.format("FlushedBytes = %s, MergedBytes = %s", this.flushedBytes, this.mergedBytes);
+        return String.format("FlushedBytes = %s, MergedBytes = %s, Attributes = %s", this.flushedBytes, this.mergedBytes, this.flushedAttributes);
     }
 }

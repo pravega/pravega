@@ -94,7 +94,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
     @Override
     public void tearDown() throws Exception {
-        executorService.shutdown();
+        ExecutorServiceHelpers.shutdown(executorService);
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();
         }

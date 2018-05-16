@@ -18,7 +18,7 @@ import java.util.Collection;
  * be serialized to a DurableLog. Its purpose is to be added to the In-Memory Transaction Log, where it binds a StreamSegmentAppendOperation
  * to its corresponding Cache entry.
  */
-public class CachedStreamSegmentAppendOperation extends StorageOperation {
+public class CachedStreamSegmentAppendOperation extends StorageOperation implements AttributeUpdaterOperation {
     //region Members
 
     private final int length;
@@ -59,6 +59,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
      *
      * @return A Collection of Attribute updates, or null if no updates are available.
      */
+    @Override
     public Collection<AttributeUpdate> getAttributeUpdates() {
         return this.attributeUpdates;
     }

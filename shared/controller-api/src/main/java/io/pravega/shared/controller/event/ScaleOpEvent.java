@@ -9,23 +9,39 @@
  */
 package io.pravega.shared.controller.event;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Data
-@AllArgsConstructor
 public class ScaleOpEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
     private final List<Integer> segmentsToSeal;
-    private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+    private final List<AbstractMap.SimpleEntry<Long, Long>> newRanges;
     private final boolean runOnlyIfStarted;
     private final long scaleTime;
+
+    public ScaleOpEvent(String scope, String stream, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRange, boolean runOnlyIfStarted, long scaleTime) {
+        this.scope = scope;
+        this.stream = stream;
+        this.segmentsToSeal = segmentsToSeal;
+        this.newRanges = newRange.stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(Double.doubleToRawLongBits(x.getKey()), Double.doubleToRawLongBits(x.getValue())))
+                .collect(Collectors.toList());
+        this.runOnlyIfStarted = runOnlyIfStarted;
+        this.scaleTime = scaleTime;
+    }
+
+    public List<AbstractMap.SimpleEntry<Double, Double>> getNewRanges() {
+        return newRanges.stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(Double.longBitsToDouble(x.getKey()), Double.longBitsToDouble(x.getValue())))
+                .collect(Collectors.toList());
+    }
 
     @Override
     public String getKey() {

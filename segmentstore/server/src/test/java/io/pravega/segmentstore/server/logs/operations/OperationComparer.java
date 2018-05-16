@@ -132,8 +132,8 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, Collection<AttributeUpdate> expected, Collection<AttributeUpdate> actual) {
-        if (expected == null) {
-            Assert.assertNull(message + " Not expecting attributes.", actual);
+        if (expected == null || expected.size() == 0) {
+            Assert.assertTrue(message + " Not expecting attributes.", actual == null || actual.size() == 0);
             return;
         } else {
             Assert.assertNotNull(message + " Expected attributes, but none found.", actual);

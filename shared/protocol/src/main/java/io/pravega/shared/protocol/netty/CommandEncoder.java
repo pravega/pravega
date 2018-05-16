@@ -9,6 +9,12 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToByteEncoder;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
@@ -17,28 +23,22 @@ import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
-
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufOutputStream;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToByteEncoder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
 /**
  * Encodes data so that it can go out onto the wire.
@@ -101,7 +101,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 ConditionalAppend ca = new ConditionalAppend(append.writerId,
                         append.eventNumber,
                         append.getExpectedLength(),
-                        wrappedBuffer(serializeMessage(new Event(append.getData()))));
+                        new Event(append.getData()));
                 writeMessage(ca, out);
             } else {
                 Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
@@ -127,9 +127,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
                 // Is there enough space for a subsequent message after this one?
                 if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
-                    bytesLeftInBlock -= writeMessage(new Event(data), out);
+                    bytesLeftInBlock -= serializeEvent(new Event(data), new ByteBufOutputStream(out));
                 } else {
-                    byte[] serializedMessage = serializeMessage(new Event(data));
+                    ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                    serializeEvent(new Event(data), bout);
+                    byte[] serializedMessage = bout.toByteArray(); 
                     int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                     ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
                     ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
@@ -181,17 +183,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @SneakyThrows(IOException.class)
-    private byte[] serializeMessage(WireCommand msg) {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bout);
-        out.writeInt(msg.getType().getCode());
-        out.write(LENGTH_PLACEHOLDER);
-        msg.writeFields(out);
-        out.flush();
-        out.close();
-        byte[] result = bout.toByteArray();
-        ByteBuffer asBuffer = ByteBuffer.wrap(result);
-        asBuffer.putInt(TYPE_SIZE, result.length - TYPE_PLUS_LENGTH_SIZE);
+    private int serializeEvent(Event event, OutputStream out) {
+        int result = event.getData().readableBytes() + TYPE_PLUS_LENGTH_SIZE;
+        DataOutputStream dout = new DataOutputStream(out);
+        event.writeFields(dout);
+        dout.flush();
         return result;
     }
 

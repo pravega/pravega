@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -52,7 +53,7 @@ public class ZKStoreHelperTest {
 
     @After
     public void tearDown() throws IOException {
-        executor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executor);
         cli.close();
         zkServer.close();
     }

@@ -9,8 +9,10 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -18,8 +20,9 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
-import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -45,7 +48,6 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGetSegmentInfoFromStorage() {
-        final UUID attributeId = UUID.randomUUID();
         @Cleanup
         val s = createStorage();
         val stateStore = new InMemoryStateStore();
@@ -58,8 +60,11 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
                         .thenCompose(v -> s.seal(handle, TIMEOUT))
                         .thenCompose(v -> s.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT))).join();
         val expectedInfo = StreamSegmentInformation.from(info).startOffset(info.getLength() / 2).build();
-        val attributes = Collections.singleton(new AttributeUpdate(attributeId, AttributeUpdateType.Replace, 100L));
-        val expectedAttributes = Collections.singletonMap(attributeId, 100L);
+        val allAttributes = createAttributes();
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(allAttributes);
+        val attributes = allAttributes.entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                .collect(Collectors.toList());
         m.saveState(expectedInfo, attributes, TIMEOUT).join();
 
         // Retrieve the state and verify it.
@@ -76,7 +81,6 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testStateOperations() {
-        final UUID attributeId = UUID.randomUUID();
         @Cleanup
         val s = createStorage();
         val stateStore = new InMemoryStateStore();
@@ -84,8 +88,11 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
 
         // Save some state.
         val sp = StreamSegmentInformation.builder().name("s").length(10).startOffset(4).sealed(true).build();
-        val attributes = Collections.singleton(new AttributeUpdate(attributeId, AttributeUpdateType.Replace, 100L));
-        val expectedAttributes = Collections.singletonMap(attributeId, 100L);
+        val allAttributes = createAttributes();
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(allAttributes);
+        val attributes = allAttributes.entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                .collect(Collectors.toList());
         m.saveState(sp, attributes, TIMEOUT).join();
 
         // Get raw state.
@@ -99,6 +106,10 @@ public class SegmentStateMapperTests extends ThreadPooledTestSuite {
         val si = m.attachState(rawSp, TIMEOUT).join();
         Assert.assertEquals("Unexpected StartOffset.", sp.getStartOffset(), si.getProperties().getStartOffset());
         AssertExtensions.assertMapEquals("Unexpected Attributes.", expectedAttributes, si.getProperties().getAttributes());
+    }
+
+    private Map<UUID, Long> createAttributes() {
+        return ImmutableMap.of(Attributes.EVENT_COUNT, 100L, UUID.randomUUID(), 200L);
     }
 
     private Storage createStorage() {

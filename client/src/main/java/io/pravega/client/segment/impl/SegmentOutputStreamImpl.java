@@ -29,7 +29,6 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
-import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
@@ -117,6 +116,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
            Exceptions.handleInterrupted(() -> waitingInflight.await());
         }
 
+        private boolean encounteredSeal() {
+            synchronized (lock) {
+                boolean result = state.sealEncountered.compareAndSet(false, true);
+                waitingInflight.release();
+                return result;
+            }
+        }
+        
         private boolean isAlreadySealed() {
             synchronized (lock) {
                 return connection == null && exception != null && exception instanceof SegmentSealedException;
@@ -188,7 +195,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     waitingInflight.release();
                 } 
                 if (!closed) {
-                    log.warn("Connection for segment {} failed due to: {}", segmentName, throwable.getMessage());
+                    String message = throwable.getMessage() == null ? throwable.getClass().toString() : throwable.getMessage();
+                    log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
                 }
             }
             if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
@@ -212,15 +220,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 eventNumber++;
                 inflight.put(eventNumber, event);
-                waitingInflight.reset();
+                if (!sealEncountered.get()) {
+                    waitingInflight.reset();
+                }
                 return eventNumber;
-            }
-        }
-        
-        private PendingEvent removeSingleInflight(long inflightEventNumber) {
-            synchronized (lock) {
-                PendingEvent result = inflight.remove(inflightEventNumber);
-                return result;
             }
         }
         
@@ -304,13 +307,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-            log.info("Received SegmentSealed {}", segmentIsSealed);
-            if (state.sealEncountered.compareAndSet(false, true)) {
+            log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
+            if (state.encounteredSeal()) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                                  retrySchedule.getMaxDelay(),
                                                  t -> log.error(writerId + " to invoke sealed callback: ", t))
                      .runInExecutor(() -> {
-                         log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
+                         log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
                      }, connectionFactory.getInternalExecutor());
             }
@@ -320,7 +323,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             String segment = noSuchSegment.getSegment();
             checkArgument(segmentName.equals(segment), "Wrong segment name %s, %s", segmentName, segment);
-            log.warn("Segment being written to {} no longer exists. Failing all writes", segment);
+            log.warn("Segment being written to {} by writer {} no longer exists. Failing all writes", segment, writerId);
             state.setClosed(true);
             NoSuchSegmentException exception = new NoSuchSegmentException(segment);
             state.failConnection(exception);
@@ -344,13 +347,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 failConnection(e);
             }
         }
-        
-        @Override
-        public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
-            log.debug("Received ConditionalCheckFailed: {}", dataNotAppended);
-            long eventNumber = dataNotAppended.getEventNumber();
-            conditionalFail(eventNumber);
-        }
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
@@ -362,7 +358,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              .map(entry -> new Append(segmentName, writerId, entry.getKey(),
                                                                       Unpooled.wrappedBuffer(entry.getValue()
                                                                                                   .getData()),
-                                                                      entry.getValue().getExpectedOffset()))
+                                                                      null))
                                              .collect(Collectors.toList());
             ClientConnection connection = state.getConnection();
             if (connection == null) {
@@ -386,7 +382,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void ackUpTo(long ackLevel) {
             for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
                 if (toAck != null) {
-                    toAck.getAckFuture().complete(true);
+                    toAck.getAckFuture().complete(null);
                 }
             }
             state.releaseIfEmptyInflight();
@@ -401,14 +397,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
             checkState(inFlightBelowPreviousAckLevel == null, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
                        previousAckLevel, ackLevel, inFlightBelowPreviousAckLevel);
-        }
-
-        private void conditionalFail(long eventNumber) {
-            PendingEvent toAck = state.removeSingleInflight(eventNumber);
-            if (toAck != null) {
-                toAck.getAckFuture().complete(false);
-            }
-            state.releaseIfEmptyInflight();
         }
 
         @Override
@@ -443,8 +431,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             long eventNumber = state.addToInflight(event);
             try {
-                Append append = new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                        event.getExpectedOffset());
+                Append append = new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()), null);
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
@@ -505,7 +492,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            if (state.isAlreadySealed()) {
+            if (state.sealEncountered.get()) {
                 throw new SegmentSealedException(segmentName + " sealed");
             }
         }
@@ -548,7 +535,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              if (Exceptions.unwrap(t) instanceof SegmentSealedException) {
-                                 log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
+                                 log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
                                  return null;
                              }
                              throw Lombok.sneakyThrow(t);
@@ -570,7 +557,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public List<PendingEvent> getUnackedEventsOnSeal() {
         // close connection and update the exception to SegmentSealed, this ensures future writes receive a
         // SegmentSealedException.
-        log.trace("GetUnackedEventsOnSeal called on {}", writerId);
+        log.debug("GetUnackedEventsOnSeal called on {}", writerId);
         synchronized (writeOrderLock) {   
             state.failConnection(new SegmentSealedException(this.segmentName));
             return Collections.unmodifiableList(state.getAllInflightEvents());
