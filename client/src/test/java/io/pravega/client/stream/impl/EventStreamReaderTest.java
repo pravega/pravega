@@ -372,7 +372,7 @@ public class EventStreamReaderTest {
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         // Ensure this segment is closed.
         Mockito.verify(segmentInputStream, Mockito.times(1)).close();
-        // Ensure groupstate is updated ot handle end of segment.
+        // Ensure groupstate is updated to handle end of segment.
         Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, true);
     }
 }
