@@ -35,6 +35,7 @@ public class ZKStoreHelper {
     static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
     static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
     static final String RETENTION_PATH = BUCKET_PATH + "/%s";
+    static final String COUNTER_PATH = "/counter";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
     private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
@@ -191,18 +192,6 @@ public class ZKStoreHelper {
                         callback(event -> result.complete(null), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             }
-        } catch (Exception e) {
-            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
-        }
-        return result;
-    }
-
-    CompletableFuture<Integer> updateAndGetVersion(final String path) {
-        final CompletableFuture<Integer> result = new CompletableFuture<>();
-        try {
-            client.setData().inBackground(
-                    callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
-                    .forPath(path);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }

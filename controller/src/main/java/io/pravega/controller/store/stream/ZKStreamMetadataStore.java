@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -26,6 +27,7 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
@@ -45,9 +47,28 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private final ZKStoreHelper storeHelper;
+    @VisibleForTesting
+    /**
+     * This defines the size of the block of counter values that will be used by this controller instance.
+     * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
+     * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
+     * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
+     * will use this range for transaction id generation as it will be unique assigned to current controller.
+     * If controller crashes, all unused values go to waste. In worst case we may lose COUNTER_RANGE worth of values everytime
+     * a controller crashes.
+     * Since we use a 96 bit number for our counter, so
+     */
+    static final int COUNTER_RANGE = 10000;
+    private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
+    private final Object lock;
+    @GuardedBy("lock")
+    private final AtomicBigLong limit;
+    @GuardedBy("lock")
+    private final AtomicBigLong counter;
+    @GuardedBy("lock")
+    private volatile CompletableFuture<Void> refreshFutureRef;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         this (client, Config.BUCKET_COUNT, executor);
@@ -59,6 +80,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         storeHelper = new ZKStoreHelper(client, executor);
         bucketCacheMap = new ConcurrentHashMap<>();
         bucketOwnershipCacheRef = new AtomicReference<>();
+        this.lock = new Object();
+        this.counter = new AtomicBigLong();
+        this.limit = new AtomicBigLong();
+        this.refreshFutureRef = null;
     }
 
     private void initialize() {
@@ -68,6 +93,82 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     ZKStream newStream(final String scope, final String name) {
         return new ZKStream(scope, name, storeHelper);
+    }
+
+    @Override
+    CompletableFuture<BigLong> getNextCounter() {
+        CompletableFuture<BigLong> future;
+        synchronized (lock) {
+            BigLong next = counter.incrementAndGet();
+            if (next.compareTo(limit.get()) > 0) {
+                // ignore the counter value and after refreshing call getNextCounter
+                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
+            } else {
+                future = CompletableFuture.completedFuture(next);
+            }
+        }
+        return future;
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> refreshRangeIfNeeded() {
+        CompletableFuture<Void> refreshFuture;
+        synchronized (lock) {
+            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
+            // If reference future ref is not null, we will return the reference to that future.
+            // It is set to null when refresh completes.
+            refreshFuture = this.refreshFutureRef;
+            if (this.refreshFutureRef == null) {
+                // no ongoing refresh, check if refresh is still needed
+                if (counter.get().compareTo(limit.get()) >= 0) {
+                    log.info("refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+
+                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
+                    // concurrent thread can start the refresh future.
+                    refreshFutureRef = getRefreshFuture()
+                            .exceptionally(e -> {
+                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
+                                synchronized (lock) {
+                                    refreshFutureRef = null;
+                                }
+                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
+                                throw new CompletionException(e);
+                            });
+                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
+                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
+                    // future from here.
+                    refreshFuture = refreshFutureRef;
+                } else {
+                    // nothing to do
+                    refreshFuture = CompletableFuture.completedFuture(null);
+                }
+            }
+        }
+        return refreshFuture;
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> getRefreshFuture() {
+        return storeHelper.createZNodeIfNotExist(ZKStoreHelper.COUNTER_PATH, BigLong.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(ZKStoreHelper.COUNTER_PATH)
+                        .thenCompose(data -> {
+                            BigLong previous = BigLong.fromBytes(data.getData());
+                            BigLong nextLimit = previous.add(previous, COUNTER_RANGE);
+                            return storeHelper.setData(ZKStoreHelper.COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
+                                    .thenAccept(x -> {
+                                        // Received new range, we should reset the counter and limit under the lock
+                                        // and then reset refreshfutureref to null
+                                        synchronized (lock) {
+                                            // Note: counter is set to previous range's highest value. Always get the
+                                            // next counter by calling counter.incrementAndGet otherwise there will
+                                            // be a collision with counter used by someone else.
+                                            counter.set(previous.getMsb(), previous.getLsb());
+                                            limit.set(nextLimit.getMsb(), nextLimit.getLsb());
+                                            refreshFutureRef = null;
+                                            log.info("refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+                                        }
+                                    });
+                        }));
     }
 
     @Override
@@ -270,4 +371,33 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
     }
+
+    // region getters and setters for testing
+    @VisibleForTesting
+    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
+        synchronized (lock) {
+            limit.set(limitMsb, limitLsb);
+            counter.set(counterMsb, counterLsb);
+        }
+    }
+
+    @VisibleForTesting
+    BigLong getLimitForTesting() {
+        synchronized (lock) {
+            return limit.get();
+        }
+    }
+
+    @VisibleForTesting
+    BigLong getCounterForTesting() {
+        synchronized (lock) {
+            return counter.get();
+        }
+    }
+
+    @VisibleForTesting
+    public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
+        this.storeHelper = storeHelper;
+    }
+    // endregion
 }

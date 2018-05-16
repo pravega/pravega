@@ -51,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.BigLong;
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.AtomicBigLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -68,7 +70,7 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected final String scope = "scope";
@@ -656,7 +658,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(0, tx2.getEpoch());
-        assertEquals(0, tx2.getId().getMostSignificantBits());
+        assertEquals(0, (int) (tx2.getId().getMostSignificantBits() >> 32));
 
         // third transaction created after new epoch created in history table
         store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
@@ -664,7 +666,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedTransactionData tx3 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(1, tx3.getEpoch());
-        assertEquals(1, tx3.getId().getMostSignificantBits());
+        assertEquals(1, (int) (tx3.getId().getMostSignificantBits() >> 32));
 
         DeleteEpochResponse deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch
         assertEquals(false, deleteResponse.isDeleted());
@@ -925,6 +927,45 @@ public abstract class StreamMetadataStoreTest {
         StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, map5);
         store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
         // endregion
+    }
+
+    @Test
+    public void bigLongTest() {
+        BigLong counter = new BigLong(0, 1L);
+        BigLong counter2 = new BigLong(0, 1L);
+        BigLong counter3 = new BigLong(0, 2L);
+        BigLong counter4 = new BigLong(1, 1L);
+        BigLong counter5 = new BigLong(1, Long.MAX_VALUE - 1);
+
+        // comparison
+        assertTrue(counter.compareTo(counter2) == 0);
+        assertTrue(counter.compareTo(counter3) < 0);
+        assertTrue(counter.compareTo(counter4) < 0);
+        assertTrue(counter4.compareTo(counter3) > 0);
+
+        // tobytes and frombytes
+        assertEquals(counter, BigLong.fromBytes(counter.toBytes()));
+
+        // add
+        BigLong added = BigLong.add(counter, 100);
+        assertEquals(0, added.getMsb());
+        assertEquals(101, added.getLsb());
+
+        BigLong added2 = BigLong.add(counter5, 100);
+        assertEquals(2, added2.getMsb());
+        assertEquals(99, added2.getLsb());
+    }
+
+    @Test
+    public void atomicBigLongTest() {
+        AtomicBigLong atomicCounter = new AtomicBigLong();
+        AtomicBigLong atomicCounter2 = new AtomicBigLong(0, 1L);
+        assertEquals(BigLong.ZERO, atomicCounter.get());
+        assertEquals(new BigLong(0, 1L), atomicCounter2.get());
+
+        BigLong counter = atomicCounter.incrementAndGet();
+        assertEquals(counter, atomicCounter.get());
+        assertEquals(new BigLong(0, 1L), counter);
     }
 }
 

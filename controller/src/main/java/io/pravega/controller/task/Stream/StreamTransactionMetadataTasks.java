@@ -324,12 +324,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
         // 1. get latest epoch from history
-        // 2. get new counter in the epoch.. this step can throw DataNotFoundException
-        // 3. txn id = epoch + counter
+        // 2. generateNewTransactionId.. this step can throw WriteConflictException
+        // 3. txn id = 32 bit epoch + 96 bit counter
         // 4. if while creating txn epoch no longer exists, then we will get DataNotFoundException.
-        // 5. Retry if we get DataNotFoundException, right from step 1.
-        // Note: this is a low probability failure because it will only happen in rare case
-        // when we increment the counter and then epoch node is deleted as scale completes.
+        // 5. Retry if we get WriteConflict or DataNotFoundException, from step 1.
+        // Note: this is a low probability for either exceptions:
+        // - WriteConflict, if multiple controllers are trying to get new range at the same time then we can get write conflict
+        // - DataNotFoundException because it will only happen in rare case
+        // when we generate the transactionid against latest epoch (if there is ongoing scale then this is new epoch)
+        // and then epoch node is deleted as scale starts and completes.
         return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
                 streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
                 .thenCompose(txnId -> {
@@ -376,7 +379,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
                         log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
                     }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
-                }), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, 5, executor));
+                }), e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
+        }, 5, executor));
     }
 
     @SuppressWarnings("ReturnCount")

@@ -510,7 +510,7 @@ public class StreamTransactionMetadataTasksTest {
 
                 // first time throw exception.
                 if (count.getAndIncrement() == 0) {
-                    return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "counter not found"));
+                    return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict on counter update"));
                 }
 
                 // subsequent times call origin method
@@ -545,7 +545,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // verify that the txn id that is generated is of type ""
         UUID txnId = txn.getKey().getId();
-        assertEquals(0, txnId.getMostSignificantBits());
+        assertEquals(0, (int) (txnId.getMostSignificantBits() >> 32));
         assertEquals(2, txnId.getLeastSignificantBits());
     }
 

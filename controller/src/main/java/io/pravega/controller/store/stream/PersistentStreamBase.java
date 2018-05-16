@@ -707,15 +707,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                                 return addPartialHistoryRecordAndIndex(epochTransition.getSegmentsToSeal(),
                                         epochTransition.getNewSegmentsWithRange().keySet(),
-                                        epochTransition.getActiveEpoch(), epochTransition.getNewEpoch())
-                                        .thenCompose(v -> {
-                                            log.debug("Scale stream {}/{}, sealing old epoch for new transaction creation", scope, name);
-                                            return sealOldEpochForNewTransactions(epochTransition.getActiveEpoch())
-                                                    .exceptionally(e -> {
-                                                        System.err.println("huha -->" + e);
-                                                        throw new CompletionException(e);
-                                                    });
-                                        });
+                                        epochTransition.getActiveEpoch(), epochTransition.getNewEpoch());
                             });
                 });
     }
@@ -819,10 +811,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<UUID> generateNewTxnId() {
+    public CompletableFuture<UUID> generateNewTxnId(int msb32Bit, long lsb64Bit) {
         return getLatestEpoch()
-                .thenCompose(epoch -> generateNextUniqueId(epoch.getKey())
-                        .thenApply(counter -> new UUID(epoch.getKey(), counter)));
+                .thenApply(epoch -> {
+                    long msb64Bit = (long) epoch.getKey() << 32 | msb32Bit & 0xFFFFFFFFL;
+                    return new UUID(msb64Bit, lsb64Bit);
+                });
     }
 
     @Override
@@ -834,9 +828,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
         // extract epoch from txnid
-        final long epoch = txnId.getMostSignificantBits();
+        final int epoch = getTransactionEpoch(txnId);
         return verifyLegalState().thenCompose(v -> createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod))
-                .thenApply(v -> new VersionedTransactionData((int) epoch, txnId, 0, TxnStatus.OPEN, current,
+                .thenApply(v -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
                         current + maxExecutionTime, scaleGracePeriod));
     }
 
@@ -1158,12 +1152,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {
-        return createEpochNodeIfAbsent(epoch)
-                .thenCompose(v -> createEpochUniqueIdGenerator(epoch));
-    }
-
-    private CompletableFuture<Void> sealOldEpochForNewTransactions(int epoch) {
-        return deleteEpochUniqueIdGenerator(epoch);
+        return createEpochNodeIfAbsent(epoch);
     }
 
     /**
@@ -1333,9 +1322,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private Integer getTransactionEpoch(UUID txId) {
-        // epoch == UUID.msb
-        return (int) txId.getMostSignificantBits();
+    protected int getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb >> 32
+        return (int) (txId.getMostSignificantBits() >> 32);
     }
 
     abstract CompletableFuture<Void> deleteStream();
@@ -1399,12 +1388,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> createEpochNodeIfAbsent(int epoch);
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
-
-    abstract CompletableFuture<Void> createEpochUniqueIdGenerator(int epoch);
-
-    abstract CompletableFuture<Long> generateNextUniqueId(int epoch);
-
-    abstract CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch);
 
     abstract CompletableFuture<Void> createNewTransaction(final UUID txId,
                                                              final long timestamp,

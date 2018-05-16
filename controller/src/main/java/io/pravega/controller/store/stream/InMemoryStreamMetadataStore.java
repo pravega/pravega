@@ -55,6 +55,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicReference<BucketOwnershipListener> ownershipListenerRef;
 
     private final ConcurrentMap<Integer, BucketChangeListener> listeners;
+    private final AtomicBigLong counter;
 
     private final Executor executor;
 
@@ -63,6 +64,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
         this.ownershipListenerRef = new AtomicReference<>();
+        this.counter = new AtomicBigLong();
     }
 
     @Override
@@ -73,6 +75,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         } else {
             return new InMemoryStream(scope, name);
         }
+    }
+
+    @Override
+    CompletableFuture<BigLong> getNextCounter() {
+        return CompletableFuture.completedFuture(counter.incrementAndGet());
     }
 
     @Override

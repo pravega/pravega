@@ -10,12 +10,14 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -29,11 +31,13 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.metrics.StatsProvider;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -73,6 +77,106 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
+
+    @Data
+    /**
+     * This class represents a 96 bit number with 32 bit msb encoded as integer and 64 bit lsb encoded as long.
+     * It is unsigned and only allows for positive values. It also implements comparable interface and comparison involves
+     * first compariging msbs and if msbs are equal then we compare lsbs.
+     */
+    protected static class BigLong implements Comparable {
+        public static final BigLong ZERO = new BigLong(0, 0L);
+        private final int msb;
+        private final long lsb;
+
+        BigLong(int msb, long lsb) {
+            Preconditions.checkArgument(msb >= 0);
+            Preconditions.checkArgument(lsb >= 0);
+
+            this.msb = msb;
+            this.lsb = lsb;
+        }
+
+        @Override
+        public int compareTo(Object o) {
+            if (!(o instanceof BigLong)) {
+                throw new RuntimeException("incomparable objects");
+            }
+            BigLong other = (BigLong) o;
+
+            if (msb != other.msb) {
+                return Integer.compare(msb, other.msb);
+            } else {
+                return Long.compare(lsb, other.lsb);
+            }
+        }
+
+        byte[] toBytes() {
+            byte[] b = new byte[Integer.BYTES + Long.BYTES];
+            BitConverter.writeInt(b, 0, msb);
+            BitConverter.writeLong(b, Integer.BYTES, lsb);
+            return b;
+        }
+
+        static BigLong fromBytes(byte[] b) {
+            int msb = BitConverter.readInt(b, 0);
+            long lsb = BitConverter.readLong(b, Integer.BYTES);
+
+            return new BigLong(msb, lsb);
+        }
+
+        static BigLong add(BigLong counter, int increment) {
+            BigLong retVal;
+            if (counter.lsb < Long.MAX_VALUE - increment) {
+                retVal = new BigLong(counter.msb, counter.lsb + increment);
+            } else if (counter.msb < Integer.MAX_VALUE) {
+                int remainder = increment - (int) (Long.MAX_VALUE - counter.lsb);
+                retVal = new BigLong(counter.msb + 1, remainder);
+            } else {
+                // overflow: throw exception
+                throw new ArithmeticException("Overflow");
+            }
+
+            return retVal;
+        }
+    }
+
+    /**
+     * This class provides ability to atomically update a BigLong value.
+     */
+    protected static class AtomicBigLong {
+        @GuardedBy("lock")
+        private BigLong value;
+        private final Object lock = new Object();
+
+        AtomicBigLong() {
+            this.value = BigLong.ZERO;
+        }
+
+        @VisibleForTesting
+        AtomicBigLong(int msb, long lsb) {
+            Preconditions.checkArgument(msb >= 0);
+            Preconditions.checkArgument(lsb >= 0);
+            this.value = new BigLong(msb, lsb);
+        }
+
+        BigLong get() {
+            return this.value;
+        }
+
+        BigLong incrementAndGet() {
+            synchronized (lock) {
+                this.value = BigLong.add(this.value, 1);
+                return this.value;
+            }
+        }
+
+        void set(int msb, long lsb) {
+            synchronized (lock) {
+                value = new BigLong(msb, lsb);
+            }
+        }
+    }
 
     protected final int bucketCount;
 
@@ -502,7 +606,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                              final OperationContext context,
                                                              final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return withCompletion(stream.generateNewTxnId(), executor);
+
+        // This can throw write conflict exception
+        CompletableFuture<BigLong> nextFuture = getNextCounter();
+        return withCompletion(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.msb, next.lsb)), executor);
     }
 
     @Override
@@ -730,6 +837,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     abstract Stream newStream(final String scope, final String name);
+
+    abstract CompletableFuture<BigLong> getNextCounter();
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);

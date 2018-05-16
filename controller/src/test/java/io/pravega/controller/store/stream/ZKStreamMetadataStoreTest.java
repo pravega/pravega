@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -26,11 +28,17 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.BigLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -55,6 +63,69 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void cleanupTaskStore() throws IOException {
         cli.close();
         zkServer.close();
+    }
+
+    @Test
+    public void testCounter() throws Exception {
+        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+
+        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) this.store);
+        zkStore.setStoreHelperForTesting(storeHelper);
+
+        // first call should get the new range from store
+        BigLong counter = zkStore.getNextCounter().join();
+
+        // verify that the generated counter is from new range
+        assertEquals(0, counter.getMsb());
+        assertEquals(1L, counter.getLsb());
+        assertEquals(zkStore.getCounterForTesting(), counter);
+        BigLong limit = zkStore.getLimitForTesting();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, limit.getLsb());
+
+        // update the local counter to the end of the current range (limit - 1)
+        zkStore.setCounterAndLimitForTesting(limit.getMsb(), limit.getLsb() - 1, limit.getMsb(), limit.getLsb());
+        // now call three getNextCounters concurrently.. first one to execute should increment the counter to limit.
+        // other two will result in refresh being called.
+        CompletableFuture<BigLong> future1 = zkStore.getNextCounter();
+        CompletableFuture<BigLong> future2 = zkStore.getNextCounter();
+        CompletableFuture<BigLong> future3 = zkStore.getNextCounter();
+
+        List<BigLong> values = Futures.allOfWithResults(Arrays.asList(future1, future2, future3)).join();
+
+        // second and third should result in refresh being called. Verify method call count is 3, twice for now and
+        // once for first time when counter is set
+        verify(zkStore, times(3)).refreshRangeIfNeeded();
+
+        verify(zkStore, times(2)).getRefreshFuture();
+
+        assertTrue(values.stream().anyMatch(x -> x.compareTo(new BigLong(limit.getMsb(), limit.getLsb())) == 0));
+        assertTrue(values.stream().anyMatch(x -> x.compareTo(new BigLong(0, limit.getLsb() + 1)) == 0));
+        assertTrue(values.stream().anyMatch(x -> x.compareTo(new BigLong(0, limit.getLsb() + 2)) == 0));
+
+        // verify that counter and limits are increased
+        BigLong newCounter = zkStore.getCounterForTesting();
+        BigLong newLimit = zkStore.getLimitForTesting();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, newLimit.getLsb());
+        assertEquals(0, newLimit.getMsb());
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE + 2, newCounter.getLsb());
+        assertEquals(0, newCounter.getMsb());
+
+        // set range in store to have lsb = Long.Max - 100
+        Data<Integer> data = new Data<>(new BigLong(0, Long.MAX_VALUE - 100).toBytes(), null);
+        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(ZKStoreHelper.COUNTER_PATH);
+        // set local limit to {msb, Long.Max - 100}
+        zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
+        // now the call to getNextCounter should result in another refresh
+        zkStore.getNextCounter().join();
+        // verify that post refresh counter and limit have different msb
+        BigLong newCounter2 = zkStore.getCounterForTesting();
+        BigLong newLimit2 = zkStore.getLimitForTesting();
+
+        assertEquals(1, newLimit2.getMsb());
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE - 100, newLimit2.getLsb());
+        assertEquals(0, newCounter2.getMsb());
+        assertEquals(Long.MAX_VALUE - 99, newCounter2.getLsb());
     }
 
     @Test

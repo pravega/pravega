@@ -489,8 +489,8 @@ public interface StreamMetadataStore {
      * @return Future when completed contains a new unique txn id.
      */
     CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
-                                                                  final OperationContext context,
-                                                                  final Executor executor);
+                                                  final OperationContext context,
+                                                  final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.

@@ -42,8 +42,6 @@ import java.util.stream.Collectors;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream extends PersistentStreamBase<Integer> {
-    @VisibleForTesting
-    static final int DELTA = 10000;
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
@@ -59,9 +57,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SEALED_SEGMENTS_PATH = STREAM_PATH + "/sealedSegments";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
-    private static final String MSB_NODE_PATH = "msb";
-    private static final String LSB_ROOT_PATH = "counters";
-    private static final String LSB_FORMAT = "counter%d";
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -81,6 +76,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
+
     private final Cache<Integer> cache;
 
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
@@ -337,8 +333,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
-                        .thenApply(children -> children.stream().filter(x -> !x.equals(MSB_NODE_PATH) && !x.startsWith(LSB_ROOT_PATH)))
-                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.collect(
+                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))
                                        .exceptionally(e -> {
                                            if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
@@ -358,7 +353,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                                                  final long leaseExpiryTime,
                                                  final long maxExecutionExpiryTime,
                                                  final long scaleGracePeriod) {
-        long epoch = txId.getMostSignificantBits();
+        int epoch = getTransactionEpoch(txId);
         final String activePath = getActiveTxPath(epoch, txId.toString());
         final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
                 scaleGracePeriod, TxnStatus.OPEN).toByteArray();
@@ -366,95 +361,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.createZNodeIfNotExist(activePath, txnRecord, false)
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
-
-    // region epoch unique id generator
-    /**
-     * An epoch unique id generator generates a new long value which is unique for the epoch.
-     * This generator has requirement to be efficient and correct. To ensure correctness we will use a monotonically
-     * increasing counter which will return a new long. This will ensurue that we will never have collisions and values
-     * are unique.
-     * Several threads/processes could simultaneously try to generate new ids so the scheme should ensure that there are
-     * minimal concurrency penalties.
-     * Hence using curator's distributed atomic long recipe Or using a znoded and storing a long inside it and incrementing
-     * with CAS would be inefficient as there could be lots of write conflicts.
-     * So we have broken down the long counter into two integer counters.
-     * We use an least significant bigs(LSB) counter that performs count by using the znode.stat.version. Everytime the counter has to be incremented, we will
-     * perform an update on this znode without version check and take the version in the response as the new count
-     * This approach makes incrementing this znode very efficient.
-     * Since znode version can have a max value of Integer.Max, so this counter can only count till Integer.Max before repeating
-     * the values. Hence we add a new znode for most significant bits in the long.
-     * This znode stores the current msb count as a value in its znode.
-     * So when new id is to be generated, we do following:
-     * 1. fetch MSB node, get the MSB value from it,
-     * 2. use the msb value to get the lsb path.
-     * 3. update LSB and get its version.
-     * 3.a. if LSB.version > Integer.Max - 10000 --> we have almost exhausted LSB counter. Need to reset it and increment MSB.
-     * 3.b. create new LSB node.
-     * 3.c. update msb node value by incrementing it.
-     */
-
-    @Override
-    public CompletableFuture<Void> createEpochUniqueIdGenerator(int epoch) {
-        // create a new znode under epoch for msb and another for counter
-        byte[] b = new byte[Integer.BYTES];
-        BitConverter.writeInt(b, 0, 0);
-        return store.createZNodeIfNotExist(getEpochMsbPath(epoch), b)
-                .thenCompose(v -> store.createZNodeIfNotExist(getEpochCounterPath(epoch, 0), true));
-    }
-
-    @Override
-    public CompletableFuture<Long> generateNextUniqueId(int epoch) {
-        // This method can throw DataNotFoundException if msb path is deleted (epoch sealed as part of scale), Or
-        String msbPath = getEpochMsbPath(epoch);
-        return store.getData(msbPath).thenCompose(msbData -> incrementCounter(epoch, msbPath, msbData));
-    }
-
-    private CompletableFuture<Long> incrementCounter(int epoch, String msbPath, Data<Integer> msbData) {
-        int msb = BitConverter.readInt(msbData.getData(), 0);
-        String lsbPath = getEpochCounterPath(epoch, msb);
-
-        return store.updateAndGetVersion(lsbPath)
-                .thenCompose(lsb -> {
-                    long id = (long) msb << 32 | lsb & 0xFFFFFFFFL;
-
-                    // This will allow `delta` outstanding concurrent increments to this counter even after we seal it.
-                    if (lsb > Integer.MAX_VALUE - DELTA) {
-                        // 1. create new lsb node at path epoch/counters/(msb + 1)
-                        // 2. delete stale lsb node at path epoch/
-                        // 3. increment msb node with newer value. This ensures that all future increments happen against
-                        // msb node.
-                        // stale lsb node is the lsb node that corresponds to an older generation and we are sure no one
-                        // is using that as counter. So we can safely remove it. Note: If current msb is 0 then this will
-                        // refer to a non-existent node. Attempting to delete it is ok as delete ignores DataNotFoundExceptions.
-                        String staleLsbPath = getEpochCounterPath(epoch, msb - 1);
-                        String newLsbPath = getEpochCounterPath(epoch, msb + 1);
-                        return store.createZNodeIfNotExist(newLsbPath)
-                                .thenCompose(v -> store.deletePath(staleLsbPath, false))
-                                .thenCompose(deleted -> {
-                                    byte[] b = new byte[Integer.BYTES];
-                                    BitConverter.writeInt(b, 0, msb + 1);
-                                    return store.setData(msbPath, new Data<>(b, null));
-                                }).thenApply(x -> id);
-                    } else {
-                        return CompletableFuture.completedFuture(id);
-                    }
-                });
-    }
-
-    @Override
-    public CompletableFuture<Void> deleteEpochUniqueIdGenerator(int epoch) {
-        return store.deletePath(getEpochMsbPath(epoch), false)
-            .thenCompose(v -> store.deleteTree(getEpochCounterRootPath(epoch))
-                    .exceptionally(e -> {
-                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                            return null;
-                        } else {
-                            throw new CompletionException(e);
-                        }
-                    }));
-    }
-
-    // endregion
 
     @Override
     CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) {
@@ -479,7 +385,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
         final Data<Integer> data = new Data<>(updated.toByteArray(), version);
         return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath))
-                .whenComplete((r, e) -> cache.invalidateCache(activePath));
+                            .whenComplete((r, e) -> cache.invalidateCache(activePath));
     }
 
     @Override
@@ -654,28 +560,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     // region private helpers
     @VisibleForTesting
-    String getActiveTxPath(final long epoch, final String txId) {
-        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Long.toString(epoch)), txId);
+    String getActiveTxPath(final int epoch, final String txId) {
+        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Integer.toString(epoch)), txId);
     }
 
-    @VisibleForTesting
-    String getEpochPath(final long epoch) {
-        return ZKPaths.makePath(activeTxRoot, Long.toString(epoch));
-    }
-
-    @VisibleForTesting
-    String getEpochMsbPath(final long epoch) {
-        return ZKPaths.makePath(getEpochPath(epoch), MSB_NODE_PATH);
-    }
-
-    @VisibleForTesting
-    String getEpochCounterPath(final long epoch, final int counter) {
-        return ZKPaths.makePath(getEpochCounterRootPath(epoch), String.format(LSB_FORMAT, counter));
-    }
-
-    @VisibleForTesting
-    String getEpochCounterRootPath(final long epoch) {
-        return ZKPaths.makePath(getEpochPath(epoch), LSB_ROOT_PATH);
+    private String getEpochPath(final int epoch) {
+        return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
     }
 
     private String getCompletedTxPath(final String txId) {
