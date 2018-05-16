@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -354,7 +353,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     private ServiceBuilder createBuilder(int instanceId) throws Exception {
         val builder = createBuilder(this.configBuilder, instanceId);
-        builder.initialize();
+        try {
+            builder.initialize();
+        } catch (Throwable ex) {
+            builder.close();
+            throw ex;
+        }
         return builder;
     }
 
