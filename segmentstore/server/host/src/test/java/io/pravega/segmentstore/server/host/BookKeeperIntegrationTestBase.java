@@ -72,7 +72,7 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
      */
     protected ServiceBuilderConfig getBuilderConfig(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
         return configBuilder
-                .clone()
+                .makeCopy()
                 .include(RocksDBConfig.builder().with(RocksDBConfig.DATABASE_DIR, Paths.get(getRocksDBDir().toString(), Integer.toString(instanceId)).toString()))
                 .build();
     }

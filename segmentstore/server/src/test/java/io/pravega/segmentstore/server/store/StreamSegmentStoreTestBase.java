@@ -366,6 +366,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * When overridden in a derived class, creates a ServiceBuilder using the given configuration.
      *
      * @param builderConfig The configuration to use.
+     * @param instanceId    The Id of the ServiceBuilder to create. For least interference, these should be unique.
      * @return The ServiceBuilder.
      */
     protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId);

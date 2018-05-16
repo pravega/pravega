@@ -122,7 +122,7 @@ public class ServiceBuilderConfig {
          *
          * @return A new instance of this class.
          */
-        public Builder clone() {
+        public Builder makeCopy() {
             return new Builder().include(this.properties);
         }
 
