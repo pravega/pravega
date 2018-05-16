@@ -262,7 +262,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         // initialization, causing the new instance to wrongfully assume it's not the rightful survivor. A quick retry solves
         // this problem, as there is no other kind of information available to disambiguate this.
         Runnable createNewInstance = () ->
-                Retry.withExpBackoff(10, 2, 10, TIMEOUT.toMillis() / 10)
+                Retry.withExpBackoff(20, 2, 20, TIMEOUT.toMillis() / 10)
                      .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogWriterNotPrimaryException)
                      .run(() -> {
                          int instanceId = fencingIteration.get() + 1;
