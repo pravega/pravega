@@ -243,13 +243,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
-     * (writes, seals, creates, etc.) and a ReadOnlySegmentStore to verify the changes being persisted into Storage.
-     * * Appends
-     * * Reads
-     * * Segment and transaction creation
-     * * Transaction mergers
-     * * Recovery
+     * Tests an end-to-end scenario for the SegmentStore where operations are continuously executed while the SegmentStore
+     * itself is being fenced out by new instances. The difference between this and testEndToEnd() is that this does not
+     * do a graceful shutdown of the Segment Store, instead it creates a new instance while the previous one is still running.
      *
      * @throws Exception If an exception occurred.
      */

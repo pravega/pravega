@@ -79,6 +79,6 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
 
     @Override
     protected double getFencingTestOperationMultiplier() {
-        return 0.3;
+        return 0.3; // Adding operations one-by-one using BookKeeper is much slower than bulk-adding them.
     }
 }
