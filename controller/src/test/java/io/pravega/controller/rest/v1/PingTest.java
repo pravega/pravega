@@ -16,11 +16,13 @@ import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.TestUtils;
+import java.net.URI;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import org.glassfish.jersey.SslConfigurator;
 import org.junit.After;
 import org.junit.Before;
@@ -69,7 +71,8 @@ public abstract class PingTest {
 
     @Test
     public void test() {
-        String streamResourceURI = getURLScheme() + "://localhost:" + serverConfig.getPort() + "/ping";
+        URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
+                                          .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         assertEquals(200, response.getStatus());
     }

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rest;
 
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
@@ -17,12 +18,15 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.ssl.SSLContextConfigurator;
@@ -73,7 +77,7 @@ public class RESTServer extends AbstractIdleService {
             if (restServerConfig.isEnableTls()) {
                 SSLContextConfigurator sslCon = new SSLContextConfigurator();
                 sslCon.setKeyStoreFile(restServerConfig.getKeyFilePath());
-                sslCon.setKeyStorePass("1111_aaaa");
+                sslCon.setKeyStorePass(loadPasswdFromFile(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
                         new SSLEngineConfigurator(sslCon, false, false, false));
             } else {
@@ -83,6 +87,23 @@ public class RESTServer extends AbstractIdleService {
           log.error("Exception while creating HTTP server", e);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
+        }
+    }
+
+    private String loadPasswdFromFile(String keyFilePasswordPath) {
+
+        if (Strings.isNullOrEmpty(keyFilePasswordPath)) {
+            return "";
+        }
+        File passwdFile = new File(keyFilePasswordPath);
+        if (passwdFile.length() == 0) {
+            return "";
+        }
+        try {
+            return new String(FileUtils.readFileToByteArray(passwdFile)).trim();
+        } catch (IOException e) {
+            log.warn("Could not read the password from file.", e);
+            return "";
         }
     }
 
