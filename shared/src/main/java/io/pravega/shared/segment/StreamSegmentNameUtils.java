@@ -202,6 +202,8 @@ public final class StreamSegmentNameUtils {
      * @return segment id which is composed using primary and secondary ids.
      */
     public static long computeSegmentId(int primaryId, int secondaryId) {
+        Preconditions.checkArgument(primaryId >= 0);
+        Preconditions.checkArgument(secondaryId >= 0);
         return (long) secondaryId << 32 | (primaryId & 0xFFFFFFFFL);
     }
 
@@ -256,8 +258,9 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
-     * Method to extract different parts of stream segment name like scope, stream name and segment id from given
-     * fully qualified segment name.
+     * Method to extract different parts of stream segment name.
+     * The tokens extracted are in following order scope, stream name and segment id.
+     * If its a transational segment, the transaction id is ignored.
      * This function works even when scope is not set.
      *
      * @param qualifiedName StreamSegment's qualified name.
@@ -265,21 +268,25 @@ public final class StreamSegmentNameUtils {
      * as a String
      */
     public static List<String> extractSegmentTokens(String qualifiedName) {
+        String originalSegmentName = isTransactionSegment(qualifiedName) ? getParentStreamSegmentName(qualifiedName) : qualifiedName;
+
         List<String> retVal = new LinkedList<>();
-        String[] tokens = qualifiedName.split("[/]");
+        String[] tokens = originalSegmentName.split("[/]");
         int segmentIdIndex = tokens.length == 2 ? 1 : 2;
         long segmentId;
         if (tokens[segmentIdIndex].contains(SECONDARY_ID_DELIMITER)) {
             String[] segmentIdTokens = tokens[segmentIdIndex].split(SECONDARY_ID_DELIMITER);
             segmentId = computeSegmentId(Integer.parseInt(segmentIdTokens[0]), Integer.parseInt(segmentIdTokens[1]));
         } else {
+            // no secondary delimiter, set the secondary id to 0 for segment id computation
             segmentId = computeSegmentId(Integer.parseInt(tokens[segmentIdIndex]), 0);
         }
         retVal.add(tokens[0]);
         if (tokens.length == 3) {
             retVal.add(tokens[1]);
         }
-        retVal.add("" + segmentId);
+        retVal.add(Long.toString(segmentId));
+
         return retVal;
     }
 
