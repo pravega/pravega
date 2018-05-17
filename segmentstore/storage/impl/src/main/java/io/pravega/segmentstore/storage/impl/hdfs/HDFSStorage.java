@@ -129,8 +129,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     @SneakyThrows(IOException.class)
     public void initialize(long epoch) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
+        ensureInitializedAndNotClosed();
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number. Given %s.", epoch);
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
@@ -152,6 +151,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         try {
             return HDFS_RETRY.run(() -> {
@@ -170,6 +170,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public boolean exists(String streamSegmentName) {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
         FileStatus status = null;
         try {
@@ -187,7 +188,7 @@ class HDFSStorage implements SyncStorage {
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
-    protected FileSystem openFileSystem(Configuration conf) throws IOException {
+    private FileSystem openFileSystem(Configuration conf) throws IOException {
         return FileSystem.get(conf);
     }
 
@@ -495,7 +496,7 @@ class HDFSStorage implements SyncStorage {
      * Gets an array (not necessarily ordered) of FileStatus objects currently available for the given Segment.
      * These must be in the format specified by NAME_FORMAT (see EXAMPLE_NAME_FORMAT).
      */
-    FileStatus[] findAllRaw(String segmentName) throws IOException {
+    private FileStatus[] findAllRaw(String segmentName) throws IOException {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
         String pattern = String.format(NAME_FORMAT, getPathPrefix(segmentName), SUFFIX_GLOB_REGEX);
         FileStatus[] files = this.fileSystem.globStatus(new Path(pattern));
@@ -516,7 +517,7 @@ class HDFSStorage implements SyncStorage {
     /**
      * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
      */
-    Path getFilePath(String segmentName, long epoch) {
+    private Path getFilePath(String segmentName, long epoch) {
         Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
         Preconditions.checkState(epoch >= 0, "epoch must be non-negative " + epoch);
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), epoch));
@@ -525,7 +526,7 @@ class HDFSStorage implements SyncStorage {
     /**
      * Gets the full HDFS path when sealed.
      */
-    Path getSealedFilePath(String segmentName) {
+    private Path getSealedFilePath(String segmentName) {
         Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), SEALED));
     }
@@ -590,7 +591,7 @@ class HDFSStorage implements SyncStorage {
      * @param fs The FileStatus to check.
      * @return True or false.
      */
-    boolean isReadOnly(FileStatus fs) {
+    private boolean isReadOnly(FileStatus fs) {
         return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
