@@ -20,7 +20,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.net.URI;
 
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -33,14 +32,6 @@ public class ClientFactoryTest {
     private Controller controllerClient;
 
     @Test
-    public void testCloseWithExternalController() {
-        ClientFactory clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
-        clientFactory.close();
-        verify(connectionFactory, times(1)).close();
-        verify(controllerClient, never()).close();
-    }
-
-    @Test
     public void testCloseWithInternalController() throws Exception {
         URI uri = new URI("tcp://localhost:9090");
         ClientConfig config = ClientConfig.builder().controllerURI(uri).build();
@@ -48,9 +39,20 @@ public class ClientFactoryTest {
         ClientFactory clientFactory = new ClientFactoryImpl("scope", config, connectionFactory);
         clientFactory.close();
         verify(connectionFactory, times(1)).close();
+    }
 
-        clientFactory = new ClientFactoryImpl("scope", controllerClient);
+    @Test
+    public void testCloseWithExternalController() {
+        ClientFactory clientFactory = new ClientFactoryImpl("scope", controllerClient);
         clientFactory.close();
-        verify(controllerClient, never()).close();
+        verify(controllerClient, times(1)).close();
+    }
+
+    @Test
+    public void testCloseWithExternalControllerConnectionFactory() {
+        ClientFactory clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
+        clientFactory.close();
+        verify(connectionFactory, times(1)).close();
+        verify(controllerClient, times(1)).close();
     }
 }

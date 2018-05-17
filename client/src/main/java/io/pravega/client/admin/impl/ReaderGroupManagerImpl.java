@@ -121,9 +121,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void close() {
-        if (this.controller != null) {
-            this.controller.close();
-        }
         clientFactory.close();
     }
 
