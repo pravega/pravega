@@ -188,7 +188,7 @@ class HDFSStorage implements SyncStorage {
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
-    private FileSystem openFileSystem(Configuration conf) throws IOException {
+    FileSystem openFileSystem(Configuration conf) throws IOException {
         return FileSystem.get(conf);
     }
 
