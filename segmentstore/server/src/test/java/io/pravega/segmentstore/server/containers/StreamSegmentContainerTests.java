@@ -425,15 +425,26 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
 
             // Now instruct the Container to cache missing values (do it a few times so we make sure it's idempotent).
+            // Also introduce some random new attribute to fetch. We want to make sure we can properly handle caching
+            // missing attribute values.
+            val missingAttributeId = UUID.randomUUID();
+            val attributesToCache = new ArrayList<UUID>(allAttributes);
+            attributesToCache.add(missingAttributeId);
+            val attributesToCacheValues = new HashMap<UUID, Long>(allAttributeValues);
+            attributesToCacheValues.put(missingAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
             Map<UUID, Long> allAttributeValuesWithCache;
             for (int i = 0; i < 2; i++) {
-                allAttributeValuesWithCache = localContainer.getAttributes(segmentName, allAttributes, true, TIMEOUT).join();
-                AssertExtensions.assertMapEquals("Inconsistent results from getAttributes(cache=true).", allAttributeValues, allAttributeValuesWithCache);
+                allAttributeValuesWithCache = localContainer.getAttributes(segmentName, attributesToCache, true, TIMEOUT).join();
+                AssertExtensions.assertMapEquals("Inconsistent results from getAttributes(cache=true, attempt=" + i + ").",
+                        attributesToCacheValues, allAttributeValuesWithCache);
                 sp = localContainer.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
                 for (val attributeId : allAttributes) {
                     Assert.assertEquals("Expecting all attributes to be loaded in memory.",
                             expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                 }
+
+                Assert.assertEquals("Unexpected value for missing Attribute Id",
+                        Attributes.NULL_ATTRIBUTE_VALUE, (long) sp.getAttributes().get(missingAttributeId));
             }
         }
 
