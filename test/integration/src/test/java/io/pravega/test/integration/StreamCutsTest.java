@@ -53,6 +53,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -139,7 +141,7 @@ public class StreamCutsTest {
         assertEquals("fpj was here again", secondEvent.getEvent());
 
         Map<Stream, StreamCut> cuts = readerGroup.getStreamCuts();
-        validateCuts(readerGroup, cuts, Collections.singleton("test/test/0"));
+        validateCuts(readerGroup, cuts, Collections.singleton(getQualifiedStreamSegmentName("test", "test", 0L)));
 
         // Scale the stream to verify that we get more segments in the cut.
         Stream stream = Stream.of("test", "test");
@@ -155,16 +157,18 @@ public class StreamCutsTest {
         reader.readNextEvent(15000);
         cuts = readerGroup.getStreamCuts();
         HashSet<String> segmentNames = new HashSet<>();
-        segmentNames.add("test/test/1");
-        segmentNames.add("test/test/2");
+        long one = computeSegmentId(1, 1);
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", one));
+        long two = computeSegmentId(2, 1);
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", two));
         validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
 
         // Scale down to verify that the number drops back.
         map = new HashMap<>();
         map.put(0.0, 1.0);
         ArrayList<Long> toSeal = new ArrayList<>();
-        toSeal.add(1L);
-        toSeal.add(2L);
+        toSeal.add(one);
+        toSeal.add(two);
         result = controller.scaleStream(stream, Collections.unmodifiableList(toSeal), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 2nd scaling");
@@ -174,7 +178,8 @@ public class StreamCutsTest {
         reader.readNextEvent(15000);
 
         cuts = readerGroup.getStreamCuts();
-        validateCuts(readerGroup, cuts, Collections.singleton("test/test/3"));
+        long three = computeSegmentId(3, 2);
+        validateCuts(readerGroup, cuts, Collections.singleton(getQualifiedStreamSegmentName("test", "test", three)));
 
         // Scale up to 4 segments again.
         map = new HashMap<>();
@@ -182,7 +187,7 @@ public class StreamCutsTest {
         map.put(0.25, 0.5);
         map.put(0.5, 0.75);
         map.put(0.75, 1.0);
-        result = controller.scaleStream(stream, Collections.singletonList(3L), map, executor).getFuture().get();
+        result = controller.scaleStream(stream, Collections.singletonList(three), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 3rd scaling");
         writer.writeEvent("0", "fpj was here again").get();
@@ -191,10 +196,14 @@ public class StreamCutsTest {
 
         cuts = readerGroup.getStreamCuts();
         segmentNames = new HashSet<>();
-        segmentNames.add("test/test/4");
-        segmentNames.add("test/test/5");
-        segmentNames.add("test/test/6");
-        segmentNames.add("test/test/7");
+        long four = computeSegmentId(4, 3);
+        long five = computeSegmentId(5, 3);
+        long six = computeSegmentId(6, 3);
+        long seven = computeSegmentId(7, 3);
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", four));
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", five));
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", six));
+        segmentNames.add(getQualifiedStreamSegmentName("test", "test", seven));
         validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
     }
 

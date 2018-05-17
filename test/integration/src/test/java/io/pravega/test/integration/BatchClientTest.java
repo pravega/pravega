@@ -59,6 +59,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -228,7 +229,8 @@ public class BatchClientTest {
         map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        result = controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Arrays.asList(1L, 2L, 3L), map, executor).getFuture().get();
+        result = controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Arrays.asList(computeSegmentId(1, 1),
+                computeSegmentId(2, 1), computeSegmentId(3, 1)), map, executor).getFuture().get();
         assertTrue("Scale down operation result", result);
         write30ByteEvents(3, writer);
     }

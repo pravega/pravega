@@ -111,20 +111,20 @@ public class EndToEndStatsTest {
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         transaction.commit();
         Stream stream = new StreamImpl("test", "test");
         while (!controller.checkTransactionStatus(stream, transaction.getTxnId()).get().equals(Transaction.Status.COMMITTED)) {
             Thread.sleep(100);
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 20);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 20);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {

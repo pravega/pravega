@@ -44,7 +44,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -64,6 +63,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -148,9 +148,9 @@ public class EndToEndTruncationTest {
         writer.writeEvent("0", "truncationTest2").get();
 
         Map<Long, Long> streamCutPositions = new HashMap<>();
-        streamCutPositions.put(2L, 0L);
-        streamCutPositions.put(3L, 0L);
-        streamCutPositions.put(4L, 0L);
+        streamCutPositions.put(computeSegmentId(2, 1), 0L);
+        streamCutPositions.put(computeSegmentId(3, 1), 0L);
+        streamCutPositions.put(computeSegmentId(4, 1), 0L);
 
         controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 
@@ -314,8 +314,8 @@ public class EndToEndTruncationTest {
         map.put(0.5, 1.0);
         assertTrue(controller.scaleStream(stream, Lists.newArrayList(0L), map, executor).getFuture().join());
 
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
+        long one = computeSegmentId(1, 1);
+        long two = computeSegmentId(2, 1);
         // Write rest of events to the new Stream segments.
         writeDummyEvents(clientFactory, streamName, totalEvents, totalEvents / 2);
 
