@@ -36,6 +36,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Map;
@@ -460,8 +461,8 @@ public abstract class ControllerServiceImplTest {
         final SegmentRanges segmentRanges = result3.get();
         Assert.assertEquals(3, segmentRanges.getSegmentRangesCount());
         Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(2, segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(3, segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentNumber());
     }
 
     @Test
