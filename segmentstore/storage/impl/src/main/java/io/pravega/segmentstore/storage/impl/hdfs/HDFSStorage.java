@@ -129,7 +129,8 @@ class HDFSStorage implements SyncStorage {
     @Override
     @SneakyThrows(IOException.class)
     public void initialize(long epoch) {
-        ensureInitializedAndNotClosed();
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
         Preconditions.checkArgument(epoch > 0, "epoch must be a positive number. Given %s.", epoch);
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
