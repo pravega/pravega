@@ -15,7 +15,10 @@ This guide describes the authentication/authorization plugin model for Pravega.
 
 ## Dynamically loading auth implementations
 
-
+Users can implement their own authorization/authentication plugins. Multiple such plugins can exist together.
+The plugin implementation follows the [Java Service Loader](https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html) approach.
+The custom implementation is expected to implement the 
+The clients can choose the one oplugin 
 - External HDFS 2.7
 - Zookeeper 3.5.1-alpha
 - Bookkeeper 4.4.0
