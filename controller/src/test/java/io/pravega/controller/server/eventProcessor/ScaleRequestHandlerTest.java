@@ -66,8 +66,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ScaleRequestHandlerTest {
@@ -108,7 +112,7 @@ public class ScaleRequestHandlerTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
@@ -233,6 +237,36 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
+    }
+
+    @Test
+    public void testScaleRange() throws ExecutionException, InterruptedException {
+        // key range values taken from issue #2543
+        Segment segment = new Segment(2, 1, 100L, 0.1706574888245243, 0.7085170563088633);
+        doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyInt(), any(), any());
+
+        AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
+        // Send number of splits = 1
+        EventWriterMock writer = new EventWriterMock();
+
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
+
+        reset(streamStore);
+        // verify that one scaleOp event is written into the stream
+        assertEquals(1, writer.queue.size());
+        ControllerEvent event = writer.queue.take();
+        assertTrue(event instanceof ScaleOpEvent);
+        ScaleOpEvent scaleOpEvent = (ScaleOpEvent) event;
+
+        assertEquals(2, scaleOpEvent.getNewRanges().size());
+        assertEquals(0.1706574888245243, scaleOpEvent.getNewRanges().get(0).getKey(), 0.0);
+        assertEquals(0.7085170563088633, scaleOpEvent.getNewRanges().get(1).getValue(), 0.0);
+        assertTrue(scaleOpEvent.getNewRanges().get(0).getValue().doubleValue() == scaleOpEvent.getNewRanges().get(1).getKey().doubleValue());
     }
 
     private static class EventWriterMock implements EventStreamWriter<ControllerEvent> {

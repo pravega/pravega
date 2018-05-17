@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -290,8 +291,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         previousEventNumber);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+                //Don't report metrics if segment is a transaction
+                //Update the parent segment metrics, once the transaction is merged
+                //TODO: https://github.com/pravega/pravega/issues/2570
+                if (StreamSegmentNameUtils.getParentStreamSegmentName(append.getSegment()) == null) {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+                }
             }
 
             /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,
