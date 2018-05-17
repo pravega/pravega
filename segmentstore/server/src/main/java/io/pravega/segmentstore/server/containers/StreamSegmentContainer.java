@@ -577,7 +577,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         attributeIds.forEach(attributeId -> {
             Long v = metadataAttributes.get(attributeId);
             if (v != null) {
-                // This attribute cached in the Segment Metadata, even if it has a value equal to Attributes.NULL_ATTRIBUTE_VALUE.
+                // This attribute is cached in the Segment Metadata, even if it has a value equal to Attributes.NULL_ATTRIBUTE_VALUE.
                 result.put(attributeId, v);
             } else if (!Attributes.isCoreAttribute(attributeId)) {
                 extendedAttributeIds.add(attributeId);
