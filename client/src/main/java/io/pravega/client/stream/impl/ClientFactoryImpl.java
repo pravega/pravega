@@ -101,18 +101,6 @@ public class ClientFactoryImpl implements ClientFactory {
                 new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
     }
 
-    /**
-     * Creates a new instance of ClientFactory class.
-     * Note: ConnectionFactory is closed when {@link ClientFactoryImpl#close()} is invoked.
-     * @param scope             The scope string.
-     * @param config            The ClientConfig.
-     * @param connectionFactory The reference to Connection Factory implementation.
-     */
-    public ClientFactoryImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
-        this(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
-    }
-
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,

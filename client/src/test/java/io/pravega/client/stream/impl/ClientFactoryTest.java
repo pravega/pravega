@@ -10,15 +10,12 @@
 package io.pravega.client.stream.impl;
 
 
-import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-
-import java.net.URI;
 
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,16 +27,6 @@ public class ClientFactoryTest {
     private ConnectionFactory connectionFactory;
     @Mock
     private Controller controllerClient;
-
-    @Test
-    public void testCloseWithInternalController() throws Exception {
-        URI uri = new URI("tcp://localhost:9090");
-        ClientConfig config = ClientConfig.builder().controllerURI(uri).build();
-
-        ClientFactory clientFactory = new ClientFactoryImpl("scope", config, connectionFactory);
-        clientFactory.close();
-        verify(connectionFactory, times(1)).close();
-    }
 
     @Test
     public void testCloseWithExternalController() {
