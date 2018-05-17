@@ -125,6 +125,9 @@ public final class StreamSegmentNameUtils {
      * @return The primary part of StreamSegment.
      */
     public static String extractPrimaryStreamSegmentName(String streamSegmentName) {
+        if (isTransactionSegment(streamSegmentName)) {
+            return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
+        }
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
         if (endOfStreamNamePos < 0) {
             // secondary id delimiter not present in the name, return the full name
@@ -268,6 +271,7 @@ public final class StreamSegmentNameUtils {
      * as a String
      */
     public static List<String> extractSegmentTokens(String qualifiedName) {
+        Preconditions.checkNotNull(qualifiedName);
         String originalSegmentName = isTransactionSegment(qualifiedName) ? getParentStreamSegmentName(qualifiedName) : qualifiedName;
 
         List<String> retVal = new LinkedList<>();

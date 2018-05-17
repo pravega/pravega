@@ -73,6 +73,8 @@ public class TableHelper {
             } else {
                 Optional<HistoryRecord> historyRecord = HistoryRecord.readRecord(epoch, historyIndex, historyTable, false);
                 if (!historyRecord.isPresent() || !historyRecord.get().getSegments().contains(segmentId)) {
+                    // We only give out segments to clients once they have been written to history table. So any query for
+                    // segment id that is not present in history table is invalid
                     throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Segment : " + segmentId);
                 }
                 creationTime = historyRecord.get().getScaleTime();

@@ -99,6 +99,9 @@ public class StreamSegmentNameUtilsTests {
 
         String primary = StreamSegmentNameUtils.extractPrimaryStreamSegmentName(qualifiedName);
         assertEquals("scope/stream/10", primary);
+
+        String primaryFromTxn = StreamSegmentNameUtils.extractPrimaryStreamSegmentName(txnSegment);
+        assertEquals("scope/stream/10", primaryFromTxn);
     }
 
     @Test
