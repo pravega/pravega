@@ -86,7 +86,7 @@ public class StreamSegmentMetadataTests {
         final int maxAttributeCount = attributeCount / 10;
 
         // Initial population.
-        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
         val extendedAttributes = new ArrayList<UUID>();
         val expectedValues = new HashMap<UUID, Long>();
         expectedValues.put(coreAttributeId, 1000L);
