@@ -186,7 +186,6 @@ class HDFSStorage implements SyncStorage {
     }
 
     private boolean isSealed(Path path) throws FileNameFormatException {
-        ensureInitializedAndNotClosed();
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
