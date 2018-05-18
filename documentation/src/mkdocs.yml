@@ -15,6 +15,21 @@ edit_uri: 'tree/master/documentation/src/docs'
 
 theme: 'material'
 
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - codehilite(guess_lang=false)
+  - footnotes
+  - meta
+  - toc(permalink=true)
+  - pymdownx.betterem(smart_enable=all)
+  - pymdownx.caret
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+
 pages:
   - Overview: 'index.md'
   - Getting Started: 'getting-started.md'
