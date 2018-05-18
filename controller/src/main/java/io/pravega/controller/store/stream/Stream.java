@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamCutRecord;
@@ -392,6 +393,41 @@ interface Stream {
      * @return future of operation
      */
     CompletableFuture<Void> deleteStreamCutBefore(final StreamCutRecord streamCut);
+
+    /**
+     * Method to fetch committing transaction record from the store for a given stream.
+     * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
+     * it returns null.
+     *
+     * @param epoch epoch
+     * @param txnsToCommit transactions to commit within the epoch
+     * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
+     */
+    CompletableFuture<Void> createTxnCommitList(final int epoch, final List<UUID> txnsToCommit);
+
+    /**
+     * Method to fetch committing transaction record from the store for a given stream.
+     * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
+     * it returns null.
+     *
+     * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
+     */
+    CompletableFuture<CommittingTransactionsRecord> getTxnCommitList();
+
+    /**
+     * Method to delete committing transaction record from the store for a given stream.
+     *
+     * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
+     */
+    CompletableFuture<Void> deleteTxnCommitList();
+
+    /**
+     * Method to get all transactions in a given epoch.
+     *
+     * @param epoch epoch for which transactions are to be retrieved.
+     * @return A completableFuture which when completed will contain a map of transaction id and its record.
+     */
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

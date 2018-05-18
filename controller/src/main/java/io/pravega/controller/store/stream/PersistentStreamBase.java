@@ -18,6 +18,7 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
@@ -1107,6 +1108,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
+    @Override
     public CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts() {
         return getRetentionSet()
                 .thenApply(data -> RetentionRecord.parse(data.getData()))
@@ -1127,6 +1129,43 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 new Data<>(update.toByteArray(), data.getVersion()));
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Void> createTxnCommitList(final int epoch, final List<UUID> txnsToCommit) {
+        return createCommittingTxnRecord(new CommittingTransactionsRecord(epoch, txnsToCommit).toByteArray());
+    }
+
+    @Override
+    public CompletableFuture<CommittingTransactionsRecord> getTxnCommitList() {
+        CompletableFuture<CommittingTransactionsRecord> result = new CompletableFuture<>();
+        getCommittingTxnRecord()
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(e);
+                        }
+                    } else {
+                        result.complete(CommittingTransactionsRecord.parse(r.getData()));
+                    }
+                });
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTxnCommitList() {
+        return deleteCommittingTxnRecord();
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch) {
+        return getTxnInEpoch(epoch)
+                .thenApply(x -> x.entrySet()
+                        .stream()
+                        .collect(toMap(k -> UUID.fromString(k.getKey()),
+                                v -> ActiveTxnRecord.parse(v.getValue().getData()))));
     }
 
     private void checkState(State currState, State expectedState) {
@@ -1415,6 +1454,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 
+    abstract CompletableFuture<Map<String, Data<T>>> getTxnInEpoch(int epoch);
+
     abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
 
     abstract CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentsRecord);
@@ -1434,4 +1475,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Data<T>> getEpochTransitionNode();
 
     abstract CompletableFuture<Void> deleteEpochTransitionNode();
+
+    abstract CompletableFuture<Void> createCommittingTxnRecord(byte[] committingTxns);
+
+    abstract CompletableFuture<Data<T>> getCommittingTxnRecord();
+
+    abstract CompletableFuture<Void> deleteCommittingTxnRecord();
 }

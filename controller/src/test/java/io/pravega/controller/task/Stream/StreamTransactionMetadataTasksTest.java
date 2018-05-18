@@ -331,7 +331,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(tx2.getId(), commitEvent.getTxid());
+        assertEquals(tx2.getEpoch(), commitEvent.getEpoch());
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
 
         // Wait until 3 abort events are processed and ensure that the txn state is ABORTED.
@@ -510,7 +510,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(tx1, commitEvent.getTxid());
+        // TODO: shivesh
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Wait until the abort event is processed and ensure that the txn state is ABORTED.
