@@ -797,7 +797,7 @@ public class TableHelperTest {
         assertTrue(truncationRecord.getStreamCut().equals(streamCut1));
         assertTrue(truncationRecord.getCutEpochMap().get(0L) == 0 &&
                 truncationRecord.getCutEpochMap().get(1L) == 0);
-        truncationRecord = truncationRecord.mergeDeleted();
+        truncationRecord = StreamTruncationRecord.complete(truncationRecord);
 
         Map<Long, Long> streamCut2 = new HashMap<>();
         streamCut2.put(0L, 1L);
@@ -814,7 +814,7 @@ public class TableHelperTest {
                 truncationRecord.getCutEpochMap().get(twoSegmentId) == 2 &&
                 truncationRecord.getCutEpochMap().get(fourSegmentId) == 2 &&
                 truncationRecord.getCutEpochMap().get(fiveSegmentId) == 2);
-        truncationRecord = truncationRecord.mergeDeleted();
+        truncationRecord = StreamTruncationRecord.complete(truncationRecord);
 
         Map<Long, Long> streamCut3 = new HashMap<>();
         streamCut3.put(twoSegmentId, 10L);
@@ -831,7 +831,7 @@ public class TableHelperTest {
                 truncationRecord.getCutEpochMap().get(fiveSegmentId) == 4 &&
                 truncationRecord.getCutEpochMap().get(eightSegmentId) == 4 &&
                 truncationRecord.getCutEpochMap().get(nineSegmentId) == 4);
-        truncationRecord = truncationRecord.mergeDeleted();
+        truncationRecord = StreamTruncationRecord.complete(truncationRecord);
 
         // behind previous
         Map<Long, Long> streamCut4 = new HashMap<>();

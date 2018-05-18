@@ -10,8 +10,7 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.tables.serializers.CompletedTxnRecordSerializer;
+import io.pravega.controller.store.stream.tables.serializers.StateRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,20 +21,19 @@ import java.io.IOException;
 
 @Data
 @Builder
-@AllArgsConstructor
 @Slf4j
-public class CompletedTxnRecord {
-    public static final CompletedTxnRecordSerializer SERIALIZER = new CompletedTxnRecordSerializer();
+@AllArgsConstructor
+public class StateRecord {
+    public static final StateRecordSerializer SERIALIZER = new StateRecordSerializer();
 
-    private final long completeTime;
-    private final TxnStatus completionStatus;
+    private final State state;
 
-    public static class CompletedTxnRecordBuilder implements ObjectBuilder<CompletedTxnRecord> {
+    public static class StateRecordBuilder implements ObjectBuilder<StateRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static CompletedTxnRecord parse(final byte[] data) {
+    public static StateRecord parse(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
