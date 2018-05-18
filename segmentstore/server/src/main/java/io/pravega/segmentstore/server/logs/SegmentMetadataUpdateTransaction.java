@@ -29,7 +29,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +43,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
 
     private final boolean recoveryMode;
-    private final Map<UUID, Long> attributeValues;
+    private final Map<UUID, Long> baseAttributeValues;
+    private final Map<UUID, Long> attributeUpdates;
     @Getter
     private final long id;
     @Getter
@@ -95,7 +95,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.sealedInStorage = baseMetadata.isSealedInStorage();
         this.merged = baseMetadata.isMerged();
         this.deleted = baseMetadata.isDeleted();
-        this.attributeValues = new HashMap<>(baseMetadata.getAttributes());
+        this.baseAttributeValues = baseMetadata.getAttributes();
+        this.attributeUpdates = new HashMap<>();
         this.lastUsed = baseMetadata.getLastUsed();
     }
 
@@ -112,7 +113,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     //region SegmentMetadata Implementation
 
-
     @Override
     public long getStorageLength() {
         return this.storageLength < 0 ? this.baseStorageLength : this.storageLength;
@@ -125,7 +125,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     @Override
     public Map<UUID, Long> getAttributes() {
-        return Collections.unmodifiableMap(this.attributeValues);
+        HashMap<UUID, Long> result = new HashMap<>(this.baseAttributeValues);
+        result.putAll(this.attributeUpdates);
+        return result;
     }
 
     //endregion
@@ -177,8 +179,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     @Override
     public void updateAttributes(Map<UUID, Long> attributeValues) {
-        this.attributeValues.clear();
-        this.attributeValues.putAll(attributeValues);
+        this.attributeUpdates.clear();
+        this.attributeUpdates.putAll(attributeValues);
         this.isChanged = true;
     }
 
@@ -407,8 +409,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
-            boolean hasValue = this.attributeValues.containsKey(u.getAttributeId());
-            long previousValue = hasValue ? this.attributeValues.get(u.getAttributeId()) : Attributes.NULL_ATTRIBUTE_VALUE;
+            boolean hasValue = false;
+            long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
+            if (this.attributeUpdates.containsKey(u.getAttributeId())) {
+                hasValue = true;
+                previousValue = this.attributeUpdates.get(u.getAttributeId());
+            } else if (this.baseAttributeValues.containsKey(u.getAttributeId())) {
+                hasValue = true;
+                previousValue = this.baseAttributeValues.get(u.getAttributeId());
+            }
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
@@ -569,7 +578,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         for (AttributeUpdate au : attributeUpdates) {
-            this.attributeValues.put(au.getAttributeId(), au.getValue());
+            this.attributeUpdates.put(au.getAttributeId(), au.getValue());
         }
     }
 
@@ -610,7 +619,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);
-        target.updateAttributes(this.attributeValues);
+        target.updateAttributes(this.attributeUpdates);
         target.setLength(this.length);
 
         // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
