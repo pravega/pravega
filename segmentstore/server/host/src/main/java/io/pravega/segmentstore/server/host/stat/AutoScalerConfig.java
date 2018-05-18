@@ -32,6 +32,7 @@ public class AutoScalerConfig {
     public static final Property<String> AUTH_USERNAME = Property.named("authUsername", "");
     public static final Property<String> AUTH_PASSWORD = Property.named("authPassword", "");
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
+    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", false);
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -102,11 +103,18 @@ public class AutoScalerConfig {
      */
     @Getter
     private final String authUsername;
+
     /**
-     *
+     * Signing key for the auth token.
      */
     @Getter
     private final String tokenSigningKey;
+
+    /**
+     * Flag indicating whether to validate the hostname when TLS is enabled.
+     */
+    @Getter
+    private boolean validateHostName;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
@@ -121,9 +129,14 @@ public class AutoScalerConfig {
         this.authPassword = properties.get(AUTH_PASSWORD);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
         this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
+        this.validateHostName = properties.getBoolean(VALIDATE_HOSTNAME);
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, AutoScalerConfig::new);
+    }
+
+    public boolean getValidateHostName() {
+        return validateHostName;
     }
 }

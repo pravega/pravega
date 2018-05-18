@@ -119,7 +119,7 @@ public class AutoScaleProcessor {
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                                 .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
                                                 .trustStore(configuration.getTlsCertFile())
-                                                .validateHostName(false)
+                                                .validateHostName(configuration.getValidateHostName())
                                                 .build());
                         } else {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
