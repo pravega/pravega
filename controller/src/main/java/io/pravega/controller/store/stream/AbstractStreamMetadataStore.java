@@ -21,6 +21,8 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -376,17 +378,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope,
                                                                          final String name,
-                                                                         final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
-    }
-
-    @Override
-    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope,
-                                                                                           final String name,
-                                                                                           final boolean ignoreCached,
-                                                                                           final OperationContext context,
-                                                                                           final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getTruncationProperty(ignoreCached), executor);
+                                                                         final boolean ignoreCached,
+                                                                         final OperationContext context,
+                                                                         final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationRecord(ignoreCached), executor);
     }
 
     @Override
@@ -412,12 +407,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope,
-                                                                                           final String name,
-                                                                                           final boolean ignoreCached,
-                                                                                           final OperationContext context,
-                                                                                           final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getConfigurationProperty(ignoreCached), executor);
+    public CompletableFuture<StreamConfigurationRecord> getConfigurationRecord(final String scope,
+                                                                               final String name,
+                                                                               final boolean ignoreCached,
+                                                                               final OperationContext context,
+                                                                               final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getConfigurationRecord(ignoreCached), executor);
     }
 
     @Override

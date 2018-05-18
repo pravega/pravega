@@ -77,7 +77,7 @@ public class ClientConfig implements Serializable {
 
         public ClientConfig build() {
             if (controllerURI == null) {
-                controllerURI = URI.create("tcp://localhost");
+                controllerURI = URI.create("tcp://localhost:9090");
             }
             extractCredentials();
             if (credentials == null) {
