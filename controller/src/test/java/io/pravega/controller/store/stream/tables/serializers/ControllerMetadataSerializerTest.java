@@ -43,9 +43,9 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void streamCutRecordTest() throws IOException {
-        Map<Integer, Long> streamcut = new HashMap<>();
-        streamcut.put(0, 1L);
-        streamcut.put(1, 1L);
+        Map<Long, Long> streamcut = new HashMap<>();
+        streamcut.put(0L, 1L);
+        streamcut.put(1L, 1L);
         StreamCutRecord record = new StreamCutRecord(1L, 1L, streamcut);
         byte[] serialized = StreamCutRecord.SERIALIZER.serialize(record).array();
         StreamCutRecord deserialized = StreamCutRecord.SERIALIZER.deserialize(serialized);
@@ -54,9 +54,9 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void retentionRecordTest() throws IOException {
-        Map<Integer, Long> map = new HashMap<>();
-        map.put(0, 1L);
-        map.put(1, 1L);
+        Map<Long, Long> map = new HashMap<>();
+        map.put(0L, 1L);
+        map.put(1L, 1L);
         StreamCutRecord s1 = new StreamCutRecord(1L, 1L, map);
         StreamCutRecord s2 = new StreamCutRecord(1L, 1L, map);
         List<StreamCutRecord> streamCuts = Lists.newArrayList(s1, s2);
@@ -89,13 +89,13 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void truncationRecordTest() throws IOException {
-        Map<Integer, Long> streamCut = new HashMap<>();
-        streamCut.put(0, 1L);
-        streamCut.put(2, 1L);
-        streamCut.put(3, 1L);
+        Map<Long, Long> streamCut = new HashMap<>();
+        streamCut.put(0L, 1L);
+        streamCut.put(2L, 1L);
+        streamCut.put(3L, 1L);
 
-        ImmutableMap<Integer, Integer> epochMap = ImmutableMap.copyOf(new HashMap<>());
-        ImmutableSet<Integer> deleted = ImmutableSet.copyOf(new HashSet<>());
+        ImmutableMap<Long, Integer> epochMap = ImmutableMap.copyOf(new HashMap<>());
+        ImmutableSet<Long> deleted = ImmutableSet.copyOf(new HashSet<>());
         StreamTruncationRecord record = StreamTruncationRecord.builder().cutEpochMap(epochMap)
                 .streamCut(ImmutableMap.copyOf(streamCut))
                 .deletedSegments(deleted)
@@ -145,7 +145,7 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void historyRecordTest() throws IOException {
-        List<Integer> segments = Lists.newArrayList(1, 2, 3);
+        List<Long> segments = Lists.newArrayList(1L, 2L, 3L);
         HistoryRecord record = HistoryRecord.builder().epoch(0).scaleTime(System.currentTimeMillis()).segments(segments).build();
         byte[] serialized = HistoryRecord.SERIALIZER.serialize(record).array();
         HistoryRecord deserialized = HistoryRecord.SERIALIZER.deserialize(serialized);
@@ -154,15 +154,15 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void epochTransitionRecordTest() throws IOException {
-        Map<Integer, AbstractMap.SimpleEntry<Double, Double>> map = new HashMap<>();
-        map.put(0, new AbstractMap.SimpleEntry<>(0.2, 1.0));
-        map.put(1, new AbstractMap.SimpleEntry<>(0.3, 3.0));
-        map.put(2, new AbstractMap.SimpleEntry<>(0.4, 1.0));
-        map.put(3, new AbstractMap.SimpleEntry<>(0.1, 2.0));
-        Set<Integer> set = new HashSet<>();
-        set.add(0);
-        set.add(1);
-        set.add(2);
+        Map<Long, AbstractMap.SimpleEntry<Double, Double>> map = new HashMap<>();
+        map.put(0L, new AbstractMap.SimpleEntry<>(0.2, 1.0));
+        map.put(1L, new AbstractMap.SimpleEntry<>(0.3, 3.0));
+        map.put(2L, new AbstractMap.SimpleEntry<>(0.4, 1.0));
+        map.put(3L, new AbstractMap.SimpleEntry<>(0.1, 2.0));
+        Set<Long> set = new HashSet<>();
+        set.add(0L);
+        set.add(1L);
+        set.add(2L);
         EpochTransitionRecord record = EpochTransitionRecord.builder().activeEpoch(0).newEpoch(1).time(1L)
                 .newSegmentsWithRange(ImmutableMap.copyOf(map)).segmentsToSeal(ImmutableSet.copyOf(set)).build();
         byte[] serialized = EpochTransitionRecord.SERIALIZER.serialize(record).array();
