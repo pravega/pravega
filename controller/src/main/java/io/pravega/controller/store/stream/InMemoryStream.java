@@ -17,9 +17,10 @@ import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StateRecord;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import org.apache.commons.lang3.SerializationUtils;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Arrays;
@@ -104,17 +105,17 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
-        final StreamProperty<StreamConfiguration> config;
+        final StreamConfigurationRecord config;
         final Data<Integer> currentState;
         synchronized (lock) {
             time = creationTime.get();
-            config = this.configuration == null ? null : SerializationUtils.deserialize(this.configuration.getData());
+            config = this.configuration == null ? null : StreamConfigurationRecord.parse(this.configuration.getData());
             currentState = this.state;
         }
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, config.getProperty(), currentState);
+                handleStreamMetadataExists(timestamp, result, time, config.getStreamConfiguration(), currentState);
             } else {
                 result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
             }
@@ -128,7 +129,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
                                             final StreamConfiguration config, Data<Integer> currentState) {
         if (currentState != null) {
-            State stateVal = (State) SerializationUtils.deserialize(currentState.getData());
+            State stateVal = StateRecord.parse(currentState.getData()).getState();
             if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
                 CreateStreamResponse.CreateStatus status;
                 status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
@@ -152,24 +153,24 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(StreamProperty<StreamConfiguration> config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfigurationRecord config) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
             if (configuration == null) {
-                configuration = new Data<>(SerializationUtils.serialize(config), 0);
+                configuration = new Data<>(config.toByteArray(), 0);
             }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> createTruncationDataIfAbsent(StreamProperty<StreamTruncationRecord> truncation) {
+    CompletableFuture<Void> createTruncationDataIfAbsent(StreamTruncationRecord truncation) {
         Preconditions.checkNotNull(truncation);
 
         synchronized (lock) {
             if (truncationRecord == null) {
-                truncationRecord = new Data<>(SerializationUtils.serialize(truncation), 0);
+                truncationRecord = new Data<>(truncation.toByteArray(), 0);
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -244,7 +245,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         synchronized (lock) {
             if (this.state == null) {
-                this.state = new Data<>(SerializationUtils.serialize(state), 0);
+                this.state = new Data<>(StateRecord.builder().state(state).build().toByteArray(), 0);
             }
         }
         return CompletableFuture.completedFuture(null);

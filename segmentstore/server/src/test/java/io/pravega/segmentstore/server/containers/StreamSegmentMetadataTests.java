@@ -13,6 +13,8 @@ import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.test.common.AssertExtensions;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -72,6 +74,82 @@ public class StreamSegmentMetadataTests {
         expectedAttributes.entrySet().forEach(e -> e.setValue(Attributes.NULL_ATTRIBUTE_VALUE));
         metadata.updateAttributes(expectedAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after removal.", expectedAttributes, metadata);
+    }
+
+    /**
+     * Tests the ability to cleanup Extended Attributes.
+     */
+    @Test
+    public void testCleanupAttributes() {
+        final UUID coreAttributeId = Attributes.EVENT_COUNT;
+        final int attributeCount = 10000;
+        final int maxAttributeCount = attributeCount / 10;
+
+        // Initial population.
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        val extendedAttributes = new ArrayList<UUID>();
+        val expectedValues = new HashMap<UUID, Long>();
+        expectedValues.put(coreAttributeId, 1000L);
+        metadata.updateAttributes(Collections.singletonMap(coreAttributeId, 1000L));
+        for (int i = 0; i < attributeCount; i++) {
+            UUID attributeId = new UUID(0, (long) i);
+            extendedAttributes.add(attributeId);
+            metadata.setLastUsed(i);
+            metadata.updateAttributes(Collections.singletonMap(attributeId, (long) i));
+            expectedValues.put(attributeId, (long) i);
+        }
+        checkAttributesEqual(expectedValues, metadata.getAttributes());
+
+        // Evict first half of the attributes.
+        int half = attributeCount / 2;
+        int step = maxAttributeCount / 10;
+        for (int i = 0; i <= half; i += step) {
+            int evicted = metadata.cleanupAttributes(maxAttributeCount, i);
+            if (i == 0) {
+                Assert.assertEquals("Not expecting any evictions.", 0, evicted);
+            } else {
+                Assert.assertEquals("Unexpected number of evictions", step, evicted);
+                for (int j = i - step; j < i; j++) {
+                    expectedValues.remove(extendedAttributes.get(j));
+                }
+            }
+
+            checkAttributesEqual(expectedValues, metadata.getAttributes());
+        }
+
+        // For the second half, every 3rd attribute is not touched, every 3rd+1 is updated and every 3rd+2 is fetched.
+        // We then verify that only the untouched ones will get evicted.
+        int expectedEvicted = 0;
+        long cutoff = metadata.getLastUsed();
+        metadata.setLastUsed(cutoff + 1);
+        for (int i = half; i < attributeCount; i++) {
+            val attributeId = extendedAttributes.get(i);
+            if (i % 3 == 1) {
+                // We reuse the same value; it's simpler.
+                metadata.updateAttributes(Collections.singletonMap(attributeId, (long) i));
+            } else if (i % 3 == 2) {
+                metadata.getAttributes().get(attributeId);
+            } else {
+                expectedValues.remove(attributeId);
+                expectedEvicted++;
+            }
+        }
+
+        // Force an eviction of all attributes, and verify that only the ones eligible for removal were removed.
+        int evicted = metadata.cleanupAttributes(maxAttributeCount, cutoff + 1);
+        Assert.assertEquals("Unexpected final eviction count.", expectedEvicted, evicted);
+        checkAttributesEqual(expectedValues, metadata.getAttributes());
+    }
+
+    /**
+     * Verifies the given maps are equal without actually invoking get() or getOrDefault() on actual; to prevent lastUsed
+     * from being updated.
+     */
+    private void checkAttributesEqual(Map<UUID, Long> expected, Map<UUID, Long> actual) {
+        Assert.assertEquals("Sizes differ.", expected.size(), actual.size());
+        for (val e : actual.entrySet()) {
+            Assert.assertEquals("Unexpected value found.", expected.get(e.getKey()), e.getValue());
+        }
     }
 
     /**
