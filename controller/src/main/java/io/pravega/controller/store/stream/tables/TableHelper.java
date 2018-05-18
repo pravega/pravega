@@ -231,7 +231,7 @@ public class TableHelper {
         Set<Long> toDelete = computeToDelete(cutMapSegments, historyIndex, historyTable, segmentIndex, segmentTable,
                 previousTruncationRecord.getDeletedSegments());
         return new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), ImmutableMap.copyOf(epochCutMap),
-                previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete));
+                previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete), true);
     }
 
     /**
