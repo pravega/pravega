@@ -186,6 +186,7 @@ class HDFSStorage implements SyncStorage {
     }
 
     private boolean isSealed(Path path) throws FileNameFormatException {
+        ensureInitializedAndNotClosed();
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
@@ -195,6 +196,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
 
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
@@ -222,6 +224,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         try {
             //Ensure that file exists
@@ -235,6 +238,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         handle = asWritableHandle(handle);
         try {
@@ -256,6 +260,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
@@ -269,6 +274,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void concat(SegmentHandle target, long offset, String sourceSegment) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "concat", target, offset, sourceSegment);
 
         target = asWritableHandle(target);
@@ -299,6 +305,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
         handle = asWritableHandle(handle);
         try {
@@ -321,6 +328,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public boolean supportsTruncation() {
+        ensureInitializedAndNotClosed();
         return false;
     }
 
@@ -328,6 +336,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         handle = asWritableHandle(handle);
         FileStatus status = null;
@@ -380,6 +389,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         int fencedCount = 0;
         do {
@@ -425,6 +435,7 @@ class HDFSStorage implements SyncStorage {
         // To fix this, the create code checks whether a file with higher epoch exists.
         // If it does, it tries to remove the created file, and throws SegmentExistsException.
 
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         // Create the segment using our own epoch.
         FileStatus[] status = null;
