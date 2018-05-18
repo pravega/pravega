@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -795,10 +796,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
                 ReadResultEntry resultEntry = result.next();
                 Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
+                CompletableFuture<Void> insertedInCache = new CompletableFuture<>();
+                context.cacheFactory.cache.insertCallback = ignored -> insertedInCache.complete(null);
                 resultEntry.requestContent(TIMEOUT);
                 ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
                 Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
+
+                // Wait for the entry to be inserted into the cache before moving on.
+                insertedInCache.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
             context.cacheManager.applyCachePolicy();
@@ -1333,6 +1339,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     //region TestCache
 
     private static class TestCache extends InMemoryCache {
+        Consumer<CacheKey> insertCallback;
         Consumer<CacheKey> removeCallback;
 
         TestCache(String id) {
@@ -1340,13 +1347,21 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public void insert(Cache.Key key, byte[] payload) {
+            super.insert(key, payload);
+            Consumer<CacheKey> callback = this.insertCallback;
+            if (callback != null) {
+                callback.accept((CacheKey) key);
+            }
+        }
+
+        @Override
         public void remove(Cache.Key key) {
+            super.remove(key);
             Consumer<CacheKey> callback = this.removeCallback;
             if (callback != null) {
                 callback.accept((CacheKey) key);
             }
-
-            super.remove(key);
         }
     }
 
