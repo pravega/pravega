@@ -22,7 +22,6 @@ public class CommitEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
     private final int epoch;
-    private final UUID txid;
 
     @Override
     public String getKey() {

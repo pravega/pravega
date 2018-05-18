@@ -26,6 +26,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.timeout.TimeoutService;
@@ -173,9 +174,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public Void initializeStreamWriters(final ClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        this.commitStreamName = config.getCommitStreamName();
+        this.commitStreamName = config.getRequestStreamName();
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getCommitStreamName(),
+                config.getRequestStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
@@ -590,7 +591,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
