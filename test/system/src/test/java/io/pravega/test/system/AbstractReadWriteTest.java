@@ -32,7 +32,7 @@ abstract class AbstractReadWriteTest {
 
     private static final int READ_TIMEOUT = 1000;
 
-    protected void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
+    void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -42,7 +42,7 @@ abstract class AbstractReadWriteTest {
         }
     }
 
-    protected List<CompletableFuture<Integer>> readEventFutures(ClientFactory client, String rGroup, int numReaders) {
+    List<CompletableFuture<Integer>> readEventFutures(ClientFactory client, String rGroup, int numReaders) {
         List<EventStreamReader<String>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
@@ -51,7 +51,7 @@ abstract class AbstractReadWriteTest {
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r))).collect(toList());
     }
 
-    protected <T> int readEvents(EventStreamReader<T> reader) {
+    private <T> int readEvents(EventStreamReader<T> reader) {
         EventRead<T> event;
         int validEvents = 0;
         try {

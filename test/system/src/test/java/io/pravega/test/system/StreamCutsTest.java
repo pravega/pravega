@@ -157,8 +157,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
 
         // First, write half of events in each Stream.
-        writeDummyEvents(clientFactory, STREAM_ONE, TOTAL_EVENTS / 2);
-        writeDummyEvents(clientFactory, STREAM_TWO, TOTAL_EVENTS / 2);
+        writeEvents(clientFactory, STREAM_ONE, TOTAL_EVENTS / 2);
+        writeEvents(clientFactory, STREAM_TWO, TOTAL_EVENTS / 2);
         log.debug("Finished writing events to streams.");
 
         // Second, get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
@@ -172,8 +172,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         combineSlicesAndVerify(readerGroupManager, clientFactory, streamSlices);
 
         // Finally, Test that a reader group can be reset correctly.
-        ReaderGroupConfig firsSliceConfig = baseRGConfigBuilder.startingStreamCuts(streamSlices.get(0)).build();
-        readerGroup.resetReaderGroup(firsSliceConfig);
+        ReaderGroupConfig firstSliceConfig = baseRGConfigBuilder.startingStreamCuts(streamSlices.get(0)).build();
+        readerGroup.resetReaderGroup(firstSliceConfig);
         log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, streamSlices.get(0));
         final int parallelSegments = RG_PARALLELISM_ONE + RG_PARALLELISM_TWO;
         final int readEvents = readEventFutures(clientFactory, readerGroup.getGroupName(),
@@ -281,7 +281,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                 // Get a StreamCut each defined number of events.
                 if (validEvents % CUT_SIZE == 0 && validEvents > 0) {
                     reader.close();
-                    log.debug("Adding a StreamCut positioned at event {}.", validEvents);
+                    log.info("Adding a StreamCut positioned at event {}.", validEvents);
                     streamCuts.add(readerGroup.getStreamCuts());
                     reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
                             ReaderConfig.builder().build());
