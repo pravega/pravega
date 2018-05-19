@@ -257,7 +257,7 @@ public class ReaderGroupConfig implements Serializable {
             ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
             ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
             builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
-            builder.endingStreamCuts(revisionDataInput.readMap(in -> Stream.of(in.readUTF()), valueDeserializer));
+            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
         }
 
         private void write00(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {

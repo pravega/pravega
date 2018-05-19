@@ -325,10 +325,8 @@ public class ReaderGroupState implements Revisioned {
             private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeArray(new ByteArraySegment(state.config.toBytes()));
                 ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-                revisionDataOutput.writeMap(state.segments, keySerializer,
-                                            (out, offset) -> out.writeLong(offset));
-                revisionDataOutput.writeMap(state.endSegments, keySerializer,
-                                            (out, offset) -> out.writeLong(offset));
+                revisionDataOutput.writeMap(state.segments, keySerializer, RevisionDataOutput::writeLong);
+                revisionDataOutput.writeMap(state.endSegments, keySerializer, RevisionDataOutput::writeLong);
             }
         }
         
@@ -400,7 +398,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
                 builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
-                                                                 in -> new HashSet<>(in.readCollection(RevisionDataInput::readInt))));
+                                                                 in -> in.readCollection(RevisionDataInput::readInt, HashSet::new)));
                 builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
                                                                    in -> in.readMap(segmentDeserializer, longDeserializer)));
                 builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
@@ -803,7 +801,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.readerId(in.readUTF());
                 builder.segmentCompleted(Segment.fromScopedName(in.readUTF()));
                 builder.successorsMappedToTheirPredecessors(in.readMap(i -> Segment.fromScopedName(i.readUTF()),
-                                                                       i -> new ArrayList<>(i.readCollection(RevisionDataInput::readInt))));
+                                                                       i -> i.readCollection(RevisionDataInput::readInt, ArrayList::new)));
             }
 
             private void write00(SegmentCompleted object, RevisionDataOutput out) throws IOException {

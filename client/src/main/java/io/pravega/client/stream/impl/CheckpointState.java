@@ -202,7 +202,7 @@ public class CheckpointState {
             ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
             ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
             builder.checkpoints(new ArrayList<>(input.readCollection(stringDeserializer)));
-            builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> new ArrayList<>(in.readCollection(stringDeserializer))));
+            builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
             builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
         }
