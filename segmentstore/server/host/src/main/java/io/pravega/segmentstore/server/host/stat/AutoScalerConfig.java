@@ -114,7 +114,7 @@ public class AutoScalerConfig {
      * Flag indicating whether to validate the hostname when TLS is enabled.
      */
     @Getter
-    private boolean validateHostName;
+    private final boolean validateHostName;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
