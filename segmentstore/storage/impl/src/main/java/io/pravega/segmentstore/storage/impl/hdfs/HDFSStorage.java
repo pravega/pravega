@@ -390,7 +390,7 @@ class HDFSStorage implements SyncStorage {
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        int fencedCount = 0;
+        long fencedCount = 0;
         do {
             try {
                 FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
@@ -407,6 +407,10 @@ class HDFSStorage implements SyncStorage {
                         } catch (FileNotFoundException e) {
                             //This happens when more than one host is trying to fence and only one of the host goes through.
                             //Retry the rename so that host with the highest epoch gets access.
+                            //In the worst case, the current owner of the segment will win this race after a number of attempts
+                            //  equal to the number of Segment Stores in the race. The high bound for this number of attempts
+                            // is the total number of Segment Store instances in the cluster.
+                            //It is safe to retry for MAX_EPOCH times as we are sure that the loop will never go that long.
                             log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
                             fencedCount++;
                             continue;
@@ -419,7 +423,8 @@ class HDFSStorage implements SyncStorage {
             } catch (IOException e) {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
             }
-        } while (fencedCount < MAX_ATTEMPT_COUNT);
+            // Looping for the maximum possible number.
+        } while (fencedCount <= this.epoch);
         LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
         throw new StorageNotPrimaryException("Not able to fence out other writers.");
     }
