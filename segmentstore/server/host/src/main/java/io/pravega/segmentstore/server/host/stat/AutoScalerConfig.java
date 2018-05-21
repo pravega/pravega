@@ -135,8 +135,4 @@ public class AutoScalerConfig {
     public static ConfigBuilder<AutoScalerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, AutoScalerConfig::new);
     }
-
-    public boolean getValidateHostName() {
-        return validateHostName;
-    }
 }
