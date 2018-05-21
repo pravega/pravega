@@ -12,7 +12,6 @@ package io.pravega.shared.controller.event;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Data
