@@ -55,6 +55,7 @@ pages:
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
+      - 'Pravega Metrics': 'metrics.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'
