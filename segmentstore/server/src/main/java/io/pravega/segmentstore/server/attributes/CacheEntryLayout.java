@@ -12,10 +12,13 @@ package io.pravega.segmentstore.server.attributes;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.IndexedMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Helper class that aids in serializing and deserializing Segment Attribute Index Cache Entries using a compact format.
@@ -26,70 +29,70 @@ import java.util.UUID;
  * - Count: 4 Bytes representing the number of attributes encoded.
  * - AttributeData: Attributes: ID (16 bytes), Version (8 bytes), Value (8 bytes).
  */
-class CacheEntryLayout {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+class CacheEntryLayout implements IndexedMap<UUID, Long> {
+    //region Members
+
     @VisibleForTesting
     static final int RECORD_LENGTH = 4 * Long.BYTES;
     private static final int VERSION_OFFSET = 2 * Long.BYTES;
     private static final int VALUE_OFFSET = 3 * Long.BYTES;
     private static final int HEADER_LENGTH = Integer.BYTES;
+    private final byte[] data;
 
-    /**
-     * Gets a value representing the number of attributes encoded in the given serialization.
-     *
-     * @param data The Cache Entry serialization.
-     * @return The count. This value is undefined if data was not previously encoded using this CacheEntryLayout.
-     */
-    static int getCount(byte[] data) {
-        int result = BitConverter.readInt(data, 0);
-        Preconditions.checkArgument(data.length >= HEADER_LENGTH + result * RECORD_LENGTH, "Invalid or corrupted cache entry.");
+    //endregion
+
+    //region IndexedMap Implementation
+
+    @Override
+    public int getCount() {
+        int result = BitConverter.readInt(this.data, 0);
+        Preconditions.checkArgument(this.data.length >= HEADER_LENGTH + result * RECORD_LENGTH, "Invalid or corrupted cache entry.");
         return result;
     }
 
-    /**
-     * Gets the Attribute Id located at the given position within the given serialization.
-     *
-     * @param data     The Cache Entry serialization.
-     * @param position The position within the entry for which to get the Attribute Id.
-     * @return The Attribute Id. This value is undefined if data was not previously encoded using this CacheEntryLayout.
-     */
-    static UUID getAttributeId(byte[] data, int position) {
+    @Override
+    public UUID getKey(int position) {
         int offset = HEADER_LENGTH + position * RECORD_LENGTH;
         return new UUID(BitConverter.readLong(data, offset), BitConverter.readLong(data, offset + Long.BYTES));
     }
 
-    /**
-     * Gets the Attribute Value located at the given position within the given serialization.
-     *
-     * @param data     The Cache Entry serialization.
-     * @param position The position within the entry for which to get the Attribute Value.
-     * @return The Attribute Value. This value is undefined if data was not previously encoded using this CacheEntryLayout.
-     */
-    static long getValue(byte[] data, int position) {
-        return BitConverter.readLong(data, HEADER_LENGTH + position * RECORD_LENGTH + VALUE_OFFSET);
+    @Override
+    public Long getValue(int position) {
+        return BitConverter.readLong(this.data, HEADER_LENGTH + position * RECORD_LENGTH + VALUE_OFFSET);
     }
 
     /**
-     * Gets all the Attribute Ids and their Values encoded in the given serialization.
+     * Gets all the Attribute Ids and their Values.
      *
-     * @param data The Cache Entry serialization.
-     * @return A modifiable Map (UUID, VersionedValue) representing the result. This result is undefined if data was not
-     * previously encoded using this CacheEntryLayout.
+     * @return A modifiable Map (UUID, VersionedValue) representing the result.
      */
-    static Map<UUID, VersionedValue> getAllValues(byte[] data) {
-        if (data == null) {
-            return new HashMap<>();
-        }
-
-        int count = getCount(data);
+    Map<UUID, VersionedValue> getAllValues() {
+        int count = getCount();
         Map<UUID, VersionedValue> result = new HashMap<>();
         int offset = HEADER_LENGTH;
         for (int i = 0; i < count; i++) {
-            result.put(new UUID(BitConverter.readLong(data, offset), BitConverter.readLong(data, offset + Long.BYTES)),
-                    new VersionedValue(BitConverter.readLong(data, offset + VERSION_OFFSET), BitConverter.readLong(data, offset + VALUE_OFFSET)));
+            result.put(new UUID(BitConverter.readLong(this.data, offset), BitConverter.readLong(data, offset + Long.BYTES)),
+                    new VersionedValue(BitConverter.readLong(this.data, offset + VERSION_OFFSET), BitConverter.readLong(this.data, offset + VALUE_OFFSET)));
             offset += RECORD_LENGTH;
         }
 
         return result;
+    }
+
+    //endregion
+
+    //region Static Methods
+
+    /**
+     * Creates a new CacheEntryLayout for the given serialization.
+     *
+     * @param data The serialization to wrap.
+     * @return A new CacheEntryLayout instance. The outcome of any operation invoked on the methods on this instance is
+     * undefined if the contents of "data" has not been previously serialized using setValues().
+     */
+    static CacheEntryLayout wrap(byte[] data) {
+        return new CacheEntryLayout(Preconditions.checkNotNull(data, "data"));
     }
 
     /**
@@ -119,4 +122,6 @@ class CacheEntryLayout {
 
         return buffer;
     }
+
+    //endregion
 }

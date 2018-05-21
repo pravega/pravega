@@ -21,6 +21,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -55,7 +56,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -870,6 +870,8 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
     //endregion
 
+    //region CacheEntry
+
     /**
      * An entry in the Cache to which one or more Attributes are mapped.
      */
@@ -928,8 +930,13 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             }
 
             byte[] data = SegmentAttributeIndex.this.cache.get(getKey());
-            if (data != null && data.length > 0 && readValues(data, attributeIds, result)) {
-                this.generation = currentGeneration;
+            if (data != null && data.length > 0) {
+                // The Cache Entry Serialization has the Attributes in sorted order (by Id), so the most efficient way of
+                // searching the values is to do a binary search within the byte array.
+                boolean anythingRead = CollectionHelpers.binarySearch(CacheEntryLayout.wrap(data), attributeIds, result);
+                if (anythingRead) {
+                    this.generation = currentGeneration;
+                }
             }
         }
 
@@ -955,7 +962,9 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
 
             // Fetch existing data.
             byte[] existingData = SegmentAttributeIndex.this.cache.get(getKey());
-            Map<UUID, VersionedValue> values = CacheEntryLayout.getAllValues(existingData);
+            Map<UUID, VersionedValue> values = existingData == null
+                    ? new HashMap<>()
+                    : CacheEntryLayout.wrap(existingData).getAllValues();
 
             // Merge new values.
             boolean changed = false;
@@ -993,55 +1002,7 @@ class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, Auto
             SegmentAttributeIndex.this.cache.remove(getKey());
             this.size = 0;
         }
-
-        /**
-         * Reads the values from the given serialization for the given Attribute Ids and populates them into the given Map.
-         *
-         * @param data         The Cache Entry serialization.
-         * @param attributeIds A Collection of Attribute Ids to fetch.
-         * @param result       A Map to store the result. Only those Attribute Ids that exist in data will be stored here.
-         * @return True if at least one value was fetched, false otherwise.
-         */
-        private boolean readValues(byte[] data, Collection<UUID> attributeIds, Map<UUID, Long> result) {
-            // The Cache Entry Serialization has the Attributes in sorted order (by Id), so the most efficient way of
-            // searching the values is to do a binary search within the byte array:
-            // - We make use of the CacheEntryLayout abstraction to not have to deserialize the whole array.
-            // - We process the incoming attributeIds in sorted order, which will aid our search. We remember the index
-            // of the last found Attribute Id, and only execute our search for subsequent Ids from that index on, since,
-            // if those Ids exist, they are guaranteed to be after the last found one.
-            final int count = CacheEntryLayout.getCount(data);
-
-            // Process the Attribute Ids in sorted order.
-            int nextPos = 0; // Position of the last found Attribute Id. This is a sequence position, and not the index in the array.
-            boolean anythingFound = false;
-            Iterator<UUID> iterator = attributeIds.stream().sorted().iterator();
-            while (iterator.hasNext() && nextPos < count) {
-                // Do a binary search starting at nextIndex until the end of the data.
-                UUID id = iterator.next();
-                int startPos = nextPos;
-                int endPos = count;
-                while (startPos < endPos) {
-                    // Use the CacheEntryLayout to locate the Attribute Id in the middle.
-                    int midPos = startPos + (endPos - startPos) / 2;
-                    UUID midAttributeId = CacheEntryLayout.getAttributeId(data, midPos);
-                    int c = id.compareTo(midAttributeId);
-                    if (c == 0) {
-                        // Found it.
-                        result.put(id, CacheEntryLayout.getValue(data, midPos));
-                        nextPos = midPos + 1;
-                        anythingFound = true;
-                        break;
-                    } else if (c < 0) {
-                        // Search again to the left.
-                        endPos = midPos;
-                    } else {
-                        // Search again to the right.
-                        startPos = midPos + 1;
-                    }
-                }
-            }
-
-            return anythingFound;
-        }
     }
+
+    //endregion
 }

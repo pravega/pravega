@@ -48,19 +48,20 @@ public class CacheEntryLayoutTests {
         Assert.assertSame("New buffer was created when none was expected.", buffer, data);
 
         // Verify the count was correctly encoded, even if we passed a larger than needed array.
-        Assert.assertEquals("Unexpected number of attributes encoded.", values.size(), CacheEntryLayout.getCount(data));
+        val l = CacheEntryLayout.wrap(data);
+        Assert.assertEquals("Unexpected number of attributes encoded.", values.size(), l.getCount());
 
         // Verify we can get all the values back.
-        val actualData = CacheEntryLayout.getAllValues(data);
+        val actualData = l.getAllValues();
         AssertExtensions.assertMapEquals("Unexpected values returned", expectedValues, actualData);
 
         // Verify that the values were encoded in order.
         for (int i = 0; i < values.size(); i++) {
             val expected = values.get(i);
-            val actualId = CacheEntryLayout.getAttributeId(data, i);
-            val actualValue = CacheEntryLayout.getValue(data, i);
+            val actualId = l.getKey(i);
+            val actualValue = l.getValue(i);
             Assert.assertEquals("Attribute Ids out of order.", expected.getKey(), actualId);
-            Assert.assertEquals("Attribute Values out of order.", expected.getValue().value, actualValue);
+            Assert.assertEquals("Attribute Values out of order.", expected.getValue().value, (long) actualValue);
         }
     }
 }
