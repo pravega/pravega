@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
@@ -34,6 +35,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.Exceptions;
@@ -167,6 +169,59 @@ public class EndToEndTruncationTest {
         assertEquals("truncationTest2", event.getEvent());
         event = reader.readNextEvent(1000);
         assertNull(event.getEvent());
+    }
+
+    @Test(timeout = 30000)
+    public void testWriteDuringTruncation() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scope("test")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                .build();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream(config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
+        // routing key "0" translates to key 0.8. This write happens to segment 1.
+        writer.writeEvent("0", "truncationTest1").get();
+
+        // scale down to one segment.
+        Stream stream = new StreamImpl("test", "test");
+        Map<Double, Double> map = new HashMap<>();
+        map.put(0.0, 1.0);
+        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0, 1), map, executor).getFuture().get());
+
+        // truncate stream at segment 2, offset 0.
+        StreamCut sc = new StreamCutImpl(stream, ImmutableMap.of(new Segment("test", "test", 2), 0L));
+        assertTrue("Truncate stream", controller.truncateStream("test", "test", sc).get());
+
+        // routing key "2" translates to key 0.2.
+        // this write translates to a write to Segment 0, but since segment 0 is truncated the write should happen on segment 2.
+        // write to segment 0
+        writer.writeEvent("2", "truncationTest2").get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test").build());
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+
+        EventRead<String> event = reader.readNextEvent(10000);
+        assertNotNull(event);
+        assertEquals("truncationTest2", event.getEvent());
     }
 
     /**

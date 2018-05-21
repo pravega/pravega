@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -55,7 +56,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 
@@ -302,39 +302,22 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * Once the segment Sealed callback is executed successfully
          *  - there will be no new writes to this segment.
          *  - any write to this segment will throw a SegmentSealedException.
-         *  - any thread waiting on state.getEmptyInflightFuture() will get SegmentSealedException.
+         *
          * @param segmentIsSealed SegmentIsSealed WireCommand.
          */
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
-            if (state.encounteredSeal()) {
-                Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
-                                                 retrySchedule.getMaxDelay(),
-                                                 t -> log.error(writerId + " to invoke sealed callback: ", t))
-                     .runInExecutor(() -> {
-                         log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
-                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionFactory.getInternalExecutor());
-            }
+            retryOnWriteFail(segmentIsSealed);
         }
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            String segment = noSuchSegment.getSegment();
-            checkArgument(segmentName.equals(segment), "Wrong segment name %s, %s", segmentName, segment);
-            log.warn("Segment being written to {} by writer {} no longer exists. Failing all writes", segment, writerId);
-            state.setClosed(true);
-            NoSuchSegmentException exception = new NoSuchSegmentException(segment);
-            state.failConnection(exception);
-            for (PendingEvent toAck : state.removeInflightBelow(Long.MAX_VALUE)) {
-                if (toAck != null) {
-                    toAck.getAckFuture().completeExceptionally(exception);
-                }
-            }
-            state.releaseIfEmptyInflight();
+            log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
+                    noSuchSegment.getSegment(), writerId);
+            retryOnWriteFail(noSuchSegment);
         }
-        
+
         @Override
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received ack: {}", dataAppended);
@@ -376,6 +359,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                         failConnection(e);
                     }
                 });
+            }
+        }
+
+        private void retryOnWriteFail(WireCommand wireCommand) {
+            if (state.encounteredSeal()) {
+                Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
+                        retrySchedule.getMaxDelay(),
+                        t -> log.error(writerId + " to invoke sealed callback: ", t))
+                        .runInExecutor(() -> {
+                            log.debug("Invoking SealedSegment call back for {} on writer {}", wireCommand, writerId);
+                            callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                        }, connectionFactory.getInternalExecutor());
             }
         }
 
