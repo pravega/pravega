@@ -108,10 +108,11 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
     }
 
     private CompletableFuture<Void> tryCommitTransactions(final String scope,
-                                                          final String stream,
-                                                          final int epoch,
-                                                          final OperationContext context, String delegationToken) {
-        // 2. if node already exists and doesnt match event.transactionId, throw operation not allowed. dont worry,
+                                                  final String stream,
+                                                  final int epoch,
+                                                  final OperationContext context,
+                                                  final String delegationToken) {
+        // if node already exists and doesnt match event.transactionId, throw operation not allowed. dont worry,
         // it will be posted back in the stream and retried later. Generally if a transaction commit starts, it will come to
         // an end.. but during failover,
         // once we have created the node, we are guaranteed that it will be only that transaction that will be getting
@@ -143,10 +144,10 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
                     CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
                     for (UUID txnId : transactionsToCommit) {
                         log.debug("Committing transaction {} on stream {}/{}", txnId, scope, stream);
-                        future.thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId)
+                        future = future.thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId)
                                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor)
                                         .thenAccept(done -> {
-                                           log.debug("transaction {} on stream {}/{} committed successfully", txnId, scope, stream);
+                                            log.debug("transaction {} on stream {}/{} committed successfully", txnId, scope, stream);
                                         })));
                     }
 

@@ -358,7 +358,7 @@ public class StreamTransactionMetadataTasksTest {
                 return new EventRead<ControllerEvent>() {
                     @Override
                     public ControllerEvent getEvent() {
-                        return (ControllerEvent) event;
+                        return (ControllerEvent) event.getEvent();
                     }
 
                     @Override
@@ -501,16 +501,15 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(null, null,
-                new CommitTransactionTask(streamMetadataTasks, streamStore, executor), null, null, null, null, executor);
+                new CommitTransactionTask(streamStore, streamMetadataTasks, executor, processedCommitEvents), null, null, null, null, executor);
 
         createEventProcessor("commitRG", "commitStream", commitReader2, commitWriter2,
                 () -> new ConcurrentEventProcessor<>(streamRequestHandler, executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        // TODO: shivesh
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Wait until the abort event is processed and ensure that the txn state is ABORTED.
