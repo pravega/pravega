@@ -156,10 +156,11 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      * with different number of segments and it writes some events (TOTAL_EVENTS / 2) in them. Then, the test creates a
      * list of StreamCuts that encompasses both streams every CUT_SIZE events. The test asserts that new groups of
      * readers can be initialized at these sequential StreamCut intervals and that only CUT_SIZE events are read. Also,
-     * the test checks the correctness of different combinations of intervals that have not been sequentially created.
-     * The previous process is repeated twice (thus writing TOTAL_EVENTS): before and after scaling streams, to check if
-     * StreamCuts work correctly under scaling events. Finally, this test checks that an existing reader group can be
-     * reset to the first StreamCut created and checks different StreamCut combinations in both streams for all events.
+     * the test checks the correctness of different combinations of StreamCuts that have not been sequentially created.
+     * After creating StreamCuts and tests the correctness of reads, the test also checks resetting a reader group to a
+     * specific initial read point. The previous process is repeated twice: before and after scaling streams, to test if
+     * StreamCuts work correctly under scaling events (thus writing TOTAL_EVENTS). Finally, this test checks reading
+     * different StreamCut combinations in both streams for all events (encompassing events before and after scaling).
      */
     @Test
     public void streamCutsTest() {
@@ -238,7 +239,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                                               .startingStreamCuts(initialPosition)
                                                               .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
         readerGroup.resetReaderGroup(firstSliceConfig);
-            log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, initialPosition);
+        log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, initialPosition);
         final int readEvents = readEventFutures(clientFactory, readerGroup.getGroupName(),
                 parallelSegments).stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get();
         assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
