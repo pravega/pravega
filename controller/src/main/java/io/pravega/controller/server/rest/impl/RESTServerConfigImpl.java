@@ -21,18 +21,18 @@ import lombok.Getter;
 public class RESTServerConfigImpl implements RESTServerConfig {
     private final String host;
     private final int port;
-    private final boolean enableTls;
+    private final boolean tlsEnabled;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
     @Builder
-    RESTServerConfigImpl(final String host, final int port, boolean enableTls, String keyFilePath, String keyFilePasswordPath) {
+    RESTServerConfigImpl(final String host, final int port, boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
 
         this.host = host;
         this.port = port;
-        this.enableTls = enableTls;
+        this.tlsEnabled = tlsEnabled;
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
     }

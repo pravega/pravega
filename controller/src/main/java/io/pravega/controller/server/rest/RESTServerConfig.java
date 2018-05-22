@@ -31,10 +31,10 @@ public interface RESTServerConfig {
      * Flag which denotes whether TLS is enabled.
      * @return Flag which denotes whether TLS is enabled.
      */
-    boolean isEnableTls();
+    boolean isTlsEnabled();
 
     /**
-     * File which contains the key file for the TLS connection.
+     * Path to a file which contains the key file for the TLS connection.
      * @return File which contains the key file for the TLS connection.
      */
     String getKeyFilePath();

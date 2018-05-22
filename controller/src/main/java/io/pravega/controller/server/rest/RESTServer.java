@@ -74,23 +74,21 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
-            if (restServerConfig.isEnableTls()) {
+            if (restServerConfig.isTlsEnabled()) {
                 SSLContextConfigurator sslCon = new SSLContextConfigurator();
                 sslCon.setKeyStoreFile(restServerConfig.getKeyFilePath());
-                sslCon.setKeyStorePass(loadPasswdFromFile(restServerConfig.getKeyFilePasswordPath()));
+                sslCon.setKeyStorePass(loadPasswordFromFile(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
                         new SSLEngineConfigurator(sslCon, false, false, false));
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }
-        } catch (Exception e) {
-          log.error("Exception while creating HTTP server", e);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
     }
 
-    private String loadPasswdFromFile(String keyFilePasswordPath) {
+    private String loadPasswordFromFile(String keyFilePasswordPath) {
 
         if (Strings.isNullOrEmpty(keyFilePasswordPath)) {
             return "";
