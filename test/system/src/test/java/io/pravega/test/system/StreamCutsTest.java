@@ -181,7 +181,6 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                 parallelismBeforeScale);
 
         // Now, we perform a manual scale on both streams and wait until it occurs.
-        log.info("Start scaling of streams.");
         CompletableFuture<Boolean> scaleStreamOne = scaleStream(SCOPE, STREAM_ONE, RG_PARALLELISM_ONE * 2, executor);
         checkScaleStatus(scaleStreamOne);
 
@@ -195,7 +194,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                                                                   .startingStreamCuts(streamCutBeforeScale).build());
         @Cleanup
         ReaderGroup newReaderGroup = readerGroupManager.getReaderGroup(newReaderGroupName);
-        log.debug("Checking slices again starting from {}.", streamCutBeforeScale);
+        log.info("Checking slices again starting from {}.", streamCutBeforeScale);
         List<Map<Stream, StreamCut>> slicesAfterScale = writeEventsAndCheckSlices(clientFactory, newReaderGroup, readerGroupManager,
                 parallelSegmentsAfterScale);
 
@@ -217,12 +216,12 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         log.info("Finished writing events to streams.");
 
         Map<Stream, StreamCut> initialPosition = new HashMap<>(readerGroup.getStreamCuts());
-        log.debug("Creating StreamCuts from: {}.", initialPosition);
+        log.info("Creating StreamCuts from: {}.", initialPosition);
 
         // Get StreamCuts for each slice from both Streams at the same time (may be different in each execution).
         List<Map<Stream, StreamCut>> streamSlices = getStreamCutSlices(clientFactory, readerGroup, TOTAL_EVENTS / 2);
         streamSlices.add(0, initialPosition);
-        log.debug("Finished creating StreamCuts {}.", streamSlices);
+        log.info("Finished creating StreamCuts {}.", streamSlices);
 
         // Ensure that reader groups can correctly read slice by slice from different Streams.
         readSliceBySliceAndVerify(readerGroupManager, clientFactory, parallelSegments, streamSlices);
