@@ -232,9 +232,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (String segmentName : segmentNames) {
             // Add half the attribute updates now.
             for (int i = 0; i < halfAttributeCount; i++) {
-                int finalI = i;
+                int completedIterations = i;
                 segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
-                    log.info("Completed attrs {}", finalI);
+                    log.debug("Completed attrs {}", completedIterations);
                 }));
             }
 
@@ -244,9 +244,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                int finalI = i;
+                int completedIterations = i;
                 segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
-                    log.info("Completed append {}", finalI);
+                    log.info("Completed append {}", completedIterations);
                 }));
             }
 
