@@ -334,7 +334,7 @@ public class FileSystemStorage implements SyncStorage {
      * We do not make the assumption that a native operation exists as this is not a common feature supported by file
      * systems. As such, a concatenation induces an important network overhead as each byte concatenated must be
      * read and written back when the storage is backed by a remote filesystem (through NFS).
-     * <p>
+     *
      * This option was preferred as other option (of having one file per transaction) will result in server side
      * fragmentation and corresponding slowdown in cluster performance.
      */
