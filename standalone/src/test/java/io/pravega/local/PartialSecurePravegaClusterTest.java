@@ -37,8 +37,7 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
      * @throws Exception on any errors.
      */
     @Test
-    public void failingCreateTestStream()
-            throws Exception {
+    public void failingCreateTestStream() throws Exception {
         Assert.assertNotNull("Pravega not initialized", localPravega);
         String scope = "Scope";
         String streamName = "Stream";
