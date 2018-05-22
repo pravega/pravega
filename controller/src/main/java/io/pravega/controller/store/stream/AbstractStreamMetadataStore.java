@@ -83,7 +83,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Data
     /**
      * This class represents a 96 bit number with 32 bit msb encoded as integer and 64 bit lsb encoded as long.
-     * It is unsigned and only allows for positive values. It also implements comparable interface and comparison involves
+     * It is unsigned and only allows for non negative values. It also implements comparable interface and comparison involves
      * first compariging msbs and if msbs are equal then we compare lsbs.
      */
     protected static class BigLong implements Comparable {
@@ -144,7 +144,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     /**
-     * This class provides ability to atomically update a BigLong value.
+     * This class provides the ability to atomically update a BigLong value.
      */
     protected static class AtomicBigLong {
         @GuardedBy("lock")

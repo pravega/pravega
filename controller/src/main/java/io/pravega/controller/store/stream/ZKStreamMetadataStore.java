@@ -49,7 +49,7 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @VisibleForTesting
     /**
-     * This defines the size of the block of counter values that will be used by this controller instance.
+     * This constant defines the size of the block of counter values that will be used by this controller instance.
      * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
      * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
      * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
