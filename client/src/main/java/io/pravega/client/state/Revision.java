@@ -23,5 +23,22 @@ public interface Revision extends Comparable<Revision> {
      * @return Implementation of the revision interface
      */
     RevisionImpl asImpl();
+    
+    /**
+     * Serializes the Revision to a human readable string.
+     * @return A string representation of the Revision.
+     */
+    @Override
+    String toString();
+    
+    /**
+     * Deserializes the revision from its serialized from obtained from calling {@link #toString()}.
+     * 
+     * @param revision A serialized revision.
+     * @return The Revision object.
+     */
+    static Revision fromString(String revision) {
+        return RevisionImpl.fromString(revision);
+    }
 
 }

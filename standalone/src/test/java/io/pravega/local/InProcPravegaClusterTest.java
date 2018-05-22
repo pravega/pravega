@@ -35,7 +35,7 @@ import org.junit.Test;
 public class InProcPravegaClusterTest {
     boolean authEnabled = false;
     boolean tlsEnabled = false;
-    private LocalPravegaEmulator localPravega;
+    LocalPravegaEmulator localPravega;
 
     @Before
     public void setUp() throws Exception {
@@ -52,6 +52,11 @@ public class InProcPravegaClusterTest {
                                            .restServerPort(TestUtils.getAvailableListenPort())
                                            .enableAuth(authEnabled)
                                            .enableTls(tlsEnabled)
+                                           .certFile("../config/cert.pem")
+                                           .keyFile("../config/key.pem")
+                                           .passwdFile("../config/passwd")
+                                           .userName("admin")
+                                           .passwd("1111_aaaa")
                                            .build();
         localPravega.start();
     }

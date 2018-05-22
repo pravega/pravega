@@ -14,11 +14,14 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
@@ -86,7 +89,7 @@ public abstract class StreamMetadataStoreTest {
 
     @After
     public void tearDown() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test
@@ -520,11 +523,14 @@ public abstract class StreamMetadataStoreTest {
         List<Integer> segmentsToSeal2 = Arrays.asList(0);
         long scaleTs2 = System.currentTimeMillis();
 
-        streamObjSpied.getHistoryTable()
-                .thenCompose(historyTable -> streamObjSpied.getSegmentTable()
+        streamObjSpied.getHistoryIndex()
+            .thenCompose(historyIndex -> streamObjSpied.getHistoryTable()
+                .thenCompose(historyTable -> streamObjSpied.getSegmentIndex()
+                    .thenCompose(segmentIndex -> streamObjSpied.getSegmentTable()
                         .thenCompose(segmentTable -> streamObjSpied.createEpochTransitionNode(
-                                TableHelper.computeEpochTransition(historyTable.getData(), segmentTable.getData(),
-                                        segmentsToSeal2, Arrays.asList(segment2p), scaleTs2).toByteArray())))
+                                TableHelper.computeEpochTransition(historyIndex.getData(), historyTable.getData(),
+                                        segmentIndex.getData(), segmentTable.getData(), segmentsToSeal2,
+                                        Arrays.asList(segment2p), scaleTs2).toByteArray())))))
                 .thenCompose(x -> store.setState(scope, stream, State.SCALING, null, executor))
                 .thenCompose(x -> store.scaleCreateNewSegments(scope, stream, null, executor))
                 .thenCompose(x -> store.scaleNewSegmentsCreated(scope, stream, null, executor))
@@ -571,11 +577,11 @@ public abstract class StreamMetadataStoreTest {
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
-        StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
+        StreamConfigurationRecord configProperty = store.getConfigurationRecord(scope, stream, true, null, executor).join();
         assertFalse(configProperty.isUpdating());
         // run update configuration multiple times
         assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
-        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
+        configProperty = store.getConfigurationRecord(scope, stream, true, null, executor).join();
 
         assertTrue(configProperty.isUpdating());
 
@@ -585,8 +591,8 @@ public abstract class StreamMetadataStoreTest {
 
         assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
 
-        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
-        assertEquals(configuration2, configProperty.getProperty());
+        configProperty = store.getConfigurationRecord(scope, stream, true, null, executor).join();
+        assertEquals(configuration2, configProperty.getStreamConfiguration());
 
         assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
         assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
@@ -739,7 +745,7 @@ public abstract class StreamMetadataStoreTest {
         truncation.put(1, 0L);
         assertTrue(Futures.await(store.startTruncation(scope, stream, truncation, null, executor)));
 
-        StreamProperty<StreamTruncationRecord> truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
+        StreamTruncationRecord truncationProperty = store.getTruncationRecord(scope, stream, true, null, executor).join();
         assertTrue(truncationProperty.isUpdating());
 
         Map<Integer, Long> truncation2 = new HashMap<>();
@@ -749,10 +755,10 @@ public abstract class StreamMetadataStoreTest {
         assertFalse(Futures.await(store.startTruncation(scope, stream, truncation2, null, executor)));
         assertTrue(Futures.await(store.completeTruncation(scope, stream, null, executor)));
 
-        truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
-        assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
+        truncationProperty = store.getTruncationRecord(scope, stream, true, null, executor).join();
+        assertEquals(truncation, truncationProperty.getStreamCut());
 
-        assertTrue(truncationProperty.getProperty().getCutEpochMap().size() == 2);
+        assertTrue(truncationProperty.getCutEpochMap().size() == 2);
 
         Map<Integer, Long> truncation3 = new HashMap<>();
         truncation3.put(0, 0L);

@@ -17,6 +17,9 @@ import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.ConditionalOutputStream;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -49,8 +52,8 @@ import io.pravega.shared.NameUtils;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class ClientFactoryImpl implements ClientFactory {
@@ -59,11 +62,13 @@ public class ClientFactoryImpl implements ClientFactory {
     private final Controller controller;
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
+    private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
 
     /**
      * Creates a new instance of ClientFactory class.
+     * Note: Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
@@ -76,11 +81,13 @@ public class ClientFactoryImpl implements ClientFactory {
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
 
     /**
      * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
@@ -90,25 +97,28 @@ public class ClientFactoryImpl implements ClientFactory {
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                new ConditionalOutputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
     }
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
+            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
+            ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
+        Preconditions.checkNotNull(condFactory);
         Preconditions.checkNotNull(metaFactory);
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
+        this.condFactory = condFactory;
         this.metaFactory = metaFactory;
     }
-
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
@@ -155,8 +165,9 @@ public class ClientFactoryImpl implements ClientFactory {
                 segment.getStreamName()), RuntimeException::new);
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
                 config.getEventWriterConfig(), delegationToken);
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
-        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
+        return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
     }
 
     @Override
@@ -181,6 +192,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public void close() {
+        controller.close();
         connectionFactory.close();
     }
 

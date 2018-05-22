@@ -150,7 +150,8 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore,
-                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, system, executor);
+                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                system, executor);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));

@@ -9,62 +9,87 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import io.pravega.common.util.BitConverter;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.util.ArrayView;
+import io.pravega.controller.store.stream.tables.serializers.SegmentRecordSerializer;
+import lombok.Builder;
 import lombok.Data;
+import lombok.SneakyThrows;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 
 @Data
+@Builder
 /**
- * Class represents one row/record in SegmentTable.
- * Segment table is chunked into multiple files, each containing #SEGMENT_CHUNK_SIZE records.
- * New segment chunk-name is highest-chunk-name + 1
- * Row: [segment-number, segment-creation-time, routing-key-floor-inclusive, routing-key-ceiling-exclusive]
+ * Class represents one row/record in SegmentTable. Since segment table records are versioned, we can have variable sized
+ * records. So we maintain a segment index which identifies start offset for each row in the table.
  */
 public class SegmentRecord {
-    public static final int SEGMENT_RECORD_SIZE = Integer.BYTES + Integer.BYTES + Long.BYTES + Double.BYTES + Double.BYTES;
+    public static final SegmentRecordSerializer SERIALIZER = new SegmentRecordSerializer();
 
     private final int segmentNumber;
-    private final int epoch;
     private final long startTime;
+    private final int creationEpoch;
     private final double routingKeyStart;
     private final double routingKeyEnd;
 
     /**
-     * Method to read record for a specific segment number. 
+     * Method to read record for a specific segment number.
+     * @param segmentIndex segment index
      * @param segmentTable segment table
      * @param number segment number to read
      * @return returns segment record
      */
-    static Optional<SegmentRecord> readRecord(final byte[] segmentTable, final int number) {
-        int offset = number * SegmentRecord.SEGMENT_RECORD_SIZE;
+    static Optional<SegmentRecord> readRecord(final byte[] segmentIndex, final byte[] segmentTable, final int number) {
+        Optional<SegmentIndexRecord> indexRecord = SegmentIndexRecord.readRecord(segmentIndex, number);
+        return indexRecord.map(segmentIndexRecord -> {
+            if (indexRecord.get().getSegmentOffset() >= segmentTable.length) {
+                // index may be ahead of segment table. So we may not be able to read the record.
+                return null;
+            } else {
+                return parse(segmentTable, segmentIndexRecord.getSegmentOffset());
+            }
+        });
+    }
 
-        if (offset >= segmentTable.length) {
-            return Optional.empty();
+    /**
+     * Method to read latest record in segment table.
+     * Note: index may be ahead of segment table. So we will find the last record in segment table and ignore index entries
+     * that are not written to segment table yet.
+     * @param segmentIndex segment index
+     * @param segmentTable segment table
+     * @return returns latest segment record in segment table
+     */
+    static Optional<SegmentRecord> readLatest(final byte[] segmentIndex, final byte[] segmentTable) {
+        Optional<SegmentIndexRecord> indexRecord = SegmentIndexRecord.readLatestRecord(segmentIndex);
+
+        while (indexRecord.isPresent()) {
+            int segmentNumber = indexRecord.get().getSegmentNumber();
+            if (indexRecord.get().getSegmentOffset() >= segmentTable.length) {
+                indexRecord = SegmentIndexRecord.readRecord(segmentIndex, segmentNumber - 1);
+            } else {
+                return Optional.of(parse(segmentTable, indexRecord.get().getSegmentOffset()));
+            }
         }
-        return Optional.of(parse(segmentTable, offset));
+
+        return Optional.empty();
     }
 
+    @SneakyThrows(IOException.class)
     private static SegmentRecord parse(final byte[] table, final int offset) {
-        return new SegmentRecord(BitConverter.readInt(table, offset),
-                BitConverter.readInt(table, offset + Integer.BYTES),
-                BitConverter.readLong(table, offset + 2 * Integer.BYTES),
-                toDouble(table, offset + 2 * Integer.BYTES + Long.BYTES),
-                toDouble(table, offset + 2 * Integer.BYTES + Long.BYTES + Double.BYTES));
+        InputStream bas = new ByteArrayInputStream(table, offset, table.length - offset);
+        return SERIALIZER.deserialize(bas);
     }
 
-    private static double toDouble(byte[] b, int offset) {
-        return Double.longBitsToDouble(BitConverter.readLong(b, offset));
+    @SneakyThrows(IOException.class)
+    public ArrayView toArrayView() {
+        return SERIALIZER.serialize(this);
     }
 
-    byte[] toByteArray() {
-        byte[] b = new byte[SEGMENT_RECORD_SIZE];
-        BitConverter.writeInt(b, 0, segmentNumber);
-        BitConverter.writeInt(b, Integer.BYTES, epoch);
-        BitConverter.writeLong(b, 2 * Integer.BYTES, startTime);
-        BitConverter.writeLong(b, 2 * Integer.BYTES + Long.BYTES, Double.doubleToRawLongBits(routingKeyStart));
-        BitConverter.writeLong(b, 2 * Integer.BYTES + 2 * Long.BYTES, Double.doubleToRawLongBits(routingKeyEnd));
+    public static class SegmentRecordBuilder implements ObjectBuilder<SegmentRecord> {
 
-        return b;
     }
 }

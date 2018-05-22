@@ -233,10 +233,11 @@ public void run() {
    final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
  
    final String readerGroup = UUID.randomUUID().toString().replace("-", "");
-   final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
-           .build();
+   final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                                .stream(Stream.of(scope, streamName))
+                                                                .build();
    try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI)) {
-       readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig, Collections.singleton(streamName));
+       readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
    }
  
    try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
@@ -281,7 +282,7 @@ the ReaderGroupManager is properly cleaned up.   The ReaderGroupManager allows 
 developer to create, delete and retrieve ReaderGroup objects by name.
 
 To create a ReaderGroup, the developer needs a name for the ReaderGroup, a
-configuration and a set of 1 or more Streams to read from.  
+configuration with a set of 1 or more Streams to read from.  
 
 The ReaderGroup's name might be meaningful to the application, like
 "WebClickStreamReaders".  In our case, on line 10, we have a simple UUID as the
@@ -296,9 +297,9 @@ context of a Scope, we can safely conclude that ReaderGroup names are namespaced
 by that Scope.  
 
 The ReaderGroupConfig right now doesn't have much behavior.  The developer
-specifies where in the Stream Reader should start consuming from (a starting
-position).  In our case, on line 11, we start at the beginning of the Stream.
- Other configuration items, such as specifying checkpointing etc. are options
+specifies the Stream which should be part of the ReaderGroup and its lower and 
+upper bounds. In our case, on line 11, we start at the beginning of the Stream.
+Other configuration items, such as specifying checkpointing etc. are options
 that will be available through the ReaderGroupConfig.  But for now, we keep it
 simple.
 
@@ -375,14 +376,15 @@ When the data is read this way, rather than joining a reader group which automat
 
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce. 
 
-As an example to iterate over the segments in the stream:
+As an example to iterate over all the segments in the stream:
 ```
-Iterator<SegmentInfo> segments = client.listSegments(stream);
-SegmentInfo segmentInfo = segments.next();
+//Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the current end of stream respectively.
+Iterator<SegmentRange> segments = client.listSegments(stream, null, null).getIterator();
+SegmentRange segmentInfo = segments.next();
 ```
 Or to read the events from a segment:
 ```
-SegmentIterator<T> events = client.readSegment(segmentInfo.getSegment(), deserializer);
+SegmentIterator<T> events = client.readSegment(segmentInfo, deserializer);
 while (events.hasNext()) {
     processEvent(events.next());
 }

@@ -131,8 +131,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
-        executorService.shutdownNow();
-        controllerExecutorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);

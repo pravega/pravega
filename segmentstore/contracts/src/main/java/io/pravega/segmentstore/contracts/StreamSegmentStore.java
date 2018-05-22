@@ -11,11 +11,19 @@ package io.pravega.segmentstore.contracts;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines all operations that are supported on a StreamSegment.
+ *
+ * Notes about all AttributeUpdates parameters in this interface's methods:
+ * * Only the Attributes contained in this collection will be touched; all other attributes will be left intact.
+ * * This can update both Core or Extended Attributes. If an Extended Attribute is updated, its latest value will be kept
+ * in memory for a while (based on Segment Metadata eviction or other rules), which allow for efficient pipelining.
+ * * If an Extended Attribute is not loaded, use getAttributes() to load its latest value up.
+ * * To delete an Attribute, set its value to Attributes.NULL_ATTRIBUTE_VALUE.
  */
 public interface StreamSegmentStore {
     /**
@@ -25,8 +33,8 @@ public interface StreamSegmentStore {
      *
      * @param streamSegmentName The name of the StreamSegment to append to.
      * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
-     *                          be touched; all other attributes will be left intact. May be null (which indicates no updates).
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, will completed normally, if the add was added. If the
      * operation failed, the future will be failed with the causing exception.
@@ -46,8 +54,8 @@ public interface StreamSegmentStore {
      * @param offset            The offset at which to append. If the current length of the StreamSegment does not equal
      *                          this value, the operation will fail with a BadOffsetException.
      * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
-     *                          be touched; all other attributes will be left intact. May be null (which indicates no updates).
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully.
      * If the operation failed, the future will be failed with the causing exception.
@@ -61,8 +69,8 @@ public interface StreamSegmentStore {
      * Performs an attribute update operation on the given Segment.
      *
      * @param streamSegmentName The name of the StreamSegment which will have its attributes updated.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update. Only the attributes contained here will
-     *                          be touched; all other attributes will be left intact. Cannot be null.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the update completed successfully.
      * If the operation failed, the future will be failed with the causing exception.
@@ -71,6 +79,28 @@ public interface StreamSegmentStore {
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
     CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+
+    /**
+     * Gets the values of the given Attributes (Core or Extended).
+     *
+     * Lookup order:
+     * 1. (Core or Extended) In-memory Segment Metadata cache (which always has the latest value of an attribute).
+     * 2. (Extended only) Backing Attribute Index for this Segment.
+     *
+     * @param streamSegmentName The name of the StreamSegment for which to get attributes.
+     * @param attributeIds      A Collection of Attribute Ids to fetch. These may be Core or Extended Attributes.
+     * @param cache             If set, then any Extended Attribute values that are not already in the in-memory Segment
+     *                          Metadata cache will be atomically added using a conditional update (comparing against a missing value).
+     *                          This argument will be ignored if the StreamSegment is currently Sealed.
+     * @param timeout           Timeout for the operation.
+     * @return A Completable future that, when completed, will contain a Map of Attribute Ids to their latest values. Any
+     * Attribute that is not set will also be returned (with a value equal to Attributes.NULL_ATTRIBUTE_VALUE). If the operation
+     * failed, the future will be failed with the causing exception.
+     * @throws NullPointerException     If any of the arguments are null.
+     * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
+     *                                  does not exist - that exception will be set in the returned CompletableFuture).
+     */
+    CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
@@ -99,7 +129,9 @@ public interface StreamSegmentStore {
      *                          because it needs to wait for pending ops to complete.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
-     * future will be failed with the causing exception.
+     * future will be failed with the causing exception. Note that this result will only contain those attributes that
+     * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, you must use
+     * getAttributes(), which will fetch all attributes, regardless of where they are currently located.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout);
@@ -108,7 +140,8 @@ public interface StreamSegmentStore {
      * Creates a new StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment to create.
-     * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment.
+     * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment. May be null.
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
@@ -121,7 +154,8 @@ public interface StreamSegmentStore {
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment to create a transaction for.
      * @param transactionId           A unique identifier for the transaction to be created.
-     * @param attributes              A Collection of Attribute-Values to set on the newly created Transaction.
+     * @param attributes              A Collection of Attribute-Values to set on the newly created Transaction. May be null.
+     *                                See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created transaction.
      * If the operation failed, the future will be failed with the causing exception.

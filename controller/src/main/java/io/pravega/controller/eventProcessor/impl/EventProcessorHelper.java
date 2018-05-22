@@ -26,10 +26,9 @@ public class EventProcessorHelper {
     private static final int RETRY_MAX_ATTEMPTS = 5;
     private static final long RETRY_MAX_DELAY = Duration.ofSeconds(2).toMillis();
 
-    private static final Retry.RetryAndThrowConditionally<RuntimeException> RETRY = Retry
+    private static final Retry.RetryAndThrowConditionally RETRY = Retry
             .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
-            .retryWhen(RetryableException::isRetryable)
-            .throwingOn(RuntimeException.class);
+            .retryWhen(RetryableException::isRetryable);
 
     private static final Retry.RetryUnconditionally INDEFINITELY = Retry
             .indefinitelyWithExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_DELAY,

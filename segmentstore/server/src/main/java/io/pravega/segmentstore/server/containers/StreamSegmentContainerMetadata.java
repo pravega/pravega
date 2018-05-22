@@ -339,6 +339,23 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         return evictedSegments;
     }
 
+    @Override
+    public int cleanupExtendedAttributes(int maximumAttributeCount, long sequenceNumberCutoff) {
+        ArrayList<StreamSegmentMetadata> metadatas;
+        synchronized (this.lock) {
+            metadatas = new ArrayList<>(this.metadataById.values());
+        }
+
+        long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
+        int count = 0;
+        for (StreamSegmentMetadata sm : metadatas) {
+            count += sm.cleanupAttributes(maximumAttributeCount, adjustedCutoff);
+        }
+
+        log.info("{}: EvictedExtendedAttributes Count = {}", this.traceObjectId, count);
+        return count;
+    }
+
     /**
      * Determines whether the Segment with given metadata can be evicted, based on the the given Sequence Number Threshold.
      *

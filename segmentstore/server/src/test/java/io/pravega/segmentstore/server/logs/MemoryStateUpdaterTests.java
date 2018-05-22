@@ -120,7 +120,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryStateUpdater accepted an operation that was out of order.",
-                () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeTransactionOperation(1, 2)),
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -243,7 +243,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void cleanup(Iterator<Long> segmentIds) {
+        public void cleanup(Collection<Long> segmentIds) {
             invoke(new MethodInvocation(CLEANUP));
         }
 

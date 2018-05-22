@@ -19,11 +19,14 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class DynamicLoggerImpl implements DynamicLogger {
     private final long cacheSize;
+    private final long cacheEvictionDuration;
 
     private final MetricRegistry metrics;
     private final StatsLogger underlying;
@@ -38,9 +41,10 @@ public class DynamicLoggerImpl implements DynamicLogger {
         this.metrics = metrics;
         this.underlying = statsLogger;
         this.cacheSize = metricsConfig.getDynamicCacheSize();
+        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMs();
 
         countersCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).
+                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
                 removalListener(new RemovalListener<String, Counter>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
@@ -55,7 +59,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 build();
 
         gaugesCache = CacheBuilder.newBuilder().
-                maximumSize(cacheSize).
+                maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
                 removalListener(new RemovalListener<String, Gauge>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
@@ -70,7 +74,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 build();
 
         metersCache = CacheBuilder.newBuilder().
-            maximumSize(cacheSize).
+            maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).
             removalListener(new RemovalListener<String, Meter>() {
                 @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
