@@ -28,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -131,8 +132,8 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
-        if (successors == null || successors.getReplacementRanges().isEmpty()) {
-            //stream is deleted.
+        if (successors == null) {
+            //stream is deleted, hence successors is null.
             writers.get(sealedSegment).getUnackedEventsOnSeal()
                     .forEach(pendingEvent -> pendingEvent.getAckFuture()
                             .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
