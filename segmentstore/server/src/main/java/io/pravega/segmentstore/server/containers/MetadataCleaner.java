@@ -153,7 +153,8 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 .thenRunAsync(() -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, lastSeqNo);
                     this.cleanupCallback.accept(evictedSegments);
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size());
+                    int evictedAttributes = this.metadata.cleanupExtendedAttributes(0, lastSeqNo);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size(), evictedAttributes);
                 }, this.executor);
     }
 
