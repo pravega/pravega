@@ -197,7 +197,7 @@ public class FileSystemStorage implements SyncStorage {
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
-        } else if (Files.isWritable(path)) {
+        } else if (isWritable(path)) {
             LoggerHelpers.traceLeave(log, "openWrite", traceId);
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
@@ -256,11 +256,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentProperties doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-
-        Path path = Paths.get(config.getRoot(), streamSegmentName);
-        Files.createDirectories(path.getParent());
-
-        createFile(path);
+        createFile(Paths.get(config.getRoot(), streamSegmentName));
         LoggerHelpers.traceLeave(log, "create", traceId);
         return this.doGetStreamSegmentInfo(streamSegmentName);
     }
@@ -277,7 +273,7 @@ public class FileSystemStorage implements SyncStorage {
 
         // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
-        if (!isWritableFile(path)) {
+        if (!isWritable(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
@@ -303,12 +299,6 @@ public class FileSystemStorage implements SyncStorage {
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }
-    }
-
-    private boolean isWritableFile(Path path) throws IOException {
-        File f = path.toFile();
-        checkFileExists(f);
-        return f.canWrite();
     }
 
     private Void doSeal(SegmentHandle handle) throws IOException {
@@ -348,7 +338,7 @@ public class FileSystemStorage implements SyncStorage {
         long length = Files.size(sourcePath);
         try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
-            if (isWritableFile(sourcePath)) {
+            if (isWritable(sourcePath)) {
                 throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
             while (length > 0) {
@@ -412,23 +402,32 @@ public class FileSystemStorage implements SyncStorage {
 
     //region File System Abstractions
 
-    private void setReadOnly(Path p) throws IOException {
+    @SneakyThrows(FileNotFoundException.class)
+    private boolean isWritable(Path path) {
+        File f = path.toFile();
+        checkFileExists(f);
+        return f.canWrite();
+    }
+
+    private void setReadOnly(Path p) throws FileNotFoundException {
         File f = p.toFile();
         checkFileExists(f);
         f.setWritable(false, true);
     }
 
-    private void setReadWrite(Path p) throws IOException {
+    private void setReadWrite(Path p) throws FileNotFoundException {
         File f = p.toFile();
         checkFileExists(f);
         f.setWritable(true, true);
     }
 
     private void createFile(Path p) throws IOException {
+        Files.createDirectories(p.getParent());
         File f = Files.createFile(p).toFile();
         f.setReadable(true, false);
         f.setExecutable(false, false);
-        f.setWritable(true, true);
+        f.setWritable(false, false); // All users.
+        f.setWritable(true, true); // This user only.
     }
 
     private void deleteFile(Path p) throws IOException {
@@ -440,7 +439,7 @@ public class FileSystemStorage implements SyncStorage {
         }
     }
 
-    private void checkFileExists(File f) throws IOException {
+    private void checkFileExists(File f) throws FileNotFoundException {
         if (!f.exists()) {
             throw new FileNotFoundException(f.getAbsolutePath());
         }
