@@ -759,8 +759,7 @@ def getProjectVersion() {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"
-        int curTime = new Date().getTime()/1000
-        ver = versionLabel + "-" + count + "." + commitId + "-" + curTime + "-SNAPSHOT"
+        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
     }
     return ver
 }
