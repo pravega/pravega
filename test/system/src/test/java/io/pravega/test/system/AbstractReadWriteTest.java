@@ -52,22 +52,24 @@ abstract class AbstractReadWriteTest {
     }
 
     private <T> int readEvents(EventStreamReader<T> reader) {
-        EventRead<T> event;
+        EventRead<T> event = null;
         int validEvents = 0;
-        try {
-            do {
+        boolean reinitializationRequired;
+        do {
+            try {
                 event = reader.readNextEvent(READ_TIMEOUT);
                 log.debug("Read event result in readEvents: {}.", event.getEvent());
                 if (event.getEvent() != null) {
                     validEvents++;
                 }
-            } while (event.getEvent() != null || event.isCheckpoint());
-        } catch (ReinitializationRequiredException e) {
-            throw new RuntimeException(e);
-        } finally {
-            reader.close();
-        }
+                reinitializationRequired = false;
+            } catch (ReinitializationRequiredException e) {
+                log.warn("Reinitialization of readers required: {}.", e);
+                reinitializationRequired = true;
+            }
+        } while (reinitializationRequired || event.getEvent() != null || event.isCheckpoint());
 
+        reader.close();
         return validEvents;
     }
 }
