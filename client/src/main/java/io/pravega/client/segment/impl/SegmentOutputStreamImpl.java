@@ -108,6 +108,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ReusableFutureLatch<ClientConnection> setupConnection = new ReusableFutureLatch<>();
         private final ReusableLatch waitingInflight = new ReusableLatch(true);
         private final AtomicBoolean sealEncountered = new AtomicBoolean();
+        private final AtomicBoolean noSuchSegmentEncountered = new AtomicBoolean();
 
         /**
          * Block until all events are acked by the server.
@@ -315,6 +316,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
                     noSuchSegment.getSegment(), writerId);
+            //update state indicating that no such segment was encountered.
+            state.noSuchSegmentEncountered.getAndSet(true);
             retryOnWriteFail(noSuchSegment);
         }
 
@@ -487,6 +490,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
+            if (state.noSuchSegmentEncountered.get()) {
+                throw new NoSuchSegmentException(segmentName + " is not present due to truncation or deletion.");
+            }
             if (state.sealEncountered.get()) {
                 throw new SegmentSealedException(segmentName + " sealed");
             }

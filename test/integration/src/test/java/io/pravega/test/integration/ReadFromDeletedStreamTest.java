@@ -54,11 +54,12 @@ public class ReadFromDeletedStreamTest {
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         // Mocking pravega service by putting scale up and scale down requests for the stream
-        @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                                                                          EventWriterConfig.builder().build());
         test.writeEvent("0", "foo").get();
         streamManager.deleteStream("test", "test");
         AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.writeEvent("0", "foo").get());
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.flush());
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.close());
     }
 }

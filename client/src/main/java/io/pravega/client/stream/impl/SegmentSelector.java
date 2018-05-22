@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -82,9 +83,11 @@ public class SegmentSelector {
     public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
             segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
-                controller.getSuccessors(sealedSegment), RuntimeException::new);
-        return updateSegmentsUponSealed(currentSegments.withReplacementRange(successors), sealedSegment,
-                segmentSealedCallback);
+                controller.getSuccessors(sealedSegment), t -> {
+                    log.error("Error while fetching successors for segment: {}", sealedSegment, t);
+                    return null;
+                });
+        return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
     }
 
     /**
@@ -126,14 +129,22 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    private List<PendingEvent> updateSegmentsUponSealed(StreamSegments newStreamSegments, Segment sealedSegment,
+    private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
-        currentSegments = newStreamSegments;
-        createMissingWriters(segmentSealedCallback, newStreamSegments.getDelegationToken());
-        log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, newStreamSegments);
-        List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
-        writers.remove(sealedSegment); //remove this sealed segment writer.
-        return toResend;
+        if (successors == null || successors.getReplacementRanges().isEmpty()) {
+            //stream is deleted.
+            writers.get(sealedSegment).getUnackedEventsOnSeal()
+                    .forEach(pendingEvent -> pendingEvent.getAckFuture()
+                            .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
+            return Collections.emptyList();
+        } else {
+            currentSegments = currentSegments.withReplacementRange(successors);
+            createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
+            log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
+            List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
+            writers.remove(sealedSegment); //remove this sealed segment writer.
+            return toResend;
+        }
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {

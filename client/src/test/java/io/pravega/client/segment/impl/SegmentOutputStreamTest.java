@@ -795,11 +795,11 @@ public class SegmentOutputStreamTest {
 
         //Simulate a No Such Segment while waiting on flush.
         AssertExtensions.assertBlocks(() -> {
-            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+            AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT));
             output.getUnackedEventsOnSeal();
         });
-        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> output.flush());
     }
 }
