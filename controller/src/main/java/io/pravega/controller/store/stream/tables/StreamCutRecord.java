@@ -10,8 +10,7 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.tables.serializers.CompletedTxnRecordSerializer;
+import io.pravega.controller.store.stream.tables.serializers.StreamCutRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,23 +18,38 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.Map;
 
+/**
+ * This is data class for storing stream cut with time when the cut was computed.
+ * And the size of data being cut.
+ */
 @Data
 @Builder
 @AllArgsConstructor
 @Slf4j
-public class CompletedTxnRecord {
-    public static final CompletedTxnRecordSerializer SERIALIZER = new CompletedTxnRecordSerializer();
+public class StreamCutRecord {
+    public static final StreamCutRecordSerializer SERIALIZER = new StreamCutRecordSerializer();
 
-    private final long completeTime;
-    private final TxnStatus completionStatus;
+    /**
+     * Time when this stream cut was recorded.
+     */
+    final long recordingTime;
+    /**
+     * Amount of data in the stream preceeding this cut.
+     */
+    final long recordingSize;
+    /**
+     * Actual Stream cut.
+     */
+    final Map<Integer, Long> streamCut;
 
-    public static class CompletedTxnRecordBuilder implements ObjectBuilder<CompletedTxnRecord> {
+    public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static CompletedTxnRecord parse(final byte[] data) {
+    public static StreamCutRecord parse(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
