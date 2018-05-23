@@ -97,7 +97,7 @@ abstract class AbstractFailoverTests {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
-        private final Map<String, AtomicLong> eventOrder = new HashMap<>();
+        private final Map<String, AtomicLong> routingKeySeqNumber = new HashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -127,27 +127,26 @@ abstract class AbstractFailoverTests {
          * This method checks for the strict ordering and uniqueness of events written in a given routing key. That is,
          * the content of events is generated following the pattern routingKey:seq_number, where seq_number is
          * monotonically increasing for every routing key, being the expected increment between consecutive seq_number
-         * values always 1. Every time a reader reads an event, this method is executed: it updates shared map across
-         * all the readers (eventOrder) in which keys are routing keys of writers and values the most recent seq_number.
-         * If a reader gets a new event for a key already initialized in the map, the method asserts that the new value
-         * is equal to the existing seq_number + 1. This ensures that readers receive events in the same order that
-         * writers produced them and that there are no duplicate or missing events.
+         * values always 1. Every time a reader reads an event, this method is executed: it updates a shared map across
+         * all the readers (routingKeySeqNumber) in which keys are routing keys of writers and values the most recent
+         * seq_number. If a reader gets a new event for a key already initialized in the map, the method asserts that
+         * the new value is equal to the existing seq_number + 1. This ensures that readers receive events in the same
+         * order that writers produced them and that there are no duplicate or missing events.
          *
          * @param routingKey Routing key where a writer is writing a sequence of events.
          * @param seqNumber New value read from the stream for the given routing key.
          */
         void checkOrder(String routingKey, long seqNumber) {
-            if (!eventOrder.containsKey(routingKey)) {
-                eventOrder.put(routingKey, new AtomicLong(seqNumber));
+            if (!routingKeySeqNumber.containsKey(routingKey)) {
+                routingKeySeqNumber.put(routingKey, new AtomicLong(seqNumber));
             } else {
-                Assert.assertEquals("Event order violated:", eventOrder.get(routingKey).get() + 1, seqNumber);
-                eventOrder.get(routingKey).set(seqNumber);
+                Assert.assertEquals("Event order violated:", routingKeySeqNumber.get(routingKey).get() + 1, seqNumber);
+                routingKeySeqNumber.get(routingKey).set(seqNumber);
             }
         }
 
         void checkForAnomalies() {
             boolean failed = false;
-
             long eventReadCount = getEventReadCount();
             long eventWrittenCount = getEventWrittenCount();
             if (eventReadCount != eventWrittenCount) {
@@ -187,7 +186,6 @@ abstract class AbstractFailoverTests {
     }
 
     void performFailoverTest() throws ExecutionException {
-
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
         long currentWriteCount1 = testState.getEventWrittenCount();
         long currentReadCount1 = testState.getEventReadCount();
@@ -247,7 +245,6 @@ abstract class AbstractFailoverTests {
     }
 
     void performFailoverForTestsInvolvingTxns() throws ExecutionException {
-
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
         log.info("Read count: {}, write count: {} without any failover",
                 testState.getEventReadCount(), testState.getEventWrittenCount());
@@ -397,12 +394,12 @@ abstract class AbstractFailoverTests {
                     testState.getEventReadCount(), testState.getEventWrittenCount());
             while (!(testState.stopReadFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
                 log.info("Entering read loop");
-                // exit only if exitFlag is true  and read Count equals write count.
+                // Exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final String event = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
                     log.debug("Reading event {}", event);
                     if (event != null) {
-                        //Event content is [routing_key:seq_number] to verify event order for a routing key
+                        // Event content is [routing_key:seq_number] to verify event order for a routing key.
                         final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
                         final long longEvent = Long.valueOf(keyAndSeqNum[1]);
                         testState.checkOrder(keyAndSeqNum[0], longEvent);
@@ -452,7 +449,6 @@ abstract class AbstractFailoverTests {
         log.debug("Create scope status {}", createScopeStatus);
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.debug("Create stream status {}", createStreamStatus);
-
     }
 
     void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
