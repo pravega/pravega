@@ -171,7 +171,7 @@ public class ControllerServiceWithZKStreamTest {
         assertEquals(0, successorsOfSeg0.size()); //no segments follow segment 0
     }
 
-    @Test // shivesh(timeout = 50000)
+    @Test(timeout = 50000)
     public void streamCutTests() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
@@ -292,7 +292,7 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
-        assertEquals(2, segments.size());
+        assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
                 x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(6)));
 
@@ -309,10 +309,9 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
-        assertEquals(7, segments.size());
+        assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(6)));
     }
 
     private void testToBeforeFrom(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut56) {
