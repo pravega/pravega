@@ -13,6 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.lang.AtomicBigLong;
+import io.pravega.common.lang.BigLong;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;

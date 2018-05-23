@@ -53,8 +53,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.BigLong;
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.AtomicBigLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -929,45 +927,6 @@ public abstract class StreamMetadataStoreTest {
         StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, map5);
         store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
         // endregion
-    }
-
-    @Test
-    public void bigLongTest() {
-        BigLong counter = new BigLong(0, 1L);
-        BigLong counter2 = new BigLong(0, 1L);
-        BigLong counter3 = new BigLong(0, 2L);
-        BigLong counter4 = new BigLong(1, 1L);
-        BigLong counter5 = new BigLong(1, Long.MAX_VALUE - 1);
-
-        // comparison
-        assertTrue(counter.compareTo(counter2) == 0);
-        assertTrue(counter.compareTo(counter3) < 0);
-        assertTrue(counter.compareTo(counter4) < 0);
-        assertTrue(counter4.compareTo(counter3) > 0);
-
-        // tobytes and frombytes
-        assertEquals(counter, BigLong.fromBytes(counter.toBytes()));
-
-        // add
-        BigLong added = BigLong.add(counter, 100);
-        assertEquals(0, added.getMsb());
-        assertEquals(101, added.getLsb());
-
-        BigLong added2 = BigLong.add(counter5, 100);
-        assertEquals(2, added2.getMsb());
-        assertEquals(99, added2.getLsb());
-    }
-
-    @Test
-    public void atomicBigLongTest() {
-        AtomicBigLong atomicCounter = new AtomicBigLong();
-        AtomicBigLong atomicCounter2 = new AtomicBigLong(0, 1L);
-        assertEquals(BigLong.ZERO, atomicCounter.get());
-        assertEquals(new BigLong(0, 1L), atomicCounter2.get());
-
-        BigLong counter = atomicCounter.incrementAndGet();
-        assertEquals(counter, atomicCounter.get());
-        assertEquals(new BigLong(0, 1L), counter);
     }
 }
 
