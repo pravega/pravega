@@ -13,7 +13,7 @@ There are three basic interfaces: StatsProvider, StatsLogger (short for Statisti
 StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
 ## 1.1. Metrics Service Provider — Interface StatsProvider
 The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we have support for CSV reporter and StatsD reporter.
-```
+```java
 public interface StatsProvider {
     void start(MetricsConfig conf);
     void close();
@@ -26,7 +26,7 @@ public interface StatsProvider {
 
 ## 1.2. Example for starting a Metric service
 This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
-```
+```java
 public final class ServiceStarter {
     ...
     private StatsProvider statsProvider;
@@ -53,7 +53,7 @@ public final class ServiceStarter {
 ```
 ## 1.3. Metric Logger — interface StatsLogger
 Using this interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
-```
+```java
 public interface StatsLogger {
     OpStatsLogger createStats(String name);
     Counter createCounter(String name);
@@ -66,7 +66,7 @@ public interface StatsLogger {
 
 ### 1.3.1. Metric Sub Logger — OpStatsLogger
 OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each operation.
-```
+```java
 public interface OpStatsLogger {
     void reportSuccessEvent(Duration duration);
     void reportFailEvent(Duration duration);
@@ -81,7 +81,7 @@ public interface OpStatsLogger {
 
 ### 1.3.2. Example for Counter and OpStatsLogger(Timer/Histograms)
 This is an example from io.pravega.segmentstore.server.host.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
-```
+```java
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
     …
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(""); < === 1, get a statsLogger
@@ -167,7 +167,7 @@ t,count
 
 ### 1.3.4. Example for Gauge metrics
 This is an example from io.pravega.segmentstore.server.host.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
-```
+```java
 public class AppendProcessor extends DelegatingRequestProcessor {
     ...
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < === 1. get logger from MetricsProvider
@@ -198,7 +198,7 @@ Reporters are the way through which we export all the measurements being made by
 CSV reporter will export each Metric out into one file. 
 StatsD reporter will export Metrics through UDP/TCP to a StatsD server.
 The reporter could be configured through MetricsConfig.
-```
+```java
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
@@ -220,12 +220,12 @@ public class MetricsConfig extends ComponentConfig {
 
 # 3. Steps to add your own Metrics
 * Step 1. When start a segment store/controller service, start a Metrics service as a sub service. Reference above example in ServiceStarter.start()
-```
+```java
         statsProvider = MetricsProvider.getProvider();
         statsProvider.start(metricsConfig);    
 ```
 * Step 2. In the class that need Metrics: get StatsLogger through MetricsProvider; then get Metrics from StatsLogger; at last report it at the right place.
-```
+```java
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < === 1
     public static class Metrics { < === 2
         static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
