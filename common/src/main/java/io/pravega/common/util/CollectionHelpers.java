@@ -67,9 +67,10 @@ public final class CollectionHelpers {
      *
      * @param source      The IndexedMap to search on. The Entries in this map must be sorted by Key, otherwise the outcome
      *                    of this method will be undefined.
-     * @param keys        A Collection containing Keys to search on. This collection need not be sorted.
-     * @param result      A Map that will contain the results. Only Keys that are present in the given source will be populated
-     *                    here.
+     * @param keys        A Collection containing Keys to search for. This collection need not be sorted.
+     * @param result      A Map that where results will be populated into. Only Keys that are present in the given source
+     *                    will be added here, and only if they are found during the search (if they're already present in
+     *                    the given Map, they will be overridden with the new values found here).
      * @param <KeyType>   Type of the Keys.
      * @param <ValueType> Type of the values.
      * @return True if at least one Key from "keys" was found, false otherwise.
