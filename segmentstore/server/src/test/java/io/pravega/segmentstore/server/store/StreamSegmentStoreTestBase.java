@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -58,6 +59,7 @@ import org.junit.rules.Timeout;
 /**
  * Base class for any test that verifies the functionality of a StreamSegmentStore class.
  */
+@Slf4j
 public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //region Test Configuration
 
@@ -230,7 +232,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (String segmentName : segmentNames) {
             // Add half the attribute updates now.
             for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
+                int completedIterations = i;
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.debug("Completed attrs {}", completedIterations);
+                }));
             }
 
             // Add some appends.
@@ -239,12 +244,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                int completedIterations = i;
+                segmentFutures.add(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.info("Completed append {}", completedIterations);
+                }));
             }
 
             // Add the rest of the attribute updates.
             for (int i = 0; i < halfAttributeCount; i++) {
-                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT));
+                int completedIterations = i;
+                segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
+                    log.info("Completed second attr {}", completedIterations);
+                }));
             }
         }
 
@@ -360,6 +371,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     private void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
                                     boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
+        log.info("Checking segment status");
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
