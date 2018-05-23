@@ -22,7 +22,7 @@ to change. The total number of segments can also change when the configuration
 of the reader group changes, for example, when it adds or removes a stream.
 
 The method for subscribing to segment notifications is shown below
-```
+```java
 @Cleanup
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
@@ -58,7 +58,7 @@ data with a batch job where the application wants to read data of sealed
 stream(s).
 
 The method for subscribing to end of data notifications is shown below
-```
+```java
 @Cleanup
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
