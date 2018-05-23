@@ -31,6 +31,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.util.HashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import java.net.URI;
@@ -39,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +57,7 @@ abstract class AbstractFailoverTests {
 
     static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
     static final String SCALE_STREAM = "testReadWriteAndScaleStream";
+    static final String RK_VALUE_SEPARATOR = ":";
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
@@ -74,8 +75,6 @@ abstract class AbstractFailoverTests {
     Controller controller;
     TestState testState;
 
-    static final String RK_VALUE_SEPARATOR = ":";
-
     static class TestState {
         //read and write count variables
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
@@ -84,81 +83,73 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         //list of all writer's futures
-        final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<>());
         //list of all reader's futures
-        final List<CompletableFuture<Void>> readers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        final List<CompletableFuture<Void>> readers = synchronizedList(new ArrayList<>());
         final List<CompletableFuture<Void>> writersListComplete = synchronizedList(new ArrayList<>());
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
-
         final ConcurrentSet<UUID> committingTxn = new ConcurrentSet<>();
         final ConcurrentSet<UUID> abortedTxn = new ConcurrentSet<>();
-        final AtomicLong eventData = new AtomicLong();
         final boolean txnWrite;
 
-        private final ConcurrentHashMap<Long, Integer> eventMap = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<String, AtomicLong> eventOrder = new ConcurrentHashMap<>();
+        final AtomicLong writtenEvents = new AtomicLong();
+        final AtomicLong readEvents = new AtomicLong();
+        private final Map<String, AtomicLong> eventOrder = new HashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
         }
 
-        void eventWritten(Long event) {
-            eventMap.putIfAbsent(event, 0);
+        long incrementTotalWrittenEvents() {
+            return writtenEvents.getAndIncrement();
         }
 
-        void eventRead(Long event) {
-            eventMap.compute(event, (x, y) -> {
-                if (y == null) {
-                    return 1;
-                } else {
-                    return y + 1;
-                }
-            });
+        long incrementTotalWrittenEvents(int increment) {
+            return writtenEvents.getAndAdd(increment);
         }
 
-        void checkOrder(String key, long count) {
-            if (!eventOrder.containsKey(key)) {
-                eventOrder.put(key, new AtomicLong(count));
+        long incrementTotalReadEvents() {
+            return readEvents.getAndIncrement();
+        }
+
+        long getEventWrittenCount() {
+            return writtenEvents.get();
+        }
+
+        long getEventReadCount() {
+            return readEvents.get();
+        }
+
+        /**
+         * This method checks for the strict ordering and uniqueness of events written in a given routing key. That is,
+         * the content of events is generated following the pattern routingKey:seq_number, where seq_number is
+         * monotonically increasing for every routing key, being the expected increment between consecutive seq_number
+         * values always 1. Every time a reader reads an event, this method is executed: it updates shared map across
+         * all the readers (eventOrder) in which keys are routing keys of writers and values the most recent seq_number.
+         * If a reader gets a new event for a key already initialized in the map, the method asserts that the new value
+         * is equal to the existing seq_number + 1. This ensures that readers receive events in the same order that
+         * writers produced them and that there are no duplicate or missing events.
+         *
+         * @param routingKey Routing key where a writer is writing a sequence of events.
+         * @param seqNumber New value read from the stream for the given routing key.
+         */
+        void checkOrder(String routingKey, long seqNumber) {
+            if (!eventOrder.containsKey(routingKey)) {
+                eventOrder.put(routingKey, new AtomicLong(seqNumber));
             } else {
-                // The new event for a given routing key should be exactly +1 compared to the existing value.
-                Assert.assertEquals("Event order violated:", eventOrder.get(key).get() + 1, count);
-                eventOrder.get(key).set(count);
+                Assert.assertEquals("Event order violated:", eventOrder.get(routingKey).get() + 1, seqNumber);
+                eventOrder.get(routingKey).set(seqNumber);
             }
-        }
-
-        Long getNext() {
-            return eventData.getAndIncrement();
-        }
-
-        int getEventWrittenCount() {
-            return eventMap.size();
-        }
-
-        int getEventReadCount() {
-            return eventMap.values().stream().mapToInt(Integer::intValue).sum();
         }
 
         void checkForAnomalies() {
             boolean failed = false;
-            List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
-                    .map(Map.Entry::getKey).collect(Collectors.toList());
-            if (notRead.size() > 0) {
-                failed = true;
-                log.error("Anomalies, unread events => {}", notRead);
-            }
 
-            Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            if (duplicates.size() > 0) {
-                failed = true;
-                log.error("Anomalies, duplicate events with count => {}", duplicates);
-            }
-
-            int eventReadCount = getEventReadCount();
-            int eventWrittenCount = getEventWrittenCount();
+            long eventReadCount = getEventReadCount();
+            long eventWrittenCount = getEventWrittenCount();
             if (eventReadCount != eventWrittenCount) {
                 failed = true;
                 log.error("Read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
@@ -174,10 +165,6 @@ abstract class AbstractFailoverTests {
                 log.error("Txn aborted: {}", abortedTxn);
             }
             assertFalse("Test Failed", failed);
-        }
-
-        void eventsWritten(List<Long> eventsWritten) {
-            eventsWritten.forEach(event -> eventMap.putIfAbsent(event, 0));
         }
 
         public void cancelAllPendingWork() {
@@ -226,7 +213,7 @@ abstract class AbstractFailoverTests {
 
         currentWriteCount1 = testState.getEventWrittenCount();
         currentReadCount1 = testState.getEventReadCount();
-        log.info("Read count: {}, write count: {} after Segment Store  failover after sleep", currentReadCount1, currentWriteCount1);
+        log.info("Read count: {}, write count: {} after Segment Store failover after sleep", currentReadCount1, currentWriteCount1);
         //ensure writes are happening
         assertTrue(currentWriteCount1 > currentWriteCount2);
         //ensure reads are happening
@@ -251,7 +238,7 @@ abstract class AbstractFailoverTests {
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
-        log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
+        log.info("Scaling down to 1 controller, 1 Segment Store instance");
 
         currentWriteCount1 = testState.getEventWrittenCount();
         currentReadCount1 = testState.getEventReadCount();
@@ -302,16 +289,18 @@ abstract class AbstractFailoverTests {
     CompletableFuture<Void> startWriting(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
             final String uniqueRoutingKey = UUID.randomUUID().toString();
+            long value = 0;
             while (!testState.stopWriteFlag.get()) {
                 try {
-                    long value = testState.getNext();
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
-                    log.debug("Event write count before write call {}", value);
-                    writer.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + value);
-                    log.debug("Event write count before flush {}", value);
+                    final String eventContent = uniqueRoutingKey + RK_VALUE_SEPARATOR + value;
+                    log.debug("Event write count before write call {}", eventContent);
+                    writer.writeEvent(uniqueRoutingKey, eventContent);
+                    log.debug("Event write count before flush {}", eventContent);
                     writer.flush();
-                    testState.eventWritten(value);
-                    log.debug("Writing event {}", value);
+                    testState.incrementTotalWrittenEvents();
+                    log.debug("Writing event {}", eventContent);
+                    value++;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
@@ -343,31 +332,28 @@ abstract class AbstractFailoverTests {
         }
     }
 
-
     CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
             final String uniqueRoutingKey = UUID.randomUUID().toString();
+            long value = 0;
             while (!testState.stopWriteFlag.get()) {
                 Transaction<String> transaction = null;
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
-                    List<Long> eventsInTxn = new ArrayList<>(NUM_EVENTS_PER_TRANSACTION);
                     transaction = writer.beginTxn();
-
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
-                        long value = testState.getNext();
-                        eventsInTxn.add(value);
                         transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + value);
                         log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + value,
                                 transaction.getTxnId());
+                        value++;
                     }
                     //commit Txn
                     transaction.commit();
                     txnIsDone.set(true);
 
                     //wait for transaction to get committed
-                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, eventsInTxn));
+                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, NUM_EVENTS_PER_TRANSACTION));
                 } catch (Throwable e) {
                     // Given that we have retry logic both in the interaction with controller and
                     // segment store, we should fail the test case in the presence of any exception
@@ -385,14 +371,13 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    private CompletableFuture<Void> checkTxnStatus(Transaction<String> txn,
-                                                   final List<Long> eventsWritten) {
+    private CompletableFuture<Void> checkTxnStatus(Transaction<String> txn, int eventsWritten) {
         testState.committingTxn.add(txn.getTxnId());
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
             Transaction.Status status = txn.checkStatus();
             log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
-                testState.eventsWritten(eventsWritten);
+                testState.incrementTotalWrittenEvents(eventsWritten);
                 testState.committingTxn.remove(txn.getTxnId());
                 log.info("Event write count: {}", testState.getEventWrittenCount());
             } else if (status.equals(Transaction.Status.ABORTED)) {
@@ -417,11 +402,11 @@ abstract class AbstractFailoverTests {
                     final String event = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
                     log.debug("Reading event {}", event);
                     if (event != null) {
-                        final String key = event.split(RK_VALUE_SEPARATOR)[0];
-                        final long longEvent = Long.valueOf(event.split(RK_VALUE_SEPARATOR)[1]);
-                        //update if event read is not null.
-                        testState.eventRead(longEvent);
-                        testState.checkOrder(key, longEvent);
+                        //Event content is [routing_key:seq_number] to verify event order for a routing key
+                        final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
+                        final long longEvent = Long.valueOf(keyAndSeqNum[1]);
+                        testState.checkOrder(keyAndSeqNum[0], longEvent);
+                        testState.incrementTotalReadEvents();
                         log.debug("Event read count {}", testState.getEventReadCount());
                     } else {
                         log.debug("Read timeout");
