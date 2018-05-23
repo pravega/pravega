@@ -51,7 +51,7 @@ public class SegmentRangeImpl implements SegmentRange {
 
     @Override
     public long getSegmentId() {
-        return segment.getSegmentId();
+        return segment.getSegmentNumber();
     }
 
     @Override

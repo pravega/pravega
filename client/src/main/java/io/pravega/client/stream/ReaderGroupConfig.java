@@ -205,9 +205,9 @@ public class ReaderGroupConfig implements Serializable {
                                 "Segment offset in startStreamCut should be <= segment offset in endStreamCut."));
 
            val fromSCSummary = startPositions.keySet()
-                                             .stream().collect(summarizingLong(Segment::getSegmentId));
+                                             .stream().collect(summarizingLong(Segment::getSegmentNumber));
            val toSCSummary = endPositions.keySet()
-                                         .stream().collect(summarizingLong(Segment::getSegmentId));
+                                         .stream().collect(summarizingLong(Segment::getSegmentNumber));
            Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
                    "Start stream cut must precede end stream cut.");
            Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
