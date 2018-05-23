@@ -86,11 +86,6 @@ public class StreamSegmentNameUtilsTests {
     public void testQualifiedStreamSegmentName() {
         long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
-        List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
-        assertEquals(3, tokens.size());
-        assertEquals("scope", tokens.get(0));
-        assertEquals("stream", tokens.get(1));
-        assertEquals(Long.toString(segmentId), tokens.get(2));
 
         UUID transactionId = UUID.randomUUID();
         String txnSegment = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, transactionId);
@@ -106,5 +101,12 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testSegmentTokens() {
+        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
+        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+        List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(qualifiedName);
+        assertEquals(3, tokens.size());
+        assertEquals("scope", tokens.get(0));
+        assertEquals("stream", tokens.get(1));
+        assertEquals(Long.toString(segmentId), tokens.get(2));
     }
 }
