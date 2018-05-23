@@ -253,7 +253,7 @@ public class ScaleRequestHandlerTest {
         EventWriterMock writer = new EventWriterMock();
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamMetadataTasks, streamStore, executor);
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler, commitEventProcessor,
                 null, null, null, null, executor);

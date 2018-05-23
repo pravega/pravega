@@ -98,7 +98,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
-                new CommitTransactionTask(streamMetadataTasks, streamStore, executorService),
+                new CommitTransactionTask(streamStore, streamMetadataTasks, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),

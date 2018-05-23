@@ -150,7 +150,7 @@ public class StreamMetadataTasksTest {
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new CommitTransactionTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new CommitTransactionTask(streamStorePartialMock, streamMetadataTasks, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),

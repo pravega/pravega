@@ -102,7 +102,7 @@ public class ControllerServiceWithZKStreamTest {
                 segmentHelperMock, executor, "host", connectionFactory, false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                new CommitTransactionTask(streamMetadataTasks, streamStore, executor),
+                new CommitTransactionTask(streamStore, streamMetadataTasks, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executor),

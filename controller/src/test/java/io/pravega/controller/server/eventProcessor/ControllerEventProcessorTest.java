@@ -111,7 +111,7 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamMetadataTasks, streamStore, executor);
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
         commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
@@ -127,7 +127,7 @@ public class ControllerEventProcessorTest {
         // this should be postponed
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamMetadataTasks, streamStore, executor);
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
         commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
@@ -151,7 +151,7 @@ public class ControllerEventProcessorTest {
         int epoch = txnDataList1.get(0).getEpoch();
         streamStore.createTxnCommitList(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamMetadataTasks, streamStore, executor);
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
 
         Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
         AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
