@@ -93,7 +93,7 @@ public class SegmentSelector {
         if (successors == null) {
             // Stream is deleted, complete all pending writes exceptionally.
             executor.execute(() -> {
-                log.error("Pending writes for Segment: {} are completed with NoSuchSegmentException", sealedSegment);
+                log.error("Pending writes for Segment: {} completed with NoSuchSegmentException", sealedSegment);
                 getPendingsEvent(sealedSegment)
                         .forEach(event -> event.getAckFuture()
                                 .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));

@@ -9,10 +9,16 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableList;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
+
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -21,9 +27,12 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public class SegmentSelectorTest extends ThreadPooledTestSuite {
 
@@ -44,7 +53,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -71,7 +80,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -98,7 +107,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -109,6 +118,48 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
             counts[segment.getSegmentNumber()]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
+    }
+
+    @Test
+    public void testStreamDeletion() {
+        final Segment segment0 = new Segment(scope, streamName, 0);
+        final Segment segment1 = new Segment(scope, streamName, 1);
+        final CompletableFuture<Void> writerFuture = new CompletableFuture<>();
+
+        // Setup Mock.
+        SegmentOutputStream s0Writer = Mockito.mock(SegmentOutputStream.class);
+        SegmentOutputStream s1Writer = Mockito.mock(SegmentOutputStream.class);
+        when(s0Writer.getUnackedEventsOnSeal())
+                .thenReturn(ImmutableList.of(new PendingEvent("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
+
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        when(factory.createOutputStreamForSegment(eq(segment0), any(Consumer.class), any(EventWriterConfig.class), anyString()))
+                .thenReturn(s0Writer);
+        when(factory.createOutputStreamForSegment(eq(segment1), any(Consumer.class), any(EventWriterConfig.class), anyString()))
+                .thenReturn(s1Writer);
+
+        Controller controller = Mockito.mock(Controller.class);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config, executorService());
+        TreeMap<Double, Segment> segments = new TreeMap<>();
+        segments.put(0.5, segment0);
+        segments.put(1.0, segment1);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        //trigger refresh.
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
+
+        //simulate stream deletion where controller.getSuccessors() is completed exceptionally.
+        when(controller.getSuccessors(segment0))
+                .thenAnswer(i -> {
+                    CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
+                    result.completeExceptionally(new RuntimeException());
+                    return result;
+                });
+
+        assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
+        assertThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
     }
 
 }

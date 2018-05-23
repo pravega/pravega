@@ -54,6 +54,7 @@ public class ReadFromDeletedStreamTest {
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         // Mocking pravega service by putting scale up and scale down requests for the stream
+        @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                                                                          EventWriterConfig.builder().build());
         test.writeEvent("0", "foo").get();

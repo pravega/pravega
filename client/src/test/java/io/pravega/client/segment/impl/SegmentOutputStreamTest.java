@@ -25,7 +25,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.InlineExecutor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -36,6 +35,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -56,7 +57,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
-public class SegmentOutputStreamTest {
+public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
     private static final String SEGMENT = "test/0";
     private static final int SERVICE_PORT = 12345;
@@ -72,9 +73,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -190,9 +189,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -210,9 +207,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
@@ -270,9 +265,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -419,9 +412,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -477,9 +468,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -531,9 +520,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -560,9 +547,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -587,9 +572,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -773,9 +756,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
