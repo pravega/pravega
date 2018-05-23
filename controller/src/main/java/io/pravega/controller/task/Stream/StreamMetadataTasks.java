@@ -62,6 +62,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -71,12 +72,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
 import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -295,7 +299,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
                         .stream()
                         .parallel()
-                        .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber(), delegationToken)))))
+                        .collect(Collectors.toMap(Segment::getSegmentId, x -> getSegmentOffset(scope, stream, x.getSegmentId(), delegationToken)))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, map, context, executor)
@@ -313,16 +317,17 @@ public class StreamMetadataTasks extends TaskBase {
      * @return update status.
      */
     public CompletableFuture<UpdateStreamStatus.Status> truncateStream(final String scope, final String stream,
-                                                                       final Map<Integer, Long> streamCut,
+                                                                       final Map<Long, Long> streamCut,
                                                                        final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         // 1. get stream cut
-        return startTruncation(scope, stream, streamCut, context)
+        return transformStreamCut(scope, stream, streamCut, contextOpt)
+                .thenCompose(streamCutTransformed -> startTruncation(scope, stream, streamCutTransformed, context)
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                        return checkDone(() -> isTruncated(scope, stream, streamCutTransformed, context))
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn("Unable to start truncation for {}/{}", scope, stream);
@@ -332,10 +337,28 @@ public class StreamMetadataTasks extends TaskBase {
                 .exceptionally(ex -> {
                     log.warn("Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex);
-                });
+                }));
     }
 
-    private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Integer, Long> streamCut, OperationContext contextOpt) {
+    // region temporary
+    private CompletableFuture<Map<Long, Long>> transformStreamCut(String scope, String stream, Map<Long, Long> streamCutOld, OperationContext contextOpt) {
+        return Futures.keysAllOfWithResults(streamCutOld.entrySet().stream().collect(Collectors.toMap(x -> resolveOldSegmentId(scope, stream, x.getKey(), contextOpt), Map.Entry::getValue)));
+    }
+
+    private CompletableFuture<List<Long>> transformSegmentList(String scope, String stream, List<Long> segments, OperationContext contextOpt) {
+        return Futures.allOfWithResults(segments.stream().map(x -> resolveOldSegmentId(scope, stream, x, contextOpt)).collect(Collectors.toList()));
+    }
+
+    public CompletableFuture<Long> resolveOldSegmentId(String scope, String stream, long segmentId, OperationContext contextOpt) {
+        if (getSecondaryId(segmentId) == 0) {
+            return streamMetadataStore.getSegment(scope, stream, segmentId, contextOpt, executor).thenApply(Segment::getSegmentId);
+        } else {
+            return CompletableFuture.completedFuture(segmentId);
+        }
+    }
+    // endregion
+
+    private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
@@ -357,7 +380,7 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Integer, Long> streamCut, OperationContext context) {
+    private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
         return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
                 .thenApply(truncationProp -> !truncationProp.isUpdating() || !truncationProp.getStreamCut().equals(streamCut));
     }
@@ -458,12 +481,13 @@ public class StreamMetadataTasks extends TaskBase {
      * @param context        optional context
      * @return returns the newly created segments.
      */
-    public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Integer> segmentsToSeal,
+    public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Long> segmentsToSeal,
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
-        return writeEvent(event).thenCompose(x ->
-                streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
+        // TODO: remove this transformation in #2469
+        return writeEvent(event).thenCompose(x -> transformSegmentList(scope, stream, segmentsToSeal, context)
+                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToBeSealed, newRanges, scaleTimestamp, false,
                         context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -487,7 +511,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 response.setEpoch(startScaleResponse.getActiveEpoch());
                             }
                             return response.build();
-                        }));
+                        })));
     }
 
     /**
@@ -591,14 +615,16 @@ public class StreamMetadataTasks extends TaskBase {
      * @return returns list of new segments created as part of this scale operation.
      */
     public CompletableFuture<List<Segment>> startScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
-        return withRetries(() -> streamMetadataStore.startScale(scaleInput.getScope(),
-                scaleInput.getStream(),
-                scaleInput.getSegmentsToSeal(),
-                scaleInput.getNewRanges(),
-                scaleInput.getScaleTime(),
-                runOnlyIfStarted,
-                context,
-                executor), executor)
+        // TODO: remove the temporary transformation step after external clients start using new id scheme (issue #2469
+        return withRetries(() -> transformSegmentList(scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal(), context)
+                .thenCompose(segmentsToSeal -> streamMetadataStore.startScale(scaleInput.getScope(),
+                        scaleInput.getStream(),
+                        segmentsToSeal,
+                        scaleInput.getNewRanges(),
+                        scaleInput.getScaleTime(),
+                        runOnlyIfStarted,
+                        context,
+                        executor)), executor)
                 .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(),
                         State.SCALING, context, executor)
                         .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scaleInput.getScope(),
@@ -660,8 +686,8 @@ public class StreamMetadataTasks extends TaskBase {
                     // segments and change the state of the stream to active.
                     if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
                             response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        List<Integer> newSegments = IntStream.range(0, response.getConfiguration().getScalingPolicy()
-                                .getMinNumSegments()).boxed().collect(Collectors.toList());
+                        List<Long> newSegments = IntStream.range(0, response.getConfiguration().getScalingPolicy()
+                                .getMinNumSegments()).boxed().map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0)).collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
@@ -720,40 +746,38 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context, String controllerToken) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration,
-                        segmentNumbers.stream().map(Segment::getNumber).collect(Collectors.toList()), controllerToken));
+                        segmentNumbers.stream().map(Segment::getSegmentId).collect(Collectors.toList()), controllerToken));
     }
 
-    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Integer> segmentNumbers, String controllerToken) {
-        return Futures.toVoid(Futures.allOfWithResults(segmentNumbers
+    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Long> segmentIds, String controllerToken) {
+        return Futures.toVoid(Futures.allOfWithResults(segmentIds
                 .stream()
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken))
                 .collect(Collectors.toList())));
     }
 
-    private CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy, String controllerToken) {
+    private CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy, String controllerToken) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentNumber, policy, hostControllerStore, this.connectionFactory, controllerToken), executor));
+                stream, segmentId, policy, hostControllerStore, this.connectionFactory, controllerToken), executor));
     }
 
-    public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, int count, String delegationToken) {
-        return Futures.allOf(IntStream.range(0, count)
-                                      .parallel()
-                                      .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment, delegationToken))
+    public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {
+        return Futures.allOf(segmentsToDelete.stream().parallel().map(segment -> notifyDeleteSegment(scope, stream, segment, delegationToken))
                                       .collect(Collectors.toList()));
     }
 
-    public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber, String delegationToken) {
+    public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, long segmentId, String delegationToken) {
         return Futures.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
-                stream, segmentNumber, hostControllerStore, this.connectionFactory, delegationToken), executor));
+                stream, segmentId, hostControllerStore, this.connectionFactory, delegationToken), executor));
     }
 
-    public CompletableFuture<Void> notifyTruncateSegment(String scope, String stream, Map.Entry<Integer, Long> segmentCut, String delegationToken) {
+    public CompletableFuture<Void> notifyTruncateSegment(String scope, String stream, Map.Entry<Long, Long> segmentCut, String delegationToken) {
         return Futures.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope,
                 stream, segmentCut.getKey(), segmentCut.getValue(), hostControllerStore, this.connectionFactory, delegationToken), executor));
     }
 
-    public CompletableFuture<Map<Integer, Long>> getSealedSegmentsSize(String scope, String stream, List<Integer> sealedSegments, String delegationToken) {
+    public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> sealedSegments, String delegationToken) {
         return Futures.allOfWithResults(
                 sealedSegments
                         .stream()
@@ -761,17 +785,16 @@ public class StreamMetadataTasks extends TaskBase {
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, delegationToken))));
     }
 
-    public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments, String delegationToken) {
+    public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Long> sealedSegments, String delegationToken) {
         return Futures.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
-                        .map(number -> notifySealedSegment(scope, stream, number, delegationToken))
+                        .map(id -> notifySealedSegment(scope, stream, id, delegationToken))
                         .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment, String delegationToken) {
-
+    private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final long sealedSegment, String delegationToken) {
         return Futures.toVoid(withRetries(() -> segmentHelper.sealSegment(
                 scope,
                 stream,
@@ -785,35 +808,33 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.toVoid(Futures.allOfWithResults(activeSegments
                 .stream()
                 .parallel()
-                .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.getNumber(), delegationToken))
+                .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.getSegmentId(), delegationToken))
                 .collect(Collectors.toList())));
     }
 
-    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, int segmentNumber, String delegationToken) {
+    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, long segmentId, String delegationToken) {
 
         return withRetries(() -> segmentHelper.getSegmentInfo(
                 scope,
                 stream,
-                segmentNumber,
+                segmentId,
                 hostControllerStore,
                 this.connectionFactory, delegationToken), executor)
                 .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
     }
 
-    private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber, String delegationToken) {
-
+    private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, long segmentId, String delegationToken) {
         return withRetries(() -> segmentHelper.updatePolicy(
                 scope,
                 stream,
                 policy,
-                segmentNumber,
+                segmentId,
                 hostControllerStore,
                 this.connectionFactory, delegationToken), executor);
     }
 
     private SegmentRange convert(String scope, String stream, Segment segment) {
-
-        return ModelHelper.createSegmentRange(scope, stream, segment.getNumber(), segment.getKeyEnd(),
+        return ModelHelper.createSegmentRange(scope, stream, segment.getSegmentId(), segment.getKeyEnd(),
                 segment.getKeyEnd());
     }
 

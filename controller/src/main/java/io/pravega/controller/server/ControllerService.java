@@ -54,6 +54,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+
 /**
  * Stream controller RPC server implementation.
  */
@@ -113,7 +115,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,
-                                                                final Map<Integer, Long> streamCut) {
+                                                                final Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(streamCut, "streamCut");
@@ -156,13 +158,13 @@ public class ControllerService {
         // Divide current segments in segmentFutures into at most count positions.
         return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
             return segments.stream()
-                           .map(number -> ModelHelper.createSegmentId(scope, stream, number))
+                           .map(number -> ModelHelper.createSegmentId(scope, stream, getPrimaryId(number)))
                            .collect(Collectors.toMap(id -> id, id -> 0L));
             //TODO: Implement https://github.com/pravega/pravega/issues/191  (Which will supply a value besides 0)
         });
     }
 
-    public CompletableFuture<Map<SegmentRange, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
+    public CompletableFuture<Map<SegmentRange, List<Long>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         OperationContext context = streamStore.createContext(segment.getStreamInfo().getScope(), segment
                 .getStreamInfo().getStream());
@@ -179,26 +181,25 @@ public class ControllerService {
                                 context,
                                 executor)
                                 .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
-                                        segment.getStreamInfo().getStream(),
-                                        seg.getNumber(),
+                                        segment.getStreamInfo().getStream(), getPrimaryId(seg.getSegmentId()),
                                         seg.getKeyStart(),
                                         seg.getKeyEnd())),
-                        Map.Entry::getValue))), executor);
+                        entry -> entry.getValue()))), executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
                                                   final String stream,
-                                                  final List<Integer> sealedSegments,
+                                                  final List<Long> segmentsToSeal,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(sealedSegments, "sealedSegments");
+        Preconditions.checkNotNull(segmentsToSeal, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
 
         return streamMetadataTasks.manualScale(scope,
                                          stream,
-                                         new ArrayList<>(sealedSegments),
+                                         segmentsToSeal,
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),
                                          scaleTimestamp,
                                          null);
@@ -223,9 +224,10 @@ public class ControllerService {
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
+
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                                            segment.getSegmentNumber(), hostStore)
+                        segment.getSegmentNumber(), hostStore)
         );
     }
 
@@ -236,16 +238,16 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
         return ModelHelper.createSegmentRange(
-                scope, stream, segment.getNumber(), segment.getKeyStart(), segment.getKeyEnd());
+                scope, stream, getPrimaryId(segment.getSegmentId()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
-                                                     final int segmentNumber) {
+                                                     final long segmentNumber) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getSegmentId() == segmentNumber), executor);
     }
 
     @SuppressWarnings("ReturnCount")

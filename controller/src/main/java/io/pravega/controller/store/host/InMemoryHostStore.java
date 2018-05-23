@@ -17,8 +17,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.controller.store.stream.Segment.*;
 
 
 @Slf4j
@@ -69,8 +73,8 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     @Synchronized
-    public Host getHostForSegment(String scope, String stream, int segmentNumber) {
-        String qualifiedName = Segment.getScopedName(scope, stream, segmentNumber);
+    public Host getHostForSegment(String scope, String stream, long segmentId) {
+        String qualifiedName = Segment.getScopedName(scope, stream, StreamSegmentNameUtils.getPrimaryId(segmentId));
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
 }

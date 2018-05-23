@@ -184,8 +184,8 @@ public class ModelHelperTest {
     public void createSuccessorResponse() {
         Controller.SegmentRange segmentRange = createSegmentRange(0.1, 0.5);
 
-        Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
-        inputMap.put(segmentRange, Arrays.asList(1));
+        Map<Controller.SegmentRange, List<Long>> inputMap = new HashMap<>(1);
+        inputMap.put(segmentRange, Arrays.asList(1L));
 
         Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());

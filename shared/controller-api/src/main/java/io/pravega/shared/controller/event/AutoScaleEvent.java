@@ -21,7 +21,7 @@ public class AutoScaleEvent implements ControllerEvent {
 
     private final String scope;
     private final String stream;
-    private final int segmentNumber;
+    private final long segmentNumber;
     private final byte direction;
     private final long timestamp;
     private final int numOfSplits;

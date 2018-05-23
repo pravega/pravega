@@ -150,4 +150,38 @@ public final class StreamSegmentNameUtils {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
         return segmentName + OFFSET_SUFFIX + Long.toString(offset);
     }
+
+    /**
+     * Method to compute 64 bit segment id which takes primary id and secondary id and composes it as
+     * `msb = secondary` `lsb = primary`.
+     * Primary id identifies the segment container mappeing and primary + secondary uniquely identifies a segment
+     * within a stream.
+     *
+     * @param primaryId primary part of id.
+     * @param secondaryId secondary part of id.
+     * @return segment id which is composed using primary and secondary ids.
+     */
+    public static long computeSegmentId(int primaryId, int secondaryId) {
+        return (long) secondaryId << 32 | (primaryId & 0xFFFFFFFFL);
+    }
+
+    /**
+     * Method to extract primary id from given segment id.
+     *
+     * @param segmentId segment id.
+     * @return primary part of segment id.
+     */
+    public static int getPrimaryId(long segmentId) {
+        return (int) segmentId;
+    }
+
+    /**
+     * Method to extract secondary id from given segment id.
+     *
+     * @param segmentId segment id.
+     * @return secondary part of segment id.
+     */
+    public static int getSecondaryId(long segmentId) {
+        return (int) (segmentId >> 32);
+    }
 }

@@ -146,7 +146,7 @@ public class StreamCutsTest {
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 1st scaling");
         writer.writeEvent("0", "fpj was here again").get();
@@ -162,9 +162,9 @@ public class StreamCutsTest {
         // Scale down to verify that the number drops back.
         map = new HashMap<>();
         map.put(0.0, 1.0);
-        ArrayList<Integer> toSeal = new ArrayList<>();
-        toSeal.add(1);
-        toSeal.add(2);
+        ArrayList<Long> toSeal = new ArrayList<>();
+        toSeal.add(1L);
+        toSeal.add(2L);
         result = controller.scaleStream(stream, Collections.unmodifiableList(toSeal), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 2nd scaling");
@@ -182,7 +182,7 @@ public class StreamCutsTest {
         map.put(0.25, 0.5);
         map.put(0.5, 0.75);
         map.put(0.75, 1.0);
-        result = controller.scaleStream(stream, Collections.singletonList(3), map, executor).getFuture().get();
+        result = controller.scaleStream(stream, Collections.singletonList(3L), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 3rd scaling");
         writer.writeEvent("0", "fpj was here again").get();

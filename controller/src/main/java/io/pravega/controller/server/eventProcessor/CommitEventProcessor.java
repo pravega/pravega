@@ -32,6 +32,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+
 /**
  * This actor processes commit txn events.
  * It does the following 2 operations in order.
@@ -149,7 +151,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream,
-                                                       final List<Integer> segments, final UUID txnId, String delegationToken) {
+                                                       final List<Long> segments, final UUID txnId, String delegationToken) {
         return Futures.allOf(segments.stream()
                                      .parallel()
                                      .map(segment -> notifyCommitToHost(scope, stream, segment, txnId, delegationToken))
@@ -157,10 +159,10 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream,
-                                                                       final int segment, final UUID txId, String delegationToken) {
+                                                                       final long segment, final UUID txId, String delegationToken) {
         String failureMessage = String.format("Transaction = %s, error sending commit notification for segment %d",
                 txId, segment);
         return Retry.indefinitelyWithExpBackoff(failureMessage).runAsync(() -> segmentHelper.commitTransaction(scope,
-                stream, segment, txId, this.hostControllerStore, this.connectionFactory, delegationToken), executor);
+                stream, getPrimaryId(segment), txId, this.hostControllerStore, this.connectionFactory, delegationToken), executor);
     }
 }

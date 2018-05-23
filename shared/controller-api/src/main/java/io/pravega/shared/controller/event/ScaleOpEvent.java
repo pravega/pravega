@@ -21,12 +21,12 @@ public class ScaleOpEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
-    private final List<Integer> segmentsToSeal;
+    private final List<Long> segmentsToSeal;
     private final List<AbstractMap.SimpleEntry<Long, Long>> newRanges;
     private final boolean runOnlyIfStarted;
     private final long scaleTime;
 
-    public ScaleOpEvent(String scope, String stream, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRange, boolean runOnlyIfStarted, long scaleTime) {
+    public ScaleOpEvent(String scope, String stream, List<Long> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRange, boolean runOnlyIfStarted, long scaleTime) {
         this.scope = scope;
         this.stream = stream;
         this.segmentsToSeal = segmentsToSeal;
