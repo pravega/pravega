@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.lang.BigLong;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
@@ -32,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.BigLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
