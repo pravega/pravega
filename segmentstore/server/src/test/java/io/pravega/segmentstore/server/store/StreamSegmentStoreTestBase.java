@@ -612,7 +612,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // StreamSegmentNotExistsException.
             // This is gracefully handled by retries in AppendProcessor and/or Client, but in this case, we simply have to
             // do the retries ourselves, hoping that the callback eventually executes.
-            Retry.withExpBackoff(100, 2, 5, TIMEOUT.toMillis() / 10)
+            Retry.withExpBackoff(100, 2, 10, TIMEOUT.toMillis() / 5)
                     .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)
                     .run(() -> {
                         checkSegmentReads(segmentName, expectedCurrentOffset, segmentLength, store, expectedData);
