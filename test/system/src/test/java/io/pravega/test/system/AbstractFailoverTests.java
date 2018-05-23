@@ -46,7 +46,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -75,6 +74,7 @@ abstract class AbstractFailoverTests {
     Controller controller;
     TestState testState;
 
+    static final String RK_VALUE_SEPARATOR = ":";
 
     static class TestState {
         //read and write count variables
@@ -99,6 +99,7 @@ abstract class AbstractFailoverTests {
         final boolean txnWrite;
 
         private final ConcurrentHashMap<Long, Integer> eventMap = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, AtomicLong> eventOrder = new ConcurrentHashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -116,6 +117,16 @@ abstract class AbstractFailoverTests {
                     return y + 1;
                 }
             });
+        }
+
+        void checkOrder(String key, long count) {
+            if (!eventOrder.containsKey(key)) {
+                eventOrder.put(key, new AtomicLong(count));
+            } else {
+                // The new event for a given routing key should be exactly +1 compared to the existing value.
+                Assert.assertEquals("Event order violated:", eventOrder.get(key).get() + 1, count);
+                eventOrder.get(key).set(count);
+            }
         }
 
         Long getNext() {
@@ -288,16 +299,15 @@ abstract class AbstractFailoverTests {
                 testState.getEventReadCount(),  testState.getEventWrittenCount());
     }
 
-
-
-    CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
+    CompletableFuture<Void> startWriting(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
+            final String uniqueRoutingKey = UUID.randomUUID().toString();
             while (!testState.stopWriteFlag.get()) {
                 try {
                     long value = testState.getNext();
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
-                    writer.writeEvent(String.valueOf(value), value);
+                    writer.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + value);
                     log.debug("Event write count before flush {}", value);
                     writer.flush();
                     testState.eventWritten(value);
@@ -311,7 +321,7 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    private void closeWriter(EventStreamWriter<Long> writer) {
+    private void closeWriter(EventStreamWriter<String> writer) {
         try {
             log.info("Closing writer");
             writer.close();
@@ -334,10 +344,11 @@ abstract class AbstractFailoverTests {
     }
 
 
-    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
+    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
+            final String uniqueRoutingKey = UUID.randomUUID().toString();
             while (!testState.stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
+                Transaction<String> transaction = null;
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
@@ -347,8 +358,9 @@ abstract class AbstractFailoverTests {
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = testState.getNext();
                         eventsInTxn.add(value);
-                        transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
+                        transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + value);
+                        log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + value,
+                                transaction.getTxnId());
                     }
                     //commit Txn
                     transaction.commit();
@@ -373,7 +385,7 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
+    private CompletableFuture<Void> checkTxnStatus(Transaction<String> txn,
                                                    final List<Long> eventsWritten) {
         testState.committingTxn.add(txn.getTxnId());
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
@@ -394,7 +406,7 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
+    CompletableFuture<Void> startReading(final EventStreamReader<String> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
                     testState.getEventReadCount(), testState.getEventWrittenCount());
@@ -402,11 +414,14 @@ abstract class AbstractFailoverTests {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
-                    log.debug("Reading event {}", longEvent);
-                    if (longEvent != null) {
+                    final String event = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
+                    log.debug("Reading event {}", event);
+                    if (event != null) {
+                        final String key = event.split(RK_VALUE_SEPARATOR)[0];
+                        final long longEvent = Long.valueOf(event.split(RK_VALUE_SEPARATOR)[1]);
                         //update if event read is not null.
                         testState.eventRead(longEvent);
+                        testState.checkOrder(key, longEvent);
                         log.debug("Event read count {}", testState.getEventReadCount());
                     } else {
                         log.debug("Read timeout");
@@ -421,7 +436,7 @@ abstract class AbstractFailoverTests {
         }, executorService);
     }
 
-    private void closeReader(EventStreamReader<Long> reader) {
+    private void closeReader(EventStreamReader<String> reader) {
         try {
             log.info("Closing reader");
             reader.close();
@@ -431,7 +446,7 @@ abstract class AbstractFailoverTests {
         }
     }
 
-    void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
+    void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName) throws InterruptedException, ExecutionException {
         CompletableFuture<Boolean> sealStreamStatus = Retry.indefinitelyWithExpBackoff("Failed to seal stream. retrying ...")
                 .runAsync(() -> controller.sealStream(scope, stream), executorService);
         log.info("Sealing stream {}", stream);
@@ -459,7 +474,7 @@ abstract class AbstractFailoverTests {
         Preconditions.checkNotNull(testState.writersListComplete.get(0));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
-        List<EventStreamWriter<Long>> writerList = new ArrayList<>(writers);
+        List<EventStreamWriter<String>> writerList = new ArrayList<>(writers);
         List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
         log.info("Writers writing in the scope {}", scope);
         CompletableFuture.runAsync(() -> {
@@ -467,8 +482,8 @@ abstract class AbstractFailoverTests {
                 log.info("Starting writer{}", i);
 
                 if (!testState.txnWrite) {
-                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                            new JavaSerializer<Long>(),
+                    final EventStreamWriter<String> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     writerList.add(tmpWriter);
@@ -476,8 +491,8 @@ abstract class AbstractFailoverTests {
                     Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     writerFutureList.add(writerFuture);
                 } else  {
-                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                            new JavaSerializer<Long>(),
+                    final EventStreamWriter<String> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
@@ -506,16 +521,16 @@ abstract class AbstractFailoverTests {
                         .getReaderGroup(readerGroupName).getScope(), readerGroupManager
                         .getReaderGroup(readerGroupName).getOnlineReaders());
         log.info("Creating {} readers", readers);
-        List<EventStreamReader<Long>> readerList = new ArrayList<>(readers);
+        List<EventStreamReader<String>> readerList = new ArrayList<>(readers);
         List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
         log.info("Scope that is seen by readers {}", scope);
 
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < readers; i++) {
                 log.info("Starting reader: {}, with id: {}", i, readerName + i);
-                final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
+                final EventStreamReader<String> reader = clientFactory.createReader(readerName + i,
                         readerGroupName,
-                        new JavaSerializer<Long>(),
+                        new JavaSerializer<>(),
                         ReaderConfig.builder().build());
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
@@ -534,15 +549,15 @@ abstract class AbstractFailoverTests {
         Preconditions.checkNotNull(testState.writersListComplete.get(1));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
-        List<EventStreamWriter<Long>> newlyAddedWriterList = new ArrayList<>();
+        List<EventStreamWriter<String>> newlyAddedWriterList = new ArrayList<>();
         List<CompletableFuture<Void>> newWritersFutureList = new ArrayList<>();
         log.info("Writers writing in the scope {}", scope);
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer{}", i);
                 if (!testState.txnWrite) {
-                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                            new JavaSerializer<Long>(),
+                    final EventStreamWriter<String> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     newlyAddedWriterList.add(tmpWriter);
@@ -550,8 +565,8 @@ abstract class AbstractFailoverTests {
                     Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     newWritersFutureList.add(writerFuture);
                 } else  {
-                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                            new JavaSerializer<Long>(),
+                    final EventStreamWriter<String> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
@@ -624,7 +639,6 @@ abstract class AbstractFailoverTests {
         assertTrue("Scaling did not happen within desired time", scaled);
     }
 
-
     static URI startZookeeperInstance() {
         Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
@@ -635,7 +649,7 @@ abstract class AbstractFailoverTests {
         return zkUris.get(0);
     }
 
-    static void startBookkeeperInstances(final URI zkUri) throws ExecutionException {
+    static void startBookkeeperInstances(final URI zkUri) {
         Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
