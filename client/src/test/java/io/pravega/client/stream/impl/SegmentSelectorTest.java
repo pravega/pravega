@@ -16,6 +16,8 @@ import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -50,7 +52,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -77,7 +79,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -104,7 +106,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

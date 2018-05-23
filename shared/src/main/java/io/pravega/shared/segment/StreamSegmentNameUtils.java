@@ -10,6 +10,10 @@
 package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+
+import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -42,6 +46,11 @@ public final class StreamSegmentNameUtils {
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
+
+    /**
+     * This is appended to the end of the Primary Segment Name, followed by secondary id.
+     */
+    private static final String SECONDARY_ID_DELIMITER = "#secondary.";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -91,6 +100,40 @@ public final class StreamSegmentNameUtils {
             return null;
         }
         return transactionName.substring(0, endOfStreamNamePos);
+    }
+
+    /**
+     * Checks if the given stream segment name is formatted for a Transaction Segment or regular segment.
+     *
+     * @param streamSegmentName The name of the StreamSegment to check for transaction delimiter.
+     * @return true if stream segment name contains transaction delimiter, false otherwise.
+     */
+    public static boolean isTransactionSegment(String streamSegmentName) {
+        // Check to see if the given name is a properly formatted Transaction.
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TRANSACTION_DELIMITER);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + TRANSACTION_ID_LENGTH > streamSegmentName.length()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Attempts to extract the primary part of stream segment name before the secondary delimiter. This method returns a
+     * valid value only if the StreamSegmentName was generated using the getQualifiedStreamSegmentName or getScopedPrimaryName method.
+     *
+     * @param streamSegmentName The name of the StreamSegment to extract the name of the Primary StreamSegment name.
+     * @return The primary part of StreamSegment.
+     */
+    public static String extractPrimaryStreamSegmentName(String streamSegmentName) {
+        if (isTransactionSegment(streamSegmentName)) {
+            return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
+        }
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
+        if (endOfStreamNamePos < 0) {
+            // secondary id delimiter not present in the name, return the full name
+            return streamSegmentName;
+        }
+        return streamSegmentName.substring(0, endOfStreamNamePos);
     }
 
     /**
@@ -149,5 +192,115 @@ public final class StreamSegmentNameUtils {
     public static String getSegmentChunkName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
         return segmentName + OFFSET_SUFFIX + Long.toString(offset);
+    }
+
+    /**
+     * Method to compute 64 bit segment id which takes primary id and secondary id and composes it as
+     * `msb = secondary` `lsb = primary`.
+     * Primary id identifies the segment container mappeing and primary + secondary uniquely identifies a segment
+     * within a stream.
+     *
+     * @param primaryId primary part of id.
+     * @param secondaryId secondary part of id.
+     * @return segment id which is composed using primary and secondary ids.
+     */
+    public static long computeSegmentId(int primaryId, int secondaryId) {
+        Preconditions.checkArgument(primaryId >= 0);
+        Preconditions.checkArgument(secondaryId >= 0);
+        return (long) secondaryId << 32 | (primaryId & 0xFFFFFFFFL);
+    }
+
+    /**
+     * Method to extract primary id from given segment id.
+     *
+     * @param segmentId segment id.
+     * @return primary part of segment id.
+     */
+    public static int getPrimaryId(long segmentId) {
+        return (int) segmentId;
+    }
+
+    /**
+     * Method to extract secondary id from given segment id.
+     *
+     * @param segmentId segment id.
+     * @return secondary part of segment id.
+     */
+    public static int getSecondaryId(long segmentId) {
+        return (int) (segmentId >> 32);
+    }
+
+    /**
+     * Compose and return scoped stream name.
+     *
+     * @param scope scope to be used in ScopedStream name.
+     * @param streamName stream name to be used in ScopedStream name.
+     * @return scoped stream name.
+     */
+    public static String getScopedStreamName(String scope, String streamName) {
+        return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Method to generate Fully Qualified StreamSegmentName using scope, stream and segment id.
+     *
+     * @param scope scope to be used in the ScopedStreamSegment name
+     * @param streamName stream name to be used in ScopedStreamSegment name.
+     * @param segmentId segment id to be used in ScopedStreamSegment name.
+     * @return fully qualified StreamSegmentName.
+     */
+    public static String getQualifiedStreamSegmentName(String scope, String streamName, long segmentId) {
+        int primaryId = getPrimaryId(segmentId);
+        int secondaryId = getSecondaryId(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, streamName);
+        sb.append('/');
+        sb.append(primaryId);
+        sb.append(SECONDARY_ID_DELIMITER);
+        sb.append(secondaryId);
+        return sb.toString();
+    }
+
+    /**
+     * Method to extract different parts of stream segment name.
+     * The tokens extracted are in following order scope, stream name and segment id.
+     * If its a transational segment, the transaction id is ignored.
+     * This function works even when scope is not set.
+     *
+     * @param qualifiedName StreamSegment's qualified name.
+     * @return tokens capturing different components of stream segment name. Note: segmentId is extracted and sent back
+     * as a String
+     */
+    public static List<String> extractSegmentTokens(String qualifiedName) {
+        Preconditions.checkNotNull(qualifiedName);
+        String originalSegmentName = isTransactionSegment(qualifiedName) ? getParentStreamSegmentName(qualifiedName) : qualifiedName;
+
+        List<String> retVal = new LinkedList<>();
+        String[] tokens = originalSegmentName.split("[/]");
+        int segmentIdIndex = tokens.length == 2 ? 1 : 2;
+        long segmentId;
+        if (tokens[segmentIdIndex].contains(SECONDARY_ID_DELIMITER)) {
+            String[] segmentIdTokens = tokens[segmentIdIndex].split(SECONDARY_ID_DELIMITER);
+            segmentId = computeSegmentId(Integer.parseInt(segmentIdTokens[0]), Integer.parseInt(segmentIdTokens[1]));
+        } else {
+            // no secondary delimiter, set the secondary id to 0 for segment id computation
+            segmentId = computeSegmentId(Integer.parseInt(tokens[segmentIdIndex]), 0);
+        }
+        retVal.add(tokens[0]);
+        if (tokens.length == 3) {
+            retVal.add(tokens[1]);
+        }
+        retVal.add(Long.toString(segmentId));
+
+        return retVal;
+    }
+
+    private static StringBuffer getScopedStreamNameInternal(String scope, String streamName) {
+        StringBuffer sb = new StringBuffer();
+        if (!Strings.isNullOrEmpty(scope)) {
+            sb.append(scope);
+            sb.append('/');
+        }
+        sb.append(streamName);
+        return sb;
     }
 }

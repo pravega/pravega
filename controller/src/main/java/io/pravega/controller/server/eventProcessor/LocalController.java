@@ -32,6 +32,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.NotImplementedException;
+
 import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
@@ -136,13 +138,13 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        final Map<Integer, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
+        final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
                                                                .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
                                                                        Map.Entry::getValue));
         return truncateStream(scope, stream, segmentToOffsetMap);
     }
 
-    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
         return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
@@ -199,7 +201,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                                    final Map<Double, Double> newKeyRanges,
                                                    final ScheduledExecutorService executor) {
         CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
@@ -226,7 +228,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> startScale(final Stream stream,
-                                                  final List<Integer> sealedSegments,
+                                                  final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         return startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .thenApply(x -> {
@@ -262,7 +264,7 @@ public class LocalController implements Controller {
                 });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges) {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
@@ -338,7 +340,7 @@ public class LocalController implements Controller {
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
-                    Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
+                    Map<SegmentWithRange, List<Long>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
                     return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
@@ -346,12 +348,19 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
-        throw new NotImplementedException("getSuccessors");
+        return getSegments(from, StreamCut.UNBOUNDED);
     }
 
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
-        throw new NotImplementedException("getSegments");
+        Stream stream = fromStreamCut.asImpl().getStream();
+        return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
+                getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)))
+                .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
+                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.getSegmentId()))
+                                .collect(Collectors.toList()), retrieveDelegationToken()))
+                .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
+                response.getDelegationToken()));
     }
 
     @Override
@@ -385,5 +394,13 @@ public class LocalController implements Controller {
             retVal = PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
+    }
+
+    private Map<Long, Long> getStreamCutMap(StreamCut streamCut) {
+        if (streamCut.equals(StreamCut.UNBOUNDED)) {
+            return Collections.emptyMap();
+        }
+        return streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue));
     }
 }

@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -43,7 +45,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -54,7 +56,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey(r.nextDouble());
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -67,13 +69,13 @@ public class StreamSegmentsTest {
         segments.put(0.5, new Segment(scope, streamName, 0));
         segments.put(1.0, new Segment(scope, streamName, 1));
         StreamSegments streamSegments = new StreamSegments(segments, "");
-        Map<SegmentWithRange, List<Integer>> newRange = new HashMap<>();
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 2), 0, 0.25), ImmutableList.of(0));
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 3), 0.25, 0.5), ImmutableList.of(0));
+        Map<SegmentWithRange, List<Long>> newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 2L), 0, 0.25), ImmutableList.of(0L));
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 3L), 0.25, 0.5), ImmutableList.of(0L));
         streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         newRange = new HashMap<>();
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4), 0.5, 0.75), ImmutableList.of(1));
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5), 0.75, 1.0), ImmutableList.of(1));
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4L), 0.5, 0.75), ImmutableList.of(1L));
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5L), 0.75, 1.0), ImmutableList.of(1L));
         streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         
         int[] counts = new int[6];
@@ -81,7 +83,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -99,12 +101,12 @@ public class StreamSegmentsTest {
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
         StreamSegments streamSegments = new StreamSegments(segments, "");
-        Map<SegmentWithRange, List<Integer>> newRange = new HashMap<>();
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4), 0, 0.5), ImmutableList.of(0, 1));
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5), 0.5, 1.0), ImmutableList.of(2, 3));
+        Map<SegmentWithRange, List<Long>> newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 4L), 0, 0.5), ImmutableList.of(0L, 1L));
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 5L), 0.5, 1.0), ImmutableList.of(2L, 3L));
         streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         newRange = new HashMap<>();
-        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 6), 0.0, 1.0), ImmutableList.of(4, 5));
+        newRange.put(new SegmentWithRange(new Segment(scope, streamName, 6L), 0.0, 1.0), ImmutableList.of(4L, 5L));
         streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
         
         int[] counts = new int[7];
@@ -112,7 +114,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -137,7 +139,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("Foo");
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getPrimaryId(segment.getSegmentNumber())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

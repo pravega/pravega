@@ -59,7 +59,7 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail;
     @GuardedBy("$lock")
-    private final Map<Segment, Set<Integer>> futureSegments;
+    private final Map<Segment, Set<Long>> futureSegments;
     @GuardedBy("$lock")
     private final Map<String, Map<Segment, Long>> assignedSegments;
     @GuardedBy("$lock")
@@ -291,7 +291,7 @@ public class ReaderGroupState implements Revisioned {
         private final ReaderGroupConfig config;
         private final CheckpointState checkpointState;
         private final Map<String, Long> distanceToTail;
-        private final Map<Segment, Set<Integer>> futureSegments;
+        private final Map<Segment, Set<Long>> futureSegments;
         private final Map<String, Map<Segment, Long>> assignedSegments;
         private final Map<Segment, Long> unassignedSegments;
         private final Map<Segment, Long> endSegments;
@@ -302,7 +302,7 @@ public class ReaderGroupState implements Revisioned {
                 checkpointState = state.checkpointState.copy();
                 distanceToTail = new HashMap<>(state.distanceToTail);
                 futureSegments = new HashMap<>();
-                for (Entry<Segment, Set<Integer>> entry : state.futureSegments.entrySet()) {
+                for (Entry<Segment, Set<Long>> entry : state.futureSegments.entrySet()) {
                     futureSegments.put(entry.getKey(), new HashSet<>(entry.getValue()));
                 }
                 assignedSegments = new HashMap<>();
@@ -480,7 +480,7 @@ public class ReaderGroupState implements Revisioned {
         private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segmentCompleted;
-        private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors; //Immutable
+        private final Map<Segment, List<Long>> successorsMappedToTheirPredecessors; //Immutable
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -493,18 +493,18 @@ public class ReaderGroupState implements Revisioned {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }
-            for (Entry<Segment, List<Integer>> entry : successorsMappedToTheirPredecessors.entrySet()) {
+            for (Entry<Segment, List<Long>> entry : successorsMappedToTheirPredecessors.entrySet()) {
                 if (!state.futureSegments.containsKey(entry.getKey())) {
-                    Set<Integer> requiredToComplete = new HashSet<>(entry.getValue());
+                    Set<Long> requiredToComplete = new HashSet<>(entry.getValue());
                     state.futureSegments.put(entry.getKey(), requiredToComplete);
                 }
             }
-            for (Set<Integer> requiredToComplete : state.futureSegments.values()) {
+            for (Set<Long> requiredToComplete : state.futureSegments.values()) {
                 requiredToComplete.remove(segmentCompleted.getSegmentNumber());
             }
             val iter = state.futureSegments.entrySet().iterator();
             while (iter.hasNext()) {
-                Entry<Segment, Set<Integer>> entry = iter.next();
+                Entry<Segment, Set<Long>> entry = iter.next();
                 if (entry.getValue().isEmpty()) {
                     state.unassignedSegments.put(entry.getKey(), 0L);
                     iter.remove();

@@ -50,7 +50,7 @@ public class SegmentRangeImpl implements SegmentRange {
     private final long endOffset;
 
     @Override
-    public int getSegmentNumber() {
+    public long getSegmentId() {
         return segment.getSegmentNumber();
     }
 

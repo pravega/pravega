@@ -12,13 +12,19 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
+
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -69,13 +75,16 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream) {
         log.info("{}/{} deleting segments", scope, stream);
-        return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
-                .thenComposeAsync(count ->
-                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count, streamMetadataTasks.retrieveDelegationToken())
+        return streamMetadataStore.getScaleMetadata(scope, stream, context, executor)
+                .thenComposeAsync(scaleMetadata -> {
+                    Set<Long> toDelete = new HashSet<>();
+                    scaleMetadata.forEach(x -> toDelete.addAll(x.getSegments().stream().map(Segment::getSegmentId).collect(Collectors.toList())));
+                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, toDelete, streamMetadataTasks.retrieveDelegationToken())
                             .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
-                                executor), executor)
+                                    executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
-                                        executor), executor));
+                                    executor), executor);
+                });
     }
 
     @Override

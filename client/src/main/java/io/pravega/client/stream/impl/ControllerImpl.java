@@ -60,18 +60,14 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -81,11 +77,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
-import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
-import static java.util.stream.Collectors.summarizingInt;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -326,11 +319,10 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        return truncateStream(scope, stream, streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
+        return truncateStream(scope, stream, getStreamCutMap(streamCut));
     }
 
-    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamCut, "streamCut");
         long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
@@ -368,7 +360,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -400,7 +392,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
+    public CompletableFuture<Boolean> startScale(final Stream stream, final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
@@ -468,7 +460,7 @@ public class ControllerImpl implements Controller {
         });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges, long traceId, String method) {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
@@ -611,7 +603,7 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return resultFuture.thenApply(successors -> {
             log.debug("Received the following data from the controller {}", successors.getSegmentsList());
-            Map<SegmentWithRange, List<Integer>> result = new HashMap<>();
+            Map<SegmentWithRange, List<Long>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                 result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
@@ -629,14 +621,13 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
-        val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
-                RuntimeException::new);
 
-        String delegationToken = currentSegments.getDelegationToken();
-
-        final Set<Segment> unread = getSegmentsInRange(from.asImpl(), currentSegments.getSegments());
-        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
-        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(unread, delegationToken));
+        return getSegmentsBetweenStreamCuts(from, StreamCut.UNBOUNDED).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getSuccessors failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+        });
     }
 
     @Override
@@ -649,68 +640,41 @@ public class ControllerImpl implements Controller {
 
         final Stream stream = fromStreamCut.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
+
+        return getSegmentsBetweenStreamCuts(fromStreamCut, toStreamCut).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getSuccessors failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+        });
+    }
+
+    private CompletableFuture<StreamSegmentSuccessors> getSegmentsBetweenStreamCuts(final StreamCut fromStreamCut, final StreamCut toStreamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+
+        final Stream stream = fromStreamCut.asImpl().getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
         CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
-        final Set<Segment> segments = getSegmentsInRange(fromStreamCut, toStreamCut.asImpl().getPositions().keySet());
-        LoggerHelpers.traceLeave(log, "getSegments", traceId);
-        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments,
-                getAndHandleExceptions(token, RuntimeException::new)));
+        final CompletableFuture<StreamCutRangeResponse> resultFuture = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamCutRangeResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessorsFromCut");
+            client.getSegmentsBetween(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
+                    getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return resultFuture.thenApply(response -> {
+            log.debug("Received the following data from the controller {}", response.getSegmentsList());
+
+            return new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
+                    response.getDelegationToken());
+        });
     }
 
-    private Set<Segment> getSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
-        //input validation.
-        val fromSCSummary = lowerBound.asImpl().getPositions().keySet()
-                                      .stream().collect(summarizingInt(Segment::getSegmentNumber));
-        val toSCSummary = upperBound.stream().collect(summarizingInt(Segment::getSegmentNumber));
-        Preconditions.checkArgument(fromSCSummary.getMin() <= toSCSummary.getMin(),
-                "Overlapping StreamCuts cannot be provided");
-        Preconditions.checkArgument(fromSCSummary.getMax() <= toSCSummary.getMax(),
-                "Overlapping StreamCuts cannot be provided");
-
-        final HashSet<Segment> segments = new HashSet<>(upperBound);
-        segments.addAll(getKnownSegmentsInRange(lowerBound, upperBound));
-        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
-        for (Segment toFetch : lowerBound.asImpl().getPositions().keySet()) {
-            if (!segments.contains(toFetch)) {
-                toFetchSuccessors.add(toFetch);
-            }
+    private Map<Long, Long> getStreamCutMap(StreamCut streamCut) {
+        if (streamCut.equals(StreamCut.UNBOUNDED)) {
+            return Collections.emptyMap();
         }
-        segments.addAll(lowerBound.asImpl().getPositions().keySet());
-        while (!toFetchSuccessors.isEmpty()) {
-            Segment segment = toFetchSuccessors.remove();
-            Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new)
-                    .getSegmentToPredecessor().keySet();
-            for (Segment successor : successors) {
-                //Successor segment number can never be larger than the highest segment number in upperBound.
-                Preconditions.checkArgument(successor.getSegmentNumber() <= toSCSummary.getMax(),
-                        "Overlapping streamCuts, lowerBound streamCut should be strictly lower than the upperBound StreamCut.");
-                if (!segments.contains(successor)) {
-                    segments.add(successor);
-                    toFetchSuccessors.add(successor);
-                }
-            }
-        }
-        return segments;
-    }
-
-    /*
-     * This method fetches the segments of a stream which definitely reside between the segments represented by
-     * lowerBound and the upperBound using the invariant that segment numbers monotonically increase.
-     *
-     * @param lowerBound StreamCut representing the segments of the starting point.
-     * @param upperBound Segments representing the ending point.
-     * @return Segments which reside between fromStreamCut and currentSegments.
-     */
-    private List<Segment> getKnownSegmentsInRange(final StreamCut lowerBound, final Collection<Segment> upperBound) {
-        int highestCut = lowerBound.asImpl().getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
-        int lowestCurrent = upperBound.stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
-        if (highestCut >= lowestCurrent) {
-            return Collections.emptyList();
-        }
-        final List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
-        for (int num = highestCut + 1; num < lowestCurrent; num++) {
-            result.add(new Segment(lowerBound.asImpl().getStream().getScope(), lowerBound.asImpl().getStream().getStreamName(), num));
-        }
-        return result;
+        return streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue));
     }
 
     @Override
