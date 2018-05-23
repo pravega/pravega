@@ -216,6 +216,9 @@ class OutOfProcessAdapter extends ExternalAdapter {
         int port = this.testConfig.getSegmentStorePort(segmentStoreId);
         ProcessStarter ps = ProcessStarter
                 .forClass(ServiceStarter.class)
+                .sysProp("pravega.client.auth.method", "Default")
+                .sysProp("pravega.client.auth.userName", "admin")
+                .sysProp("pravega.client.auth.passwd", "1111_aaaa")
                 .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ENABLE_TLS), this.testConfig.isEnableSecurity())
@@ -227,8 +230,6 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(FileSystemStorageConfig.COMPONENT_CODE, FileSystemStorageConfig.ROOT), getSegmentStoreStoragePath())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerUrl())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.AUTH_ENABLED), this.testConfig.isEnableSecurity())
-                .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.AUTH_PASSWORD), "1111_aaaa")
-                .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.AUTH_USERNAME), "admin")
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_ENABLED), this.testConfig.isEnableSecurity())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TLS_CERT_FILE), "../../config/cert.pem")
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.TOKEN_SIGNING_KEY), "secret")

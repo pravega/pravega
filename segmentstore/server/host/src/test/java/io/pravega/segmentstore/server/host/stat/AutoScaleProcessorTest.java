@@ -22,7 +22,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -79,8 +78,6 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
-                                .with(AutoScalerConfig.AUTH_USERNAME, "admin")
-                                .with(AutoScalerConfig.AUTH_PASSWORD, "passwd")
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 executorService());
@@ -115,13 +112,6 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertTrue(Futures.await(result2));
         assertTrue(Futures.await(result3));
         assertTrue(Futures.await(result4));
-    }
-
-    @Ignore
-    public void scaleTestWithAuth() {
-        authEnabled = true;
-        this.scaleTest();
-        authEnabled = false;
     }
 
     @Test(timeout = 10000)

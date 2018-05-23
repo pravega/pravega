@@ -367,8 +367,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
             AuthHandler.Permissions allowedLevel;
             if (currentInterceptor == null) {
-                //No interceptor, means no authorization enabled
-                allowedLevel = AuthHandler.Permissions.READ_UPDATE;
+                //No interceptor, and authorization is enabled. Means no access is granted.
+                allowedLevel = AuthHandler.Permissions.NONE;
             } else {
                 allowedLevel = currentInterceptor.authorize(resource);
             }

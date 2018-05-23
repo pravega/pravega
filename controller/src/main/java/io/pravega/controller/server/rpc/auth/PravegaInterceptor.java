@@ -69,6 +69,9 @@ public class PravegaInterceptor implements ServerInterceptor {
                 context = context.withValue(AUTH_CONTEXT_PARAMS, paramMap);
                 context = context.withValue(INTERCEPTOR_OBJECT, this);
             }
+        } else {
+            call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+            return null;
         }
         return Contexts.interceptCall(context, call, headers, next);
     }
