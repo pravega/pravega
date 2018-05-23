@@ -41,7 +41,7 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
     public CommitTransactionTask(final StreamMetadataStore streamMetadataStore,
                                  final StreamMetadataTasks streamMetadataTasks,
                                  final ScheduledExecutorService executor) {
-        this(streamMetadataStore,streamMetadataTasks, executor, null);
+        this(streamMetadataStore, streamMetadataTasks, executor, null);
     }
 
     @VisibleForTesting
