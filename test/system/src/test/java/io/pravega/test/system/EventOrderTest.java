@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -21,7 +22,11 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
@@ -31,6 +36,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,21 +66,25 @@ public class EventOrderTest {
     private static final String STREAM = "testEventOrderStream";
     private static final String SCOPE = "testEventOrderScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP = "testEventOrderRG" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private final static String ROUTING_KEY_SEPARATOR = ":";
+    private static final String ROUTING_KEY_SEPARATOR = ":";
 
     private final static int SEGMENTS = 1;
     private final static int RW_PROCESSES = 4;
     private final static long TOTAL_EVENTS = 10000;
+    private final static int SCALE_TIMEOUT = 30 * 1000;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(SEGMENTS);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scope(SCOPE)
                                                                   .streamName(STREAM)
                                                                   .scalingPolicy(scalingPolicy).build();
     private final Map<String, AtomicLong> routingKeyCounter = new HashMap<>();
     private URI controllerURI;
     private StreamManager streamManager;
+    private Controller controller = null;
+
     /**
      * This is used to setup the services required by the system test framework.
      *
@@ -127,6 +137,9 @@ public class EventOrderTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
+        controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                            .clientConfig(ClientConfig.builder().controllerURI(controllerURI).build())
+                                                            .maxBackoffMillis(5000).build(), executor);
         streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
@@ -155,9 +168,7 @@ public class EventOrderTest {
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                         .stream(Stream.of(SCOPE, STREAM))
-                                                                         .build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
 
         // This callback will be executed after each event read to verify that the order of events is respected.
         Consumer<String> callback = event -> {
@@ -177,6 +188,11 @@ public class EventOrderTest {
         List<CompletableFuture<Void>> writerFutures = writeEventFutures(clientFactory, STREAM, RW_PROCESSES, TOTAL_EVENTS / RW_PROCESSES);
         List<CompletableFuture<Long>> readerFutures = readEventFutures(clientFactory, READER_GROUP, RW_PROCESSES, callback);
 
+        // Now, we perform a manual scale on the stream and wait until it completes.
+        Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
+        CompletableFuture<Boolean> scaleStream = scaleStream(SCOPE, STREAM, SEGMENTS * 2, executor);
+        checkScaleStatus(scaleStream);
+
         // Wait for all readers and writers to complete.
         log.info("Waiting for writers and readers to complete.");
         Futures.allOf(writerFutures).join();
@@ -187,6 +203,9 @@ public class EventOrderTest {
                 (long) readerFutures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
         log.info("Read all events in correct order. EventOrderTest passed.");
     }
+
+    // Start region utils
+    // TODO: Once PR #2552 is merged, this class (and others) will be refactored to eliminate common read/write event utilities in a new PR.
 
     private List<CompletableFuture<Void>> writeEventFutures(ClientFactory client, String streamName, int numWriters, long totalEvents) {
         return IntStream.range(0, numWriters)
@@ -241,4 +260,30 @@ public class EventOrderTest {
 
         return validEvents;
     }
+
+    private CompletableFuture<Boolean> scaleStream(String scope, String stream, double splitSize, ScheduledExecutorService executorService) {
+        Map<Double, Double> keyRanges = new HashMap<>();
+        double perSegmentKeySpace = 1.0 / splitSize;
+        for (double keySpaceEnd = perSegmentKeySpace; keySpaceEnd <= 1.0; keySpaceEnd += perSegmentKeySpace) {
+            log.debug("Keyspace {} - {} for stream {}.", keySpaceEnd - perSegmentKeySpace, keySpaceEnd, stream);
+                keyRanges.put(keySpaceEnd - perSegmentKeySpace, keySpaceEnd);
+            }
+
+            return controller.scaleStream(Stream.of(scope, stream), Collections.singletonList(0), keyRanges, executorService).getFuture();
+        }
+
+    private void checkScaleStatus(CompletableFuture<Boolean> scaleStatus) {
+        Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
+        if (Futures.await(scaleStatus, SCALE_TIMEOUT)) {
+            log.info("Scale operation has completed: {}", scaleStatus.join());
+            if (!scaleStatus.join()) {
+                log.error("Scale operation did not complete", scaleStatus.join());
+                Assert.fail("Scale operation did not complete successfully");
+            }
+        } else {
+            Assert.fail("Scale operation threw an exception");
+        }
+    }
+
+    // End region utils
 }
