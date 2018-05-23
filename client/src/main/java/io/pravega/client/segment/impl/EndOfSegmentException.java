@@ -35,6 +35,11 @@ public class EndOfSegmentException extends IOException {
         return errorType;
     }
 
+    @Override
+    public String getMessage() {
+        return this.errorType.name();
+    }
+
     public enum ErrorType {
         END_OF_SEGMENT_REACHED,
         END_OFFSET_REACHED
