@@ -235,14 +235,14 @@ public class TableHelper {
     }
 
     /**
-     * Method to compute new truncation record by applying supplied streamCut on previous truncation record.
+     * Method to find all segments between given from and to stream cuts.
      * @param historyIndex             history index
      * @param historyTable             history table
      * @param segmentIndex             segment index
      * @param segmentTable             segment table
      * @param from                     stream cut to truncate at.
      * @param to                       stream cut to truncate at.
-     * @return
+     * @return returns segments that fall between given stream cuts
      */
     public static List<Segment> findSegmentsBetweenStreamCuts(final byte[] historyIndex, final byte[] historyTable,
                                                                  final byte[] segmentIndex, final byte[] segmentTable,
