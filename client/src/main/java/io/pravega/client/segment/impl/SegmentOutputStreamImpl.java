@@ -317,7 +317,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
                     noSuchSegment.getSegment(), writerId);
             //update state indicating that no such segment was encountered.
-            state.noSuchSegmentEncountered.getAndSet(true);
+            state.noSuchSegmentEncountered.set(true);
             retryOnWriteFail(noSuchSegment);
         }
 
@@ -369,7 +369,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             if (state.encounteredSeal()) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                         retrySchedule.getMaxDelay(),
-                        t -> log.error(writerId + " to invoke sealed callback: ", t))
+                        t -> log.error("Error while invoking SegmentSealed call back for writer: {}", writerId, t))
                         .runInExecutor(() -> {
                             log.debug("Invoking SealedSegment call back for {} on writer {}", wireCommand, writerId);
                             callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
@@ -564,4 +564,5 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             return Collections.unmodifiableList(state.getAllInflightEvents());
         }
     }
+
 }
