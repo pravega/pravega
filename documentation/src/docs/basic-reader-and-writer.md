@@ -31,15 +31,15 @@ EventStreamWriter to write an Event to Pravega.
 Taking a look first at the HelloWorldWriter example application, the key part of
 the code is in the run() method:
 
-```
+```java
 public void run(String routingKey, String message) {
     StreamManager streamManager = StreamManager.create(controllerURI);
   
-    final boolean scopeIsNew = streamManager.createScope(scope);
+    final boolean scopeCreation = streamManager.createScope(scope);
     StreamConfiguration streamConfig = StreamConfiguration.builder()
             .scalingPolicy(ScalingPolicy.fixed(1))
             .build();
-    final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
+    final boolean streamCreation = streamManager.createStream(scope, streamName, streamConfig);
   
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
@@ -222,7 +222,7 @@ representation of those Events onto the console.
 Just like the HelloWorldWriter example, the key part of the HelloWorldReader app
 is in the run() method:
 
-```
+```java
 public void run() {
    StreamManager streamManager = StreamManager.create(controllerURI);
  
@@ -377,13 +377,13 @@ When the data is read this way, rather than joining a reader group which automat
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce. 
 
 As an example to iterate over all the segments in the stream:
-```
+```java
 //Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the current end of stream respectively.
 Iterator<SegmentRange> segments = client.listSegments(stream, null, null).getIterator();
 SegmentRange segmentInfo = segments.next();
 ```
 Or to read the events from a segment:
-```
+```java
 SegmentIterator<T> events = client.readSegment(segmentInfo, deserializer);
 while (events.hasNext()) {
     processEvent(events.next());

@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
@@ -237,9 +238,15 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
+        Properties authProps = new Properties();
+        authProps.setProperty("pravega.client.auth.method", "Default");
+        authProps.setProperty("pravega.client.auth.userName", "arvind");
+        authProps.setProperty("pravega.client.auth.password", "1111_aaaa");
+
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
+                .include(authProps)
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
@@ -265,8 +272,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
                                                                                 + controllerPorts[0])
-                                         .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
-                                         .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
