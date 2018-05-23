@@ -252,9 +252,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Add the rest of the attribute updates.
             for (int i = 0; i < halfAttributeCount; i++) {
-                int finalI = i;
+                int completedIterations = i;
                 segmentFutures.add(store.updateAttributes(segmentName, createAttributeUpdates(), TIMEOUT).thenRun(() -> {
-                    log.info("Completed second attr {}", finalI);
+                    log.info("Completed second attr {}", completedIterations);
                 }));
             }
         }
