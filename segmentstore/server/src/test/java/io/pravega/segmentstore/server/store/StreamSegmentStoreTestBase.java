@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -56,7 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -253,42 +253,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     @Test
     public void testEndToEndWithFencing() throws Exception {
-        AtomicReference<StreamSegmentStore> currentStore = new AtomicReference<>();
-        AtomicInteger fencingIteration = new AtomicInteger();
-        ArrayList<ServiceBuilder> builders = new ArrayList<>();
-        AtomicReference<CompletableFuture<Void>> newInstanceCompletions = new AtomicReference<>(CompletableFuture.completedFuture(null));
-
-        // Retry for Segment Store (Container) initialization. Normally we have the Controller coordinating which instances
-        // are the rightful survivors, however in this case we need to simulate some of this behavior ourselves, by being
-        // insistent. It is possible that previous instances meddle with the BKLog ZK metadata during the new instance's
-        // initialization, causing the new instance to wrongfully assume it's not the rightful survivor. A quick retry solves
-        // this problem, as there is no other kind of information available to disambiguate this.
-        Runnable createNewInstance = () ->
-                Retry.withExpBackoff(20, 2, 20, TIMEOUT.toMillis() / 10)
-                        .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogWriterNotPrimaryException)
-                        .run(() -> {
-                            int instanceId = fencingIteration.get() + 1;
-                            log.info("Starting Instance {}.", instanceId);
-                            ServiceBuilder b = createBuilder(instanceId);
-                            builders.add(b);
-                            currentStore.set(b.createStreamSegmentService());
-                            fencingIteration.incrementAndGet();
-                            log.info("Instance {} Started.", instanceId);
-                            return null;
-                        });
-
-        Runnable createNewInstanceAsync = () -> newInstanceCompletions.set(newInstanceCompletions.get().thenRunAsync(createNewInstance, executorService()));
-
         log.info("Starting.");
-        try {
+        try (val context = new FencingTestContext()) {
             // Create first instance (this is a one-off so we can bootstrap the test).
-            createNewInstance.run();
+            context.createNewInstance();
 
             // Create the StreamSegments and their transactions.
-            val segmentNames = createSegments(currentStore.get());
+            val segmentNames = createSegments(context.getActiveStore());
             val segmentsAndTransactions = new ArrayList<String>(segmentNames);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
-            val transactionsBySegment = createTransactions(segmentNames, currentStore.get());
+            val transactionsBySegment = createTransactions(segmentNames, context.getActiveStore());
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
             log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
@@ -306,48 +280,23 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             int newInstanceFrequency = (appends.size() + mergers.size() + seals.size()) / applyFencingMultiplier(MAX_INSTANCE_COUNT);
             log.info("Creating a new Segment Store instance every {} operations.", newInstanceFrequency);
 
-            // Execute all the requests asynchronously, one by one. We retry all expected exceptions, and when we do,
-            // we make sure to execute them on the current Segment Store instance (since the previous one may be unusable).
-            AtomicInteger index = new AtomicInteger();
-            val operationCompletions = Futures.loop(
-                    requests::hasNext,
-                    () -> {
-                        // Create a new Segment Store instance if we need to.
-                        if (index.incrementAndGet() % newInstanceFrequency == 0) {
-                            createNewInstanceAsync.run();
-                        }
-
-                        log.debug("Initiating Operation #{} on iteration {}.", index, fencingIteration);
-                        Function<StreamSegmentStore, CompletableFuture<Void>> request = requests.next();
-                        AtomicReference<StreamSegmentStore> requestStore = new AtomicReference<>(currentStore.get());
-                        return Retry.withExpBackoff(50, 2, 10, TIMEOUT.toMillis() / 10)
-                                .retryWhen(ex -> {
-                                    requestStore.getAndSet(currentStore.get());
-                                    ex = Exceptions.unwrap(ex);
-                                    log.info("Operation #{} (Iteration = {}) failed due to {}.", index, fencingIteration, ex.toString());
-                                    return isExpectedFencingException(ex);
-                                })
-                                .runAsync(() -> request.apply(requestStore.get()), executorService());
-                    },
-                    executorService());
+            // Execute all the requests.
+            val operationCompletions = executeWithFencing(requests, newInstanceFrequency, context);
 
             // Wait for our operations to complete.
             operationCompletions.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Wait for the instance creations to be done (this will help surface any exceptions coming from this).
-            newInstanceCompletions.get().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            context.awaitAllInitializations().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Check reads.
-            checkReads(segmentContents, currentStore.get());
+            checkReads(segmentContents, context.getActiveStore());
             log.info("Finished checking reads.");
 
             // Delete everything.
-            deleteSegments(segmentNames, currentStore.get()).join();
+            deleteSegments(segmentNames, context.getActiveStore()).join();
             log.info("Finished deleting segments.");
-            checkSegmentStatus(lengths, startOffsets, true, true, currentStore.get());
-        } finally {
-            log.info("Stopping all instances.");
-            builders.forEach(ServiceBuilder::close);
+            checkSegmentStatus(lengths, startOffsets, true, true, context.getActiveStore());
         }
 
         log.info("Finished.");
@@ -391,15 +340,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return builder;
     }
 
-    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createAppendDataRequests(
+    private ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths) {
         return createAppendDataRequests(segmentNames, segmentContents, lengths, ATTRIBUTE_UPDATES_PER_SEGMENT, APPENDS_PER_SEGMENT);
     }
 
-    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createAppendDataRequests(
+    private ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths,
             int attributeUpdatesPerSegment, int appendsPerSegment) {
-        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
+        val result = new ArrayList<StoreRequest>();
         val halfAttributeCount = attributeUpdatesPerSegment / 2;
         for (String segmentName : segmentNames) {
             if (isEmptySegment(segmentName)) {
@@ -440,11 +389,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
     }
 
-    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createMergeTransactionsRequests(
+    private ArrayList<StoreRequest> createMergeTransactionsRequests(
             HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
             HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {
 
-        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
+        val result = new ArrayList<StoreRequest>();
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
@@ -469,8 +418,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return execute(createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents), store);
     }
 
-    private ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> createSealSegmentsRequests(Collection<String> segmentNames) {
-        val result = new ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>>();
+    private ArrayList<StoreRequest> createSealSegmentsRequests(Collection<String> segmentNames) {
+        val result = new ArrayList<StoreRequest>();
         for (String segmentName : segmentNames) {
             result.add(store -> Futures.toVoid(store.sealStreamSegment(segmentName, TIMEOUT)));
         }
@@ -481,8 +430,43 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return execute(createSealSegmentsRequests(segmentNames), store);
     }
 
-    private CompletableFuture<Void> execute(ArrayList<Function<StreamSegmentStore, CompletableFuture<Void>>> requests, StreamSegmentStore store) {
+    private CompletableFuture<Void> execute(ArrayList<StoreRequest> requests, StreamSegmentStore store) {
         return Futures.allOf(requests.stream().map(r -> r.apply(store)).collect(Collectors.toList()));
+    }
+
+    /**
+     * Executes all the requests asynchronously, one by one, on the given FencingTextContext.
+     */
+    private CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context) {
+        AtomicInteger index = new AtomicInteger();
+        return Futures.loop(
+                requests::hasNext,
+                () -> {
+                    // Create a new Segment Store instance if we need to.
+                    if (index.incrementAndGet() % newInstanceFrequency == 0) {
+                        context.createNewInstanceAsync();
+                    }
+
+                    return executeWithFencing(requests.next(), index.get(), context);
+                },
+                executorService());
+    }
+
+    /**
+     * Executes the given request on the given FencingTextContext.. We retry all expected exceptions, and when we do, we
+     * make sure to execute them on the current (active) Segment Store instance (since the previous one may be unusable).
+     */
+    private CompletableFuture<Void> executeWithFencing(StoreRequest request, int index, FencingTestContext context) {
+        log.debug("Initiating Operation #{} on iteration {}.", index, context.getIteration());
+        AtomicReference<StreamSegmentStore> requestStore = new AtomicReference<>(context.getActiveStore());
+        return Retry.withExpBackoff(50, 2, 10, TIMEOUT.toMillis() / 10)
+                    .retryWhen(ex -> {
+                        requestStore.getAndSet(context.getActiveStore());
+                        ex = Exceptions.unwrap(ex);
+                        log.info("Operation #{} (Iteration = {}) failed due to {}.", index, context.getIteration(), ex.toString());
+                        return isExpectedFencingException(ex);
+                    })
+                    .runAsync(() -> request.apply(requestStore.get()), executorService());
     }
 
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
@@ -858,4 +842,83 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     //endregion
+
+    //region FencingTestContext
+
+    /**
+     * Context for the Fencing test.
+     */
+    private class FencingTestContext implements AutoCloseable {
+        private final Retry.RetryAndThrowConditionally newInstanceRetry =
+                Retry.withExpBackoff(20, 2, 20, TIMEOUT.toMillis() / 10)
+                     .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogWriterNotPrimaryException);
+        private final AtomicReference<StreamSegmentStore> activeStore = new AtomicReference<>();
+        private final AtomicInteger iteration = new AtomicInteger();
+        private final ArrayList<ServiceBuilder> builders = new ArrayList<>();
+        private final AtomicReference<CompletableFuture<Void>> newInstanceCompletions = new AtomicReference<>(CompletableFuture.completedFuture(null));
+
+        @Override
+        public void close() {
+            log.info("Stopping all instances.");
+            this.builders.forEach(ServiceBuilder::close);
+        }
+
+        /**
+         * Gets a pointer to the active StreamSegmentStore.
+         */
+        StreamSegmentStore getActiveStore() {
+            return this.activeStore.get();
+        }
+
+        /**
+         * Gets a value representing the current test iteration.
+         */
+        int getIteration() {
+            return this.iteration.get();
+        }
+
+        /**
+         * Gets a CompletableFuture that, when completed, will indicate that all calls to createNewInstanceAsync() so far
+         * will have completed (successfully or not).
+         */
+        CompletableFuture<Void> awaitAllInitializations() {
+            return this.newInstanceCompletions.get();
+        }
+
+        /**
+         * Same as createNewInstance(), but runs asynchronously, and only after the previous initialization completed.
+         */
+        void createNewInstanceAsync() {
+            this.newInstanceCompletions.set(
+                    this.newInstanceCompletions.get().thenRunAsync(this::createNewInstance, executorService()));
+        }
+
+        /**
+         * Creates a new Segment Store Instance, with retries.
+         * Normally we have the Controller coordinating which instances are the rightful survivors, however in this case
+         * we need to simulate some of this behavior ourselves, by being insistent. It is possible that previous instances
+         * meddle with the BKLog ZK metadata during the new instance's initialization, causing the new instance to wrongfully
+         * assume it's not the rightful survivor. A quick retry solves this problem, as there is no other kind of information
+         * available to disambiguate this.
+         */
+        void createNewInstance() {
+            this.newInstanceRetry.run(() -> {
+                int instanceId = getIteration() + 1;
+                log.info("Starting Instance {}.", instanceId);
+                ServiceBuilder b = createBuilder(instanceId);
+                this.builders.add(b);
+                this.activeStore.set(b.createStreamSegmentService());
+                this.iteration.incrementAndGet();
+                log.info("Instance {} Started.", instanceId);
+                return null;
+            });
+        }
+    }
+
+    //endregion
+
+    @FunctionalInterface
+    private interface StoreRequest {
+        CompletableFuture<Void> apply(StreamSegmentStore store);
+    }
 }
