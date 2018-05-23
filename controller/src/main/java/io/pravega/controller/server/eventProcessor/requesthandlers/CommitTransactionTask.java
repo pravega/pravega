@@ -38,27 +38,24 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
     private final ScheduledExecutorService executor;
     private final BlockingQueue<CommitEvent> processedEvents;
 
+    public CommitTransactionTask(final StreamMetadataStore streamMetadataStore,
+                                 final StreamMetadataTasks streamMetadataTasks,
+                                 final ScheduledExecutorService executor) {
+        this(streamMetadataStore,streamMetadataTasks, executor, null);
+    }
+
     @VisibleForTesting
     public CommitTransactionTask(final StreamMetadataStore streamMetadataStore,
-                                final StreamMetadataTasks streamMetadataTasks,
-                                final ScheduledExecutorService executor,
-                                final BlockingQueue<CommitEvent> queue) {
+                                 final StreamMetadataTasks streamMetadataTasks,
+                                 final ScheduledExecutorService executor,
+                                 final BlockingQueue<CommitEvent> queue) {
+        Preconditions.checkNotNull(streamMetadataStore);
+        Preconditions.checkNotNull(streamMetadataTasks);
+        Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
-    }
-
-    public CommitTransactionTask(final StreamMetadataTasks streamMetadataTasks,
-                                 final StreamMetadataStore streamMetadataStore,
-                                 final ScheduledExecutorService executor) {
-        Preconditions.checkNotNull(streamMetadataStore);
-        Preconditions.checkNotNull(streamMetadataTasks);
-        Preconditions.checkNotNull(executor);
-        this.streamMetadataTasks = streamMetadataTasks;
-        this.streamMetadataStore = streamMetadataStore;
-        this.executor = executor;
-        this.processedEvents = null;
     }
 
     @Override
@@ -77,7 +74,7 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
 
-        return streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
+        return streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenCompose(pair -> {
             if (epoch < pair.getKey()) {
                 log.debug("Epoch {} on stream {}/{} is already complete.", epoch, scope, stream);
                 return CompletableFuture.completedFuture(null);
@@ -92,7 +89,7 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
             }
         }).whenCompleteAsync((result, error) -> {
             if (error != null) {
-                log.error("Exception while attempting to committ transaction on epoch {} on stream {}/{}", epoch, scope, stream);
+                log.error("Exception while attempting to committ transaction on epoch {} on stream {}/{}", epoch, scope, stream, error);
             } else {
                 log.debug("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
                 if (processedEvents != null) {
@@ -137,7 +134,8 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
                     }
                 });
 
-        CompletableFuture<Void> commitFuture = txnListFuture.thenCompose(transactionsToCommit -> streamMetadataStore.getActiveSegmentIds(scope, stream, epoch, context, executor)
+        CompletableFuture<Void> commitFuture = txnListFuture
+                .thenCompose(transactionsToCommit -> streamMetadataStore.getActiveSegmentIds(scope, stream, epoch, context, executor)
                 .thenCompose(segments -> {
                     // Chain all transaction commit futures one after the other. This will ensure that order of commit
                     // if honoured and is based on the order in the list.

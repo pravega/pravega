@@ -723,10 +723,11 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (transactions != null) {
                 map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
+                map = Collections.unmodifiableMap(map);
             } else {
                 map = Collections.emptyMap();
             }
-            return CompletableFuture.completedFuture(Collections.unmodifiableMap(map));
+            return CompletableFuture.completedFuture(map);
         }
     }
 
