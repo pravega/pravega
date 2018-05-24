@@ -46,11 +46,11 @@ public class EpochTransitionRecord {
     /**
      * Segments to be sealed.
      */
-    final ImmutableSet<Integer> segmentsToSeal;
+    final ImmutableSet<Long> segmentsToSeal;
     /**
      * Key ranges for new segments to be created.
      */
-    ImmutableMap<Integer, AbstractMap.SimpleEntry<Double, Double>> newSegmentsWithRange;
+    ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegmentsWithRange;
 
     public static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 

@@ -38,15 +38,20 @@ public class HistoryRecord {
 
     @Getter
     private final int epoch;
+    /**
+     * Segment ids have two parts, primary id and secondary id.
+     * Primary Id is encoded in LSB of each long and secondary id is encoded in MSB.
+     * Note: secondary id is optional and 0 value will signify its absence.
+     */
     @Getter
-    private final List<Integer> segments;
+    private final List<Long> segments;
     @Getter
     private final long scaleTime;
     @Getter
     private final boolean partial;
 
     @Builder
-    HistoryRecord(int epoch, List<Integer> segments, long scaleTime) {
+    HistoryRecord(int epoch, List<Long> segments, long scaleTime) {
         this.epoch = epoch;
         this.segments = segments;
         this.scaleTime = scaleTime;
@@ -54,7 +59,7 @@ public class HistoryRecord {
     }
 
     @Builder
-    HistoryRecord(int epoch, List<Integer> segments) {
+    HistoryRecord(int epoch, List<Long> segments) {
         this(epoch, segments, Long.MIN_VALUE);
     }
 
@@ -165,8 +170,8 @@ public class HistoryRecord {
      * @param historyTable history table
      * @return list of pair of scale time and list of segments in the epoch.
      */
-    public static List<Pair<Long, List<Integer>>> readAllRecords(byte[] historyIndex, byte[] historyTable) {
-        List<Pair<Long, List<Integer>>> result = new LinkedList<>();
+    public static List<Pair<Long, List<Long>>> readAllRecords(byte[] historyIndex, byte[] historyTable) {
+        List<Pair<Long, List<Long>>> result = new LinkedList<>();
             Optional<HistoryRecord> record = HistoryRecord.readRecord(0, historyIndex, historyTable, true);
             while (record.isPresent()) {
                 result.add(new ImmutablePair<>(record.get().getScaleTime(), record.get().getSegments()));

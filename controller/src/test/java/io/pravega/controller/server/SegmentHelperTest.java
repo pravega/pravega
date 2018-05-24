@@ -188,7 +188,7 @@ public class SegmentHelperTest {
         }
 
         @Override
-        public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+        public Host getHostForSegment(String scope, String stream, long segmentNumber) {
             return new Host("localhost", 1000, "");
         }
     }

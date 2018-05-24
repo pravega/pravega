@@ -145,7 +145,7 @@ public class ControllerServiceWithZKStreamTest {
         keyRanges.put(0.75, 1.0);
 
         assertFalse(consumer.checkScale(SCOPE, STREAM, 0).get().getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS));
-        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, Arrays.asList(1), keyRanges, start + 20)
+        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, Arrays.asList(1L), keyRanges, start + 20)
                 .get();
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.STARTED, scaleStatus.getStatus());
         AtomicBoolean done = new AtomicBoolean(false);
@@ -155,11 +155,11 @@ public class ControllerServiceWithZKStreamTest {
         List<Controller.SegmentRange> currentSegmentsAfterScale = consumer.getCurrentSegments(SCOPE, STREAM).get();
         assertEquals(3, currentSegmentsAfterScale.size());
 
-        Map<Controller.SegmentRange, List<Integer>> successorsOfSeg1 = consumer.getSegmentsImmediatelyFollowing(
+        Map<Controller.SegmentRange, List<Long>> successorsOfSeg1 = consumer.getSegmentsImmediatelyFollowing(
                 ModelHelper.createSegmentId(SCOPE, STREAM, 1)).get();
         assertEquals(2, successorsOfSeg1.size()); //two segments follow segment 1
 
-        Map<Controller.SegmentRange, List<Integer>> successorsOfSeg0 = consumer.getSegmentsImmediatelyFollowing(
+        Map<Controller.SegmentRange, List<Long>> successorsOfSeg0 = consumer.getSegmentsImmediatelyFollowing(
                 ModelHelper.createSegmentId(SCOPE, STREAM, 0)).get();
         assertEquals(0, successorsOfSeg0.size()); //no segments follow segment 0
     }

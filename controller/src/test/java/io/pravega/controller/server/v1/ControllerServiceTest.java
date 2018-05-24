@@ -121,7 +121,7 @@ public class ControllerServiceTest {
 
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments = Collections.singletonList(1);
+        List<Long> sealedSegments = Collections.singletonList(1L);
         scaleTs = System.currentTimeMillis();
         streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs,
                 false, null, executor).get();
@@ -134,7 +134,7 @@ public class ControllerServiceTest {
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
-        sealedSegments = Arrays.asList(0, 1, 2);
+        sealedSegments = Arrays.asList(0L, 1L, 2L);
         streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5),
                 scaleTs, false, null, executor).get();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();

@@ -131,7 +131,7 @@ public class TaskTest {
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments = Collections.singletonList(1);
+        List<Long> sealedSegments = Collections.singletonList(1L);
         StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
         streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
@@ -142,7 +142,7 @@ public class TaskTest {
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
+        List<Long> sealedSegments1 = Arrays.asList(0L, 1L, 2L);
         response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
         segmentsCreated = response .getSegmentsCreated();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
@@ -216,8 +216,8 @@ public class TaskTest {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                 .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final ArrayList<Integer> sealSegments = new ArrayList<>();
-        sealSegments.add(0);
+        final ArrayList<Long> sealSegments = new ArrayList<>();
+        sealSegments.add(0L);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));

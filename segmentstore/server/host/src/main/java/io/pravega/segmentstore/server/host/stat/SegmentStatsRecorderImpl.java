@@ -100,7 +100,6 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private void loadAsynchronously(String streamSegmentName) {
-
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
             if (store != null) {
