@@ -31,7 +31,9 @@ public class AtomicBigLong {
     }
 
     public BigLong get() {
-        return this.value;
+        synchronized (lock) {
+            return this.value;
+        }
     }
 
     public BigLong incrementAndGet() {
