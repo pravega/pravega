@@ -971,7 +971,9 @@ public class ReaderGroupState implements Revisioned {
         protected void declareSerializers(Builder b) {
             // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring)
             // and not necessarily sequential or contiguous.
-            b.serializer(AddReader.class, 2, new AddReader.AddReaderSerializer())
+            b.serializer(ReaderGroupStateInit.class, 0, new ReaderGroupStateInit.ReaderGroupStateInitSerializer())
+             .serializer(CompactReaderGroupState.class, 1, new CompactReaderGroupState.CompactReaderGroupStateSerializer())
+             .serializer(AddReader.class, 2, new AddReader.AddReaderSerializer())
              .serializer(RemoveReader.class, 3, new RemoveReader.RemoveReaderSerializer())
              .serializer(ReleaseSegment.class, 4, new ReleaseSegment.ReleaseSegmentSerializer())
              .serializer(AcquireSegment.class, 5, new AcquireSegment.AcquireSegmentSerializer())
