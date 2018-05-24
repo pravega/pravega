@@ -188,7 +188,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     oldConnection = connection;
                 }
                 log.info("Handling exception {} for connection {} on writer {}. SetupCompleted: {}, Closed: {}",
-                         throwable, connection, writerId, connectionSetupCompleted.isDone(), closed);
+                         throwable, connection, writerId, connectionSetupCompleted == null ? null: connectionSetupCompleted.isDone(), closed);
                 if (exception == null) {
                     exception = throwable;
                 }
