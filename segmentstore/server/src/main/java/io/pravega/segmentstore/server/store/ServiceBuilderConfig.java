@@ -118,6 +118,15 @@ public class ServiceBuilderConfig {
         }
 
         /**
+         * Creates a new instance of this class containing a copy of the existing configuration.
+         *
+         * @return A new instance of this class.
+         */
+        public Builder makeCopy() {
+            return new Builder().include(this.properties);
+        }
+
+        /**
          * Loads configuration values from the given config file.
          *
          * @param filePath The path to the file to read form.
