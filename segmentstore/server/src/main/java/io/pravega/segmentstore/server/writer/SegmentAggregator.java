@@ -386,7 +386,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *
      * @param operation The operation to handle.
      */
-    private void acknowledgeAlreadyProcessedOperation(StorageOperation operation) {
+    private void acknowledgeAlreadyProcessedOperation(StorageOperation operation) throws DataCorruptionException {
         try {
             // Only MergeTransactionOperations need special handling. Others, such as StreamSegmentSealOperation, are not
             // needed since they're handled in the initialize() method.
@@ -394,10 +394,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 // Ensure that the DataSource is aware of this (since after recovery, it may not know that a merge has
                 // been properly completed).
                 MergeTransactionOperation mergeOp = (MergeTransactionOperation) operation;
-                this.dataSource.completeMerge(mergeOp.getStreamSegmentId(), mergeOp.getTransactionSegmentId());
+                updateMetadataForTransactionPostMerger(this.dataSource.getStreamSegmentMetadata(mergeOp.getTransactionSegmentId()));
             }
-        } catch (Exception ex) {
-            log.warn("Unable to acknowledge already processed operation '{}'.", operation, ex);
+        } catch (Throwable ex) {
+            // Something really weird must have happened if we ended up in here. To prevent any (further) damage, we need
+            // to stop the Segment Container right away.
+            throw new DataCorruptionException(String.format("Unable to acknowledge already processed operation '%s'.", operation), ex);
         }
     }
 
