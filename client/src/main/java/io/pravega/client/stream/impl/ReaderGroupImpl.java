@@ -16,8 +16,10 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.state.Update;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
@@ -30,7 +32,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
-import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -72,7 +73,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final NotifierFactory notifierFactory;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
-                           Serializer<ReaderGroupStateInit> initSerializer, Serializer<ReaderGroupStateUpdate> updateSerializer,
+                           Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
                            ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(synchronizerConfig);
         Preconditions.checkNotNull(initSerializer);
