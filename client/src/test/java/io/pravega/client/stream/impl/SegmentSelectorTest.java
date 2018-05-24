@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -45,7 +46,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config, executorService());
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -72,7 +73,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config, executorService());
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -99,7 +100,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config, executorService());
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -133,13 +134,13 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
                 .thenReturn(ImmutableList.of(new PendingEvent("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        when(factory.createOutputStreamForSegment(eq(segment0), any(Consumer.class), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), any(Consumer.class), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
                 .thenReturn(s1Writer);
 
         Controller controller = Mockito.mock(Controller.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config, executorService());
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.5, segment0);
         segments.put(1.0, segment1);

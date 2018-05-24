@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +52,6 @@ public class SegmentSelector {
     @GuardedBy("$lock")
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
     private final EventWriterConfig config;
-    private final Executor executor;
 
     /**
      * Selects which segment an event should be written to.
@@ -92,12 +90,9 @@ public class SegmentSelector {
 
         if (successors == null) {
             // Stream is deleted, complete all pending writes exceptionally.
-            executor.execute(() -> {
-                log.error("Pending writes for Segment: {} completed with NoSuchSegmentException", sealedSegment);
-                getPendingsEvent(sealedSegment)
-                        .forEach(event -> event.getAckFuture()
-                                .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
-            });
+            log.error("Pending writes for Segment: {} completed with NoSuchSegmentException", sealedSegment);
+            removeWriter(sealedSegment).forEach(event -> event.getAckFuture()
+                    .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
             return Collections.emptyList();
         } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
@@ -148,13 +143,12 @@ public class SegmentSelector {
         currentSegments = currentSegments.withReplacementRange(successors);
         createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
-        SegmentOutputStream sealedSegmentWriter = writers.remove(sealedSegment); // remove this sealed segment writer.
-        return sealedSegmentWriter.getUnackedEventsOnSeal();
+        return removeWriter(sealedSegment);
     }
 
     @Synchronized
-    private List<PendingEvent> getPendingsEvent(Segment segment) {
-        return writers.get(segment).getUnackedEventsOnSeal();
+    private List<PendingEvent> removeWriter(Segment segment) {
+        return writers.remove(segment).getUnackedEventsOnSeal();
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {

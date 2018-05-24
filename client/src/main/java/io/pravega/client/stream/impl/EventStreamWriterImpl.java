@@ -84,7 +84,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, retransmitPool);
+        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);

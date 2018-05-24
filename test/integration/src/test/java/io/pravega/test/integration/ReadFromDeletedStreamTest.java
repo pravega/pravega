@@ -60,7 +60,5 @@ public class ReadFromDeletedStreamTest {
         test.writeEvent("0", "foo").get();
         streamManager.deleteStream("test", "test");
         AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.writeEvent("0", "foo").get());
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.flush());
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> test.close());
     }
 }

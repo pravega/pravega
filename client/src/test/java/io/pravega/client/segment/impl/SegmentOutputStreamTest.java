@@ -776,11 +776,11 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         //Simulate a No Such Segment while waiting on flush.
         AssertExtensions.assertBlocks(() -> {
-            AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> output.flush());
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT));
             output.getUnackedEventsOnSeal();
         });
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> output.flush());
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
 }
