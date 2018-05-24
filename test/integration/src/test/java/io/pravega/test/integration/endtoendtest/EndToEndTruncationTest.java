@@ -156,7 +156,7 @@ public class EndToEndTruncationTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                  .stream("test/test").build());
+                                                                  .stream(Stream.of("test/test")).build());
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
@@ -192,7 +192,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                         .stream(scope + "/" + streamName)
+                                                                         .stream(scope, streamName)
                                                                          .build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
@@ -248,7 +248,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                .stream(scope + "/" + streamName).build());
+                                                                .stream(scope, streamName).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // Write events to the Stream.

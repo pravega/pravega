@@ -143,7 +143,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
-        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config, scope);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }

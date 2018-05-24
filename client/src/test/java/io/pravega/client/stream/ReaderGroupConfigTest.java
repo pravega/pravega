@@ -28,14 +28,21 @@ public class ReaderGroupConfigTest {
     public void testValidConfigWithScopedStreamName() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
-                .stream("scope/s1", getStreamCut("s1"))
-                .stream("scope/s2", getStreamCut("s2"))
+                .stream("scope", "s1", getStreamCut("s1"))
+                .stream("scope", "s2", getStreamCut("s2"))
+                .stream("s3", getStreamCut("s3"))
+                .stream("s4", StreamCut.UNBOUNDED, getStreamCut("s4"))
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getEndingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get("scope/s2"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getEndingStreamCuts().get("scope/s2"));
+        assertEquals(getStreamCut("s3"), cfg.getStartingStreamCuts().get("s3"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("s4"));
+        assertEquals(getStreamCut("s4"), cfg.getEndingStreamCuts().get("s4"));
     }
 
     @Test
@@ -54,8 +61,8 @@ public class ReaderGroupConfigTest {
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
@@ -71,36 +78,40 @@ public class ReaderGroupConfigTest {
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
     public void testValidConfig() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
-                                                 .stream("scope/s1", getStreamCut("s1"))
+                                                 .stream("scope", "s1", getStreamCut("s1"))
                                                  .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
                                                  .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
     public void testValidConfigWithoutStartStreamCut() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
-                                                 .stream("scope/s1")
-                                                 .stream("scope/s2", getStreamCut("s2"))
+                                                 .stream("scope", "s1")
+                                                 .stream("scope", "s2", getStreamCut("s2"))
+                                                 .stream("s3")
+                                                 .stream("s4", getStreamCut("s4"))
                                                  .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get("scope/s2"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("s3"));
+        assertEquals(getStreamCut("s4"), cfg.getStartingStreamCuts().get("s4"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -111,11 +122,18 @@ public class ReaderGroupConfigTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void testEmptyStreamName() {
+        ReaderGroupConfig.builder()
+                         .stream("")
+                         .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void testInValidStartStreamCut() {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()
-                         .stream("scope/s1", getStreamCut("s2"))
-                         .stream("scope/s2", getStreamCut("s1"))
+                         .stream("scope", "s1", getStreamCut("s2"))
+                         .stream("scope", "s2", getStreamCut("s1"))
                          .build();
     }
 
@@ -124,7 +142,7 @@ public class ReaderGroupConfigTest {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()
                          .stream(Stream.of(SCOPE, "s1"), getStreamCut("s2"))
-                         .stream("scope2/s2", getStreamCut("s1"))
+                         .stream("scope2", "s2", getStreamCut("s1"))
                          .build();
     }
 
