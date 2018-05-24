@@ -331,19 +331,17 @@ abstract class AbstractFailoverTests {
 
     CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
-            final String uniqueRoutingKey = UUID.randomUUID().toString();
-            long value = 0;
             while (!testState.stopWriteFlag.get()) {
                 Transaction<String> transaction = null;
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
                     transaction = writer.beginTxn();
+                    final String uniqueRoutingKey = transaction.getTxnId().toString();
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
-                        transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + value);
-                        log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + value,
+                        transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + j);
+                        log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + j,
                                 transaction.getTxnId());
-                        value++;
                     }
                     //commit Txn
                     transaction.commit();
