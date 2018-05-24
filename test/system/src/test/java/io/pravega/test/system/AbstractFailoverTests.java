@@ -291,9 +291,9 @@ abstract class AbstractFailoverTests {
                 try {
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     final String eventContent = uniqueRoutingKey + RK_VALUE_SEPARATOR + value;
-                    log.debug("Event write count before write call {}", eventContent);
+                    log.debug("Event write count before write call {}", testState.getEventWrittenCount());
                     writer.writeEvent(uniqueRoutingKey, eventContent);
-                    log.debug("Event write count before flush {}", eventContent);
+                    log.debug("Event write count before flush {}", testState.getEventWrittenCount());
                     writer.flush();
                     testState.incrementTotalWrittenEvents();
                     log.debug("Writing event {}", eventContent);
