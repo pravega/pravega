@@ -155,7 +155,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                 .thenCompose(v -> storeHelper.getData(ZKStoreHelper.COUNTER_PATH)
                         .thenCompose(data -> {
                             BigLong previous = BigLong.fromBytes(data.getData());
-                            BigLong nextLimit = previous.add(previous, COUNTER_RANGE);
+                            BigLong nextLimit = BigLong.add(previous, COUNTER_RANGE);
                             return storeHelper.setData(ZKStoreHelper.COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock

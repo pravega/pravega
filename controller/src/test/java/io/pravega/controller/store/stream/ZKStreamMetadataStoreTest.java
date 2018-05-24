@@ -129,6 +129,39 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     }
 
     @Test
+    public void testCounterConcurrentUpdates() {
+        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+
+        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) this.store);
+        ZKStreamMetadataStore zkStore2 = spy((ZKStreamMetadataStore) this.store);
+        ZKStreamMetadataStore zkStore3 = spy((ZKStreamMetadataStore) this.store);
+        zkStore.setStoreHelperForTesting(storeHelper);
+
+        // first call should get the new range from store
+        BigLong counter = zkStore.getNextCounter().join();
+
+        // verify that the generated counter is from new range
+        assertEquals(0, counter.getMsb());
+        assertEquals(1L, counter.getLsb());
+        assertEquals(zkStore.getCounterForTesting(), counter);
+        BigLong limit = zkStore.getLimitForTesting();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, limit.getLsb());
+
+        zkStore3.getRefreshFuture().join();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, zkStore3.getCounterForTesting().getLsb());
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, zkStore3.getLimitForTesting().getLsb());
+
+        zkStore2.getRefreshFuture().join();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, zkStore2.getCounterForTesting().getLsb());
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 3, zkStore2.getLimitForTesting().getLsb());
+
+        zkStore.getRefreshFuture().join();
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 3, zkStore.getCounterForTesting().getLsb());
+        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 4, zkStore.getLimitForTesting().getLsb());
+    }
+
+    @Test
     public void listStreamsWithInactiveStream() throws Exception {
         // list stream in scope
         store.createScope("Scope").get();
