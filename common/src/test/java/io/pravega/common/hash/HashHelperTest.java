@@ -13,8 +13,9 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.val;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -58,29 +59,24 @@ public class HashHelperTest {
 
     @Test
     public void testHashToBucketString() {
-        byte[] data = new byte[32];  // Short strings, otherwise this test would take too long.
-        testBucketUniformity(HashHelper::hashToBucket,
-                r -> {
-                    r.nextBytes(data);
-                    return new String(data);
-                });
+        testBucketUniformity(HashHelper::hashToBucket, () -> RandomStringUtils.randomAlphanumeric(16));
     }
 
     @Test
     public void testHashToBucketUUID() {
-        testBucketUniformity(HashHelper::hashToBucket, r -> new UUID(r.nextLong(), r.nextLong()));
+        val r = new Random(0);
+        testBucketUniformity(HashHelper::hashToBucket, () -> new UUID(r.nextLong(), r.nextLong()));
     }
 
-    private <T> void testBucketUniformity(HashBucketFunction<T> toTest, Function<Random, T> generator) {
+    private <T> void testBucketUniformity(HashBucketFunction<T> toTest, Supplier<T> generator) {
         final int elementsPerBucket = 100000;
         final int acceptedDeviation = (int) (0.05 * elementsPerBucket);
         final int bucketCount = 16;
         final int totalCount = bucketCount * elementsPerBucket;
-        val r = new Random(0);
         val h = HashHelper.seededWith("Test");
         val result = new HashMap<Integer, Integer>();
         for (int i = 0; i < totalCount; i++) {
-            val u = generator.apply(r);
+            val u = generator.get();
             int b = toTest.apply(h, u, bucketCount);
             result.put(b, result.getOrDefault(b, 0) + 1);
         }
