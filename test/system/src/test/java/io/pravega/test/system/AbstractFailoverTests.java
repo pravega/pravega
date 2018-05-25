@@ -31,6 +31,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -96,7 +98,6 @@ abstract class AbstractFailoverTests {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
-        private final ConcurrentHashMap<String, Long> routingKeySeqNumber = new ConcurrentHashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -120,28 +121,6 @@ abstract class AbstractFailoverTests {
 
         long getEventReadCount() {
             return readEvents.get();
-        }
-
-        /**
-         * This method checks for the strict ordering and uniqueness of events written in a given routing key. That is,
-         * the content of events is generated following the pattern routingKey:seq_number, where seq_number is
-         * monotonically increasing for every routing key, being the expected increment between consecutive seq_number
-         * values always 1. Every time a reader reads an event, this method is executed: it updates a shared map across
-         * all the readers (routingKeySeqNumber) in which keys are routing keys of writers and values the most recent
-         * seq_number. If a reader gets a new event for a key already initialized in the map, the method asserts that
-         * the new value is equal to the existing seq_number + 1. This ensures that readers receive events in the same
-         * order that writers produced them and that there are no duplicate or missing events.
-         *
-         * @param routingKey Routing key where a writer is writing a sequence of events.
-         * @param seqNumber New value read from the stream for the given routing key.
-         */
-        void checkOrder(String routingKey, long seqNumber) {
-            routingKeySeqNumber.compute(routingKey, (rk, currentSeqNum) -> {
-                if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
-                    throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
-                }
-                return seqNumber;
-            });
         }
 
         void checkForAnomalies() {
@@ -289,6 +268,9 @@ abstract class AbstractFailoverTests {
             while (!testState.stopWriteFlag.get()) {
                 try {
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
+                    // The content of events is generated following the pattern routingKey:seq_number, where
+                    // seq_number is monotonically increasing for every routing key, being the expected delta between
+                    // consecutive seq_number values always 1.
                     final String eventContent = uniqueRoutingKey + RK_VALUE_SEPARATOR + value;
                     log.debug("Event write count before write call {}", testState.getEventWrittenCount());
                     writer.writeEvent(uniqueRoutingKey, eventContent);
@@ -339,6 +321,8 @@ abstract class AbstractFailoverTests {
                     transaction = writer.beginTxn();
                     final String uniqueRoutingKey = transaction.getTxnId().toString();
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
+                        // The content of events is generated following the pattern routingKey:seq_number. In this case,
+                        // the context of the routing key is the transaction.
                         transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + j);
                         log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + j,
                                 transaction.getTxnId());
@@ -390,6 +374,7 @@ abstract class AbstractFailoverTests {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
                     testState.getEventReadCount(), testState.getEventWrittenCount());
+            final Map<String, Long> routingKeySeqNumber = new HashMap<>();
             while (!(testState.stopReadFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
                 log.info("Entering read loop");
                 // Exit only if exitFlag is true  and read Count equals write count.
@@ -397,10 +382,17 @@ abstract class AbstractFailoverTests {
                     final String event = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
                     log.debug("Reading event {}", event);
                     if (event != null) {
-                        // Event content is [routing_key:seq_number] to verify event order for a routing key.
+                        // For every new event read, the reader asserts that its value is equal to the existing
+                        // seq_number + 1. This ensures that readers receive events in the same order that writers
+                        // produced them and that there are no duplicate or missing events.
                         final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
-                        final long longEvent = Long.valueOf(keyAndSeqNum[1]);
-                        testState.checkOrder(keyAndSeqNum[0], longEvent);
+                        final long seqNumber = Long.valueOf(keyAndSeqNum[1]);
+                        routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
+                            if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
+                                throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
+                            }
+                            return seqNumber;
+                        });
                         testState.incrementTotalReadEvents();
                         log.debug("Event read count {}", testState.getEventReadCount());
                     } else {
