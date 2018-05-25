@@ -171,14 +171,27 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // We only needs one Transaction for this test.
+        // We want to make sure we do not prematurely acknowledge anything.
+        context.dataSource.setCompleteMergeCallback((target, source) -> Assert.fail("Not expecting any merger callbacks yet."));
+
+        // We need one Transaction for this test (to which we populate data).
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
+        // We also need an empty transaction.
+        SegmentAggregator emptyTransactionAggregator = context.transactionAggregators[1];
+        SegmentMetadata emptyTransactionMetadata = emptyTransactionAggregator.getMetadata();
+
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
+        context.storage.create(emptyTransactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
+        emptyTransactionAggregator.initialize(TIMEOUT).join();
+
+        // Seal the Empty Transaction and add a MergeTransactionOperation to the parent (do this before everything else.
+        emptyTransactionAggregator.add(generateSealAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
 
         // Verify Appends with correct parameters work as expected.
         for (int i = 0; i < appendCount; i++) {

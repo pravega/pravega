@@ -324,14 +324,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private void addStorageOperation(StorageOperation operation) throws DataCorruptionException {
         checkValidStorageOperation(operation);
 
-        // Add operation to list, but only if hasn't yet been persisted in Storage.
-        // We can figure this out if we compare the last offset of the op with Metadata.StorageLength or, for seal operations,
-        // if it hasn't already been sealed in Storage.
+        // Add operation to list, but only if hasn't yet been persisted in Storage. It needs processing if either:
+        // - It has at least one byte that hasn't yet been applied to Storage.
+        // - It is a Merge Operation with an empty Source, but the Merge Offset is exactly at the Segment's last offset.
+        // - It is a Truncate Operation.
+        // - It is a Seal Operation but the Segment is not yet sealed in Storage.
         long lastOffset = operation.getLastStreamSegmentOffset();
         boolean isTruncate = isTruncateOperation(operation);
+        boolean isMerge = operation instanceof MergeTransactionOperation;
         boolean processOp = lastOffset > this.metadata.getStorageLength()
                 || isTruncate
-                || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation));
+                || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation))
+                || (isMerge && operation.getLength() == 0 && lastOffset == this.metadata.getStorageLength());
         if (processOp) {
             processNewOperation(operation);
         } else {
@@ -387,19 +391,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param operation The operation to handle.
      */
     private void acknowledgeAlreadyProcessedOperation(StorageOperation operation) throws DataCorruptionException {
-        try {
+        if (operation instanceof MergeTransactionOperation) {
             // Only MergeTransactionOperations need special handling. Others, such as StreamSegmentSealOperation, are not
-            // needed since they're handled in the initialize() method.
-            if (operation instanceof MergeTransactionOperation) {
-                // Ensure that the DataSource is aware of this (since after recovery, it may not know that a merge has
-                // been properly completed).
-                MergeTransactionOperation mergeOp = (MergeTransactionOperation) operation;
+            // needed since they're handled in the initialize() method. Ensure that the DataSource is aware of this
+            // (since after recovery, it may not know that a merge has been properly completed).
+            MergeTransactionOperation mergeOp = (MergeTransactionOperation) operation;
+            try {
                 updateMetadataForTransactionPostMerger(this.dataSource.getStreamSegmentMetadata(mergeOp.getTransactionSegmentId()));
+            } catch (Throwable ex) {
+                // Something really weird must have happened if we ended up in here. To prevent any (further) damage, we need
+                // to stop the Segment Container right away.
+                throw new DataCorruptionException(String.format("Unable to acknowledge already processed operation '%s'.", operation), ex);
             }
-        } catch (Throwable ex) {
-            // Something really weird must have happened if we ended up in here. To prevent any (further) damage, we need
-            // to stop the Segment Container right away.
-            throw new DataCorruptionException(String.format("Unable to acknowledge already processed operation '%s'.", operation), ex);
         }
     }
 
