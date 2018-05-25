@@ -31,13 +31,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -97,7 +96,7 @@ abstract class AbstractFailoverTests {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
-        private final Map<String, Long> routingKeySeqNumber = new HashMap<>();
+        private final ConcurrentHashMap<String, Long> routingKeySeqNumber = new ConcurrentHashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -131,20 +130,18 @@ abstract class AbstractFailoverTests {
          * all the readers (routingKeySeqNumber) in which keys are routing keys of writers and values the most recent
          * seq_number. If a reader gets a new event for a key already initialized in the map, the method asserts that
          * the new value is equal to the existing seq_number + 1. This ensures that readers receive events in the same
-         * order that writers produced them and that there are no duplicate or missing events. This method does not make
-         * use of synchronization given that a routing key should not be updated in parallel by more than one thread (if
-         * this occurs, the ordering guarantees of writing events in routing keys are broken and the test should fail).
+         * order that writers produced them and that there are no duplicate or missing events.
          *
          * @param routingKey Routing key where a writer is writing a sequence of events.
          * @param seqNumber New value read from the stream for the given routing key.
          */
         void checkOrder(String routingKey, long seqNumber) {
-            if (!routingKeySeqNumber.containsKey(routingKey)) {
-                routingKeySeqNumber.put(routingKey, seqNumber);
-            } else {
-                Assert.assertEquals("Event order violated:", routingKeySeqNumber.get(routingKey) + 1, seqNumber);
-                routingKeySeqNumber.put(routingKey, seqNumber);
-            }
+            routingKeySeqNumber.compute(routingKey, (rk, currentSeqNum) -> {
+                if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
+                    throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
+                }
+                return seqNumber;
+            });
         }
 
         void checkForAnomalies() {
@@ -299,6 +296,7 @@ abstract class AbstractFailoverTests {
                     writer.flush();
                     testState.incrementTotalWrittenEvents();
                     log.debug("Writing event {}", eventContent);
+                    log.debug("Event write count {}", testState.getEventWrittenCount());
                     value++;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
