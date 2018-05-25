@@ -252,8 +252,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
-                        .with(ServiceConfig.KEY_FILE, this.keyFile == null ? "" : this.keyFile)
-                        .with(ServiceConfig.CERT_FILE, this.certFile == null ? "" : this.certFile)
+                        .withDefaultIfNotExists(ServiceConfig.KEY_FILE, this.keyFile)
+                        .withDefaultIfNotExists(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
@@ -270,8 +270,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tcp" : "tls") + "://localhost:"
                                                                                 + controllerPorts[0])
-                                         .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
-                                         .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
+                                         .withDefaultIfNotExists(AutoScalerConfig.AUTH_USERNAME, this.userName)
+                                         .withDefaultIfNotExists(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)

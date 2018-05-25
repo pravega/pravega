@@ -79,6 +79,22 @@ public class ConfigBuilder<T> {
     }
 
     /**
+     * Includes the given property and its value in the builder, if the provided value is not null.
+     *
+     * @param property The property to set.
+     * @param value    The value of the property. This must be of the same type as accepted by the Property.
+     * @param <V>      Type of the property.
+     * @return This instance.
+     */
+    public <V> ConfigBuilder<T> withDefaultIfNotExists(Property<V> property, V value) {
+        if (value != null) {
+            String key = String.format("%s.%s", this.namespace, property.getName());
+            this.properties.setProperty(key, value.toString());
+        }
+        return this;
+    }
+
+    /**
      * Includes the given property and its value in the builder, without Property-Value type-enforcement.
      *
      * @param property The property to set.
