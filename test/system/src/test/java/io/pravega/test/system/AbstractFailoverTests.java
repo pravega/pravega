@@ -97,22 +97,22 @@ abstract class AbstractFailoverTests {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
-        private final Map<String, AtomicLong> routingKeySeqNumber = new HashMap<>();
+        private final Map<String, Long> routingKeySeqNumber = new HashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
         }
 
         long incrementTotalWrittenEvents() {
-            return writtenEvents.getAndIncrement();
+            return writtenEvents.incrementAndGet();
         }
 
         long incrementTotalWrittenEvents(int increment) {
-            return writtenEvents.getAndAdd(increment);
+            return writtenEvents.addAndGet(increment);
         }
 
         long incrementTotalReadEvents() {
-            return readEvents.getAndIncrement();
+            return readEvents.incrementAndGet();
         }
 
         long getEventWrittenCount() {
@@ -131,17 +131,19 @@ abstract class AbstractFailoverTests {
          * all the readers (routingKeySeqNumber) in which keys are routing keys of writers and values the most recent
          * seq_number. If a reader gets a new event for a key already initialized in the map, the method asserts that
          * the new value is equal to the existing seq_number + 1. This ensures that readers receive events in the same
-         * order that writers produced them and that there are no duplicate or missing events.
+         * order that writers produced them and that there are no duplicate or missing events. This method does not make
+         * use of synchronization given that a routing key should not be updated in parallel by more than one thread (if
+         * this occurs, the ordering guarantees of writing events in routing keys are broken and the test should fail).
          *
          * @param routingKey Routing key where a writer is writing a sequence of events.
          * @param seqNumber New value read from the stream for the given routing key.
          */
         void checkOrder(String routingKey, long seqNumber) {
             if (!routingKeySeqNumber.containsKey(routingKey)) {
-                routingKeySeqNumber.put(routingKey, new AtomicLong(seqNumber));
+                routingKeySeqNumber.put(routingKey, seqNumber);
             } else {
-                Assert.assertEquals("Event order violated:", routingKeySeqNumber.get(routingKey).get() + 1, seqNumber);
-                routingKeySeqNumber.get(routingKey).set(seqNumber);
+                Assert.assertEquals("Event order violated:", routingKeySeqNumber.get(routingKey) + 1, seqNumber);
+                routingKeySeqNumber.put(routingKey, seqNumber);
             }
         }
 
