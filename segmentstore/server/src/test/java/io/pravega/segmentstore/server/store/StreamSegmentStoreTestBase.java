@@ -301,7 +301,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             // Delete everything.
-            System.out.println("BEGIN DELETE");
             deleteSegments(segmentNames, context.getActiveStore()).join();
             log.info("Finished deleting segments.");
             checkSegmentStatus(lengths, startOffsets, true, true, context.getActiveStore());

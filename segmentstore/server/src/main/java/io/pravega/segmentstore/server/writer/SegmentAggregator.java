@@ -275,7 +275,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                         // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
                         // * We processed a TransactionMergeOperation but did not have a chance to ack/truncate the DataSource
-                        System.out.println(String.format("[%s]: Segment '[%s]' does not exist in Storage. Ignoring all further operations on it.", this.dataSource.getEpoch(), this.metadata.getName()));
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
                         log.warn("{}: Segment '{}' does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
                         setState(AggregatorState.Writing);
@@ -840,7 +839,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         AtomicLong mergedLength = new AtomicLong();
-        System.out.println(String.format("[%s]BeginMerge: %s", this.dataSource.getEpoch(), transactionMetadata.getName()));
         return this.storage
                 .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
                 .thenAcceptAsync(transProperties -> {
@@ -891,7 +889,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
-                    System.out.println(String.format("[%s]CompleteMerge: %s", this.dataSource.getEpoch(), transactionMetadata.getName()));
                 }, this.executor)
                 .thenComposeAsync(v -> this.dataSource.deleteAllAttributes(transactionMetadata, timer.getRemaining()), this.executor)
                 .thenApply(v -> {
@@ -928,7 +925,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "sealIfNecessary");
-        System.out.println(String.format("[%s]BeginSeal: %s", this.dataSource.getEpoch(), this.metadata.getName()));
         return this.storage
                 .seal(this.handle.get(), timer.getRemaining())
                 .thenComposeAsync(v -> sealAttributes(timer.getRemaining()), this.executor)
@@ -946,7 +942,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     updateStatePostSeal();
-                    System.out.println(String.format("[%s]CompleteSeal: %s", this.dataSource.getEpoch(), this.metadata.getName()));
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "sealIfNecessary", traceId, flushResult);
                     return flushResult;
                 }, this.executor);
@@ -1009,7 +1004,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // Segment does not exist anymore. This is either due to un-acknowledged Merge operations or because
                         // of a concurrent instance of the same container (with a lower epoch) is still running and was in
                         // the middle of executing the Merge operation while we were initializing.
-                        System.out.println(String.format("[%s]: Segment '[%s]' does not exist in Storage (reconciliation). Ignoring all further operations on it.", this.dataSource.getEpoch(), this.metadata.getName()));
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
                         log.warn("{}: Segment '{}' does not exist in Storage (reconciliation). Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
                         this.reconciliationState.set(null);
@@ -1513,7 +1507,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         AggregatorState oldState = this.state.get();
         if (newState != oldState) {
             log.info("{}: State changed from {} to {}.", this.traceObjectId, oldState, newState);
-            System.out.println(String.format("[%s]%s: State changed from %s to %s.", this.dataSource.getEpoch(), this.metadata.getName(), oldState, newState));
         }
 
         this.state.set(newState);

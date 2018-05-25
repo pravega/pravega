@@ -201,11 +201,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region WriterDataSource Implementation
 
     @Override
-    public long getEpoch() {
-        return 0;
-    }
-
-    @Override
     public int getId() {
         return this.metadata.getContainerId();
     }
