@@ -32,6 +32,7 @@ public class ReaderGroupConfigTest {
                 .stream("scope", "s2", getStreamCut("s2"))
                 .stream("s3", getStreamCut("s3"))
                 .stream("s4", StreamCut.UNBOUNDED, getStreamCut("s4"))
+                .defaultScope("testing")
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
