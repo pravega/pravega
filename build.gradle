@@ -21,12 +21,17 @@ buildscript {
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
+        classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
     }
 }
 
 if (project.hasProperty("enableMkdocs")) {
     apply from: "$rootDir/gradle/mkdocs.gradle"
 }
+
+// apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
+// https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
+apply plugin: 'org.ajoberstar.grgit'
 
 allprojects {
     apply plugin: 'idea'
@@ -58,7 +63,7 @@ allprojects {
         }
     }
     
-    version = pravegaVersion
+    version = getProjectVersion()
     group = "io.pravega"
 
     configurations.all {
@@ -746,6 +751,17 @@ project('test:system') {
         commandLine './aws/postTestScript.sh'
         args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
     }
+}
+
+def getProjectVersion() {
+    String ver = pravegaVersion
+    if (ver.contains("-SNAPSHOT")) {
+        String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
+        def count = grgit.log(includes:['HEAD']).size()
+        def commitId = "${grgit.head().abbreviatedId}"
+        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
+    }
+    return ver
 }
 
 subprojects {
