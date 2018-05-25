@@ -403,7 +403,7 @@ interface Stream {
      * @param txnsToCommit transactions to commit within the epoch
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<Void> createTxnCommitList(final int epoch, final List<UUID> txnsToCommit);
+    CompletableFuture<Void> createCommittingTransactionsRecord(final int epoch, final List<UUID> txnsToCommit);
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.
@@ -419,7 +419,7 @@ interface Stream {
      *
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
-    CompletableFuture<Void> deleteTxnCommitList();
+    CompletableFuture<Void> deleteCommittingTransactionsRecord();
 
     /**
      * Method to get all transactions in a given epoch.

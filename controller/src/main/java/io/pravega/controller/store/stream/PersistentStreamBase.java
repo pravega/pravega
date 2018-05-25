@@ -1132,7 +1132,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> createTxnCommitList(final int epoch, final List<UUID> txnsToCommit) {
+    public CompletableFuture<Void> createCommittingTransactionsRecord(final int epoch, final List<UUID> txnsToCommit) {
         return createCommittingTxnRecord(new CommittingTransactionsRecord(epoch, txnsToCommit).toByteArray());
     }
 
@@ -1155,7 +1155,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Void> deleteTxnCommitList() {
+    public CompletableFuture<Void> deleteCommittingTransactionsRecord() {
         return deleteCommittingTxnRecord();
     }
 

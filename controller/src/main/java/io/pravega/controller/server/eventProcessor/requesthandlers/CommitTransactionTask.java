@@ -134,7 +134,7 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
                 }));
 
         // once all commits are done, delete commit txn node
-        return commitFuture.thenCompose(v -> streamMetadataStore.deleteTxnCommitList(scope, stream, context, executor)
+        return commitFuture.thenCompose(v -> streamMetadataStore.deleteCommittingTransactionsRecord(scope, stream, context, executor)
                 .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context, delegationToken))));
     }
 
@@ -166,7 +166,7 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
                 .thenApply(transactions -> transactions.entrySet().stream()
                         .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
                         .map(Map.Entry::getKey).collect(Collectors.toList()))
-                .thenCompose(transactions -> streamMetadataStore.createTxnCommitList(scope, stream, epoch, transactions, context, executor)
+                .thenCompose(transactions -> streamMetadataStore.createCommittingTransactionsRecord(scope, stream, epoch, transactions, context, executor)
                         .thenApply(x -> {
                             log.debug("Transactions {} added to commit list for epoch {} stream {}/{}", transactions, epoch, scope, stream);
                             return transactions;

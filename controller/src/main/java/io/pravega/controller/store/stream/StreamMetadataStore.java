@@ -854,8 +854,8 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<Void> createTxnCommitList(final String scope, final String stream, final int epoch, final List<UUID> txnsToCommit,
-                                                final OperationContext context, final ScheduledExecutorService executor);
+    CompletableFuture<Void> createCommittingTransactionsRecord(final String scope, final String stream, final int epoch, final List<UUID> txnsToCommit,
+                                                               final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.
@@ -880,8 +880,8 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
-    CompletableFuture<Void> deleteTxnCommitList(final String scope, final String stream, final OperationContext context,
-                                                final ScheduledExecutorService executor);
+    CompletableFuture<Void> deleteCommittingTransactionsRecord(final String scope, final String stream, final OperationContext context,
+                                                               final ScheduledExecutorService executor);
 
     /**
      * Method to get all transactions in a given epoch. This method returns a map of transaction id to transaction record.
