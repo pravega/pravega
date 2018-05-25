@@ -42,14 +42,14 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.StreamCutRecord;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.StreamProperty;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -199,7 +199,7 @@ public class StreamMetadataTasksTest {
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        StreamProperty<StreamConfiguration> configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
+        StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor).join();
         assertFalse(configProp.isUpdating());
         // 1. happy day test
         // update.. should succeed
@@ -207,8 +207,8 @@ public class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
-        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
-        assertTrue(configProp.getProperty().equals(streamConfiguration));
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor).join();
+        assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -222,8 +222,8 @@ public class StreamMetadataTasksTest {
 
         AtomicBoolean loop = new AtomicBoolean(false);
         Futures.loop(() -> !loop.get(),
-                () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
-                        .thenApply(StreamProperty::isUpdating)
+                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor)
+                        .thenApply(StreamConfigurationRecord::isUpdating)
                         .thenAccept(loop::set), executor).join();
 
         // event posted, first step performed. now pick the event for processing
@@ -250,12 +250,12 @@ public class StreamMetadataTasksTest {
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
         Futures.loop(() -> !loop2.get(),
-                () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
-                        .thenApply(StreamProperty::isUpdating)
+                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor)
+                        .thenApply(StreamConfigurationRecord::isUpdating)
                         .thenAccept(loop2::set), executor).join();
 
-        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
-        assertTrue(configProp.getProperty().equals(streamConfiguration1) && configProp.isUpdating());
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor).join();
+        assertTrue(((StreamConfigurationRecord) configProp).getStreamConfiguration().equals(streamConfiguration1) && configProp.isUpdating());
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -272,8 +272,8 @@ public class StreamMetadataTasksTest {
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
 
-        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
-        assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, true, null, executor).join();
+        assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && !configProp.isUpdating());
 
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
     }
@@ -302,7 +302,7 @@ public class StreamMetadataTasksTest {
         assertTrue(Futures.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
 
         // start truncation
-        StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test",
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test",
                 true, null, executor).join();
         assertFalse(truncProp.isUpdating());
         // 1. happy day test
@@ -315,9 +315,9 @@ public class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
 
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
-        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut));
-        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut));
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getStreamCut().equals(streamCut));
+        assertTrue(truncProp.getStreamCut().equals(streamCut));
 
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
@@ -331,8 +331,8 @@ public class StreamMetadataTasksTest {
 
         AtomicBoolean loop = new AtomicBoolean(false);
         Futures.loop(() -> !loop.get(),
-                () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
-                        .thenApply(StreamProperty::isUpdating)
+                () -> streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor)
+                        .thenApply(StreamTruncationRecord::isUpdating)
                         .thenAccept(loop::set), executor).join();
 
         // event posted, first step performed. now pick the event for processing
@@ -359,12 +359,12 @@ public class StreamMetadataTasksTest {
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
         Futures.loop(() -> !loop2.get(),
-                () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
-                        .thenApply(StreamProperty::isUpdating)
+                () -> streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor)
+                        .thenApply(StreamTruncationRecord::isUpdating)
                         .thenAccept(loop2::set), executor).join();
 
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
-        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut3) && truncProp.isUpdating());
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getStreamCut().equals(streamCut3) && truncProp.isUpdating());
 
         // post the second update request. This should fail here itself as previous one has started.
         Map<Integer, Long> streamCut4 = new HashMap<>();
@@ -380,8 +380,8 @@ public class StreamMetadataTasksTest {
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateOp1.join());
 
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
-        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
     }
 
     @Test(timeout = 30000)
@@ -428,7 +428,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
-        StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).get();
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).get();
         // verify that only one stream cut is in retention set. streamCut2 is not added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
@@ -447,7 +447,7 @@ public class StreamMetadataTasksTest {
         // verify two stream cuts are in retention set. Cut 1 and 3.
         // verify that Truncation not not happened.
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).get();
 
         assertTrue(list.contains(streamCut1));
         assertTrue(!list.contains(streamCut2));
@@ -466,14 +466,14 @@ public class StreamMetadataTasksTest {
         // verify that only two stream cut are in retention set. streamcut 3 and 4
         // verify that truncation has started. verify that streamCut1 is removed from retention set as that has been used for truncation
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).get();
 
         assertTrue(!list.contains(streamCut1));
         assertTrue(!list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(list.contains(streamCut4));
         assertTrue(truncProp.isUpdating());
-        assertTrue(truncProp.getProperty().getStreamCut().get(0) == 1L && truncProp.getProperty().getStreamCut().get(1) == 1L);
+        assertTrue(truncProp.getStreamCut().get(0) == 1L && truncProp.getStreamCut().get(1) == 1L);
     }
 
     @Test(timeout = 30000)
@@ -529,7 +529,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
         // verify that two stream cut is in retention set. streamCut2 is added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
@@ -555,16 +555,16 @@ public class StreamMetadataTasksTest {
         // verify two stream cuts are in retention set. Cut 2 and 3.
         // verify that Truncation has happened.
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         assertTrue(!list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
         assertTrue(truncProp.isUpdating());
-        assertTrue(truncProp.getProperty().getStreamCut().get(0) == 9L && truncProp.getProperty().getStreamCut().get(1) == 10L);
+        assertTrue(truncProp.getStreamCut().get(0) == 9L && truncProp.getStreamCut().get(1) == 10L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
         assertFalse(truncProp.isUpdating());
         // endregion
         // endregion
@@ -595,7 +595,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime4, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         assertFalse(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
@@ -621,7 +621,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime5, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -629,10 +629,10 @@ public class StreamMetadataTasksTest {
         assertTrue(list.contains(streamCut4));
         assertTrue(list.contains(streamCut5));
         assertTrue(truncProp.isUpdating());
-        assertTrue(truncProp.getProperty().getStreamCut().get(0) == 60L && truncProp.getProperty().getStreamCut().get(1) == 60L);
+        assertTrue(truncProp.getStreamCut().get(0) == 60L && truncProp.getStreamCut().get(1) == 60L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
         assertFalse(truncProp.isUpdating());
         // endregion
 
@@ -662,7 +662,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime6, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -700,7 +700,7 @@ public class StreamMetadataTasksTest {
         // verify no new truncation.. streamcut5 should be chosen but discarded because it is not strictly-ahead-of-truncationRecord
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null, "").join();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -726,7 +726,7 @@ public class StreamMetadataTasksTest {
 
         streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime8, null, "").get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, streamName, null, executor).get();
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
 
         // verify truncation happens at streamcut6
         assertFalse(list.contains(streamCut1));
@@ -737,11 +737,11 @@ public class StreamMetadataTasksTest {
         assertFalse(list.contains(streamCut6));
         assertTrue(list.contains(streamCut7));
         assertTrue(truncProp.isUpdating());
-        assertTrue(truncProp.getProperty().getStreamCut().get(3) == 40L && truncProp.getProperty().getStreamCut().get(4) == 30L
-                && truncProp.getProperty().getStreamCut().get(5) == 30L);
+        assertTrue(truncProp.getStreamCut().get(3) == 40L && truncProp.getStreamCut().get(4) == 30L
+                && truncProp.getStreamCut().get(5) == 30L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, streamName, true, null, executor).get();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, true, null, executor).get();
         assertFalse(truncProp.isUpdating());
         // endregion
         // endregion

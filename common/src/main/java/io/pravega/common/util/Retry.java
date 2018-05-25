@@ -126,9 +126,9 @@ public final class Retry {
             return new RetryExceptionally<>(retryType, this);
         }
 
-        public RetryConditionally retryWhen(Predicate<Throwable> predicate) {
+        public RetryAndThrowConditionally retryWhen(Predicate<Throwable> predicate) {
             Preconditions.checkNotNull(predicate);
-            return new RetryConditionally(predicate, this);
+            return new RetryAndThrowConditionally(predicate, this);
         }
     }
 
@@ -151,36 +151,15 @@ public final class Retry {
         }
     }
 
-    /**
-     * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any exception will be retried based on the predicate unless the subtype is passed to {@link RetryConditionally#throwingOn(Class)}.
-     */
-    public static final class RetryConditionally {
-        private final Predicate<Throwable> predicate;
-        private final RetryWithBackoff params;
-
-        private RetryConditionally(Predicate<Throwable> predicate, RetryWithBackoff params) {
-            this.predicate = predicate;
-            this.params = params;
-        }
-
-        public <ThrowsT extends Exception> RetryAndThrowConditionally<ThrowsT> throwingOn(Class<ThrowsT> throwType) {
-            Preconditions.checkNotNull(throwType);
-            return new RetryAndThrowConditionally<>(predicate, throwType, params);
-        }
-    }
-
     @FunctionalInterface
     public interface Retryable<ReturnT, RetryableET extends Exception, NonRetryableET extends Exception> {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
 
     public static abstract class RetryAndThrowBase<ThrowsT extends Exception> {
-        final Class<ThrowsT> throwType;
         final RetryWithBackoff params;
 
-        private RetryAndThrowBase(Class<ThrowsT> throwType, RetryWithBackoff params) {
-            this.throwType = throwType;
+        private RetryAndThrowBase(RetryWithBackoff params) {
             this.params = params;
         }
 
@@ -290,10 +269,12 @@ public final class Retry {
     public static final class RetryAndThrowExceptionally<RetryT extends Exception, ThrowsT extends Exception>
         extends RetryAndThrowBase<ThrowsT> {
         private final Class<RetryT> retryType;
+        private final Class<ThrowsT> throwType;
 
         private RetryAndThrowExceptionally(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
-            super(throwType, params);
+            super(params);
             this.retryType = retryType;
+            this.throwType = throwType;
         }
 
         @Override
@@ -319,12 +300,11 @@ public final class Retry {
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
      * the predicate passed to {@link RetryWithBackoff#retryingOn(Class)} says otherwise
      */
-    public static final class RetryAndThrowConditionally<ThrowsT extends Exception>
-            extends RetryAndThrowBase<ThrowsT> {
+    public static final class RetryAndThrowConditionally extends RetryAndThrowBase<RuntimeException> {
         private final Predicate<Throwable> predicate;
 
-        private RetryAndThrowConditionally(Predicate<Throwable> predicate, Class<ThrowsT> throwType, RetryWithBackoff params) {
-            super(throwType, params);
+        private RetryAndThrowConditionally(Predicate<Throwable> predicate, RetryWithBackoff params) {
+            super(params);
             this.predicate = predicate;
         }
 
@@ -338,11 +318,11 @@ public final class Retry {
      * Returned by {@link Retry#indefinitelyWithExpBackoff(long, int, long, Consumer)} (Class)} to
      * retry indefinitely. Its can retry method always returns true.
      */
-    public static final class RetryUnconditionally extends RetryAndThrowBase<Exception> {
+    public static final class RetryUnconditionally extends RetryAndThrowBase<RuntimeException> {
         private final Consumer<Throwable> consumer;
 
         RetryUnconditionally(Consumer<Throwable> consumer, RetryWithBackoff params) {
-            super(Exception.class, params);
+            super(params);
             this.consumer = consumer;
         }
 

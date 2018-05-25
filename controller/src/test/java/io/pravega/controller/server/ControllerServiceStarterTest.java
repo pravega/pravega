@@ -122,6 +122,7 @@ public abstract class ControllerServiceStarterTest {
                                                                   .tlsEnabled(enableAuth)
                                                                   .tlsCertFile("../config/cert.pem")
                                                                   .tlsKeyFile("../config/key.pem")
+                                                                  .userPasswordFile("../config/passwd")
                                                                   .build()))
                 .restServerConfig(Optional.empty())
                 .build();

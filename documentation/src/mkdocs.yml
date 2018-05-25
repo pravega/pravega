@@ -15,6 +15,21 @@ edit_uri: 'tree/master/documentation/src/docs'
 
 theme: 'material'
 
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - codehilite(guess_lang=false)
+  - footnotes
+  - meta
+  - toc(permalink=true)
+  - pymdownx.betterem(smart_enable=all)
+  - pymdownx.caret
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+
 pages:
   - Overview: 'index.md'
   - Getting Started: 'getting-started.md'
@@ -32,6 +47,7 @@ pages:
       - 'Working with Reader Group notifications': 'reader-group-notifications.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
       - 'Working with Transactions': 'transactions.md'
+      - 'Working with StreamCuts': 'streamcuts.md'
   - Running Pravega:
       - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
@@ -39,6 +55,7 @@ pages:
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
+      - 'Pravega Metrics': 'metrics.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'

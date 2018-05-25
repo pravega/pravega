@@ -176,7 +176,7 @@ invoked with the latest state object, and computes the updates to be applied.
 
 In our example, InitialUpdateT is implemented as:
 
-```
+```java
 /**
  * Create a Map. This is used by StateSynchronizer to initialize shared state.
  */
@@ -217,7 +217,7 @@ Class.  We define an abstract class, called StateUpdate, from which all of thes
 "operational" update classes inherit.  
 
 **StateUpdate abstract class**
-```
+```java
 /**
  * A base class for all updates to the shared state. This allows for several different types of updates.
  */
@@ -250,7 +250,7 @@ Here, for example, is the way we implement the Put(key,value) operation on the
 SharedMap object:
 
 **Put as an Update Object**
-```
+```java
 /**
  * Add a key/value pair to the State.
  */
@@ -287,7 +287,7 @@ subclasses of StateUpdate to perform state change (write) operations.
 
 **Creating a SharedMap**
 
-```
+```java
 /**
   * Creates the shared state using a synchronizer based on the given stream name.
   *
@@ -360,7 +360,7 @@ StateSynchronizer programming in a bit more detail:
 
 **Implementing put(key,value)**
 
-```
+```java
 /**
  * Associates the specified value with the specified key in this map.
  *

@@ -18,7 +18,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -169,9 +168,11 @@ class WriteQueue {
      * Removes all the completed writes (whether successful or failed) from the beginning of the queue, until the first
      * non-completed item is encountered or the queue is empty.
      *
-     * @return True if there are items left in the queue, false otherwise.
+     * @return A CleanupStatus representing the state of the Operation. If there were failed writes, this will be WriteFailed,
+     * otherwise it will be one of QueueEmpty or QueueNotEmpty, depending on the final state of the queue when this method
+     * finishes.
      */
-    synchronized EnumSet<CleanupStatus> removeFinishedWrites() {
+    synchronized CleanupStatus removeFinishedWrites() {
         Exceptions.checkNotClosed(this.closed, this);
         long currentTime = this.timeSupplier.get();
         long totalElapsed = 0;
@@ -189,8 +190,9 @@ class WriteQueue {
             this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        CleanupStatus empty = this.writes.isEmpty() ? CleanupStatus.QueueEmpty : CleanupStatus.QueueNotEmpty;
-        return failedWrite ? EnumSet.of(CleanupStatus.WriteFailed, empty) : EnumSet.of(empty);
+        return failedWrite
+                ? CleanupStatus.WriteFailed
+                : this.writes.isEmpty() ? CleanupStatus.QueueEmpty : CleanupStatus.QueueNotEmpty;
     }
 
     /**
