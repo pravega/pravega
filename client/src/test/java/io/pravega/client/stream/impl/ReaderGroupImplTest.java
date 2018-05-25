@@ -12,8 +12,11 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
@@ -60,8 +63,8 @@ public class ReaderGroupImplTest {
     @Mock
     private ReaderGroupState state;
 
-    private Serializer<ReaderGroupState.ReaderGroupStateInit> initSerializer = new JavaSerializer<>();
-    private Serializer<ReaderGroupState.ReaderGroupStateUpdate> updateSerializer = new JavaSerializer<>();
+    private Serializer<InitialUpdate<ReaderGroupState>> initSerializer = new ReaderGroupStateInitSerializer();
+    private Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
 
     @SuppressWarnings("unchecked")
     @Before
