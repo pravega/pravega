@@ -114,7 +114,7 @@ public abstract class PingTest {
         @Override
         RESTServerConfig getServerConfig() {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
-                                       .enableTls(true)
+                                       .tlsEnabled(true)
                                        .keyFilePath("../config/bookie.keystore.jks")
                                        .keyFilePasswordPath("../config/bookie.keystore.jks.passwd")
                                        .build();
