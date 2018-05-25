@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines a Data Source for a StorageWriter
  */
 interface WriterDataSource {
+    long getEpoch();
     /**
      * Gets a value indicating the Id of the StreamSegmentContainer this WriterDataSource is for.
      */

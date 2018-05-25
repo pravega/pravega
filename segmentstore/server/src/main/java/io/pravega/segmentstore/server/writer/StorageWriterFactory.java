@@ -82,6 +82,11 @@ public class StorageWriterFactory implements WriterFactory {
         //region WriterDataSource Implementation
 
         @Override
+        public long getEpoch() {
+            return this.containerMetadata.getContainerEpoch();
+        }
+
+        @Override
         public int getId() {
             return this.containerMetadata.getContainerId();
         }

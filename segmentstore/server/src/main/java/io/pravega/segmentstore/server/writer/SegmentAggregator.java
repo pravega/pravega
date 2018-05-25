@@ -275,6 +275,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                         // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
                         // * We processed a TransactionMergeOperation but did not have a chance to ack/truncate the DataSource
+                        System.out.println(String.format("[%s]: Segment '[%s]' does not exist in Storage. Ignoring all further operations on it.", this.dataSource.getEpoch(), this.metadata.getName()));
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
                         log.warn("{}: Segment '{}' does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
                         setState(AggregatorState.Writing);
@@ -826,7 +827,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeTransactionOperation mergeOp, TimeoutTimer timer) {
         if (transactionMetadata.isDeleted()) {
-            return Futures.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
+            setState(AggregatorState.ReconciliationNeeded);
+            return Futures.failedFuture(new StreamSegmentNotExistsException(transactionMetadata.getName()));
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
@@ -838,6 +840,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         AtomicLong mergedLength = new AtomicLong();
+        System.out.println(String.format("[%s]BeginMerge: %s", this.dataSource.getEpoch(), transactionMetadata.getName()));
         return this.storage
                 .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
                 .thenAcceptAsync(transProperties -> {
@@ -888,6 +891,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
+                    System.out.println(String.format("[%s]CompleteMerge: %s", this.dataSource.getEpoch(), transactionMetadata.getName()));
                 }, this.executor)
                 .thenComposeAsync(v -> this.dataSource.deleteAllAttributes(transactionMetadata, timer.getRemaining()), this.executor)
                 .thenApply(v -> {
@@ -924,17 +928,25 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "sealIfNecessary");
+        System.out.println(String.format("[%s]BeginSeal: %s", this.dataSource.getEpoch(), this.metadata.getName()));
         return this.storage
                 .seal(this.handle.get(), timer.getRemaining())
                 .thenComposeAsync(v -> sealAttributes(timer.getRemaining()), this.executor)
                 .handleAsync((v, ex) -> {
-                    if (ex != null && !(Exceptions.unwrap(ex) instanceof StreamSegmentSealedException)) {
+                    ex = Exceptions.unwrap(ex);
+                    if (ex != null && !(ex instanceof StreamSegmentSealedException)) {
                         // The operation failed, and it was not because the Segment was already Sealed. Throw it again.
                         // We consider the Seal to succeed if the Segment in Storage is already sealed - it's an idempotent operation.
+                        if (ex instanceof StreamSegmentNotExistsException) {
+                            // The segment does not exist (anymore). This is possible if it got merged into another one.
+                            // Begin a reconciliation to determine the actual state.
+                            setState(AggregatorState.ReconciliationNeeded);
+                        }
                         throw new CompletionException(ex);
                     }
 
                     updateStatePostSeal();
+                    System.out.println(String.format("[%s]CompleteSeal: %s", this.dataSource.getEpoch(), this.metadata.getName()));
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "sealIfNecessary", traceId, flushResult);
                     return flushResult;
                 }, this.executor);
@@ -982,25 +994,48 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // We cannot recover automatically from this situation.
                         throw new CompletionException(new ReconciliationFailureException("Actual Segment length in Storage is smaller than the Metadata StorageLength.", this.metadata, sp));
                     } else if (sp.getLength() == this.metadata.getStorageLength()) {
-                        // Nothing to do.
+                        // Nothing to do. Exit reconciliation and re-enter normal writing mode.
+                        setState(AggregatorState.Writing);
                         return;
                     }
 
                     // If we get here, it means we have work to do. Set the state accordingly and move on.
                     this.reconciliationState.set(new ReconciliationState(this.metadata, sp));
                     setState(AggregatorState.Reconciling);
-                }, this.executor);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    ex = Exceptions.unwrap(ex);
+                    if (ex instanceof StreamSegmentNotExistsException && this.metadata.isMerged()) {
+                        // Segment does not exist anymore. This is either due to un-acknowledged Merge operations or because
+                        // of a concurrent instance of the same container (with a lower epoch) is still running and was in
+                        // the middle of executing the Merge operation while we were initializing.
+                        System.out.println(String.format("[%s]: Segment '[%s]' does not exist in Storage (reconciliation). Ignoring all further operations on it.", this.dataSource.getEpoch(), this.metadata.getName()));
+                        this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
+                        log.warn("{}: Segment '{}' does not exist in Storage (reconciliation). Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
+                        this.reconciliationState.set(null);
+                        setState(AggregatorState.Reconciling);
+                    } else {
+                        // Other kind of error - re-throw.
+                        throw new CompletionException(ex);
+                    }
+
+                    return null;
+                });
     }
 
     private CompletableFuture<FlushResult> reconcile(TimeoutTimer timer) {
         assert this.state.get() == AggregatorState.Reconciling : "reconcile cannot be called if state == " + this.state;
         ReconciliationState rc = this.reconciliationState.get();
-        assert rc != null : "reconciliationState is null";
+        FlushResult result = new FlushResult();
+        if (rc == null) {
+            setState(AggregatorState.Writing);
+            return CompletableFuture.completedFuture(result);
+        }
+
         SegmentProperties storageInfo = rc.getStorageInfo();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "reconcile", rc);
 
         // Process each Operation in sequence, as long as its starting offset is less than ReconciliationState.getStorageInfo().getLength()
-        FlushResult result = new FlushResult();
         AtomicBoolean exceededStorageLength = new AtomicBoolean(false);
         return Futures
                 .loop(
@@ -1169,9 +1204,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> reconcileMergeOperation(MergeTransactionOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
         // Verify that the transaction segment is still registered in metadata.
         UpdateableSegmentMetadata transactionMeta = this.dataSource.getStreamSegmentMetadata(op.getTransactionSegmentId());
-        if (transactionMeta == null || transactionMeta.isDeleted()) {
+        if (transactionMeta == null) {
             return Futures.failedFuture(new ReconciliationFailureException(String.format(
-                    "Cannot reconcile operation '%s' because the transaction segment is deleted or missing from the metadata.", op),
+                    "Cannot reconcile operation '%s' because the transaction segment is missing from the metadata.", op),
                     this.metadata, storageInfo));
         }
 
@@ -1478,6 +1513,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         AggregatorState oldState = this.state.get();
         if (newState != oldState) {
             log.info("{}: State changed from {} to {}.", this.traceObjectId, oldState, newState);
+            System.out.println(String.format("[%s]%s: State changed from %s to %s.", this.dataSource.getEpoch(), this.metadata.getName(), oldState, newState));
         }
 
         this.state.set(newState);

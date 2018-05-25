@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -293,7 +294,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             checkReads(segmentContents, context.getActiveStore());
             log.info("Finished checking reads.");
 
+            try (val readOnlyBuilder = createReadOnlyBuilder(Integer.MAX_VALUE - 1)) {
+                waitForSegmentsInStorage(segmentNames, context.getActiveStore(), readOnlyBuilder.createStreamSegmentService())
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                log.info("Finished waiting for segments in Storage.");
+            }
+
             // Delete everything.
+            System.out.println("BEGIN DELETE");
             deleteSegments(segmentNames, context.getActiveStore()).join();
             log.info("Finished deleting segments.");
             checkSegmentStatus(lengths, startOffsets, true, true, context.getActiveStore());
@@ -397,7 +405,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                result.add(store -> store.sealStreamSegment(transactionName, TIMEOUT)
+                result.add(store -> Futures
+                        .exceptionallyExpecting(
+                                store.sealStreamSegment(transactionName, TIMEOUT),
+                                ex -> ex instanceof StreamSegmentSealedException,
+                                null)
                         .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
 
                 // Update parent length.
