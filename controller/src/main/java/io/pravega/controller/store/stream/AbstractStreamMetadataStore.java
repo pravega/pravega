@@ -668,9 +668,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<CommittingTransactionsRecord> getTxnCommitList(String scope, String stream, OperationContext context,
-                                                                            ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).getTxnCommitList(), executor);
+    public CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord(String scope, String stream, OperationContext context,
+                                                                                           ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).getCommittingTransactionsRecord(), executor);
     }
 
     @Override

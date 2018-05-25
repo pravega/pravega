@@ -1137,7 +1137,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<CommittingTransactionsRecord> getTxnCommitList() {
+    public CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord() {
         CompletableFuture<CommittingTransactionsRecord> result = new CompletableFuture<>();
         getCommittingTxnRecord()
                 .whenComplete((r, e) -> {

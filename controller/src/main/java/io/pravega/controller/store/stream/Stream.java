@@ -412,7 +412,7 @@ interface Stream {
      *
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<CommittingTransactionsRecord> getTxnCommitList();
+    CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord();
 
     /**
      * Method to delete committing transaction record from the store for a given stream.

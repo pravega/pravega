@@ -109,30 +109,11 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
                                                   final int epoch,
                                                   final OperationContext context,
                                                   final String delegationToken) {
-        // if node already exists and doesnt match event.transactionId, throw operation not allowed. dont worry,
+        // if node already exists and doesnt match event.epoch, throw operation not allowed. dont worry,
         // it will be posted back in the stream and retried later. Generally if a transaction commit starts, it will come to
         // an end.. but during failover,
-        // once we have created the node, we are guaranteed that it will be only that transaction that will be getting
-        // committed at that time.. so post failover even when we recover, we will handle one transaction at a time.
-        CompletableFuture<List<UUID>> txnListFuture = streamMetadataStore.getTxnCommitList(scope, stream, context, executor)
-                .thenCompose(record -> {
-                    if (record == null) {
-                        // no ongoing commits on transactions.
-                        return createNewTxnCommitList(scope, stream, epoch, context, executor);
-                    } else {
-                        // check if the epoch in record matches current epoch. if not throw OperationNotAllowed
-                        if (record.getEpoch() == epoch) {
-                            // Note: If there are transactions that are not included in the commitList but have committing state,
-                            // we can be sure they will be completed through another event for this epoch.
-                            return CompletableFuture.completedFuture(record.getTransactionsToCommit());
-                        } else {
-                            log.debug("Postponing commit on epoch {} as transactions on different epoch {} are being committed for stream {}/{}",
-                                    epoch, record.getEpoch(), scope, stream);
-                            throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
-                                    "Transactions on different epoch are being committed");
-                        }
-                    }
-                });
+        // once we have created the node, we are guaranteed that the order of commit will be as per the list.
+        CompletableFuture<List<UUID>> txnListFuture = createAndGetTxnCommitRecord(scope, stream, epoch, context);
 
         CompletableFuture<Void> commitFuture = txnListFuture
                 .thenCompose(transactionsToCommit -> streamMetadataStore.getActiveSegmentIds(scope, stream, epoch, context, executor)
@@ -155,6 +136,28 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
         // once all commits are done, delete commit txn node
         return commitFuture.thenCompose(v -> streamMetadataStore.deleteTxnCommitList(scope, stream, context, executor)
                 .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context, delegationToken))));
+    }
+
+    private CompletableFuture<List<UUID>> createAndGetTxnCommitRecord(String scope, String stream, int epoch, OperationContext context) {
+        return streamMetadataStore.getCommittingTransactionsRecord(scope, stream, context, executor)
+                .thenCompose(record -> {
+                    if (record == null) {
+                        // no ongoing commits on transactions.
+                        return createNewTxnCommitList(scope, stream, epoch, context, executor);
+                    } else {
+                        // check if the epoch in record matches current epoch. if not throw OperationNotAllowed
+                        if (record.getEpoch() == epoch) {
+                            // Note: If there are transactions that are not included in the commitList but have committing state,
+                            // we can be sure they will be completed through another event for this epoch.
+                            return CompletableFuture.completedFuture(record.getTransactionsToCommit());
+                        } else {
+                            log.debug("Postponing commit on epoch {} as transactions on different epoch {} are being committed for stream {}/{}",
+                                    epoch, record.getEpoch(), scope, stream);
+                            throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
+                                    "Transactions on different epoch are being committed");
+                        }
+                    }
+                });
     }
 
     private CompletableFuture<List<UUID>> createNewTxnCommitList(String scope, String stream, int epoch,

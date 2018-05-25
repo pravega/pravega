@@ -868,8 +868,8 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<CommittingTransactionsRecord> getTxnCommitList(final String scope, final String stream,
-                                                                     final OperationContext context, final ScheduledExecutorService executor);
+    CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord(final String scope, final String stream,
+                                                                                    final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * Method to delete committing transaction record from the store for a given stream.
