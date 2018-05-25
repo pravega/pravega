@@ -71,6 +71,6 @@ public interface Stream {
                 "Ensure a fully scoped name of a stream is passed e.g: scopeName/streamName");
         Exceptions.checkNotNullOrEmpty(split[0], "scope name");
         Exceptions.checkNotNullOrEmpty(split[1], "stream name");
-        return new StreamImpl(split[0], split[1]);
+        return new StreamImpl(validateScopeName(split[0]), validateStreamName(split[1]));
     }
 }
