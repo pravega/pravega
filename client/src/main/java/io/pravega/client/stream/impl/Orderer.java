@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
  * Used to select which event should go next when consuming from multiple segments.
  *
  */
+@Deprecated
 @RequiredArgsConstructor
 public class Orderer {
     private final AtomicInteger counter = new AtomicInteger(0);

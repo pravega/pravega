@@ -26,7 +26,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class AsyncSegmentFrameDecoderImplTest {
+public class AsyncSegmentEventReaderImplTest {
 
     private final Segment segment = new Segment("scope", "foo", 0);
 
@@ -81,7 +81,11 @@ public class AsyncSegmentFrameDecoderImplTest {
 
     @Test
     public void testClose() {
-
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 0);
+        @Cleanup
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        decoder.close();
+        assertTrue(fakeNetwork.isClosed());
     }
 
     @Test
@@ -90,9 +94,9 @@ public class AsyncSegmentFrameDecoderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
         @Cleanup
-        AsyncSegmentFrameDecoderImpl decoder = new AsyncSegmentFrameDecoderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
 
-        CompletableFuture<ByteBuffer> readFuture = decoder.read();
+        CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         assertTrue(readFuture.isDone());
@@ -106,9 +110,9 @@ public class AsyncSegmentFrameDecoderImplTest {
 
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 4);
         @Cleanup
-        AsyncSegmentFrameDecoderImpl decoder = new AsyncSegmentFrameDecoderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
 
-        CompletableFuture<ByteBuffer> readFuture = decoder.read();
+        CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         assertFalse(readFuture.isDone());
@@ -124,20 +128,20 @@ public class AsyncSegmentFrameDecoderImplTest {
     @Test
     public void testLongerThanRequestedRead() throws Exception {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        int numEntries = AsyncSegmentFrameDecoderImpl.DEFAULT_READ_LENGTH / data.length;
+        int numEntries = AsyncSegmentEventReaderImpl.DEFAULT_READ_LENGTH / data.length;
 
         ByteBuffer wireData = createEventFromData(data, numEntries);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, true, true, wireData.slice()));
         @Cleanup
-        AsyncSegmentFrameDecoderImpl decoder = new AsyncSegmentFrameDecoderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
 
         for (int i = 0; i < numEntries; i++) {
-            CompletableFuture<ByteBuffer> readFuture = decoder.read();
+            CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
             assertTrue(readFuture.isDone());
             assertEquals(ByteBuffer.wrap(data), readFuture.join());
         }
-        final CompletableFuture<ByteBuffer> readFuture = decoder.read();
+        final CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
         assertTrue(readFuture.isDone());
         AssertExtensions.assertThrows(EndOfSegmentException.class, readFuture::join);
     }
@@ -163,15 +167,15 @@ public class AsyncSegmentFrameDecoderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 2);
         @Cleanup
-        AsyncSegmentFrameDecoderImpl decoder = new AsyncSegmentFrameDecoderImpl(fakeNetwork, 0);
-        CompletableFuture<ByteBuffer> readFuture = decoder.read();
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         long offset = wireData.remaining() / 2;
         decoder.setOffset(offset);
         assertTrue(readFuture.isCancelled());
         assertTrue(fakeNetwork.readResults.get(0).isCancelled());
 
-        readFuture = decoder.read();
+        readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), offset, false, false, wireData.slice()));
         assertTrue(readFuture.isDone());
@@ -184,13 +188,13 @@ public class AsyncSegmentFrameDecoderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 2);
         @Cleanup
-        AsyncSegmentFrameDecoderImpl decoder = new AsyncSegmentFrameDecoderImpl(fakeNetwork, 0);
-        CompletableFuture<ByteBuffer> readFuture = decoder.read();
+        AsyncSegmentEventReaderImpl decoder = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        CompletableFuture<ByteBuffer> readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         readFuture.cancel(true);
         assertTrue(fakeNetwork.readResults.get(0).isCancelled());
 
-        readFuture = decoder.read();
+        readFuture = decoder.readAsync();
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         assertTrue(readFuture.isDone());

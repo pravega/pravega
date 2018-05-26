@@ -11,13 +11,13 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.AsyncSegmentEventReader;
+import io.pravega.client.segment.impl.AsyncSegmentEventReaderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EndOfSegmentException.ErrorType;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
-import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
@@ -30,7 +30,9 @@ import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -38,11 +40,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -50,15 +61,16 @@ import lombok.extern.slf4j.Slf4j;
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private final Serializer<Type> deserializer;
-    private final SegmentInputStreamFactory inputStreamFactory;
+    private final AsyncSegmentEventReaderFactory readerFactory;
     private final SegmentMetadataClientFactory metadataClientFactory;
 
-    private final Orderer orderer;
     private final ReaderConfig config;
     @GuardedBy("readers")
     private boolean closed;
     @GuardedBy("readers")
-    private final List<SegmentInputStream> readers = new ArrayList<>();
+    private final List<AcquiredReader> readers = new ArrayList<>();
+    @GuardedBy("readers")
+    private final BlockingQueue<AcquiredReader> readCompletionQueue;
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
@@ -66,63 +78,87 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
-    EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
+    EventStreamReaderImpl(AsyncSegmentEventReaderFactory readerFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
-            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config) {
+            ReaderGroupStateManager groupState, Supplier<Long> clock, ReaderConfig config,
+            BlockingQueue<AcquiredReader> readCompletionQueue) {
         this.deserializer = deserializer;
-        this.inputStreamFactory = inputStreamFactory;
+        this.readerFactory = readerFactory;
         this.metadataClientFactory = metadataClientFactory;
         this.groupState = groupState;
-        this.orderer = orderer;
         this.clock = clock;
         this.config = config;
         this.closed = false;
+        this.readCompletionQueue = readCompletionQueue;
     }
 
     @Override
+    @SneakyThrows
     public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
-        synchronized (readers) {
-            Preconditions.checkState(!closed, "Reader is closed");
-            long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
-            Timer timer = new Timer();
-            Segment segment = null;
-            long offset = -1;
-            ByteBuffer buffer;
-            do { 
-                String checkpoint = updateGroupStateIfNeeded();
-                if (checkpoint != null) {
-                     return createEmptyEvent(checkpoint);
-                }
-                SegmentInputStream segmentReader = orderer.nextSegment(readers);
-                if (segmentReader == null) {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
-                    buffer = null;
-                } else {
-                    segment = segmentReader.getSegmentId();
-                    offset = segmentReader.getOffset();
-                    try {
-                        buffer = segmentReader.read(waitTime);
-                    } catch (EndOfSegmentException e) {
-                        boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
-                        handleEndOfSegment(segmentReader, fetchSuccessors);
-                        buffer = null;
-                    } catch (SegmentTruncatedException e) {
-                        handleSegmentTruncated(segmentReader);
-                        buffer = null;
+        long traceId = LoggerHelpers.traceEnter(log, "readNextEvent");
+        try {
+            synchronized (readers) {
+                Preconditions.checkState(!closed, "Reader is closed");
+                long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
+                Timer timer = new Timer();
+                Segment segment = null;
+                long offset = -1;
+                ByteBuffer buffer = null;
+                do {
+                    String checkpoint = updateGroupStateIfNeeded();
+                    if (checkpoint != null) {
+                        return createEmptyEvent(checkpoint);
                     }
+                    if (readers.isEmpty()) {
+                        Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
+                        buffer = null;
+                    } else {
+                        AcquiredReader segmentReader;
+                        try {
+                            segmentReader = readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+
+                        if (segmentReader != null) {
+                            try {
+                                assert segmentReader.outstandingRead.isDone();
+                                segment = segmentReader.getSegmentId();
+                                offset = segmentReader.reader.getOffset();
+                                buffer = segmentReader.outstandingRead.getNow(null);
+
+                                segmentReader.readNext(readCompletionQueue);
+                            } catch (Throwable th) {
+                                th = Exceptions.unwrap(th);
+                                if (th instanceof EndOfSegmentException) {
+                                    EndOfSegmentException e = (EndOfSegmentException) th;
+                                    boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
+                                    handleEndOfSegment(segmentReader, fetchSuccessors);
+                                    buffer = null;
+                                } else if (th instanceof SegmentTruncatedException) {
+                                    handleSegmentTruncated(segmentReader);
+                                    buffer = null;
+                                } else {
+                                    throw th;
+                                }
+                            }
+                        }
+                    }
+                } while (buffer == null && timer.getElapsedMillis() < timeout);
+
+                if (buffer == null) {
+                    return createEmptyEvent(null);
                 }
-            } while (buffer == null && timer.getElapsedMillis() < timeout);
-            
-            if (buffer == null) {
-               return createEmptyEvent(null);
-            } 
-            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
-            int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-            return new EventReadImpl<>(lastRead,
-                    deserializer.deserialize(buffer),
-                    getPosition(),
-                    new EventPointerImpl(segment, offset, length),
-                    null);
+                lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+                int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+                return new EventReadImpl<>(lastRead,
+                        deserializer.deserialize(buffer),
+                        getPosition(),
+                        new EventPointerImpl(segment, offset, length),
+                        null);
+            }
+        } finally {
+            LoggerHelpers.traceLeave(log, "readNextEvent", traceId);
         }
     }
 
@@ -132,7 +168,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private PositionInternal getPosition() {
         Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.reader.getOffset()));
         return new PositionImpl(positions);
     }
     
@@ -175,9 +211,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
-            SegmentInputStream reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
+            AcquiredReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                if (groupState.releaseSegment(segment, reader.getOffset(), getLag())) {
+                if (groupState.releaseSegment(segment, reader.reader.getOffset(), getLag())) {
                     readers.remove(reader);
                     reader.close();
                 }
@@ -191,10 +227,16 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                final SegmentInputStream in = inputStreamFactory.createInputStreamForSegment(newSegment.getKey(),
-                        groupState.getEndOffsetForSegment(newSegment.getKey()));
-                in.setOffset(newSegment.getValue());
-                readers.add(in);
+                final AsyncSegmentEventReader r = readerFactory.createEventReaderForSegment(newSegment.getKey(),
+                        groupState.getEndOffsetForSegment(newSegment.getKey()), AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
+                r.setOffset(newSegment.getValue());
+                AcquiredReader reader = new AcquiredReader(r);
+                readers.add(reader);
+                try {
+                    reader.readNext(readCompletionQueue);
+                } catch (EndOfSegmentException e) {
+                    throw new IllegalStateException("acquired a reader where end >= start", e);
+                }
             }
         }
     }
@@ -207,7 +249,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(SegmentInputStream oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
+    private void handleEndOfSegment(AcquiredReader oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
         try {
             log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
             readers.remove(oldSegment);
@@ -219,7 +261,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
     
-    private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
+    private void handleSegmentTruncated(AcquiredReader segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
         String delegationToken = groupState.getLatestDelegationToken();
@@ -227,7 +269,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
-            segmentReader.setOffset(startingOffset);
+            segmentReader.reader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);
         }
@@ -246,7 +288,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 log.info("Closing reader {} ", this);
                 closed = true;
                 groupState.readerShutdown(getPosition());
-                for (SegmentInputStream reader : readers) {
+                for (AcquiredReader reader : readers) {
                     reader.close();
                 }
                 readers.clear();
@@ -256,28 +298,33 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
+    @SneakyThrows
     public Type fetchEvent(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
-        // Create SegmentInputStream
+        // Create AsyncSegmentEventReader
         @Cleanup
-        SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),
-                                                                                        pointer.asImpl().getEventLength());
-        inputStream.setOffset(pointer.asImpl().getEventStartOffset());
+        AsyncSegmentEventReader reader = readerFactory.createEventReaderForSegment(
+                pointer.asImpl().getSegment(), pointer.asImpl().getEventLength(), AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
+        reader.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event
         try {
-            ByteBuffer buffer = inputStream.read();
+            ByteBuffer buffer = reader.readAsync().join();
             Type result = deserializer.deserialize(buffer);
             return result;
-        } catch (EndOfSegmentException e) {
-            throw new NoSuchEventException(e.getMessage());
-        } catch (NoSuchSegmentException | SegmentTruncatedException e) {
-            throw new NoSuchEventException("Event no longer exists.");
+        } catch (Exception e) {
+            Throwable th = Exceptions.unwrap(e);
+            if (th instanceof EndOfSegmentException) {
+                throw new NoSuchEventException(e.getMessage());
+            } else if (th instanceof NoSuchSegmentException || th instanceof SegmentTruncatedException) {
+                throw new NoSuchEventException("Event no longer exists.");
+            }
+            throw th;
         }
     }
 
     @Synchronized
     @VisibleForTesting
-    List<SegmentInputStream> getReaders() {
+    List<AcquiredReader> getReaders() {
         return Collections.unmodifiableList(readers);
     }
 
@@ -285,5 +332,26 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public String toString() {
         return "EventStreamReaderImpl( id=" + groupState.getReaderId() + ")";
     }
-    
+
+    @RequiredArgsConstructor
+    @ToString
+    @Getter
+    static class AcquiredReader {
+        private final AsyncSegmentEventReader reader;
+        private CompletableFuture<ByteBuffer> outstandingRead = CompletableFuture.completedFuture(null);
+
+        public Segment getSegmentId() {
+            return reader.getSegmentId();
+        }
+
+        public void readNext(final Queue<AcquiredReader> queue) throws EndOfSegmentException {
+            outstandingRead = reader.readAsync();
+            outstandingRead.whenComplete((buf, th) -> queue.add(this));
+        }
+
+        public void close() {
+            outstandingRead.cancel(false);
+            reader.close();
+        }
+    }
 }

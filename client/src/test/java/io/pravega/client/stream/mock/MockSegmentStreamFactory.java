@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.segment.impl.AsyncSegmentEventReader;
+import io.pravega.client.segment.impl.AsyncSegmentEventReaderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -24,7 +26,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, ConditionalOutputStreamFactory, SegmentMetadataClientFactory {
+public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, ConditionalOutputStreamFactory, SegmentMetadataClientFactory,
+        AsyncSegmentEventReaderFactory {
 
     private final Map<Segment, MockSegmentIoStreams> segments = new ConcurrentHashMap<>();
 
@@ -68,6 +71,11 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public AsyncSegmentEventReader createEventReaderForSegment(Segment segment, long endOffset, int bufferSize) {
         return getMockStream(segment);
     }
 }

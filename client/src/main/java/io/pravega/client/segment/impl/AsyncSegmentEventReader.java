@@ -15,7 +15,12 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Allows for decoding the events from a Segment asynchronously.
  */
-public interface AsyncSegmentFrameDecoder {
+public interface AsyncSegmentEventReader {
+
+    /**
+     * Gets the associated segment information.
+     */
+    Segment getSegmentId();
 
     /**
      * Sets the offset for reading from the segment and cancels any outstanding read.
@@ -40,11 +45,11 @@ public interface AsyncSegmentFrameDecoder {
      * @return a future containing the event data.
      * @throws EndOfSegmentException if the configured {@code endOffset} is reached.
      */
-    CompletableFuture<ByteBuffer> read() throws EndOfSegmentException;
+    CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException;
 
     /**
-     * Closes this decoder. No further methods may be called after close.
-     * This will free any resources associated with the decoder.
+     * Closes this reader. No further methods may be called after close.
+     * This will free any resources associated with the reader.
      */
     void close();
 }

@@ -29,7 +29,7 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 
 @Slf4j
 @ToString
-public class AsyncSegmentFrameDecoderImpl implements AsyncSegmentFrameDecoder {
+public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     static final int DEFAULT_READ_LENGTH = 64 * 1024;
     static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
 
@@ -44,11 +44,11 @@ public class AsyncSegmentFrameDecoderImpl implements AsyncSegmentFrameDecoder {
     @GuardedBy("$lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
-    AsyncSegmentFrameDecoderImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
+    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
         this(asyncInput, startOffset, UNBOUNDED_END_OFFSET, DEFAULT_READ_LENGTH);
     }
 
-    AsyncSegmentFrameDecoderImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int readLength) {
+    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int readLength) {
         Preconditions.checkArgument(startOffset >= 0);
         Preconditions.checkNotNull(asyncInput);
         Preconditions.checkNotNull(endOffset, "endOffset");
@@ -71,6 +71,11 @@ public class AsyncSegmentFrameDecoderImpl implements AsyncSegmentFrameDecoder {
         this.readLength = Math.min(DEFAULT_READ_LENGTH, readLength);
 
         this.readState = new ReadState();
+    }
+
+    @Override
+    public Segment getSegmentId() {
+        return asyncInput.getSegmentId();
     }
 
     @Override
@@ -109,7 +114,7 @@ public class AsyncSegmentFrameDecoderImpl implements AsyncSegmentFrameDecoder {
      */
     @Override
     @Synchronized
-    public CompletableFuture<ByteBuffer> read() throws EndOfSegmentException {
+    public CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException {
 
         // prepare a promise
         if (cursorOffset >= this.endOffset) {
@@ -175,7 +180,7 @@ public class AsyncSegmentFrameDecoderImpl implements AsyncSegmentFrameDecoder {
 
         /**
          * Updates the read state based on the given {@link SegmentRead}.
-         * Note that the {@code segmentRead} is progressively consumed by successive frame reads.
+         * Note that the {@code segmentRead} is progressively consumed by successive event reads.
          *
          * @param segmentRead a read response.
          * @return an indicator of whether the {@code segmentRead} is valid for the current state.

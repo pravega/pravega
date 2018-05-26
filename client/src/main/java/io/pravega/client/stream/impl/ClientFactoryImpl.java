@@ -17,6 +17,8 @@ import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.AsyncSegmentEventReaderFactory;
+import io.pravega.client.segment.impl.AsyncSegmentEventReaderFactoryImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -49,6 +51,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -60,6 +64,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
     private final Controller controller;
+    private final AsyncSegmentEventReaderFactory readerFactory;
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
@@ -73,15 +78,7 @@ public class ClientFactoryImpl implements ClientFactory {
      * @param controller        The reference to Controller.
      */
     public ClientFactoryImpl(String scope, Controller controller) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-        this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this(scope, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
     }
 
     /**
@@ -112,6 +109,7 @@ public class ClientFactoryImpl implements ClientFactory {
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.readerFactory = new AsyncSegmentEventReaderFactoryImpl(controller, connectionFactory); // TODO
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.condFactory = condFactory;
@@ -147,7 +145,7 @@ public class ClientFactoryImpl implements ClientFactory {
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
-        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config);
+        return new EventStreamReaderImpl<T>(readerFactory, metaFactory, s, stateManager, milliTime, config, new LinkedBlockingQueue<>());
     }
     
     @Override

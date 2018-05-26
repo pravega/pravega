@@ -10,6 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.AsyncSegmentEventReader;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -26,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -33,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
+public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, AsyncSegmentEventReader, ConditionalOutputStream, SegmentMetadataClient {
 
     private final Segment segment;
     @GuardedBy("$lock")
@@ -95,6 +97,17 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         readIndex++;
         readOffset += buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         return buffer.slice();
+    }
+
+    @Override
+    public CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException {
+        CompletableFuture<ByteBuffer> promise = new CompletableFuture<>();
+        try {
+            promise.complete(read(Long.MAX_VALUE));
+        } catch (SegmentTruncatedException e) {
+            promise.completeExceptionally(e);
+        }
+        return promise;
     }
 
     @Override
