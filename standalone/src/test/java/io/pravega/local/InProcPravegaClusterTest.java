@@ -16,7 +16,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
@@ -55,8 +54,6 @@ public class InProcPravegaClusterTest {
                                            .certFile("../config/cert.pem")
                                            .keyFile("../config/key.pem")
                                            .passwdFile("../config/passwd")
-                                           .userName("admin")
-                                           .passwd("1111_aaaa")
                                            .build();
         localPravega.start();
     }
@@ -74,9 +71,12 @@ public class InProcPravegaClusterTest {
         String streamName = "Stream";
         int numSegments = 10;
 
+        System.setProperty("pravega.client.auth.method", "Pravega-Default");
+        System.setProperty("pravega.client.auth.username", "admin");
+        System.setProperty("pravega.client.auth.password", "1111_aaaa");
+
         ClientConfig clientConfig = ClientConfig.builder()
                                                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                                 .trustStore("../config/cert.pem")
                                                 .validateHostName(false)
                                                 .build();
