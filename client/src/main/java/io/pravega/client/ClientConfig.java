@@ -66,11 +66,11 @@ public class ClientConfig implements Serializable {
     }
 
     public static final class ClientConfigBuilder {
-        private static final String AUTH_PROPS_START = "pravega.client.auth.";
+        private static final String AUTH_PROPS_PREFIX = "pravega.client.auth.";
         private static final String AUTH_METHOD = "method";
         private static final String AUTH_METHOD_LOAD_DYNAMIC = "loadDynamic";
 
-        private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+        private static final String AUTH_PROPS_PREFIX_ENV = "pravega_client_auth_";
 
         private boolean validateHostName = true;
 
@@ -114,9 +114,9 @@ public class ClientConfig implements Serializable {
         private Credentials extractCredentialsFromProperties(Properties properties) {
             Map<String, String> retVal = properties.entrySet()
                                                    .stream()
-                                                   .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
+                                                   .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_PREFIX))
                                                    .collect(Collectors.toMap(entry -> entry.getKey().toString()
-                                                                                           .substring(AUTH_PROPS_START.length()),
+                                                                                           .substring(AUTH_PROPS_PREFIX.length()),
                                                                     value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
@@ -128,10 +128,10 @@ public class ClientConfig implements Serializable {
         private Credentials extractCredentialsFromEnv(Map<String, String> env) {
             Map<String, String> retVal = env.entrySet()
                                             .stream()
-                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
+                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_PREFIX_ENV))
                                             .collect(Collectors.toMap(entry -> (String) entry.getKey().toString()
                                                                                      .replace("_", ".")
-                                                                                     .substring(AUTH_PROPS_START.length()),
+                                                                                     .substring(AUTH_PROPS_PREFIX.length()),
                                                     value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
