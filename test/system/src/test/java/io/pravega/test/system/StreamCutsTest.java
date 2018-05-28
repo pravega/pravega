@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -292,7 +294,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     }
 
     /**
-     * Test that all the stream slices represented by consecutive StreamCut pairs can be read correctly.
+     * Check that all the stream slices represented by consecutive StreamCut pairs can be read correctly.
      *
      * @param manager Group manager for this scope.
      * @param clientFactory Client factory to instantiate new readers.
@@ -320,38 +322,38 @@ public class StreamCutsTest extends AbstractReadWriteTest {
 
     private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup,
                                                                                      int totalEvents) {
-        @Cleanup
-        EventStreamReader<T> reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        List<Map<Stream, StreamCut>> streamCuts = new ArrayList<>();
-        EventRead<T> event;
-        int validEvents = 0;
+        final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
+        reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
+                ReaderConfig.builder().build()));
+        final List<Map<Stream, StreamCut>> streamCuts = new ArrayList<>();
+        final AtomicInteger validEvents = new AtomicInteger();
 
-        do {
-            try {
-                event = reader.readNextEvent(READ_TIMEOUT);
-                log.debug("Read event result in getStreamCutSlices: {}.", event.getEvent());
-                if (event.getEvent() != null) {
-                    validEvents++;
-                } else {
-                    log.warn("Read unexpected {} event at {}.", event.getEvent(), validEvents);
-                    continue;
-                }
-            } catch (ReinitializationRequiredException e) {
-                log.warn("Reinitialization of readers required: {}.", e);
-            }
+        Futures.loop(
+                () -> validEvents.get() < totalEvents,
+                () -> CompletableFuture.runAsync(() -> {
+                    try {
+                        EventRead<T> event = reader.get().readNextEvent(READ_TIMEOUT);
+                        if (event.getEvent() != null) {
+                            validEvents.incrementAndGet();
+                            log.debug("Read event result in getStreamCutSlices: {}. Valid events: {}.", event.getEvent(), validEvents);
 
-            // Get a StreamCut each defined number of events.
-            if (validEvents % CUT_SIZE == 0 && validEvents > 0) {
-                reader.close();
-                log.info("Adding a StreamCut positioned at event {}: {}.", validEvents, readerGroup.getStreamCuts());
-                streamCuts.add(readerGroup.getStreamCuts());
-                reader = client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
-                        ReaderConfig.builder().build());
-            }
-        } while (validEvents < totalEvents);
-
-        reader.close();
+                            // Get a StreamCut each defined number of events.
+                            if (validEvents.get() % CUT_SIZE == 0 && validEvents.get() > 0) {
+                                reader.get().close();
+                                log.info("Adding a StreamCut positioned at event {}: {}.", validEvents, readerGroup.getStreamCuts());
+                                streamCuts.add(readerGroup.getStreamCuts());
+                                reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
+                                        ReaderConfig.builder().build()));
+                            }
+                        } else {
+                            log.warn("Read unexpected null event at {}.", validEvents);
+                        }
+                    } catch (ReinitializationRequiredException e) {
+                        log.warn("Reinitialization of readers required: {}.", e);
+                    }
+                }, executor),
+                executor).join();
+        reader.get().close();
         return streamCuts;
     }
 
