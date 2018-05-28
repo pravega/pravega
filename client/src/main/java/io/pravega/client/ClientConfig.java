@@ -65,6 +65,18 @@ public class ClientConfig implements Serializable {
                 || this.controllerURI.getScheme().equals("pravegas");
     }
 
+    /**
+     * This class overrides the lombok builder. It adds some custom functionality on top of the builder.
+     * The additional behaviors include:
+     * 1. Defining a default controller URI when none is declared/
+     * 2. Extracting the credentials object from system properties/environment in following order of descending preference:
+     *       a. User provides a credential object. This overrides any other settings.
+     *       b. System properties: System properties are defined in the format: "pravega.client.auth.*"
+     *       c. Environment variables. Environment variables are defined under the format "pravega_client_auth_*"
+     *       d. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
+     *           setting property `pravega.client.auth.loadDynamic` to true.
+     *
+     */
     public static final class ClientConfigBuilder {
         private static final String AUTH_PROPS_PREFIX = "pravega.client.auth.";
         private static final String AUTH_METHOD = "method";
@@ -90,7 +102,7 @@ public class ClientConfig implements Serializable {
          * Here is the order of preference in descending order:
          * 1. User provides a credential object. This overrides any other settings.
          * 2. System properties: System properties are defined in the format: "pravega.client.auth.*"
-         * 3. Environment variables. Environment variables are defined under the format "PRAVEGA_CLIENT_AUTH_*"
+         * 3. Environment variables. Environment variables are defined under the format "pravega_client_auth_*"
          * 4. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
          *     setting property `pravega.client.auth.loadDynamic` to true.
          */

@@ -16,6 +16,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
@@ -54,6 +55,8 @@ public class InProcPravegaClusterTest {
                                            .certFile("../config/cert.pem")
                                            .keyFile("../config/key.pem")
                                            .passwdFile("../config/passwd")
+                                           .userName("admin")
+                                           .passwd("1111_aaaa")
                                            .build();
         localPravega.start();
     }
@@ -71,41 +74,32 @@ public class InProcPravegaClusterTest {
         String streamName = "Stream";
         int numSegments = 10;
 
-        try {
-            System.setProperty("pravega.client.auth.method", "Pravega-Default");
-            System.setProperty("pravega.client.auth.username", "admin");
-            System.setProperty("pravega.client.auth.password", "1111_aaaa");
+        ClientConfig clientConfig = ClientConfig.builder()
+                                                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                                .trustStore("../config/cert.pem")
+                                                .validateHostName(false)
+                                                .build();
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
 
-            ClientConfig clientConfig = ClientConfig.builder()
-                                                    .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                                                    .trustStore("../config/cert.pem")
-                                                    .validateHostName(false)
-                                                    .build();
-            @Cleanup
-            StreamManager streamManager = StreamManager.create(clientConfig);
+        streamManager.createScope(scope);
+        Assert.assertTrue("Stream creation is not successful ",
+                streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                   .scope(scope)
+                                   .streamName(streamName)
+                                   .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                   .build()));
+        log.info("Created stream: " + streamName);
 
-            streamManager.createScope(scope);
-            Assert.assertTrue("Stream creation is not successful ",
-                    streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                                     .scope(scope)
-                                                                                     .streamName(streamName)
-                                                                                     .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                                                                     .build()));
-            log.info("Created stream: " + streamName);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, clientConfig);
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
+                new JavaSerializer<String>(),
+                EventWriterConfig.builder().build());
+        log.info("Created writer for stream: " + streamName);
 
-            ClientFactory clientFactory = ClientFactory.withScope(scope, clientConfig);
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                    new JavaSerializer<String>(),
-                    EventWriterConfig.builder().build());
-            log.info("Created writer for stream: " + streamName);
-
-            writer.writeEvent("hello").get();
-            log.info("Wrote data to the stream");
-        } finally {
-            System.clearProperty("pravega.client.auth.method");
-            System.clearProperty("pravega.client.auth.username");
-            System.clearProperty("pravega.client.auth.password");
-        }
+        writer.writeEvent("hello").get();
+        log.info("Wrote data to the stream");
     }
 
     @After
