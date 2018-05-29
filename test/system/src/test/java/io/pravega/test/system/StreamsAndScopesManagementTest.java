@@ -186,7 +186,7 @@ public class StreamsAndScopesManagementTest {
     }
 
     private void testCreateSealAndDeleteStreams(String scope) {
-        for (int j = 1; j < NUM_STREAMS; j++) {
+        for (int j = 1; j <= NUM_STREAMS; j++) {
             final String stream = String.valueOf(j);
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
 
