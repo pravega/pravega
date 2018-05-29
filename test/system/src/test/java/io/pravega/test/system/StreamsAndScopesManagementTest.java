@@ -49,7 +49,7 @@ import static org.junit.Assert.assertTrue;
 public class StreamsAndScopesManagementTest {
 
     private static final int NUM_SCOPES = 5;
-    private static final int NUM_STREAMS = 10;
+    private static final int NUM_STREAMS = 20;
     private static final int NUM_EVENTS = 100;
     // FIXME: This test does not work for TEST_ITERATIONS > 1 due to issues 1012 and 1681. It would require a sleep
     // between iterations > 5 min. approx.
@@ -164,7 +164,7 @@ public class StreamsAndScopesManagementTest {
 
     private void testStreamScopeManagementIteration() {
         for (int i = 0; i < NUM_SCOPES; i++) {
-            String scope = "scope" + String.valueOf(i);
+            final String scope = "testStreamsAndScopesManagement" + String.valueOf(i);
             testCreateScope(scope);
             testCreateSealAndDeleteStreams(scope);
             testDeleteScope(scope);
