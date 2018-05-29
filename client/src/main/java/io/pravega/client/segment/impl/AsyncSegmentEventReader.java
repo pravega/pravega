@@ -52,4 +52,9 @@ public interface AsyncSegmentEventReader {
      * This will free any resources associated with the reader.
      */
     void close();
+
+    /**
+     * Indicates whether the reader is closed.
+     */
+    boolean isClosed();
 }

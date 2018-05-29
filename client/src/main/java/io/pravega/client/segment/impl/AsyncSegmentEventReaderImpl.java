@@ -86,6 +86,11 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         asyncInput.close();
     }
 
+    @Override
+    public boolean isClosed() {
+        return asyncInput.isClosed();
+    }
+
     // region Cursor
 
     @Override

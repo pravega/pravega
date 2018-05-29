@@ -452,7 +452,10 @@ public class EventStreamReaderTest {
             doReturn(segment).when(reader).getSegmentId();
             doReturn(startOffset).when(reader).getOffset();
             // TODO support endOffset
-
+            doAnswer(i -> {
+                doReturn(true).when(reader).isClosed();
+                return null;
+            }).when(reader).close();
             readers.put(segment, reader);
             return reader;
         }

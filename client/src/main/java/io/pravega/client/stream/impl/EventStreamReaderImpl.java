@@ -32,7 +32,6 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -42,8 +41,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -111,7 +110,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     }
                     if (readers.isEmpty()) {
                         Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
-                        buffer = null;
                     } else {
                         AcquiredReader segmentReader;
                         try {
@@ -121,25 +119,34 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                         }
 
                         if (segmentReader != null) {
+                            // process the completed read
                             try {
                                 assert segmentReader.outstandingRead.isDone();
                                 segment = segmentReader.getSegmentId();
                                 offset = segmentReader.reader.getOffset();
                                 buffer = segmentReader.outstandingRead.getNow(null);
-
-                                segmentReader.readNext(readCompletionQueue);
                             } catch (Throwable th) {
                                 th = Exceptions.unwrap(th);
                                 if (th instanceof EndOfSegmentException) {
                                     EndOfSegmentException e = (EndOfSegmentException) th;
+                                    assert e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
                                     boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
                                     handleEndOfSegment(segmentReader, fetchSuccessors);
-                                    buffer = null;
                                 } else if (th instanceof SegmentTruncatedException) {
                                     handleSegmentTruncated(segmentReader);
-                                    buffer = null;
                                 } else {
                                     throw th;
+                                }
+                            } finally {
+                                // schedule the next read
+                                if (!segmentReader.isClosed()) {
+                                    try {
+                                        segmentReader.readNext(readCompletionQueue);
+                                    } catch (EndOfSegmentException e) {
+                                        // the configured end offset was reached; note that the buffer still contains a valid event
+                                        assert e.getErrorType().equals(ErrorType.END_OFFSET_REACHED);
+                                        handleEndOfSegment(segmentReader, false);
+                                    }
                                 }
                             }
                         }
@@ -168,7 +175,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private PositionInternal getPosition() {
         Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.reader.getOffset()));
+                .collect(Collectors.toMap(AcquiredReader::getSegmentId, AcquiredReader::getOffset));
         return new PositionImpl(positions);
     }
     
@@ -213,9 +220,16 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             log.info("{} releasing segment {}", this, segment);
             AcquiredReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
+                reader.cancel();
                 if (groupState.releaseSegment(segment, reader.reader.getOffset(), getLag())) {
                     readers.remove(reader);
                     reader.close();
+                } else {
+                    try {
+                        reader.readNext(readCompletionQueue);
+                    } catch (EndOfSegmentException e) {
+                        throw new IllegalStateException("re-acquired a reader where end >= start", e);
+                    }
                 }
             }
         }
@@ -344,14 +358,30 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             return reader.getSegmentId();
         }
 
+        public long getOffset() {
+            return reader.getOffset();
+        }
+
         public void readNext(final Queue<AcquiredReader> queue) throws EndOfSegmentException {
             outstandingRead = reader.readAsync();
-            outstandingRead.whenComplete((buf, th) -> queue.add(this));
+            outstandingRead.whenComplete((buf, th) -> {
+                if (!(th instanceof CancellationException)) {
+                    queue.add(this);
+                }
+            });
+        }
+
+        public void cancel() {
+            outstandingRead.cancel(false);
         }
 
         public void close() {
             outstandingRead.cancel(false);
             reader.close();
+        }
+
+        public boolean isClosed() {
+            return reader.isClosed();
         }
     }
 }
