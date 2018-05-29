@@ -41,7 +41,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -165,7 +164,7 @@ public class StreamsAndScopesManagementTest {
 
     private void testStreamScopeManagementIteration() {
         for (int i = 0; i < NUM_SCOPES; i++) {
-            String scope = String.valueOf(i);
+            String scope = "scope" + String.valueOf(i);
             testCreateScope(scope);
             testCreateSealAndDeleteStreams(scope);
             testDeleteScope(scope);
@@ -213,10 +212,6 @@ public class StreamsAndScopesManagementTest {
                 ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
                 writeEvents(clientFactory, stream, NUM_EVENTS);
             }
-
-            // Verify that update operation on stream has been done successfully.
-            assertEquals("Expected number of segments after Stream update", j * 2,
-                    controller.getCurrentSegments(scope, stream).join().getSegments().size());
 
             // Update the configuration of the stream.
             config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j * 2)).build();
