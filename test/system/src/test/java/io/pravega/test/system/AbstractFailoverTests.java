@@ -64,6 +64,8 @@ abstract class AbstractFailoverTests {
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
     static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    static final int RK_RENEWAL_RATE_TRANSACTION = NUM_EVENTS_PER_TRANSACTION / 2;
+    static final int RK_RENEWAL_RATE_WRITER = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
 
     final String readerName = "reader";
@@ -262,15 +264,16 @@ abstract class AbstractFailoverTests {
 
     CompletableFuture<Void> startWriting(final EventStreamWriter<String> writer) {
         return CompletableFuture.runAsync(() -> {
-            final String uniqueRoutingKey = UUID.randomUUID().toString();
-            long value = 0;
+            String uniqueRoutingKey = UUID.randomUUID().toString();
+            long seqNumber = 0;
             while (!testState.stopWriteFlag.get()) {
                 try {
                     Exceptions.handleInterrupted(() -> Thread.sleep(100));
+
                     // The content of events is generated following the pattern routingKey:seq_number, where
                     // seq_number is monotonically increasing for every routing key, being the expected delta between
                     // consecutive seq_number values always 1.
-                    final String eventContent = uniqueRoutingKey + RK_VALUE_SEPARATOR + value;
+                    final String eventContent = uniqueRoutingKey + RK_VALUE_SEPARATOR + seqNumber;
                     log.debug("Event write count before write call {}", testState.getEventWrittenCount());
                     writer.writeEvent(uniqueRoutingKey, eventContent);
                     log.debug("Event write count before flush {}", testState.getEventWrittenCount());
@@ -278,7 +281,14 @@ abstract class AbstractFailoverTests {
                     testState.incrementTotalWrittenEvents();
                     log.debug("Writing event {}", eventContent);
                     log.debug("Event write count {}", testState.getEventWrittenCount());
-                    value++;
+                    seqNumber++;
+
+                    // Renewal of routing key to test writing in multiple segments for the same writer.
+                    if (seqNumber == RK_RENEWAL_RATE_WRITER) {
+                        log.info("Renew writer routing key and reinitialize seqNumber at event {}.", seqNumber);
+                        uniqueRoutingKey = UUID.randomUUID().toString();
+                        seqNumber = 0;
+                    }
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
@@ -318,13 +328,22 @@ abstract class AbstractFailoverTests {
 
                 try {
                     transaction = writer.beginTxn();
-                    final String uniqueRoutingKey = transaction.getTxnId().toString();
-                    for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
+                    String uniqueRoutingKey = transaction.getTxnId().toString();
+                    long seqNumber = 0;
+                    for (int j = 1; j <= NUM_EVENTS_PER_TRANSACTION; j++) {
                         // The content of events is generated following the pattern routingKey:seq_number. In this case,
                         // the context of the routing key is the transaction.
-                        transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + j);
-                        log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + j,
+                        transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + seqNumber);
+                        log.debug("Writing event: {} into transaction: {}", uniqueRoutingKey + RK_VALUE_SEPARATOR + seqNumber,
                                 transaction.getTxnId());
+                        seqNumber++;
+
+                        // Renewal of routing key to test writing in multiple segments for the same transaction.
+                        if (j % RK_RENEWAL_RATE_TRANSACTION == 0) {
+                            log.info("Renew transaction writer routing key and reinitialize seqNumber at event {}.", j);
+                            uniqueRoutingKey = UUID.randomUUID().toString();
+                            seqNumber = 0;
+                        }
                     }
                     //commit Txn
                     transaction.commit();
