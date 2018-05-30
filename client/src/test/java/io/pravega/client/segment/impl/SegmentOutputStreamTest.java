@@ -627,16 +627,16 @@ public class SegmentOutputStreamTest {
     @Test(timeout = 10000)
     public void testFlushIsBlockedUntilCallBackInvoked() throws Exception {
 
-        //Segment sealed callback will finish execution only when the latch is released;
+        // Segment sealed callback will finish execution only when the latch is released;
         ReusableLatch latch = new ReusableLatch(false);
         final Consumer<Segment> segmentSealedCallback = segment ->  Exceptions.handleInterrupted(() -> latch.await());
 
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "testClientInternal");
-        cf.setExecutor(executor);
+        @Cleanup("shutdownNow")
+        InlineExecutor inlineExecutor = new InlineExecutor();
+        cf.setExecutor(inlineExecutor);
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -652,12 +652,14 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
 
-        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "netty-callback");
+        //simulate a SegmentIsSealed WireCommand from SegmentStore.
+        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT)));
+
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-        }, () -> {
-          latch.release(); //only after the callback completes does the flush get unblocked.
-        });
+        }, () -> latch.release());
 
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
