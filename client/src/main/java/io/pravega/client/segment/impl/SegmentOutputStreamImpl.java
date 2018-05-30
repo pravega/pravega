@@ -116,15 +116,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
            Exceptions.handleInterrupted(() -> waitingInflight.await());
         }
 
-        private boolean encounteredSeal() {
-            log.trace("{} encountered seal, releasing lock", writerId);
-            synchronized (lock) {
-                boolean result = state.sealEncountered.compareAndSet(false, true);
-                waitingInflight.release();
-                return result;
-            }
-        }
-        
         private boolean isAlreadySealed() {
             synchronized (lock) {
                 return connection == null && exception != null && exception instanceof SegmentSealedException;
@@ -313,14 +304,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
-            if (state.encounteredSeal()) {
+            if (state.sealEncountered.compareAndSet(false, true)) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
-                                                 retrySchedule.getMaxDelay(),
-                                                 t -> log.error(writerId + " to invoke sealed callback: ", t))
+                        retrySchedule.getMaxDelay(),
+                        t -> log.error(writerId + " to invoke sealed callback: ", t))
                      .runInExecutor(() -> {
                          log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionFactory.getInternalExecutor());
+                     }, connectionFactory.getInternalExecutor())
+                     .thenRun(() -> {
+                         log.trace("Release inflight latch for writer {}", writerId);
+                         state.waitingInflight.release();
+                     });
             }
         }
 
