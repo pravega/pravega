@@ -360,8 +360,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(sourceMetadata.isSealed(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that is not sealed.");
 
         long sourceLength = sourceStreamSegmentIndex.getSegmentLength();
+        RedirectIndexEntry newEntry = new RedirectIndexEntry(offset, sourceStreamSegmentIndex);
         if (sourceLength == 0) {
-            // Nothing to do.
+            // Nothing to do. Just record that there is a merge for this source Segment id.
             return;
         }
 
@@ -373,7 +374,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(endOffset <= ourLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, ourLength);
 
         // Check and record the merger (optimistically).
-        RedirectIndexEntry newEntry = new RedirectIndexEntry(offset, sourceStreamSegmentIndex);
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.mergeOffsets.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
             this.mergeOffsets.put(sourceMetadata.getId(), newEntry.key());
@@ -398,29 +398,37 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
      * The ReadIndex entries of the two Streams are actually joined together.
      *
-     * @param sourceStreamSegmentId The Id of the StreamSegment that was merged into this one.
+     * @param sourceMetadata The SegmentMetadata of the Segment that was merged into this one.
      */
-    void completeMerge(long sourceStreamSegmentId) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "completeMerge", sourceStreamSegmentId);
+    void completeMerge(SegmentMetadata sourceMetadata) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "completeMerge", sourceMetadata.getId());
         Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId",
+                "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
+
+        if (sourceMetadata.getLength() == 0) {
+            // beginMerge() does not take any action when the source Segment is empty, so there is nothing for us to do either.
+            return;
+        }
 
         // Find the appropriate redirect entry.
         RedirectIndexEntry redirectEntry;
         long mergeKey;
         synchronized (this.lock) {
-            mergeKey = this.mergeOffsets.getOrDefault(sourceStreamSegmentId, -1L);
-            Exceptions.checkArgument(mergeKey >= 0, "sourceSegmentStreamId", "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
+            mergeKey = this.mergeOffsets.getOrDefault(sourceMetadata.getId(), -1L);
+            Exceptions.checkArgument(mergeKey >= 0, "sourceSegmentStreamId",
+                    "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
 
             // Get the RedirectIndexEntry. These types of entries are sticky in the cache and DO NOT contribute to the
             // cache Stats. They are already accounted for in the other Segment's ReadIndex.
             ReadIndexEntry indexEntry = this.indexEntries.get(mergeKey);
-            assert indexEntry != null && !indexEntry.isDataEntry() : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceStreamSegmentId, mergeKey, indexEntry);
+            assert indexEntry != null && !indexEntry.isDataEntry() :
+                    String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.",
+                            sourceMetadata.getId(), mergeKey, indexEntry);
             redirectEntry = (RedirectIndexEntry) indexEntry;
         }
 
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
-        SegmentMetadata sourceMetadata = sourceIndex.metadata;
-        Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId", "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
 
         // Get all the entries from the source index and append them here.
         List<MergedIndexEntry> sourceEntries = sourceIndex.getAllEntries(redirectEntry.getStreamSegmentOffset());
@@ -428,7 +436,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         synchronized (this.lock) {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectIndexEntry).
             this.indexEntries.remove(mergeKey);
-            this.mergeOffsets.remove(sourceStreamSegmentId);
+            this.mergeOffsets.remove(sourceMetadata.getId());
             sourceEntries.forEach(this::addToIndex);
         }
 

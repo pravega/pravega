@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
@@ -170,14 +171,27 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // We only needs one Transaction for this test.
+        // We want to make sure we do not prematurely acknowledge anything.
+        context.dataSource.setCompleteMergeCallback((target, source) -> Assert.fail("Not expecting any merger callbacks yet."));
+
+        // We need one Transaction for this test (to which we populate data).
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
+        // We also need an empty transaction.
+        SegmentAggregator emptyTransactionAggregator = context.transactionAggregators[1];
+        SegmentMetadata emptyTransactionMetadata = emptyTransactionAggregator.getMetadata();
+
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
+        context.storage.create(emptyTransactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
+        emptyTransactionAggregator.initialize(TIMEOUT).join();
+
+        // Seal the Empty Transaction and add a MergeTransactionOperation to the parent (do this before everything else.
+        emptyTransactionAggregator.add(generateSealAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
 
         // Verify Appends with correct parameters work as expected.
         for (int i = 0; i < appendCount; i++) {
@@ -1510,8 +1524,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         });
 
         // Attempt to concat.
-        StorageOperation sealOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
-        context.segmentAggregator.add(sealOp);
+        StorageOperation mergeOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
+        context.segmentAggregator.add(mergeOp);
 
         // First time: attempt to flush/seal, which must end in failure.
         AssertExtensions.assertThrows(
@@ -1540,6 +1554,45 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
         checkAttributes(context);
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
+     * Tests the ability of the SegmentAggregator to reconcile an operation on the Source Segment after it has already been
+     * merged in Storage. This situation would normally be detected by the initialize() method (as the Segment would be
+     * deleted), however, in some cases, a previous instance of the same Container would still be running while we execute
+     * the initialization, and it may be in the process of merging the Segment. If so, our call to initialize() would
+     * still pick the Segment, but when we execute the operations in Storage, it would not be there anymore.
+     */
+    @Test
+    public void testReconcileMergeSeal() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a parent segment and one transaction segment.
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT).join();
+
+        // This is the operation that should be reconciled.
+        transactionAggregator.add(generateSealAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context));
+        val sm = context.containerMetadata.getStreamSegmentMetadata(transactionAggregator.getMetadata().getId());
+
+        // Mark the Segment as merged, and then delete it from Storage.
+        sm.markMerged();
+        context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
+
+        // Verify the first invocation to flush() fails.
+        AssertExtensions.assertThrows(
+                "Expected Segment to not exist.",
+                () -> transactionAggregator.flush(TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // But the second time it must have worked.
+        transactionAggregator.flush(TIMEOUT).join();
+        Assert.assertTrue("Expected metadata to be updated properly.", sm.isDeleted());
     }
 
     /**
@@ -1734,6 +1787,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     TIMEOUT).join();
         }
 
+        // Initialize the SegmentAggregators, before doing any Storage deletes. This will prevent them from properly
+        // updating the Metadata with the appropriate state (we deliberately choose this order because it is more likely
+        // that the Metadata and Storage state are out of sync during recovery).
+        context.segmentAggregator.initialize(TIMEOUT).join();
+        for (SegmentAggregator a : context.transactionAggregators) {
+            a.initialize(TIMEOUT).join();
+        }
+
         for (SegmentAggregator a : context.transactionAggregators) {
             if (a.getMetadata().isSealed()) {
                 context.storage.seal(writeHandle(a.getMetadata().getName()), TIMEOUT).join();
@@ -1744,15 +1805,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             }
         }
 
-        // Now initialize the SegmentAggregators
-        context.segmentAggregator.initialize(TIMEOUT).join();
-        for (SegmentAggregator a : context.transactionAggregators) {
-            a.initialize(TIMEOUT).join();
-        }
-
         // Add all operations we had so far.
         val actualMergeOpAck = new ArrayList<Map.Entry<Long, Long>>();
-        context.dataSource.setCompleteMergeCallback((target, source) -> actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source)));
+        context.dataSource.setCompleteMergeCallback((target, source) -> {
+            // The ReadIndex performs a similar check.
+            Preconditions.checkArgument(context.containerMetadata.getStreamSegmentMetadata(source).isDeleted(),
+                    "Cannot completeMerge() a Segment that is not marked as Deleted.");
+            actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source));
+        });
         for (StorageOperation o : operations) {
             int transactionIndex = (int) (o.getStreamSegmentId() - TRANSACTION_ID_START);
             SegmentAggregator a = transactionIndex < 0 ? context.segmentAggregator : context.transactionAggregators[transactionIndex];
