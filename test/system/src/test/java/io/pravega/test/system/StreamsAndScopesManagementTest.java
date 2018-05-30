@@ -51,8 +51,7 @@ public class StreamsAndScopesManagementTest {
     private static final int NUM_SCOPES = 5;
     private static final int NUM_STREAMS = 20;
     private static final int NUM_EVENTS = 100;
-    // FIXME: This test does not work for TEST_ITERATIONS > 1 due to issues 1012 and 1681. It would require a sleep
-    // between iterations > 5 min. approx.
+    // TODO: Re-creation of Streams cannot be tested (Issue #2641).
     private static final int TEST_ITERATIONS = 1;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
