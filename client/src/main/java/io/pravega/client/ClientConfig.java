@@ -12,7 +12,6 @@ package io.pravega.client;
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
-
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Collections;
@@ -66,12 +65,24 @@ public class ClientConfig implements Serializable {
                 || this.controllerURI.getScheme().equals("pravegas");
     }
 
+    /**
+     * This class overrides the lombok builder. It adds some custom functionality on top of the builder.
+     * The additional behaviors include:
+     * 1. Defining a default controller URI when none is declared/
+     * 2. Extracting the credentials object from system properties/environment in following order of descending preference:
+     *       a. User provides a credential object. This overrides any other settings.
+     *       b. System properties: System properties are defined in the format: "pravega.client.auth.*"
+     *       c. Environment variables. Environment variables are defined under the format "pravega_client_auth_*"
+     *       d. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
+     *           setting property `pravega.client.auth.loadDynamic` to true.
+     *
+     */
     public static final class ClientConfigBuilder {
-        private static final String AUTH_PROPS_START = "pravega.client.auth.";
-        private static final String AUTH_METHOD = AUTH_PROPS_START + "method";
-        private static final String AUTH_METHOD_LOAD_DYNAMIC = AUTH_PROPS_START + "loadDynamic";
+        private static final String AUTH_PROPS_PREFIX = "pravega.client.auth.";
+        private static final String AUTH_METHOD = "method";
+        private static final String AUTH_METHOD_LOAD_DYNAMIC = "loadDynamic";
 
-        private static final String AUTH_PROPS_START_ENV = "pravega_client_auth_";
+        private static final String AUTH_PROPS_PREFIX_ENV = "pravega_client_auth_";
 
         private boolean validateHostName = true;
 
@@ -91,7 +102,7 @@ public class ClientConfig implements Serializable {
          * Here is the order of preference in descending order:
          * 1. User provides a credential object. This overrides any other settings.
          * 2. System properties: System properties are defined in the format: "pravega.client.auth.*"
-         * 3. Environment variables. Environment variables are defined under the format "PRAVEGA_CLIENT_AUTH_*"
+         * 3. Environment variables. Environment variables are defined under the format "pravega_client_auth_*"
          * 4. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by
          *     setting property `pravega.client.auth.loadDynamic` to true.
          */
@@ -115,9 +126,10 @@ public class ClientConfig implements Serializable {
         private Credentials extractCredentialsFromProperties(Properties properties) {
             Map<String, String> retVal = properties.entrySet()
                                                    .stream()
-                                                   .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START))
-                                                   .collect(Collectors.toMap(entry ->
-                                                                   entry.getKey().toString(), value -> (String) value.getValue()));
+                                                   .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_PREFIX))
+                                                   .collect(Collectors.toMap(entry -> entry.getKey().toString()
+                                                                                           .substring(AUTH_PROPS_PREFIX.length()),
+                                                                    value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);
             } else {
@@ -128,8 +140,10 @@ public class ClientConfig implements Serializable {
         private Credentials extractCredentialsFromEnv(Map<String, String> env) {
             Map<String, String> retVal = env.entrySet()
                                             .stream()
-                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_START_ENV))
-                                            .collect(Collectors.toMap(entry -> (String) entry.getKey().toString().replace("_", "."),
+                                            .filter(entry -> entry.getKey().toString().startsWith(AUTH_PROPS_PREFIX_ENV))
+                                            .collect(Collectors.toMap(entry -> (String) entry.getKey().toString()
+                                                                                     .replace("_", ".")
+                                                                                     .substring(AUTH_PROPS_PREFIX.length()),
                                                     value -> (String) value.getValue()));
             if (retVal.containsKey(AUTH_METHOD)) {
                 return credentialFromMap(retVal);

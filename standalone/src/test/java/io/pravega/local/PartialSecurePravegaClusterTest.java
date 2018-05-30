@@ -11,6 +11,7 @@ package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import lombok.Cleanup;
@@ -44,6 +45,7 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
         int numSegments = 10;
 
         ClientConfig clientConfig = ClientConfig.builder()
+                                                .credentials(new DefaultCredentials("", ""))
                                                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                                                 .build();
         @Cleanup

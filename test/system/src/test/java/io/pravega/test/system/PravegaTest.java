@@ -41,7 +41,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
@@ -54,6 +56,10 @@ public class PravegaTest {
     private final static String STREAM_SCOPE = "testScopeSampleY";
     private final static String READER_GROUP = "ExampleReaderGroupY";
     private final static int NUM_EVENTS = 100;
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(12 * 60);
+
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
@@ -144,7 +150,7 @@ public class PravegaTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    @Test(timeout = 10 * 60 * 1000)
+    @Test
     public void simpleTest() throws InterruptedException {
 
         Service conService = Utils.createPravegaControllerService(null);
