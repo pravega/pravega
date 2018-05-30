@@ -332,7 +332,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // - It is a Seal Operation but the Segment is not yet sealed in Storage.
         long lastOffset = operation.getLastStreamSegmentOffset();
         boolean isTruncate = isTruncateOperation(operation);
-        boolean isMerge = operation instanceof MergeTransactionOperation;
+        boolean isMerge = operation instanceof MergeSegmentOperation;
         boolean processOp = lastOffset > this.metadata.getStorageLength()
                 || isTruncate
                 || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation))
@@ -398,7 +398,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             // (since after recovery, it may not know that a merge has been properly completed).
             MergeSegmentOperation mergeOp = (MergeSegmentOperation) operation;
             try {
-                updateMetadataForTransactionPostMerger(this.dataSource.getStreamSegmentMetadata(mergeOp.getTransactionSegmentId()));
+                updateMetadataForTransactionPostMerger(this.dataSource.getStreamSegmentMetadata(mergeOp.getSourceSegmentId()), mergeOp.getStreamSegmentId());
             } catch (Throwable ex) {
                 // Something really weird must have happened if we ended up in here. To prevent any (further) damage, we need
                 // to stop the Segment Container right away.
