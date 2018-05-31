@@ -65,9 +65,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private boolean closed;
     @GuardedBy("readers")
-    private final List<AcquiredReader> readers = new ArrayList<>();
+    private final List<ReaderState> readers = new ArrayList<>();
     @GuardedBy("readers")
-    private final BlockingQueue<AcquiredReader> readCompletionQueue;
+    private final BlockingQueue<ReaderState> readCompletionQueue;
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
@@ -78,7 +78,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     EventStreamReaderImpl(AsyncSegmentEventReaderFactory readerFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
             ReaderGroupStateManager groupState, Supplier<Long> clock, ReaderConfig config,
-            BlockingQueue<AcquiredReader> readCompletionQueue) {
+            BlockingQueue<ReaderState> readCompletionQueue) {
         this.deserializer = deserializer;
         this.readerFactory = readerFactory;
         this.metadataClientFactory = metadataClientFactory;
@@ -107,7 +107,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     }
 
                     // poll for a completed read
-                    AcquiredReader segmentReader;
+                    ReaderState segmentReader;
                     try {
                         long waitTime = Math.max(0, Math.min(timeout - timer.getElapsedMillis(), ReaderGroupStateManager.TIME_UNIT.toMillis()));
                         segmentReader = readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS);
@@ -171,7 +171,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private PositionInternal getPosition() {
         Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(AcquiredReader::getSegmentId, AcquiredReader::getReadOffset));
+                .collect(Collectors.toMap(ReaderState::getSegmentId, ReaderState::getReadOffset));
         return new PositionImpl(positions);
     }
     
@@ -214,7 +214,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
-            AcquiredReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
+            ReaderState reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
                 if (groupState.releaseSegment(segment, reader.getReadOffset(), getLag())) {
                     readers.remove(reader);
@@ -236,7 +236,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 final AsyncSegmentEventReader r = readerFactory.createEventReaderForSegment(newSegment.getKey(),
                         groupState.getEndOffsetForSegment(newSegment.getKey()), AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
                 r.setOffset(newSegment.getValue());
-                AcquiredReader reader = new AcquiredReader(r);
+                ReaderState reader = new ReaderState(r);
                 readers.add(reader);
                 try {
                     reader.readNext(readCompletionQueue);
@@ -255,7 +255,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(AcquiredReader oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
+    private void handleEndOfSegment(ReaderState oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
         try {
             log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
             readers.remove(oldSegment);
@@ -267,7 +267,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
     
-    private void handleSegmentTruncated(AcquiredReader segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
+    private void handleSegmentTruncated(ReaderState segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
         String delegationToken = groupState.getLatestDelegationToken();
@@ -295,7 +295,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 log.info("Closing reader {} ", this);
                 closed = true;
                 groupState.readerShutdown(getPosition());
-                for (AcquiredReader reader : readers) {
+                for (ReaderState reader : readers) {
                     reader.close();
                 }
                 readers.clear();
@@ -333,13 +333,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Synchronized
     @VisibleForTesting
-    List<AcquiredReader> getReaders() {
+    List<ReaderState> getReaders() {
         return Collections.unmodifiableList(readers);
     }
 
     @Synchronized
     @VisibleForTesting
-    BlockingQueue<AcquiredReader> getQueue() {
+    BlockingQueue<ReaderState> getQueue() {
         return readCompletionQueue;
     }
 
@@ -349,14 +349,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @ToString
-    static class AcquiredReader {
+    static class ReaderState {
         @VisibleForTesting
         final AsyncSegmentEventReader reader;
         @VisibleForTesting
         CompletableFuture<ByteBuffer> outstandingRead = CompletableFuture.completedFuture(null);
         private long readOffset;
 
-        public AcquiredReader(AsyncSegmentEventReader reader) {
+        public ReaderState(AsyncSegmentEventReader reader) {
             this.reader = reader;
             this.readOffset = reader.getOffset();
         }
@@ -400,7 +400,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
          * @param queue the queue for completed reads.
          * @throws EndOfSegmentException if the configured end-of-segment has been reached.
          */
-        public void readNext(final Queue<AcquiredReader> queue) throws EndOfSegmentException {
+        public void readNext(final Queue<ReaderState> queue) throws EndOfSegmentException {
             assert outstandingRead.isDone();
             assert readOffset == reader.getOffset();
             outstandingRead = reader.readAsync();

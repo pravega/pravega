@@ -42,7 +42,6 @@ import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
-import org.mockito.stubbing.Stubber;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.junit.Assert.assertEquals;
@@ -151,9 +150,9 @@ public class EventStreamReaderTest {
 
         // verify the acquired reader state
         assertEquals(1, reader.getReaders().size());
-        EventStreamReaderImpl.AcquiredReader acquiredReader = reader.getReaders().get(0);
-        assertEquals(EVENT_POINTER_0, acquiredReader.getReadOffset());
-        assertFalse(acquiredReader.outstandingRead.isDone());
+        EventStreamReaderImpl.ReaderState readerState = reader.getReaders().get(0);
+        assertEquals(EVENT_POINTER_0, readerState.getReadOffset());
+        assertFalse(readerState.outstandingRead.isDone());
     }
 
     @Test
@@ -355,7 +354,7 @@ public class EventStreamReaderTest {
         final AtomicLong clock = new AtomicLong();
         final ReaderGroupStateManager groupState = mock(ReaderGroupStateManager.class);
         @SuppressWarnings("unchecked")
-        final BlockingQueue<EventStreamReaderImpl.AcquiredReader> readCompletionQueue = spy(new LinkedBlockingQueue());
+        final BlockingQueue<EventStreamReaderImpl.ReaderState> readCompletionQueue = spy(new LinkedBlockingQueue());
         private final Map<Segment, AsyncSegmentEventReader> readers = new HashMap<>();
         private final Map<Segment, SegmentMetadataClient> metadataClients = new HashMap<>();
 
