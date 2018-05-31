@@ -19,6 +19,7 @@ import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.EndOfSegmentException.ErrorType;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
@@ -41,6 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
@@ -56,8 +58,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class EventStreamReaderTest {
@@ -66,11 +70,11 @@ public class EventStreamReaderTest {
 
     private static final int INT_EVENT_LENGTH = WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES;
 
-    private static final EventPointerImpl EVENT_POINTER_S0_A = new EventPointerImpl(S0, 42L * INT_EVENT_LENGTH, INT_EVENT_LENGTH);
-    private static final EventPointerImpl EVENT_POINTER_S1_B = new EventPointerImpl(S1, 101L * INT_EVENT_LENGTH, INT_EVENT_LENGTH);
+    private static final EventPointerImpl S0_PTR_A = new EventPointerImpl(S0, 42L * INT_EVENT_LENGTH, INT_EVENT_LENGTH);
+    private static final EventPointerImpl S1_PTR_B = new EventPointerImpl(S1, 101L * INT_EVENT_LENGTH, INT_EVENT_LENGTH);
 
-    private static final SegmentRange S0_RANGE_A = range(EVENT_POINTER_S0_A);
-    private static final SegmentRange S1_RANGE_B = range(EVENT_POINTER_S1_B);
+    private static final SegmentRange S0_RANGE_A = range(S0_PTR_A);
+    private static final SegmentRange S1_RANGE_B = range(S1_PTR_B);
 
     @Test
     public void testClose() throws Exception {
@@ -123,6 +127,10 @@ public class EventStreamReaderTest {
         // value from next segment
         context.acquire(S1);
         assertEquals(value(2), ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
+
+        // timeout (no more data)
+        assertTrue(isTimeout(reader.readNextEvent(0)));
+        verify(sr1).close();
     }
 
     @Test
@@ -148,7 +156,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
         AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
         AsyncSegmentEventReader sr1 = context.registerSegmentReader(S1);
-        context.acquire(range(EVENT_POINTER_S0_A), range(EVENT_POINTER_S1_B));
+        context.acquire(range(S0_PTR_A), range(S1_PTR_B));
 
         doAnswer(readResult(value(1))).doThrow(eos(ErrorType.END_OFFSET_REACHED)).when(sr0).readAsync();
         doAnswer(readResult(value(2))).doAnswer(readResult(eos())).when(sr1).readAsync();
@@ -157,13 +165,49 @@ public class EventStreamReaderTest {
         EventRead<byte[]> eventRead;
         eventRead = reader.readNextEvent(0);
         verify(context.groupState).handleEndOfSegment(S0, false);
-        assertEquals(EVENT_POINTER_S0_A, eventRead.getEventPointer());
+        assertEquals(S0_PTR_A, eventRead.getEventPointer());
         assertEquals(value(1), ByteBuffer.wrap(eventRead.getEvent()));
 
         // verify that readNextEvent moves to the next segment
         eventRead = reader.readNextEvent(0);
-        assertEquals(EVENT_POINTER_S1_B, eventRead.getEventPointer());
+        assertEquals(S1_PTR_B, eventRead.getEventPointer());
         assertEquals(value(2), ByteBuffer.wrap(eventRead.getEvent()));
+    }
+
+    @Test
+    public void testDataTruncated() throws Exception {
+        Context context = new Context();
+        EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
+
+        // prepare to observe two truncations: one due to a non-existent segment,
+        // and a second due to data being cutoff before a certain offset.
+        SegmentMetadataClient metadataClient0 = context.registerSegmentMetadataClient(S0);
+        SegmentMetadataClient metadataClient1 = context.registerSegmentMetadataClient(S1);
+        doThrow(new NoSuchSegmentException(S0.getScopedName())).when(metadataClient0).getSegmentInfo();
+        SegmentInfo segmentInfo1 = new SegmentInfo(S1, S1_RANGE_B.getStartOffset(), S1_RANGE_B.getEndOffset(), true, 0L);
+        doReturn(segmentInfo1).when(metadataClient1).getSegmentInfo();
+        AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
+        AsyncSegmentEventReader sr1 = context.registerSegmentReader(S1);
+        doAnswer(readResult(new SegmentTruncatedException())).when(sr0).readAsync();
+        doAnswer(readResult(new SegmentTruncatedException())).doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync();
+        context.acquire(S0, S1);
+
+        // observe the first TruncatedDataException
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
+        verify(sr0, times(1)).readAsync();
+        verify(context.groupState).handleEndOfSegment(S0, true);
+        verify(sr0).close();
+
+        // observe the second TruncatedDataException
+        assert sr1.getOffset() == 0L;
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
+        verify(sr1).setOffset(segmentInfo1.getStartingOffset());
+        verify(sr1, times(2)).readAsync();
+
+        // observe a value at the revised offset
+        EventRead<byte[]> eventRead = reader.readNextEvent(0);
+        assertEquals(S1_PTR_B, eventRead.getEventPointer());
+        assertEquals(value(1), ByteBuffer.wrap(eventRead.getEvent()));
     }
 
     @Test
@@ -171,18 +215,22 @@ public class EventStreamReaderTest {
         Context context = new Context();
         EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
 
-        // acquire a segment without completing the read (to avoid mutating the initial state)
+        // prepare to acquire a segment without completing any reads (to avoid mutating the initial state)
         AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
         context.acquire(S0_RANGE_A);
         final CompletableFuture<ByteBuffer> r1 = new CompletableFuture<>();
         doAnswer(readResult(r1)).when(sr0).readAsync();
+
+        // read to drive acquisition
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
         assertTrue("expected a timeout", isTimeout(eventRead));
 
         // verify the acquired reader state
+        verify(context.groupState).acquireNewSegmentsIfNeeded(anyLong());
+        assertEquals(1, reader.getReaders().size());
         verify(sr0).setOffset(S0_RANGE_A.getStartOffset());
         verify(sr0).setEndOffset(S0_RANGE_A.getEndOffset());
-        assertEquals(1, reader.getReaders().size());
+        verify(sr0).readAsync();
         EventStreamReaderImpl.ReaderState readerState = reader.getReaders().get(0);
         assertEquals(S0_RANGE_A.getStartOffset(), readerState.getReadOffset());
         assertFalse(readerState.outstandingRead.isDone());
@@ -227,32 +275,32 @@ public class EventStreamReaderTest {
         // verify reader initialization
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(value(1))).when(sr0).readAsync();
-        reader.fetchEvent(EVENT_POINTER_S0_A);
-        verify(sr0).setOffset(EVENT_POINTER_S0_A.getEventStartOffset());
-        verify(sr0).setEndOffset(EVENT_POINTER_S0_A.getEventStartOffset() + EVENT_POINTER_S0_A.getEventLength());
+        reader.fetchEvent(S0_PTR_A);
+        verify(sr0).setOffset(S0_PTR_A.getEventStartOffset());
+        verify(sr0).setEndOffset(S0_PTR_A.getEventStartOffset() + S0_PTR_A.getEventLength());
 
         // verify value
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(value(1))).when(sr0).readAsync();
-        assertEquals(value(1), ByteBuffer.wrap(reader.fetchEvent(EVENT_POINTER_S0_A)));
+        assertEquals(value(1), ByteBuffer.wrap(reader.fetchEvent(S0_PTR_A)));
         verify(sr0).close();
 
         // verify exception handling
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(eos())).when(sr0).readAsync();
-        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(EVENT_POINTER_S0_A));
+        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(new NoSuchSegmentException(S0.getScopedName()))).when(sr0).readAsync();
-        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(EVENT_POINTER_S0_A));
+        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(new SegmentTruncatedException(S0.getScopedName()))).when(sr0).readAsync();
-        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(EVENT_POINTER_S0_A));
+        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
         doAnswer(readResult(new IOException("expected"))).when(sr0).readAsync();
-        AssertExtensions.assertThrows(IOException.class, () -> reader.fetchEvent(EVENT_POINTER_S0_A));
+        AssertExtensions.assertThrows(IOException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
     }
 
@@ -300,40 +348,6 @@ public class EventStreamReaderTest {
 //            // expected
 //        }
 //        assertTrue(reader.getReaders().isEmpty());
-//        reader.close();
-//    }
-//
-//    @Test(timeout = 10000)
-//    public void testDataTruncated() throws SegmentSealedException, ReinitializationRequiredException {
-//        AtomicLong clock = new AtomicLong();
-//        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
-//        ReaderGroupStateManager groupState = mock(ReaderGroupStateManager.class);
-//        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
-//                                                                           new ByteArraySerializer(), groupState,
-//                                                                           clock::get,
-//                                                                           ReaderConfig.builder().build());
-//        Segment segment = Segment.fromScopedName("Foo/Bar/0");
-//        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-//               .thenReturn(ImmutableMap.of(segment, 0L))
-//               .thenReturn(Collections.emptyMap());
-//        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-//                                                                                       writerConfig, "");
-//        SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment, "");
-//        ByteBuffer buffer1 = writeInt(stream, 1);
-//        ByteBuffer buffer2 = writeInt(stream, 2);
-//        ByteBuffer buffer3 = writeInt(stream, 3);
-//        long length = metadataClient.fetchCurrentSegmentLength();
-//        assertEquals(0, length % 3);
-//        EventRead<byte[]> event1 = reader.readNextEvent(0);
-//        assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-//        metadataClient.truncateSegment(segment, length / 3);
-//        assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-//        metadataClient.truncateSegment(segment, length);
-//        ByteBuffer buffer4 = writeInt(stream, 4);
-//        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
-//        assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-//        assertNull(reader.readNextEvent(0).getEvent());
-//        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(event1.getEventPointer()));
 //        reader.close();
 //    }
 //
@@ -403,6 +417,7 @@ public class EventStreamReaderTest {
 
         public Context() {
             doReturn("reader-1").when(groupState).getReaderId();
+            doReturn("token-1").when(groupState).getLatestDelegationToken();
         }
 
         @Override
