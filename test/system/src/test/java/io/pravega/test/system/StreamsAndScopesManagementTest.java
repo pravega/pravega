@@ -189,9 +189,9 @@ public class StreamsAndScopesManagementTest {
             final String stream = String.valueOf(j);
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
 
-            // Create Stream with wrong scope, which should not be successful.
-            log.info("Creating a stream in a deliberately wrong scope wrongScope/{}.", stream);
-            assertThrows(RuntimeException.class, () -> streamManager.createStream("wrongScope", stream,
+            // Create Stream with nonexistent scope, which should not be successful.
+            log.info("Creating a stream in a deliberately nonexistent scope nonexistentScope/{}.", stream);
+            assertThrows(RuntimeException.class, () -> streamManager.createStream("nonexistentScope", stream,
                     StreamConfiguration.builder().build()));
             long iniTime = System.nanoTime();
             log.info("Creating stream {}/{}.", scope, stream);
