@@ -519,7 +519,7 @@ public class ReaderGroupState implements Revisioned {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
                     Long offset;
-                    if (ownedSegments == null) {
+                    if (ownedSegments == null || ownedSegments.isEmpty()) {
                         offset = entry.getValue();
                     } else {
                         offset = ownedSegments.get(segment);
