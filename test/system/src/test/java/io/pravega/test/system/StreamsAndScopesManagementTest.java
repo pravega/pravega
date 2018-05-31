@@ -51,17 +51,18 @@ public class StreamsAndScopesManagementTest {
     private static final int NUM_SCOPES = 5;
     private static final int NUM_STREAMS = 20;
     private static final int NUM_EVENTS = 100;
-    // TODO: Re-creation of Streams cannot be tested (Issue #2641).
+    // Until the issue below is solved, TEST_ITERATIONS cannot be > 1.
+    // TODO: Re-creation of Streams cannot be tested (Issue https://github.com/pravega/pravega/issues/2641).
     private static final int TEST_ITERATIONS = 1;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4,
+            "StreamsAndScopesManagementTest-controller");
 
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller;
-
     private Map<String, List<Long>> controllerPerfStats = new HashMap<>();
 
     /**
@@ -119,10 +120,9 @@ public class StreamsAndScopesManagementTest {
         streamManager = StreamManager.create(controllerURI);
         controller = new ControllerImpl(ControllerImplConfig.builder()
                                                             .clientConfig(ClientConfig.builder().controllerURI(controllerURI).build())
-                                                            .maxBackoffMillis(5000).build(),
-                executor);
+                                                            .maxBackoffMillis(5000).build(), executor);
 
-        // For performance inspection purposes.
+        // Performance inspection.
         controllerPerfStats.put("createScopeMs", new ArrayList<>());
         controllerPerfStats.put("createStreamMs", new ArrayList<>());
         controllerPerfStats.put("sealStreamMs", new ArrayList<>());
@@ -138,9 +138,9 @@ public class StreamsAndScopesManagementTest {
     }
 
     /**
-     * This test executes a series of metadata operations on streams and scopes to verify their correct operation. This
-     * includes the creation and deletion of multiple scopes both in correct and correct situations. Moreover, for each
-     * scope, the test creates a range of streams and tries to create, update, seal and delete them in correct and
+     * This test executes a series of metadata operations on streams and scopes to verify their correct behavior. This
+     * includes the creation and deletion of multiple scopes both in correct and incorrect situations. Moreover, for
+     * each scope, the test creates a range of streams and tries to create, update, seal and delete them in correct and
      * incorrect situations. The test also performs metadata operation on empty and non-empty streams.
      */
     @Test
@@ -152,7 +152,7 @@ public class StreamsAndScopesManagementTest {
         }
 
         // Provide some performance information of Stream/Scope metadata operations.
-        for (String perfKey: controllerPerfStats.keySet()) {
+        for (String perfKey : controllerPerfStats.keySet()) {
             log.info("Performance of {}: {}", perfKey, controllerPerfStats.get(perfKey).stream().mapToLong(x -> x).summaryStatistics());
         }
 
