@@ -48,8 +48,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Cleanup;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -98,7 +96,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         try {
             synchronized (readers) {
                 Preconditions.checkState(!closed, "Reader is closed");
-                long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
                 Timer timer = new Timer();
                 Segment segment = null;
                 long offset = -1;
@@ -108,45 +105,44 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     if (checkpoint != null) {
                         return createEmptyEvent(checkpoint);
                     }
-                    if (readers.isEmpty()) {
-                        Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
-                    } else {
-                        AcquiredReader segmentReader;
-                        try {
-                            segmentReader = readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS);
-                        } catch (InterruptedException e) {
-                            break;
-                        }
 
-                        if (segmentReader != null) {
-                            // process the completed read
-                            try {
-                                assert segmentReader.outstandingRead.isDone();
-                                segment = segmentReader.getSegmentId();
-                                offset = segmentReader.reader.getOffset();
-                                buffer = segmentReader.outstandingRead.getNow(null);
-                            } catch (Throwable th) {
-                                th = Exceptions.unwrap(th);
-                                if (th instanceof EndOfSegmentException) {
-                                    EndOfSegmentException e = (EndOfSegmentException) th;
-                                    assert e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
-                                    boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
-                                    handleEndOfSegment(segmentReader, fetchSuccessors);
-                                } else if (th instanceof SegmentTruncatedException) {
-                                    handleSegmentTruncated(segmentReader);
-                                } else {
-                                    throw th;
-                                }
-                            } finally {
-                                // schedule the next read
-                                if (!segmentReader.isClosed()) {
-                                    try {
-                                        segmentReader.readNext(readCompletionQueue);
-                                    } catch (EndOfSegmentException e) {
-                                        // the configured end offset was reached; note that the buffer still contains a valid event
-                                        assert e.getErrorType().equals(ErrorType.END_OFFSET_REACHED);
-                                        handleEndOfSegment(segmentReader, false);
-                                    }
+                    // poll for a completed read
+                    AcquiredReader segmentReader;
+                    try {
+                        long waitTime = Math.max(0, Math.min(timeout - timer.getElapsedMillis(), ReaderGroupStateManager.TIME_UNIT.toMillis()));
+                        segmentReader = readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+
+                    // note: a read may complete with a value and be enqueued for processing, but be released
+                    // and closed before the value has been processed.
+                    if (segmentReader != null && !segmentReader.isClosed()) {
+                        try {
+                            segment = segmentReader.getSegmentId();
+                            offset = segmentReader.getReadOffset();
+                            buffer = segmentReader.takeEvent();
+                        } catch (Throwable th) {
+                            th = Exceptions.unwrap(th);
+                            if (th instanceof EndOfSegmentException) {
+                                EndOfSegmentException e = (EndOfSegmentException) th;
+                                assert e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
+                                boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
+                                handleEndOfSegment(segmentReader, fetchSuccessors);
+                            } else if (th instanceof SegmentTruncatedException) {
+                                handleSegmentTruncated(segmentReader);
+                            } else {
+                                throw th;
+                            }
+                        } finally {
+                            // schedule the next read if the reader is still open.
+                            if (!segmentReader.isClosed()) {
+                                try {
+                                    segmentReader.readNext(readCompletionQueue);
+                                } catch (EndOfSegmentException e) {
+                                    // the configured end offset was reached; note that the buffer still contains a valid event
+                                    assert e.getErrorType().equals(ErrorType.END_OFFSET_REACHED);
+                                    handleEndOfSegment(segmentReader, false);
                                 }
                             }
                         }
@@ -175,7 +171,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     private PositionInternal getPosition() {
         Map<Segment, Long> positions = readers.stream()
-                .collect(Collectors.toMap(AcquiredReader::getSegmentId, AcquiredReader::getOffset));
+                .collect(Collectors.toMap(AcquiredReader::getSegmentId, AcquiredReader::getReadOffset));
         return new PositionImpl(positions);
     }
     
@@ -220,16 +216,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             log.info("{} releasing segment {}", this, segment);
             AcquiredReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                reader.cancel();
-                if (groupState.releaseSegment(segment, reader.reader.getOffset(), getLag())) {
+                if (groupState.releaseSegment(segment, reader.getReadOffset(), getLag())) {
                     readers.remove(reader);
+
+                    // note that the read completion handler may have already enqueued the reader
+                    // and so readNextEvent should avoid using the value of closed readers.
                     reader.close();
-                } else {
-                    try {
-                        reader.readNext(readCompletionQueue);
-                    } catch (EndOfSegmentException e) {
-                        throw new IllegalStateException("re-acquired a reader where end >= start", e);
-                    }
                 }
             }
         }
@@ -283,7 +275,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
-            segmentReader.reader.setOffset(startingOffset);
+            segmentReader.setReadOffset(startingOffset);
+            log.info("{} fast-forwarded to offset {} for segment {}", this, startingOffset, segmentId);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);
         }
@@ -318,7 +311,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         // Create AsyncSegmentEventReader
         @Cleanup
         AsyncSegmentEventReader reader = readerFactory.createEventReaderForSegment(
-                pointer.asImpl().getSegment(), pointer.asImpl().getEventLength(), AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
+                pointer.asImpl().getSegment(),
+                pointer.asImpl().getEventStartOffset() + pointer.asImpl().getEventLength(),
+                AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
         reader.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event
         try {
@@ -342,37 +337,79 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return Collections.unmodifiableList(readers);
     }
 
+    @Synchronized
+    @VisibleForTesting
+    BlockingQueue<AcquiredReader> getQueue() {
+        return readCompletionQueue;
+    }
+
     @Override
     public String toString() {
         return "EventStreamReaderImpl( id=" + groupState.getReaderId() + ")";
     }
 
-    @RequiredArgsConstructor
     @ToString
-    @Getter
     static class AcquiredReader {
-        private final AsyncSegmentEventReader reader;
-        private CompletableFuture<ByteBuffer> outstandingRead = CompletableFuture.completedFuture(null);
+        @VisibleForTesting
+        final AsyncSegmentEventReader reader;
+        @VisibleForTesting
+        CompletableFuture<ByteBuffer> outstandingRead = CompletableFuture.completedFuture(null);
+        private long readOffset;
+
+        public AcquiredReader(AsyncSegmentEventReader reader) {
+            this.reader = reader;
+            this.readOffset = reader.getOffset();
+        }
 
         public Segment getSegmentId() {
             return reader.getSegmentId();
         }
 
-        public long getOffset() {
-            return reader.getOffset();
+        /**
+         * Gets the offset up to which events have been processed for this reader.
+         * This offset corresponds to the checkpoint position, in contrast to the position
+         * within {@code reader} which advances asynchronously as completed reads are queued.
+         */
+        public long getReadOffset() {
+            return readOffset;
         }
 
+        /**
+         * Sets the offset up to which events have been processed for this reader.
+         *
+         * @param offset the offset.
+         */
+        public void setReadOffset(long offset) {
+            reader.setOffset(offset);
+            readOffset = offset;
+        }
+
+        /**
+         * Takes the read event and updates the read offset accordingly.
+         */
+        public ByteBuffer takeEvent() {
+            assert outstandingRead.isDone();
+            ByteBuffer buffer = outstandingRead.getNow(null);
+            readOffset = reader.getOffset();
+            return buffer;
+        }
+
+        /**
+         * Reads the next event.
+         *
+         * @param queue the queue for completed reads.
+         * @throws EndOfSegmentException if the configured end-of-segment has been reached.
+         */
         public void readNext(final Queue<AcquiredReader> queue) throws EndOfSegmentException {
+            assert outstandingRead.isDone();
+            assert readOffset == reader.getOffset();
             outstandingRead = reader.readAsync();
             outstandingRead.whenComplete((buf, th) -> {
+                // note: don't enqueue cancelled reads since the reader is closing.
                 if (!(th instanceof CancellationException)) {
                     queue.add(this);
                 }
             });
-        }
-
-        public void cancel() {
-            outstandingRead.cancel(false);
         }
 
         public void close() {
