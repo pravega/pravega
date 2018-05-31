@@ -34,11 +34,12 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
 
     private final AsyncSegmentInputStream asyncInput;
-    private final long endOffset;
     private final int readLength;
 
     @GuardedBy("$lock")
     private long cursorOffset;
+    @GuardedBy("$lock")
+    private long endOffset;
     @GuardedBy("$lock")
     private final ReadState readState;
     @GuardedBy("$lock")
@@ -111,12 +112,21 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         return cursorOffset;
     }
 
-    /**
-     * Reads the next event from the segment.
-     *
-     * @return a future containing the event data.
-     * @throws EndOfSegmentException if the configured {@code endOffset} is reached.
-     */
+    @Override
+    @Synchronized
+    public void setEndOffset(long offset) {
+        log.trace("SetEndOffset {}", offset);
+        Preconditions.checkArgument(offset >= 0);
+        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
+        this.endOffset = offset;
+    }
+
+    @Override
+    @Synchronized
+    public long getEndOffset() {
+        return endOffset;
+    }
+
     @Override
     @Synchronized
     public CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException {

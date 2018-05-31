@@ -28,7 +28,7 @@ public class AsyncSegmentEventReaderFactoryImpl implements AsyncSegmentEventRead
     private final ConnectionFactory cf;
 
     @Override
-    public AsyncSegmentEventReader createEventReaderForSegment(Segment segment, long endOffset, int bufferSize) {
+    public AsyncSegmentEventReader createEventReaderForSegment(Segment segment, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
         AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
@@ -36,6 +36,6 @@ public class AsyncSegmentEventReaderFactoryImpl implements AsyncSegmentEventRead
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new AsyncSegmentEventReaderImpl(result, 0, endOffset,  bufferSize);
+        return new AsyncSegmentEventReaderImpl(result, 0, AsyncSegmentEventReaderImpl.UNBOUNDED_END_OFFSET, bufferSize);
     }
 }

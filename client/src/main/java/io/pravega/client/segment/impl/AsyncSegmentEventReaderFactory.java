@@ -33,24 +33,5 @@ public interface AsyncSegmentEventReaderFactory {
      * @param bufferSize Size of the read buffer.
      * @return A segment input stream.
      */
-    default AsyncSegmentEventReader createEventReaderForSegment(Segment segment, int bufferSize) {
-        return createEventReaderForSegment(segment, AsyncSegmentEventReaderImpl.UNBOUNDED_END_OFFSET, bufferSize);
-    }
-
-    /**
-     * Opens an existing segment for reading up to the given end offset (exclusive). This operation will fail if the
-     * segment does not exist.
-     * This operation may be called multiple times on the same stream from the
-     * same client (i.e., there can be concurrent Stream Readers in the same
-     * process space).
-     * This operation additionally takes a buffer size parameter. This value determines the prefetch size,
-     * i.e., the maximum number of bytes read in each network call. It is important to control the buffer size,
-     * e.g., when randomly reading events with {@link EventStreamReader#fetchEvent(EventPointer)}
-     *
-     * @param segment  The segment to create a reader for.
-     * @param endOffset The offset up to which the segment can be read.
-     * @param bufferSize Size of the read buffer.
-     * @return A segment input stream.
-     */
-    AsyncSegmentEventReader createEventReaderForSegment(Segment segment, long endOffset, int bufferSize);
+    AsyncSegmentEventReader createEventReaderForSegment(Segment segment, int bufferSize);
 }

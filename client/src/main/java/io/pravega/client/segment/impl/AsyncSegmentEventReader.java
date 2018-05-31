@@ -37,13 +37,27 @@ public interface AsyncSegmentEventReader {
     long getOffset();
 
     /**
+     * Sets the end offset for reading from the segment (exclusive).
+     *
+     * @param offset The offset to use.
+     */
+    void setEndOffset(long offset);
+
+    /**
+     * Gets the end offset.
+     *
+     * @return The end offset.
+     */
+    long getEndOffset();
+
+    /**
      * Reads the next event from the segment.
      *
      * The offset is advanced iff the future completes successfully.  If called while a read is outstanding,
      * cancels that read and re-reads the same data.
      *
      * @return a future containing the event data.
-     * @throws EndOfSegmentException if the configured {@code endOffset} is reached.
+     * @throws EndOfSegmentException if the configured end offset was reached.
      */
     CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException;
 

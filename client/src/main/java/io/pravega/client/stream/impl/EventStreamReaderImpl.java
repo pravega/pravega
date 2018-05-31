@@ -233,9 +233,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                final AsyncSegmentEventReader r = readerFactory.createEventReaderForSegment(newSegment.getKey(),
-                        groupState.getEndOffsetForSegment(newSegment.getKey()), AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
+                AsyncSegmentEventReader r = readerFactory.createEventReaderForSegment(
+                        newSegment.getKey(),
+                        AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
                 r.setOffset(newSegment.getValue());
+                r.setEndOffset(groupState.getEndOffsetForSegment(newSegment.getKey()));
                 ReaderState reader = new ReaderState(r);
                 readers.add(reader);
                 try {
@@ -312,9 +314,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         @Cleanup
         AsyncSegmentEventReader reader = readerFactory.createEventReaderForSegment(
                 pointer.asImpl().getSegment(),
-                pointer.asImpl().getEventStartOffset() + pointer.asImpl().getEventLength(),
                 AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
         reader.setOffset(pointer.asImpl().getEventStartOffset());
+        reader.setEndOffset(pointer.asImpl().getEventStartOffset() + pointer.asImpl().getEventLength());
+
         // Read event
         try {
             ByteBuffer buffer = reader.readAsync().join();

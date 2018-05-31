@@ -75,7 +75,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public AsyncSegmentEventReader createEventReaderForSegment(Segment segment, long endOffset, int bufferSize) {
+    public AsyncSegmentEventReader createEventReaderForSegment(Segment segment, int bufferSize) {
         return getMockStream(segment);
     }
 }

@@ -43,6 +43,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private long readOffset = 0;
     @GuardedBy("$lock")
+    private long endOffset = Long.MAX_VALUE;
+    @GuardedBy("$lock")
     private int eventsWritten = 0;
     @GuardedBy("$lock")
     private long startingOffset = 0;
@@ -73,6 +75,16 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
+    public void setEndOffset(long offset) {
+        this.endOffset = offset;
+    }
+
+    @Override
+    public long getEndOffset() {
+        return endOffset;
+    }
+
+    @Override
     @Synchronized
     public long fetchCurrentSegmentLength() {
         return writeOffset;
@@ -92,6 +104,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         }
         if (readOffset < startingOffset) {
             throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
+        }
+        if( readOffset >= endOffset) {
+            throw new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OFFSET_REACHED);
         }
         ByteBuffer buffer = dataWritten.get(readIndex);
         readIndex++;
