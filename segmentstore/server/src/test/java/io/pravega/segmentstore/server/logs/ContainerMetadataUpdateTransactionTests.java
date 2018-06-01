@@ -65,11 +65,11 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final int CONTAINER_ID = 1234567;
     private static final String SEGMENT_NAME = "Segment_123";
     private static final long SEGMENT_ID = 123;
-    private static final String SEALED_TRANSACTION_NAME = "Segment_123#Transaction_Sealed";
-    private static final long SEALED_TRANSACTION_ID = 567;
-    private static final String NOTSEALED_TRANSACTION_NAME = "Segment_123#Transaction_NotSealed";
-    private static final long NOTSEALED_TRANSACTION_ID = 890;
-    private static final long SEALED_TRANSACTION_LENGTH = 12;
+    private static final String SEALED_SOURCE_NAME = "Segment_123#Source_Sealed";
+    private static final long SEALED_SOURCE_ID = 567;
+    private static final String NOTSEALED_SOURCE_NAME = "Segment_123#Source_NotSealed";
+    private static final long NOTSEALED_SOURCE_ID = 890;
+    private static final long SEALED_SOURCE_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
@@ -124,11 +124,11 @@ public class ContainerMetadataUpdateTransactionTests {
                 SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
 
         // When StreamSegment is merged (via transaction).
-        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, null);
+        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_SOURCE_ID, DEFAULT_APPEND_DATA, null);
         MergeSegmentOperation mergeOp = createMerge();
         txn2.preProcessOperation(mergeOp);
         txn2.acceptOperation(mergeOp);
-        Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+        Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is merged (in transaction).",
                 () -> txn2.preProcessOperation(transactionAppendOp),
@@ -136,7 +136,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // When StreamSegment is merged (via metadata).
         txn2.commit(metadata);
-        Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+        Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is merged (in metadata).",
                 () -> txn2.preProcessOperation(transactionAppendOp),
@@ -465,11 +465,11 @@ public class ContainerMetadataUpdateTransactionTests {
                 metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
 
         // When StreamSegment is merged (via transaction).
-        StreamSegmentSealOperation transactionSealOp = new StreamSegmentSealOperation(SEALED_TRANSACTION_ID);
+        StreamSegmentSealOperation transactionSealOp = new StreamSegmentSealOperation(SEALED_SOURCE_ID);
         MergeSegmentOperation mergeOp = createMerge();
         txn2.preProcessOperation(mergeOp);
         txn2.acceptOperation(mergeOp);
-        Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+        Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is merged (in transaction).",
                 () -> txn2.preProcessOperation(transactionSealOp),
@@ -477,7 +477,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // When StreamSegment is merged (via metadata).
         txn2.commit(metadata);
-        Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+        Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is merged (in metadata).",
                 () -> txn2.preProcessOperation(transactionSealOp),
@@ -657,11 +657,11 @@ public class ContainerMetadataUpdateTransactionTests {
      * * Recovery/non-recovery mode
      * * Target StreamSegment is sealed
      * * Target StreamSegment is a Transaction
-     * * Transaction StreamSegment is already merged
-     * * Transaction StreamSegment is not sealed
+     * * Source StreamSegment is already merged
+     * * Source StreamSegment is not sealed
      */
     @Test
-    public void testPreProcessMergeTransaction() throws Exception {
+    public void testPreProcessMergeSegment() throws Exception {
         UpdateableContainerMetadata metadata = createMetadata();
 
         // When everything is OK (recovery mode).
@@ -674,15 +674,15 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof MetadataUpdateException);
 
         // In recovery mode, the updater does not set the length; it just validates that it has one.
-        recoveryMergeOp.setLength(metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).getLength());
+        recoveryMergeOp.setLength(metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).getLength());
         txn1.preProcessOperation(recoveryMergeOp);
         AssertExtensions.assertLessThan("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.",
                 0, recoveryMergeOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(recoveryMergeOp, "call to preProcess in recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in recovery mode.",
-                txn1.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                txn1.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in recovery mode.",
-                metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
 
         // When everything is OK (non-recovery mode).
         MergeSegmentOperation mergeOp = createMerge();
@@ -690,14 +690,14 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn2 = createUpdateTransaction(metadata);
         txn2.preProcessOperation(mergeOp);
         Assert.assertEquals("Unexpected Transaction StreamSegmentLength after call to preProcess in non-recovery mode.",
-                SEALED_TRANSACTION_LENGTH, mergeOp.getLength());
+                SEALED_SOURCE_LENGTH, mergeOp.getLength());
         Assert.assertEquals("Unexpected Target StreamSegmentOffset after call to preProcess in non-recovery mode.",
                 SEGMENT_LENGTH, mergeOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(mergeOp, "call to preProcess in non-recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in non-recovery mode.",
-                txn2.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                txn2.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in non-recovery mode.",
-                metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
 
         // When Target StreamSegment is sealed.
         StreamSegmentSealOperation sealTargetOp = createSeal();
@@ -711,7 +711,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.clear(); // Rollback the seal
 
         // When Transaction is not sealed.
-        MergeSegmentOperation mergeNonSealed = new MergeSegmentOperation(NOTSEALED_TRANSACTION_ID, SEGMENT_ID);
+        MergeSegmentOperation mergeNonSealed = new MergeSegmentOperation(NOTSEALED_SOURCE_ID, SEGMENT_ID);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is not sealed.",
                 () -> txn2.preProcessOperation(mergeNonSealed),
@@ -736,7 +736,7 @@ public class ContainerMetadataUpdateTransactionTests {
      * Tests the accept method with MergeTransactionOperations.
      */
     @Test
-    public void testAcceptMergeTransaction() throws Exception {
+    public void testAcceptMergeSegment() throws Exception {
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
         MergeSegmentOperation mergeOp = createMerge();
@@ -757,11 +757,11 @@ public class ContainerMetadataUpdateTransactionTests {
         txn.preProcessOperation(mergeOp);
         txn.acceptOperation(mergeOp);
         Assert.assertTrue("acceptOperation did not update the transaction(Transaction).",
-                txn.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                txn.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         Assert.assertFalse("acceptOperation updated the metadata (Transaction).",
-                metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
+                metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         Assert.assertEquals("acceptOperation did not update the transaction.",
-                SEGMENT_LENGTH + SEALED_TRANSACTION_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
+                SEGMENT_LENGTH + SEALED_SOURCE_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
                 SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
     }
@@ -1183,14 +1183,14 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertEquals("commit() seems to have modified the metadata sequence number while not in recovery mode.",
                 ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, targetMetadata.nextOperationSequenceNumber() - 1);
 
-        long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_TRANSACTION_LENGTH;
+        long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_SOURCE_LENGTH;
 
         SegmentMetadata parentMetadata = targetMetadata.getStreamSegmentMetadata(SEGMENT_ID);
         Assert.assertEquals("Unexpected Length in metadata after commit.", expectedLength, parentMetadata.getLength());
         Assert.assertTrue("Unexpected value for isSealed in metadata after commit.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Target after commit.", expectedLastUsedParent, parentMetadata);
 
-        SegmentMetadata transactionMetadata = targetMetadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
+        SegmentMetadata transactionMetadata = targetMetadata.getStreamSegmentMetadata(SEALED_SOURCE_ID);
         Assert.assertTrue("Unexpected value for isSealed in Source metadata after commit.", transactionMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in Source metadata after commit.", transactionMetadata.isMerged());
         int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0);
@@ -1263,7 +1263,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("Unexpected value for isSealed in metadata after rollback.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Target after rollback.", 0, parentMetadata);
 
-        SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
+        SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID);
         Assert.assertFalse("Unexpected value for isMerged in transaction segment metadata after rollback.", transactionMetadata.isMerged());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Transaction segment after rollback.", 0, transactionMetadata);
 
@@ -1273,7 +1273,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("Unexpected value for isSealed in transaction after rollback.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Parent (txn) after rollback.", 0, parentMetadata);
 
-        transactionMetadata = txn.getStreamSegmentMetadata(SEALED_TRANSACTION_ID);
+        transactionMetadata = txn.getStreamSegmentMetadata(SEALED_SOURCE_ID);
         Assert.assertFalse("Unexpected value for isMerged in transaction segment in update transaction after rollback.", transactionMetadata.isMerged());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Transaction segment in update transaction after rollback.", 0, transactionMetadata);
     }
@@ -1345,12 +1345,12 @@ public class ContainerMetadataUpdateTransactionTests {
         segmentMetadata.setLength(SEGMENT_LENGTH);
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
 
-        segmentMetadata = metadata.mapStreamSegmentId(SEALED_TRANSACTION_NAME, SEALED_TRANSACTION_ID);
-        segmentMetadata.setLength(SEALED_TRANSACTION_LENGTH);
-        segmentMetadata.setStorageLength(SEALED_TRANSACTION_LENGTH);
+        segmentMetadata = metadata.mapStreamSegmentId(SEALED_SOURCE_NAME, SEALED_SOURCE_ID);
+        segmentMetadata.setLength(SEALED_SOURCE_LENGTH);
+        segmentMetadata.setStorageLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.markSealed();
 
-        segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_TRANSACTION_NAME, NOTSEALED_TRANSACTION_ID);
+        segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_SOURCE_NAME, NOTSEALED_SOURCE_ID);
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
@@ -1389,7 +1389,7 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private MergeSegmentOperation createMerge() {
-        return new MergeSegmentOperation(SEGMENT_ID, SEALED_TRANSACTION_ID);
+        return new MergeSegmentOperation(SEGMENT_ID, SEALED_SOURCE_ID);
     }
 
     private StreamSegmentMapOperation createMap() {
@@ -1410,7 +1410,7 @@ public class ContainerMetadataUpdateTransactionTests {
         return new StreamSegmentMapOperation(
                 StreamSegmentInformation.builder()
                                         .name(name)
-                                        .length(SEALED_TRANSACTION_LENGTH)
+                                        .length(SEALED_SOURCE_LENGTH)
                                         .sealed(true)
                                         .attributes(createAttributes())
                                         .build());

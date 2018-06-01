@@ -314,9 +314,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
             } else if (operation instanceof MergeSegmentOperation) {
                 MergeSegmentOperation mbe = (MergeSegmentOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getSourceSegmentId());
-                transactionMetadata.preProcessAsSourceSegment(mbe);
-                segmentMetadata.preProcessAsTargetSegment(mbe, transactionMetadata);
+                SegmentMetadataUpdateTransaction sourceMetadata = getSegmentUpdateTransaction(mbe.getSourceSegmentId());
+                sourceMetadata.preProcessAsSourceSegment(mbe);
+                segmentMetadata.preProcessAsTargetSegment(mbe, sourceMetadata);
             } else if (operation instanceof UpdateAttributesOperation) {
                 segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {
@@ -356,10 +356,10 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
             } else if (operation instanceof MergeSegmentOperation) {
                 MergeSegmentOperation mto = (MergeSegmentOperation) operation;
-                SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mto.getSourceSegmentId());
-                transactionMetadata.acceptAsSourceSegment(mto);
-                transactionMetadata.setLastUsed(operation.getSequenceNumber());
-                segmentMetadata.acceptAsTargetSegment(mto, transactionMetadata);
+                SegmentMetadataUpdateTransaction sourceMetadata = getSegmentUpdateTransaction(mto.getSourceSegmentId());
+                sourceMetadata.acceptAsSourceSegment(mto);
+                sourceMetadata.setLastUsed(operation.getSequenceNumber());
+                segmentMetadata.acceptAsTargetSegment(mto, sourceMetadata);
             } else if (operation instanceof UpdateAttributesOperation) {
                 segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {
