@@ -87,7 +87,7 @@ public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
-            ScalingPolicy.byEventRate(0, 2, 3)).build();
+            ScalingPolicy.byEventRate(1, 2, 3)).build();
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;

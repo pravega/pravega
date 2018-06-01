@@ -1658,7 +1658,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
+                boolean emptyTransaction = false;
                 for (String transactionName : transactionsBySegment.get(segmentName)) {
+                    if (!emptyTransaction) {
+                        lengths.put(transactionName, 0L);
+                        recordAppend(transactionName, new byte[0], segmentContents);
+                        emptyTransaction = true;
+                        continue;
+                    }
+
                     appendData = getAppendData(transactionName, i);
                     appendFutures.add(context.container.append(transactionName, appendData, null, TIMEOUT));
                     lengths.put(transactionName, lengths.getOrDefault(transactionName, 0L) + appendData.length);
