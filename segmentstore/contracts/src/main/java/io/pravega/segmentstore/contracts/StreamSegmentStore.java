@@ -155,11 +155,11 @@ public interface StreamSegmentStore {
      * @param targetSegmentName The name of the StreamSegment to merge into.
      * @param sourceSegmentName The name of the StreamSegment to merge.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
+     * @return A CompletableFuture that, when completed normally, will contain a SegmentProperties instance with the last known
+     * state of the source Segment. If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.
