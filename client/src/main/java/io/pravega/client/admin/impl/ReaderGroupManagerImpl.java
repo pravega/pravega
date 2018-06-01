@@ -9,32 +9,39 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.state.Update;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import lombok.Cleanup;
 import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
@@ -90,7 +97,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                                                                   .build());
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                                              new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
+                                              new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
@@ -115,13 +122,49 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(), new JavaSerializer<>(),
+        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
                                    clientFactory, controller, connectionFactory);
     }
 
     @Override
     public void close() {
         clientFactory.close();
+    }
+    
+    @VisibleForTesting
+    public static class ReaderGroupStateInitSerializer implements Serializer<InitialUpdate<ReaderGroupState>> {
+        private final ReaderGroupState.ReaderGroupInitSerializer serializer = new ReaderGroupState.ReaderGroupInitSerializer();
+
+        @Override
+        @SneakyThrows(IOException.class)
+        public ByteBuffer serialize(InitialUpdate<ReaderGroupState> value) {
+             ByteArraySegment serialized = serializer.serialize(value);
+             return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+        }
+
+        @Override
+        @SneakyThrows(IOException.class)
+        public InitialUpdate<ReaderGroupState> deserialize(ByteBuffer serializedValue) {
+            return serializer.deserialize(new ByteArraySegment(serializedValue));
+        }
+    }
+    
+    @VisibleForTesting
+    public static class ReaderGroupStateUpdatesSerializer implements Serializer<Update<ReaderGroupState>> {
+        private final ReaderGroupState.ReaderGroupUpdateSerializer serializer = new ReaderGroupState.ReaderGroupUpdateSerializer();
+
+        @Override
+        @SneakyThrows(IOException.class)
+        public ByteBuffer serialize(Update<ReaderGroupState> value) {
+             ByteArraySegment serialized = serializer.serialize(value);
+             return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+        }
+
+        @Override
+        @SneakyThrows(IOException.class)
+        public Update<ReaderGroupState> deserialize(ByteBuffer serializedValue) {
+            return serializer.deserialize(new ByteArraySegment(serializedValue));
+        }
     }
 
 }

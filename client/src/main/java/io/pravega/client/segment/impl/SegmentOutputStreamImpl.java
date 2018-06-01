@@ -116,23 +116,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
            Exceptions.handleInterrupted(() -> waitingInflight.await());
         }
 
-        private boolean encounteredSeal() {
-            synchronized (lock) {
-                boolean result = state.sealEncountered.compareAndSet(false, true);
-                waitingInflight.release();
-                return result;
-            }
-        }
-        
         private boolean isAlreadySealed() {
             synchronized (lock) {
                 return connection == null && exception != null && exception instanceof SegmentSealedException;
             }
         }
 
-        private boolean isInflightEmpty() {
+        private int getNumInflight() {
             synchronized (lock) {
-                return inflight.isEmpty();
+                return inflight.size();
             }
         }
 
@@ -186,6 +178,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     }
                     oldConnection = connection;
                 }
+                log.info("Handling exception {} for connection {} on writer {}. SetupCompleted: {}, Closed: {}",
+                         throwable, connection, writerId, connectionSetupCompleted == null ? null : connectionSetupCompleted.isDone(), closed);
                 if (exception == null) {
                     exception = throwable;
                 }
@@ -219,6 +213,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private long addToInflight(PendingEvent event) {
             synchronized (lock) {
                 eventNumber++;
+                log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
                 inflight.put(eventNumber, event);
                 if (!sealEncountered.get()) {
                     waitingInflight.reset();
@@ -248,6 +243,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void releaseIfEmptyInflight() {
             synchronized (lock) {
                 if (inflight.isEmpty()) {
+                    log.trace("Inflight empty for writer {}", writerId);
                     waitingInflight.release();
                 }
             }
@@ -308,14 +304,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
-            if (state.encounteredSeal()) {
+            if (state.sealEncountered.compareAndSet(false, true)) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                                  retrySchedule.getMaxDelay(),
                                                  t -> log.error(writerId + " to invoke sealed callback: ", t))
                      .runInExecutor(() -> {
                          log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionFactory.getInternalExecutor());
+                     }, connectionFactory.getInternalExecutor())
+                     .thenRun(() -> {
+                         log.trace("Release inflight latch for writer {}", writerId);
+                         state.waitingInflight.release();
+                     });
             }
         }
 
@@ -482,8 +482,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void flush() throws SegmentSealedException {
-        if (!state.isInflightEmpty()) {
-            log.debug("Flushing writer: {}", writerId);
+        int numInflight = state.getNumInflight();
+        log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
+        if (numInflight != 0) {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
@@ -493,12 +494,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
             if (state.sealEncountered.get()) {
-                throw new SegmentSealedException(segmentName + " sealed");
+                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
         }
     }
     
     private void failConnection(Throwable e) {
+        log.info("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }

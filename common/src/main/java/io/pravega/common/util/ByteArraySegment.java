@@ -65,7 +65,7 @@ public class ByteArraySegment implements ArrayView {
      * @throws UnsupportedOperationException  If buff is not backed by an array.
      */
     public ByteArraySegment(ByteBuffer buff) {
-        this(buff.array(), buff.arrayOffset(), buff.remaining(), false);
+        this(buff.array(), buff.arrayOffset() + buff.position(), buff.remaining(), false);
     }
 
     /**
