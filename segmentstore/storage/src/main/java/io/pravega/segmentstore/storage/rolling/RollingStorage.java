@@ -788,9 +788,17 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
-    private void ensureOffset(RollingSegmentHandle handle, long offset) throws BadOffsetException {
+    private void ensureOffset(RollingSegmentHandle handle, long offset) throws StreamSegmentException {
         if (offset != handle.length()) {
-            throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            // Force-refresh the handle to make sure it is still in sync with reality. Make sure we open a read handle
+            // so that we don't force any sort of fencing during this process.
+            val refreshedHandle = openHandle(handle.getSegmentName(), true);
+            handle.refresh(refreshedHandle);
+            log.debug("Handle refreshed: {}.", handle);
+            if (offset != handle.length()) {
+                // Still in disagreement; throw exception.
+                throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            }
         }
     }
 
