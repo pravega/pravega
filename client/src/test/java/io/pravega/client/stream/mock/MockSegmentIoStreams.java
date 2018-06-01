@@ -105,7 +105,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         if (readOffset < startingOffset) {
             throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
         }
-        if( readOffset >= endOffset) {
+        if (readOffset >= endOffset) {
             throw new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OFFSET_REACHED);
         }
         ByteBuffer buffer = dataWritten.get(readIndex);
