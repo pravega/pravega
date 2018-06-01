@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.segment.impl.AsyncSegmentEventReader;
@@ -554,6 +555,7 @@ public class EventStreamReaderTest {
          * directly invoke the real method.
          */
         @SneakyThrows
+        @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
         public void whenPolled(Runnable callable) {
             doAnswer(i -> {
                 callable.run();
