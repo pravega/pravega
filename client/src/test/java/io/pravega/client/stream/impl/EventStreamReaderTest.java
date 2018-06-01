@@ -42,17 +42,20 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -146,7 +149,7 @@ public class EventStreamReaderTest {
         doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync();
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
         assertEquals(new EventPointerImpl(S0, 0, INT_EVENT_LENGTH), eventRead.getEventPointer().asImpl());
-        assert INT_EVENT_LENGTH == sr1.getOffset();
+        assumeTrue("assume that the async reader position was advanced", sr1.getOffset() == INT_EVENT_LENGTH);
         assertEquals(ImmutableMap.of(S0, (long) INT_EVENT_LENGTH, S1, 0L), eventRead.getPosition().asImpl().getOwnedSegmentsWithOffsets());
     }
 
@@ -199,7 +202,7 @@ public class EventStreamReaderTest {
         verify(sr0).close();
 
         // observe the second TruncatedDataException
-        assert sr1.getOffset() == 0L;
+        assumeTrue(sr1.getOffset() == 0L);
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         verify(sr1).setOffset(segmentInfo1.getStartingOffset());
         verify(sr1, times(2)).readAsync();
@@ -255,13 +258,12 @@ public class EventStreamReaderTest {
         // schedule the release of the segment and verify that the released position is accurate
         // note: the completion state of the async read should not affect the position
         r1.complete(value(1));
-        assert reader.getQueue().size() == 1;
-        context.release(S0, pos -> {
-            assertEquals("expected the release position to be invariant to the completion state", 0L, pos.longValue());
-            return true;
-        });
-        assertTrue("expected a timeout", isTimeout(reader.readNextEvent(0)));
-        verify(context.groupState).releaseSegment(any(), anyLong(), anyLong());
+        assumeTrue("assume that a completed read is in the queue", reader.getQueue().size() == 1);
+        context.release(S0, null);
+        reader.readNextEvent(0);
+        ArgumentCaptor<Long> positionCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(context.groupState).releaseSegment(any(), positionCaptor.capture(), anyLong());
+        assertEquals("expected the release position to be invariant to the completion state", 0L, positionCaptor.getValue().longValue());
         verify(sr0).close();
         assertEquals(0, reader.getReaders().size());
     }
@@ -304,53 +306,49 @@ public class EventStreamReaderTest {
         verify(sr0).close();
     }
 
-//    @Test(timeout = 10000)
-//    public void testCheckpoint() throws SegmentSealedException, ReinitializationRequiredException {
-//        AtomicLong clock = new AtomicLong();
-//        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
-//        ReaderGroupStateManager groupState = mock(ReaderGroupStateManager.class);
-//        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
-//                                                                           new ByteArraySerializer(), groupState,
-//                                                                           clock::get,
-//                                                                           ReaderConfig.builder().build());
-//        Segment segment = Segment.fromScopedName("Foo/Bar/0");
-//        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-//        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
-//        ByteBuffer buffer = writeInt(stream, 1);
-//        Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
-//        EventRead<byte[]> eventRead = reader.readNextEvent(0);
-//        assertTrue(eventRead.isCheckpoint());
-//        assertNull(eventRead.getEvent());
-//        assertEquals("Foo", eventRead.getCheckpointName());
-//        assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-//        assertNull(reader.readNextEvent(0).getEvent());
-//        reader.close();
-//    }
-//
-//    @Test(timeout = 10000)
-//    public void testRestore() throws SegmentSealedException, ReinitializationRequiredException {
-//        AtomicLong clock = new AtomicLong();
-//        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
-//        ReaderGroupStateManager groupState = mock(ReaderGroupStateManager.class);
-//        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
-//                                                                           new ByteArraySerializer(), groupState,
-//                                                                           clock::get,
-//                                                                           ReaderConfig.builder().build());
-//        Segment segment = Segment.fromScopedName("Foo/Bar/0");
-//        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-//        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
-//        ByteBuffer buffer = writeInt(stream, 1);
-//        Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
-//        try {
-//            reader.readNextEvent(0);
-//            fail();
-//        } catch (ReinitializationRequiredException e) {
-//            // expected
-//        }
-//        assertTrue(reader.getReaders().isEmpty());
-//        reader.close();
-//    }
-//
+    @Test
+    public void testCheckpoint() throws Exception {
+        Context context = new Context();
+        EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
+        AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
+        context.acquire(S0);
+
+        // enqueue an async read to ensure that S1 was acquired
+        CompletableFuture<ByteBuffer> r1 = new CompletableFuture<>();
+        doAnswer(readResult(r1)).doAnswer(readResult(eos())).when(sr0).readAsync();
+        assertTrue(isTimeout(reader.readNextEvent(0)));
+        verify(sr0).readAsync();
+
+        // schedule a checkpoint and then complete the future to enqueue a value
+        String checkpointName = context.checkpoint(null);
+        r1.complete(value(1));
+        assumeTrue("assume that the segment reader position was advanced", sr0.getOffset() > 0);
+
+        // complete the checkpoint (which should leave the value unprocessed)
+        EventRead<byte[]> eventRead = reader.readNextEvent(0);
+
+        // verify the event
+        assertTrue("expected a checkpoint", eventRead.isCheckpoint());
+        assertEquals(checkpointName, eventRead.getCheckpointName());
+        assertEquals("expected the position to be zero (because the event hasn't been consumed yet)",
+                ImmutableMap.of(S0, 0L), eventRead.getPosition().asImpl().getOwnedSegmentsWithOffsets());
+
+        // verify the reader group state
+        ArgumentCaptor<PositionInternal> positionCaptor = ArgumentCaptor.forClass(PositionInternal.class);
+        verify(context.groupState).checkpoint(eq(checkpointName), positionCaptor.capture());
+        assertEquals("expected the position to be zero (because the event hasn't been consumed yet)",
+                ImmutableMap.of(S0, 0L), positionCaptor.getValue().getOwnedSegmentsWithOffsets());
+    }
+
+    @Test
+    public void testRestore() throws Exception {
+        Context context = new Context();
+        EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
+
+        doThrow(new ReinitializationRequiredException()).when(context.groupState).getCheckpoint();
+        AssertExtensions.assertThrows(ReinitializationRequiredException.class, () -> reader.readNextEvent(0));
+        verify(context.groupState).close();
+    }
 
     private static <T> boolean isTimeout(EventRead<T> eventRead) {
         return eventRead.getEvent() == null && !eventRead.isCheckpoint();
