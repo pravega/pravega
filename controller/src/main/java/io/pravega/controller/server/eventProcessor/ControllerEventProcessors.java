@@ -240,7 +240,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 StreamConfiguration.builder()
                         .scope(config.getScopeName())
                         .streamName(Config.SCALE_STREAM_NAME)
-                        .scalingPolicy(ScalingPolicy.fixed(1))
+                        .scalingPolicy(config.getRequestStreamScalingPolicy())
                         .build();
 
         return createScope(config.getScopeName())
