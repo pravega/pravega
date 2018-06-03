@@ -106,11 +106,12 @@ public final class ExecutorServiceHelpers {
     /**
      * Operates like Executors.cachedThreadPool but with a custom thread timeout and pool name.
      * @return A new threadPool
+     * @param maxThreadCount The maximum number of threads to allow in the pool.
      * @param threadTimeout the number of milliseconds that a thread should sit idle before shutting down.
      * @param poolName The name of the threadpool.
      */
-    public static ThreadPoolExecutor getShrinkingExecutor(int threadTimeout, String poolName) {
-        return new ThreadPoolExecutor(0, Short.MAX_VALUE, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+    public static ThreadPoolExecutor getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
+        return new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
                 getThreadFactory(poolName), new CallerRuns()); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 

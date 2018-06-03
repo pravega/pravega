@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -53,6 +54,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -73,11 +75,10 @@ import lombok.val;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
-    private static final Retry.RetryAndThrowBase<Exception> CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
-            .retryWhen(ex -> ex instanceof BadAttributeUpdateException)
-            .throwingOn(Exception.class);
+    private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
+            .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
+    protected final StreamSegmentContainerMetadata metadata;
     private final String traceObjectId;
-    private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
     private final ContainerAttributeIndex attributeIndex;
@@ -574,8 +575,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Map<UUID, Long> metadataAttributes = segmentMetadata.getAttributes();
         ArrayList<UUID> extendedAttributeIds = new ArrayList<>();
         attributeIds.forEach(attributeId -> {
-            Long v = metadataAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
-            if (v != Attributes.NULL_ATTRIBUTE_VALUE) {
+            Long v = metadataAttributes.get(attributeId);
+            if (v != null) {
+                // This attribute is cached in the Segment Metadata, even if it has a value equal to Attributes.NULL_ATTRIBUTE_VALUE.
                 result.put(attributeId, v);
             } else if (!Attributes.isCoreAttribute(attributeId)) {
                 extendedAttributeIds.add(attributeId);
@@ -585,7 +587,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Collect remaining Extended Attributes.
         CompletableFuture<Map<UUID, Long>> r = this.attributeIndex
                 .forSegment(segmentMetadata.getId(), timer.getRemaining())
-                .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor);
+                .thenComposeAsync(idx -> idx.get(extendedAttributeIds, timer.getRemaining()), this.executor)
+                .thenApplyAsync(extendedAttributes -> {
+                    if (extendedAttributeIds.size() == extendedAttributes.size()) {
+                        // We found a value for each Attribute Id. Nothing more to do.
+                        return extendedAttributes;
+                    }
+
+                    // Insert a NULL_ATTRIBUTE_VALUE for each missing value.
+                    Map<UUID, Long> allValues = new HashMap<>(extendedAttributes);
+                    extendedAttributeIds.stream()
+                                        .filter(id -> !extendedAttributes.containsKey(id))
+                                        .forEach(id -> allValues.put(id, Attributes.NULL_ATTRIBUTE_VALUE));
+                    return allValues;
+                }, this.executor);
 
         if (cache && !segmentMetadata.isSealed() && extendedAttributeIds.size() > 0) {
             // Add them to the cache if requested.
@@ -593,12 +608,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
                 // complete if the attribute is not currently set). If it has some value, then a concurrent update
                 // must have changed it and we cannot update anymore.
-                // Also make sure we insert (a NULL value) for those missing attributes as well).
-                ArrayList<AttributeUpdate> updates = new ArrayList<>();
-                extendedAttributes.forEach((id, value) -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, value)));
-                extendedAttributeIds.stream()
-                                    .filter(id -> !extendedAttributes.containsKey(id))
-                                    .forEach(id -> updates.add(new AttributeUpdate(id, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE)));
+                List<AttributeUpdate> updates = extendedAttributes
+                        .entrySet().stream()
+                        .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
+                        .collect(Collectors.toList());
 
                 // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
                 // invoke this one again.

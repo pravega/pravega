@@ -152,6 +152,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         try {
             return HDFS_RETRY.run(() -> {
@@ -170,6 +171,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public boolean exists(String streamSegmentName) {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
         FileStatus status = null;
         try {
@@ -187,12 +189,13 @@ class HDFSStorage implements SyncStorage {
         return getEpochFromPath(path) == MAX_EPOCH;
     }
 
-    protected FileSystem openFileSystem(Configuration conf) throws IOException {
+    FileSystem openFileSystem(Configuration conf) throws IOException {
         return FileSystem.get(conf);
     }
 
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
 
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
@@ -220,6 +223,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         try {
             //Ensure that file exists
@@ -233,6 +237,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         handle = asWritableHandle(handle);
         try {
@@ -254,6 +259,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         try {
             FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
@@ -267,6 +273,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void concat(SegmentHandle target, long offset, String sourceSegment) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "concat", target, offset, sourceSegment);
 
         target = asWritableHandle(target);
@@ -297,6 +304,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
         handle = asWritableHandle(handle);
         try {
@@ -319,6 +327,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public boolean supportsTruncation() {
+        ensureInitializedAndNotClosed();
         return false;
     }
 
@@ -326,6 +335,7 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         handle = asWritableHandle(handle);
         FileStatus status = null;
@@ -378,8 +388,9 @@ class HDFSStorage implements SyncStorage {
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        int fencedCount = 0;
+        long fencedCount = 0;
         do {
             try {
                 FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
@@ -396,6 +407,10 @@ class HDFSStorage implements SyncStorage {
                         } catch (FileNotFoundException e) {
                             //This happens when more than one host is trying to fence and only one of the host goes through.
                             //Retry the rename so that host with the highest epoch gets access.
+                            //In the worst case, the current owner of the segment will win this race after a number of attempts
+                            //  equal to the number of Segment Stores in the race. The high bound for this number of attempts
+                            // is the total number of Segment Store instances in the cluster.
+                            //It is safe to retry for MAX_EPOCH times as we are sure that the loop will never go that long.
                             log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
                             fencedCount++;
                             continue;
@@ -408,7 +423,8 @@ class HDFSStorage implements SyncStorage {
             } catch (IOException e) {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
             }
-        } while (fencedCount < MAX_ATTEMPT_COUNT);
+            // Looping for the maximum possible number.
+        } while (fencedCount <= this.epoch);
         LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
         throw new StorageNotPrimaryException("Not able to fence out other writers.");
     }
@@ -423,6 +439,7 @@ class HDFSStorage implements SyncStorage {
         // To fix this, the create code checks whether a file with higher epoch exists.
         // If it does, it tries to remove the created file, and throws SegmentExistsException.
 
+        ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         // Create the segment using our own epoch.
         FileStatus[] status = null;
@@ -495,7 +512,7 @@ class HDFSStorage implements SyncStorage {
      * Gets an array (not necessarily ordered) of FileStatus objects currently available for the given Segment.
      * These must be in the format specified by NAME_FORMAT (see EXAMPLE_NAME_FORMAT).
      */
-    FileStatus[] findAllRaw(String segmentName) throws IOException {
+    private FileStatus[] findAllRaw(String segmentName) throws IOException {
         assert segmentName != null && segmentName.length() > 0 : "segmentName must be non-null and non-empty";
         String pattern = String.format(NAME_FORMAT, getPathPrefix(segmentName), SUFFIX_GLOB_REGEX);
         FileStatus[] files = this.fileSystem.globStatus(new Path(pattern));
@@ -516,7 +533,7 @@ class HDFSStorage implements SyncStorage {
     /**
      * Gets the full HDFS Path to a file for the given Segment, startOffset and epoch.
      */
-    Path getFilePath(String segmentName, long epoch) {
+    private Path getFilePath(String segmentName, long epoch) {
         Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
         Preconditions.checkState(epoch >= 0, "epoch must be non-negative " + epoch);
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), epoch));
@@ -525,7 +542,7 @@ class HDFSStorage implements SyncStorage {
     /**
      * Gets the full HDFS path when sealed.
      */
-    Path getSealedFilePath(String segmentName) {
+    private Path getSealedFilePath(String segmentName) {
         Preconditions.checkState(segmentName != null && segmentName.length() > 0, "segmentName must be non-null and non-empty");
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), SEALED));
     }
@@ -590,7 +607,7 @@ class HDFSStorage implements SyncStorage {
      * @param fs The FileStatus to check.
      * @return True or false.
      */
-    boolean isReadOnly(FileStatus fs) {
+    private boolean isReadOnly(FileStatus fs) {
         return fs.getPermission().getUserAction() == FsAction.READ;
     }
 

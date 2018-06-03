@@ -75,7 +75,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
     private final AtomicBoolean closed;
     private final CompletableFuture<Void> delayedStart;
-    private final Retry.RetryAndThrowConditionally<Exception> delayedStartRetry;
+    private final Retry.RetryAndThrowConditionally delayedStartRetry;
 
     //endregion
 
@@ -111,8 +111,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.closed = new AtomicBoolean();
         this.delayedStart = new CompletableFuture<>();
         this.delayedStartRetry = Retry.withExpBackoff(config.getStartRetryDelay().toMillis(), 1, Integer.MAX_VALUE)
-                                      .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogDisabledException)
-                                      .throwingOn(Exception.class);
+                                      .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogDisabledException);
 
     }
 

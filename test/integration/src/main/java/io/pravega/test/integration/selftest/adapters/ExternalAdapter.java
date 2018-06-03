@@ -67,7 +67,6 @@ class ExternalAdapter extends ClientAdapterBase {
                     .build()));
             Retry.withExpBackoff(500, 2, 10)
                  .retryWhen(ex -> true)
-                 .throwingOn(Exception.class)
                  .run(() -> this.streamManager.get().createScope(SCOPE));
 
             // Create Client Factory.

@@ -42,8 +42,8 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
-        return ServiceBuilder.newInMemoryBuilder(builderConfig)
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
+        return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                              .withStorageFactory(setup -> this.storageFactory)
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
     }

@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -388,6 +389,29 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Add a bunch of writes.
         appendData(allSegmentIds, segmentContents, context);
+
+        // Begin-merge all Transactions (part 1/2), and check contents.
+        beginMergeTransactions(transactionsBySegment, segmentContents, context);
+        checkReadIndex("BeginMerge", segmentContents, context);
+
+        // Complete the merger (part 2/2), and check contents.
+        completeMergeTransactions(transactionsBySegment, context);
+        checkReadIndex("CompleteMerge", segmentContents, context);
+    }
+
+    /**
+     * Tests the merging of empty Segments.
+     */
+    @Test
+    public void testMergeEmptySegment() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+        Collection<Long> segmentIds = Collections.singleton(createSegment(0, context));
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, 1, context);
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        // Add a bunch of writes.
+        appendData(segmentIds, segmentContents, context);
 
         // Begin-merge all Transactions (part 1/2), and check contents.
         beginMergeTransactions(transactionsBySegment, segmentContents, context);
@@ -809,10 +833,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
                 ReadResultEntry resultEntry = result.next();
                 Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
+                CompletableFuture<Void> insertedInCache = new CompletableFuture<>();
+                context.cacheFactory.cache.insertCallback = ignored -> insertedInCache.complete(null);
                 resultEntry.requestContent(TIMEOUT);
                 ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
                 Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
+
+                // Wait for the entry to be inserted into the cache before moving on.
+                insertedInCache.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
             context.cacheManager.applyCachePolicy();
@@ -1159,8 +1188,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionMetadata.markMerged();
 
         // Update parent contents.
-        segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionId).toByteArray());
-        segmentContents.remove(transactionId);
+        if (segmentContents.containsKey(transactionId)) {
+            segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionId).toByteArray());
+            segmentContents.remove(transactionId);
+        }
         return mergeOffset;
     }
 
@@ -1347,6 +1378,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     //region TestCache
 
     private static class TestCache extends InMemoryCache {
+        Consumer<CacheKey> insertCallback;
         Consumer<CacheKey> removeCallback;
 
         TestCache(String id) {
@@ -1354,13 +1386,21 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public void insert(Cache.Key key, byte[] payload) {
+            super.insert(key, payload);
+            Consumer<CacheKey> callback = this.insertCallback;
+            if (callback != null) {
+                callback.accept((CacheKey) key);
+            }
+        }
+
+        @Override
         public void remove(Cache.Key key) {
+            super.remove(key);
             Consumer<CacheKey> callback = this.removeCallback;
             if (callback != null) {
                 callback.accept((CacheKey) key);
             }
-
-            super.remove(key);
         }
     }
 

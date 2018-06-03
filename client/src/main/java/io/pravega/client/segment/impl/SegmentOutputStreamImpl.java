@@ -122,9 +122,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private boolean isInflightEmpty() {
+        private int getNumInflight() {
             synchronized (lock) {
-                return inflight.isEmpty();
+                return inflight.size();
             }
         }
 
@@ -178,6 +178,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     }
                     oldConnection = connection;
                 }
+                log.info("Handling exception {} for connection {} on writer {}. SetupCompleted: {}, Closed: {}",
+                         throwable, connection, writerId, connectionSetupCompleted == null ? null : connectionSetupCompleted.isDone(), closed);
                 if (exception == null) {
                     exception = throwable;
                 }
@@ -211,16 +213,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private long addToInflight(PendingEvent event) {
             synchronized (lock) {
                 eventNumber++;
+                log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
                 inflight.put(eventNumber, event);
-                waitingInflight.reset();
+                if (!sealEncountered.get()) {
+                    waitingInflight.reset();
+                }
                 return eventNumber;
-            }
-        }
-        
-        private PendingEvent removeSingleInflight(long inflightEventNumber) {
-            synchronized (lock) {
-                PendingEvent result = inflight.remove(inflightEventNumber);
-                return result;
             }
         }
         
@@ -245,6 +243,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void releaseIfEmptyInflight() {
             synchronized (lock) {
                 if (inflight.isEmpty()) {
+                    log.trace("Inflight empty for writer {}", writerId);
                     waitingInflight.release();
                 }
             }
@@ -312,7 +311,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      .runInExecutor(() -> {
                          log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionFactory.getInternalExecutor());
+                     }, connectionFactory.getInternalExecutor())
+                     .thenRun(() -> {
+                         log.trace("Release inflight latch for writer {}", writerId);
+                         state.waitingInflight.release();
+                     });
             }
         }
 
@@ -479,8 +482,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void flush() throws SegmentSealedException {
-        if (!state.isInflightEmpty()) {
-            log.debug("Flushing writer: {}", writerId);
+        int numInflight = state.getNumInflight();
+        log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
+        if (numInflight != 0) {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
@@ -489,13 +493,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            if (state.isAlreadySealed()) {
-                throw new SegmentSealedException(segmentName + " sealed");
+            if (state.sealEncountered.get()) {
+                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
         }
     }
     
     private void failConnection(Throwable e) {
+        log.info("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }

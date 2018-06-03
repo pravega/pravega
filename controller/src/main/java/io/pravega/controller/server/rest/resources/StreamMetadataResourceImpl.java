@@ -312,8 +312,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController);
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController,
-                new ClientFactoryImpl(scopeName, this.localController), this.connectionFactory);
+                clientFactory, this.connectionFactory);
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);
@@ -334,6 +335,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }).thenAccept(response -> {
             asyncResponse.resume(response);
             readerGroupManager.close();
+            clientFactory.close();
             LoggerHelpers.traceLeave(log, "getReaderGroup", traceId);
         });
     }
