@@ -12,6 +12,7 @@ package io.pravega.common.util;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 /**
@@ -79,17 +80,17 @@ public class ConfigBuilder<T> {
     }
 
     /**
-     * Includes the given property and its value in the builder, if the provided value is not null.
+     * Includes the given property and its value in the builder, if the provided value is not empty.
      *
      * @param property The property to set.
-     * @param value    The value of the property. This must be of the same type as accepted by the Property.
+     * @param value    An Optional containing The value of the property. This must be of the same type as accepted by the Property.
      * @param <V>      Type of the property.
      * @return This instance.
      */
-    public <V> ConfigBuilder<T> withDefaultIfNotExists(Property<V> property, V value) {
-        if (value != null) {
+    public <V> ConfigBuilder<T> with(Property<V> property, Optional<V> value) {
+        if (value.isPresent()) {
             String key = String.format("%s.%s", this.namespace, property.getName());
-            this.properties.setProperty(key, value.toString());
+            this.properties.setProperty(key, value.get().toString());
         }
         return this;
     }
