@@ -93,7 +93,9 @@ public class ClientFactoryImpl implements ClientFactory {
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
-        this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+        this(scope, controller, connectionFactory,
+                new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+                new AsyncSegmentEventReaderFactoryImpl(controller, connectionFactory),
                 new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
                 new ConditionalOutputStreamFactoryImpl(controller, connectionFactory),
                 new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
@@ -101,18 +103,19 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
+            SegmentInputStreamFactory inFactory, AsyncSegmentEventReaderFactory readerFactory, SegmentOutputStreamFactory outFactory,
             ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
+        Preconditions.checkNotNull(readerFactory);
         Preconditions.checkNotNull(outFactory);
         Preconditions.checkNotNull(condFactory);
         Preconditions.checkNotNull(metaFactory);
         this.scope = scope;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.readerFactory = new AsyncSegmentEventReaderFactoryImpl(controller, connectionFactory); // TODO
+        this.readerFactory = readerFactory;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.condFactory = condFactory;
