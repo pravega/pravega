@@ -1530,8 +1530,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         });
 
         // Attempt to concat.
-        StorageOperation sealOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
-        context.segmentAggregator.add(sealOp);
+        StorageOperation mergeOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
+        context.segmentAggregator.add(mergeOp);
 
         // First time: attempt to flush/seal, which must end in failure.
         AssertExtensions.assertThrows(
@@ -1560,6 +1560,45 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
         checkAttributes(context);
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
+     * Tests the ability of the SegmentAggregator to reconcile an operation on the Source Segment after it has already been
+     * merged in Storage. This situation would normally be detected by the initialize() method (as the Segment would be
+     * deleted), however, in some cases, a previous instance of the same Container would still be running while we execute
+     * the initialization, and it may be in the process of merging the Segment. If so, our call to initialize() would
+     * still pick the Segment, but when we execute the operations in Storage, it would not be there anymore.
+     */
+    @Test
+    public void testReconcileMergeSeal() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a parent segment and one transaction segment.
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT).join();
+
+        // This is the operation that should be reconciled.
+        transactionAggregator.add(generateSealAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context));
+        val sm = context.containerMetadata.getStreamSegmentMetadata(transactionAggregator.getMetadata().getId());
+
+        // Mark the Segment as merged, and then delete it from Storage.
+        sm.markMerged();
+        context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
+
+        // Verify the first invocation to flush() fails.
+        AssertExtensions.assertThrows(
+                "Expected Segment to not exist.",
+                () -> transactionAggregator.flush(TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // But the second time it must have worked.
+        transactionAggregator.flush(TIMEOUT).join();
+        Assert.assertTrue("Expected metadata to be updated properly.", sm.isDeleted());
     }
 
     /**

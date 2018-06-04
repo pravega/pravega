@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -92,8 +91,6 @@ public class DockerBasedTestExecutor implements TestExecutor {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
                     }
-                    //Wait for half a minute between test runs.
-                    Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(30));
                 });
     }
 

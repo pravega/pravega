@@ -47,7 +47,9 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static java.time.Duration.ofSeconds;
@@ -68,6 +70,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(12 * 60);
 
     @Environment
     public static void setup() {
@@ -127,7 +132,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 10 * 60 * 1000) //timeout of 10 mins.
+    @Test
     public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
