@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -165,6 +166,11 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         }
     }
 
+    @VisibleForTesting
+    ReadState getReadState() {
+        return readState;
+    }
+
     static class ReadState {
         private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
         private CompletableFuture<ByteBuffer> outstandingPromise = CompletableFuture.completedFuture(null);
@@ -198,7 +204,6 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
          * Note that the {@code segmentRead} is progressively consumed by successive event reads.
          *
          * @param segmentRead a read response.
-         * @return an indicator of whether the {@code segmentRead} is valid for the current state.
          */
         public void update(SegmentRead segmentRead) {
             checkState(!isSuccessful());
