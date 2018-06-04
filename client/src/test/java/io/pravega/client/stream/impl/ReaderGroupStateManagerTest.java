@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.val;
@@ -300,7 +301,69 @@ public class ReaderGroupStateManagerTest {
         AssertExtensions.assertThrows(ReinitializationRequiredException.class,
                 () -> readerState2.acquireNewSegmentsIfNeeded(0L));
     }
-    
+
+    @Test(timeout = 10000)
+    public void testRemoveReaderWithNullPosition() throws ReinitializationRequiredException {
+
+        String scope = "scope";
+        String stream = "stream";
+        SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        AtomicLong clock = new AtomicLong();
+        Map<Segment, Long> segmentMap = ImmutableMap.<Segment, Long>builder().put(new Segment(scope, stream, 0), 123L)
+                                                                           .put(new Segment(scope, stream, 1), 456L)
+                                                                           .build();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build();
+
+        // Setup mocks
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+        // Create Reader Group State corresponding to testReader1.
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer1 = createState(stream, clientFactory, synchronizerConfig);
+        stateSynchronizer1.initialize(new ReaderGroupState.ReaderGroupStateInit(readerGroupConfig, segmentMap, Collections.emptyMap()));
+        ReaderGroupStateManager readerState1 = new ReaderGroupStateManager("testReader1",
+                stateSynchronizer1,
+                controller,
+                clock::get);
+
+        readerState1.initializeReader(0); // Initialize readerState1 from stateSynchronizer1
+
+        // Validations.
+        assertNull(readerState1.findSegmentToReleaseIfRequired()); // No segments to release.
+        Map<Segment, Long> newSegments = readerState1.acquireNewSegmentsIfNeeded(0); // Acquire Segments and update StateSynchronizer stream.
+        assertFalse(newSegments.isEmpty());
+        assertEquals(2, newSegments.size()); // Verify testReader1 has acquired the segments.
+
+        // Create ReaderGroupState corresponding to testReader2
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer2 = createState(stream, clientFactory, synchronizerConfig);
+        ReaderGroupStateManager readerState2 = new ReaderGroupStateManager("testReader2",
+                stateSynchronizer2,
+                controller,
+                clock::get);
+        readerState2.initializeReader(0); // Initialize readerState2 from stateSynchronizer2.
+
+        // Try acquiring segments for testReader2.
+        newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
+        assertTrue(newSegments.isEmpty()); // No new segments are acquired since testReader1 already owns it and release timer did not complete.
+
+        // Trigger testReader1 shutdown.
+        ReaderGroupStateManager.readerShutdown("testReader1", null, stateSynchronizer1);
+        // Advance clock by ReaderGroup refresh time.
+        clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(readerGroupConfig.getGroupRefreshTimeMillis()));
+
+        // Try acquiring segments for testReader2, we should acquire the segments owned by testReader1.
+        newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
+        assertFalse(newSegments.isEmpty());
+        assertEquals(2, newSegments.size());
+    }
+
     @Test(timeout = 5000)
     public void testReleaseAndAcquireTimes() throws ReinitializationRequiredException {
         String scope = "scope";

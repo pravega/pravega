@@ -354,11 +354,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(!this.metadata.isTransaction(), "Cannot merge a StreamSegment into a Transaction.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
-        Exceptions.checkArgument(sourceMetadata.getParentId() == this.metadata.getId(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that does not have this ReadIndex's StreamSegment as a parent.");
         Exceptions.checkArgument(sourceMetadata.isSealed(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that is not sealed.");
 
         long sourceLength = sourceStreamSegmentIndex.getSegmentLength();

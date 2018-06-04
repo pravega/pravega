@@ -557,7 +557,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         long transactionId = segmentId + 1;
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
-        context.metadata.mapStreamSegmentId(transactionName, transactionId, segmentId);
+        context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
 
         byte[] appendData = "foo".getBytes();
@@ -1325,7 +1325,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private long createTransaction(SegmentMetadata parentMetadata, long transactionId, TestContext context) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
-        context.metadata.mapStreamSegmentId(transactionName, transactionId, parentMetadata.getId());
+        context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
         return transactionId;
     }
