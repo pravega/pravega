@@ -42,7 +42,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final String traceObjectId;
     private final String name;
     private final long streamSegmentId;
-    private final long parentStreamSegmentId;
     private final int containerId;
     @GuardedBy("this")
     private final Map<UUID, Long> coreAttributes;
@@ -74,7 +73,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentMetadata class for a stand-alone StreamSegment.
+     * Creates a new instance of the StreamSegmentMetadata class for a StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param streamSegmentId   The Id of the StreamSegment.
@@ -82,19 +81,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
-        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentMetadata class for a child (Transaction) StreamSegment.
-     *
-     * @param streamSegmentName     The name of the StreamSegment.
-     * @param streamSegmentId       The Id of the StreamSegment.
-     * @param parentStreamSegmentId The Id of the Parent StreamSegment.
-     * @param containerId           The Id of the Container this StreamSegment belongs to.
-     * @throws IllegalArgumentException If any of the arguments are invalid.
-     */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
@@ -102,7 +88,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
-        this.parentStreamSegmentId = parentStreamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
         this.sealedInStorage = false;
@@ -149,11 +134,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getId() {
         return this.streamSegmentId;
-    }
-
-    @Override
-    public long getParentId() {
-        return this.parentStreamSegmentId;
     }
 
     @Override
@@ -225,7 +205,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             return;
         }
 
-        Preconditions.checkState(!isTransaction(), "Cannot set Start Offset for a Transaction.");
         Exceptions.checkArgument(value >= 0, "value", "StartOffset must be a non-negative number.");
         Exceptions.checkArgument(value >= this.startOffset, "value", "New StartOffset cannot be smaller than the previous one.");
         Exceptions.checkArgument(value <= this.length, "value", "New StartOffset cannot be larger than Length.");
@@ -263,8 +242,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
-
         log.debug("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
     }
@@ -290,7 +267,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
-        Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
