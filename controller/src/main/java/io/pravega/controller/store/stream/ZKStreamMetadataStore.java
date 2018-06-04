@@ -123,7 +123,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             if (this.refreshFutureRef == null) {
                 // no ongoing refresh, check if refresh is still needed
                 if (counter.get().compareTo(limit.get()) >= 0) {
-                    log.info("refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
 
                     // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
                     // concurrent thread can start the refresh future.
@@ -155,7 +155,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                 .thenCompose(v -> storeHelper.getData(ZKStoreHelper.COUNTER_PATH)
                         .thenCompose(data -> {
                             BigLong previous = BigLong.fromBytes(data.getData());
-                            BigLong nextLimit = BigLong.add(previous, COUNTER_RANGE);
+                            BigLong nextLimit = previous.add(COUNTER_RANGE);
                             return storeHelper.setData(ZKStoreHelper.COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock
@@ -167,7 +167,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                                             counter.set(previous.getMsb(), previous.getLsb());
                                             limit.set(nextLimit.getMsb(), nextLimit.getLsb());
                                             refreshFutureRef = null;
-                                            log.info("refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+                                            log.info("Refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
                                         }
                                     });
                         }));

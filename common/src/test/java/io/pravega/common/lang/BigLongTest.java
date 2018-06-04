@@ -33,17 +33,17 @@ public class BigLongTest {
         assertEquals(counter, BigLong.fromBytes(counter.toBytes()));
 
         // add
-        BigLong added = BigLong.add(counter, 100);
+        BigLong added = counter.add(100);
         assertEquals(0, added.getMsb());
         assertEquals(101, added.getLsb());
 
         // add 1 to check we have max allowed lsb covered
-        BigLong added2 = BigLong.add(counter5, 1);
+        BigLong added2 = counter5.add(1);
         assertEquals(1, added2.getMsb());
         assertEquals(Long.MAX_VALUE, added2.getLsb());
 
         // add hundred to verify if that the range is covered.
-        BigLong added3 = BigLong.add(counter5, 100);
+        BigLong added3 = counter5.add(100);
         assertEquals(2, added3.getMsb());
         assertEquals(99, added3.getLsb());
     }

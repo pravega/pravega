@@ -38,7 +38,7 @@ public class AtomicBigLong {
 
     public BigLong incrementAndGet() {
         synchronized (lock) {
-            this.value = BigLong.add(this.value, 1);
+            this.value = this.value.add(1);
             return this.value;
         }
     }

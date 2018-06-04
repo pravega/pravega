@@ -337,27 +337,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
                 streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
                 .thenCompose(txnId -> {
-                    TxnResource resource = new TxnResource(scope, stream, txnId);
-                    // Step 2. Add txn to host-transaction index.
-                    CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, 0)
-                            .whenComplete((v, e) -> {
-                                if (e != null) {
-                                    log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
-                                } else {
-                                    log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
-                                }
-                            });
+                    CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId);
 
                     // Step 3. Create txn node in the store.
-                    CompletableFuture<VersionedTransactionData> txnFuture = addIndex.thenComposeAsync(ignore ->
-                            streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
-                                    scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
-                        if (e != null) {
-                            log.debug("Txn={}, failed creating txn in store", txnId);
-                        } else {
-                            log.debug("Txn={}, created in store", txnId);
-                        }
-                    });
+                    CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
+                            scaleGracePeriod, ctx, maxExecutionPeriod, txnId, addIndex);
 
                     // Step 4. Notify segment stores about new txn.
                     CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
@@ -367,23 +351,52 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
                             // Method notifyTxnCreation ensures that notification completes
                             // even in the presence of n/w or segment store failures.
-                            log.debug("Txn={}, notified segments stores", txnId));
+                            log.trace("Txn={}, notified segments stores", txnId));
 
                     // Step 5. Start tracking txn in timeout service
                     return notify.whenCompleteAsync((result, ex) -> {
-                        int version = 0;
-                        long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
-                        if (!txnFuture.isCompletedExceptionally()) {
-                            version = txnFuture.join().getVersion();
-                            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
-                        }
-                        timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
-                        log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
+                        addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
                 }), e -> {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
         }, 5, executor));
+    }
+
+    private void addTxnToTimeoutService(String scope, String stream, long lease, long scaleGracePeriod, long maxExecutionPeriod, UUID txnId, CompletableFuture<VersionedTransactionData> txnFuture) {
+        int version = 0;
+        long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
+        if (!txnFuture.isCompletedExceptionally()) {
+            version = txnFuture.join().getVersion();
+            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+        }
+        timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
+        log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
+    }
+
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod, OperationContext ctx, long maxExecutionPeriod, UUID txnId, CompletableFuture<Void> addIndex) {
+        return (CompletableFuture<VersionedTransactionData>) addIndex.thenComposeAsync(ignore ->
+                                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
+                                        scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
+                            if (e != null) {
+                                log.debug("Txn={}, failed creating txn in store", txnId);
+                            } else {
+                                log.debug("Txn={}, created in store", txnId);
+                            }
+                        });
+    }
+
+    private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId) {
+        TxnResource resource = new TxnResource(scope, stream, txnId);
+        // Step 2. Add txn to host-transaction index.
+        return streamMetadataStore.addTxnToIndex(hostId, resource, 0)
+                .whenComplete((v, e) -> {
+                    if (e != null) {
+                        log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                    } else {
+                        log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                    }
+                });
     }
 
     @SuppressWarnings("ReturnCount")

@@ -60,14 +60,14 @@ public class BigLong implements Comparable {
         return new BigLong(msb, lsb);
     }
 
-    public static BigLong add(BigLong counter, int increment) {
+    public BigLong add(int increment) {
         Preconditions.checkArgument(increment >= 0);
         BigLong retVal;
-        if (counter.lsb <= Long.MAX_VALUE - increment) {
-            retVal = new BigLong(counter.msb, counter.lsb + increment);
-        } else if (counter.msb < Integer.MAX_VALUE) {
-            int remainder = increment - (int) (Long.MAX_VALUE - counter.lsb);
-            retVal = new BigLong(counter.msb + 1, remainder);
+        if (this.lsb <= Long.MAX_VALUE - increment) {
+            retVal = new BigLong(this.msb, this.lsb + increment);
+        } else if (this.msb < Integer.MAX_VALUE) {
+            int remainder = increment - (int) (Long.MAX_VALUE - this.lsb);
+            retVal = new BigLong(this.msb + 1, remainder);
         } else {
             // overflow: throw exception
             throw new ArithmeticException("Overflow");
