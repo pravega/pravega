@@ -15,6 +15,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
@@ -34,6 +35,7 @@ import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -142,6 +144,55 @@ public class ContainerAttributeIndexTests extends ThreadPooledTestSuite {
 
         // Check index again, after sealing.
         checkIndex(idx, expectedValues);
+    }
+
+    /**
+     * Tests the ability to Seal an Attribute Segment (create a final snapshot and disallow new changes) for a Segment
+     * that is concurrently being Deleted/Merged/Sealed (i.e., the attribute update on the main segment fails).
+     * Since the Attribute Index is updated in the background, it is likely that the operations on it may happen
+     * concurrently while the Segment Container's OperationProcessor processes a Seal/Merge/Delete operation on it, which
+     * may not yet be reflected in the Segment's Metadata.
+     */
+    @Test
+    public void testSealInexistentSegment() {
+        // These are the failures we'll be testing.
+        val exceptions = Arrays.asList(new StreamSegmentMergedException(SEGMENT_NAME),
+                new StreamSegmentNotExistsException(SEGMENT_NAME),
+                new StreamSegmentSealedException(SEGMENT_NAME));
+        int attributeCount = 1000;
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val config = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10)
+                .build();
+        for (Exception exceptionToTest : exceptions) {
+            @Cleanup
+            val context = new TestContext(config);
+            populateSegments(context);
+
+            // Populate the index.
+            val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+            val expectedValues = new HashMap<UUID, Long>();
+            AtomicLong nextValue = new AtomicLong(0);
+            for (UUID attributeId : attributes) {
+                long value = nextValue.getAndIncrement();
+                expectedValues.put(attributeId, value);
+                idx.put(attributeId, value, TIMEOUT).join();
+            }
+
+            // Seal, but have the OperationLog throw one of the exceptions we want to verify.
+            context.operationLog.addInterceptor = op -> Futures.failedFuture(exceptionToTest);
+            idx.seal(TIMEOUT).join();
+
+            // Verify seal actually succeeded.
+            AssertExtensions.assertThrows(
+                    "Index allowed adding new values after being sealed.",
+                    () -> idx.put(UUID.randomUUID(), 1L, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            // Check index after sealing.
+            checkIndex(idx, expectedValues);
+        }
     }
 
     /**
