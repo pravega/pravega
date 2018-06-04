@@ -5,9 +5,12 @@
     <Match> <!-- does not work well with futures -->
         <Bug pattern="NP_NONNULL_PARAM_VIOLATION" />
     </Match>
-    <Match> <!-- overagressive. Too many false positives -->
-        <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" />
-    </Match>
+    <Match> <!-- overagressive. Too many false positives (e.g. mockito) -->
+        <Or>
+            <Bug pattern="RV_RETURN_VALUE_IGNORED" />
+            <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" />
+        </Or>
+    </Match>    
     <Match> <!-- No practical consequence and generate a lot of warnings -->
         <Bug pattern="SS_SHOULD_BE_STATIC" />
     </Match>
