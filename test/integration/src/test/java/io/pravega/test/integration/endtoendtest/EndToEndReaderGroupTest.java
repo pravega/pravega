@@ -114,7 +114,7 @@ public class EndToEndReaderGroupTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                  .stream("test/test").build());
+                                                                 .addStream("test/test").build());
 
         final ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 

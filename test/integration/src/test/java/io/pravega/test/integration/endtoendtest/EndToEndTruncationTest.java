@@ -156,7 +156,7 @@ public class EndToEndTruncationTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                  .stream(Stream.of("test/test")).build());
+                                                                  .addStream(Stream.of("test/test")).build());
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
@@ -192,7 +192,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                         .stream(scope, streamName)
+                                                                         .addStream(scope, streamName)
                                                                          .build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
@@ -213,7 +213,7 @@ public class EndToEndTruncationTest {
 
         // Verify that a new reader reads from event 1 onwards.
         final String newReaderGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         @Cleanup
         final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
                 newReaderGroupName, new JavaSerializer<>(), ReaderConfig.builder().build());
@@ -248,7 +248,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                .stream(scope, streamName).build());
+                                                                         .addStream(scope, streamName).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // Write events to the Stream.
@@ -265,11 +265,11 @@ public class EndToEndTruncationTest {
 
         // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
         final String newGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, parallelism)).join());
 
         // Read again, now expecting to read from the offset defined in truncate call onwards.
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         futures = readDummyEvents(clientFactory, newGroupName, parallelism);
         Futures.allOf(futures).join();
         assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
@@ -318,7 +318,7 @@ public class EndToEndTruncationTest {
         // Instantiate readers to consume from Stream.
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroupName, parallelism);
 
         // Let readers to consume some events and truncate segment while readers are consuming events
@@ -342,7 +342,7 @@ public class EndToEndTruncationTest {
 
         // The new set of readers, should only read the events beyond truncation point (segments 1 and 2).
         final String newReaderGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         futures = readDummyEvents(clientFactory, newReaderGroupName, parallelism);
         Futures.allOf(futures).join();
         assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(), totalEvents / 2);
@@ -381,7 +381,7 @@ public class EndToEndTruncationTest {
         // Instantiate readers to consume from Stream.
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
-        groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+        groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
         final List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroup, parallelism);
 
         // Wait some time to let readers read and then execute deletion.

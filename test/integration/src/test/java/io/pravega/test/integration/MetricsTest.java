@@ -172,7 +172,7 @@ public class MetricsTest {
             String readerGroupName1 = readerGroupName + "1";
             log.info("Creating Reader group : {}", readerGroupName1);
 
-            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
+            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().addStream(Stream.of(scope, STREAM_NAME)).build());
 
             EventStreamReader<String> reader1 = clientFactory.createReader(readerName,
                     readerGroupName1,
@@ -196,7 +196,7 @@ public class MetricsTest {
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
 
-            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
+            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().addStream(Stream.of(scope, STREAM_NAME)).build());
 
             EventStreamReader<String> reader2 = clientFactory.createReader(readerName,
                     readerGroupName2,

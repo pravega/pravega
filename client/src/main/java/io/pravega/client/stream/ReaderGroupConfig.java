@@ -91,8 +91,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scope, final String streamName,
-                                              final StreamCut startStreamCut, final StreamCut endStreamCut) {
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName,
+                                                 final StreamCut startStreamCut, final StreamCut endStreamCut) {
            final String scopedStreamName = Stream.of(scope, streamName).getScopedName();
 
            if (startingStreamCuts == null) {
@@ -117,8 +117,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String streamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
-           return stream(USE_DEFAULT_SCOPE, streamName, startStreamCut, endStreamCut);
+       public ReaderGroupConfigBuilder addStream(final String streamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, startStreamCut, endStreamCut);
        }
 
        /**
@@ -129,8 +129,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scope, final String streamName, final StreamCut startStreamCut) {
-           return stream(scope, streamName, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName, final StreamCut startStreamCut) {
+           return addStream(scope, streamName, startStreamCut, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -141,8 +141,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String streamName, final StreamCut startStreamCut) {
-           return stream(USE_DEFAULT_SCOPE, streamName, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String streamName, final StreamCut startStreamCut) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, startStreamCut, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -153,8 +153,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param streamName Stream name.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scope, final String streamName) {
-           return stream(scope, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName) {
+           return addStream(scope, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -164,8 +164,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param streamName Stream name.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String streamName) {
-           return stream(USE_DEFAULT_SCOPE, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String streamName) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -177,7 +177,7 @@ public class ReaderGroupConfig implements Serializable {
         * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+       public ReaderGroupConfigBuilder addStream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
            final String scopedStreamName = stream.getScopedName();
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
@@ -199,8 +199,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param startStreamCut Start {@link StreamCut}
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut) {
-            return stream(stream, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final Stream stream, final StreamCut startStreamCut) {
+            return addStream(stream, startStreamCut, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -210,8 +210,8 @@ public class ReaderGroupConfig implements Serializable {
         * @param stream Stream.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream) {
-           return stream(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final Stream stream) {
+           return addStream(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**

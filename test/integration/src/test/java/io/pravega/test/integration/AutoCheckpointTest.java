@@ -57,7 +57,7 @@ public class AutoCheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(10000)
-                                                         .stream(Stream.of(scope, streamName))
+                                                         .addStream(Stream.of(scope, streamName))
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
@@ -108,7 +108,7 @@ public class AutoCheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(1000)
-                                                         .stream(Stream.of(scope, streamName))
+                                                         .addStream(Stream.of(scope, streamName))
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);

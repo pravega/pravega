@@ -156,7 +156,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.info("Creating Reader group : {}", READER_GROUP_NAME);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_NAME)).build());
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReader("reader1", clientFactory, READER_GROUP_NAME,

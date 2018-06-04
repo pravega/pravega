@@ -158,7 +158,7 @@ public class OffsetTruncationTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM)).build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
@@ -176,11 +176,11 @@ public class OffsetTruncationTest {
 
         // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
         final String newGroupName = READER_GROUP + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM)).build());
         assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, PARALLELISM)).join());
 
         // Read again, now expecting to read events from the offset defined in truncate call onwards.
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
+        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM)).build());
         futures = readDummyEvents(clientFactory, newGroupName, PARALLELISM);
         Futures.allOf(futures).join();
         assertEquals("Expected read events: ", totalEvents - (truncatedEvents * PARALLELISM),

@@ -155,7 +155,7 @@ public class ReadWriteTest {
             //create a reader group
             log.info("Creating Reader group : {}", readerGroupName);
 
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
+            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, STREAM_NAME)).build());
             log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
             log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
 

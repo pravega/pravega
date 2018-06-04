@@ -90,9 +90,9 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * Reset a reader group with the provided {@link ReaderGroupConfig}.
      *
      * <p>- The stream(s) that are part of the reader group
-     * can be specified using {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String)},
-     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut)} and
-     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#stream(String, StreamCut, StreamCut)}.</p>
+     * can be specified using {@link ReaderGroupConfig.ReaderGroupConfigBuilder#addStream(String)},
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#addStream(String, StreamCut)} and
+     * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#addStream(String, StreamCut, StreamCut)}.</p>
      * <p>- To reset a reader group to a given checkpoint use
      * {@link ReaderGroupConfig.ReaderGroupConfigBuilder#startFromCheckpoint(Checkpoint)} api.</p>
      * <p>- To reset a reader group to a given StreamCut use

@@ -127,7 +127,7 @@ public class SerializationTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder()
                                                     .disableAutomaticCheckpoints()
                                                     .groupRefreshTimeMillis(r.nextInt(1000))
-                                                    .stream(createSegment().getStream())
+                                                    .addStream(createSegment().getStream())
                                                     .build();
         verify(initSerializer, new ReaderGroupStateInit(config, createSegmentToLongMap(), createSegmentToLongMap()));
         CompactReaderGroupStateBuilder builder = new CompactReaderGroupState.CompactReaderGroupStateBuilder();

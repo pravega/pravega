@@ -96,7 +96,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
                 ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                 .stream(Stream.of(actorSystem.getScope(), eventProcessorConfig.getConfig().getStreamName())).build());
+                                 .addStream(Stream.of(actorSystem.getScope(), eventProcessorConfig.getConfig().getStreamName())).build());
 
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount() - eventProcessorMap.values().size());
     }

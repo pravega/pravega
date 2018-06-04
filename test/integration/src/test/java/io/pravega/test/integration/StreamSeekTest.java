@@ -122,7 +122,7 @@ public class StreamSeekTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1)).stream(Stream.of(SCOPE, STREAM2)).build());
+                .builder().disableAutomaticCheckpoints().addStream(Stream.of(SCOPE, STREAM1)).addStream(Stream.of(SCOPE, STREAM2)).build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 

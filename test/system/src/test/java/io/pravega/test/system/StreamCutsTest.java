@@ -170,8 +170,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
-                                                                            .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                            .stream(Stream.of(SCOPE, STREAM_TWO)).build());
+                                                                            .addStream(Stream.of(SCOPE, STREAM_ONE))
+                                                                            .addStream(Stream.of(SCOPE, STREAM_TWO)).build());
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
 
@@ -190,8 +190,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         final String newReaderGroupName = READER_GROUP + "new";
         final Map<Stream, StreamCut> streamCutBeforeScale = slicesBeforeScale.get(slicesBeforeScale.size() - 1);
         readerGroupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder()
-                                                                                  .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                                  .stream(Stream.of(SCOPE, STREAM_TWO))
+                                                                                  .addStream(Stream.of(SCOPE, STREAM_ONE))
+                                                                                  .addStream(Stream.of(SCOPE, STREAM_TWO))
                                                                                   .startingStreamCuts(streamCutBeforeScale).build());
         @Cleanup
         ReaderGroup newReaderGroup = readerGroupManager.getReaderGroup(newReaderGroupName);
@@ -234,8 +234,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
 
         // Test that a reader group can be reset correctly.
         ReaderGroupConfig firstSliceConfig = ReaderGroupConfig.builder()
-                                                              .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                              .stream(Stream.of(SCOPE, STREAM_TWO))
+                                                              .addStream(Stream.of(SCOPE, STREAM_ONE))
+                                                              .addStream(Stream.of(SCOPE, STREAM_TWO))
                                                               .startingStreamCuts(initialPosition)
                                                               .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
         readerGroup.resetReaderGroup(firstSliceConfig);
@@ -268,8 +268,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         for (int i = 0; i < streamSlices.size() - 1; i++) {
             List<Map<Stream, StreamCut>> combinationSlices = new ArrayList<>(streamSlices).subList(i, streamSlices.size());
             ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
-                                                                                        .stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                                        .stream(Stream.of(SCOPE, STREAM_TWO))
+                                                                                        .addStream(Stream.of(SCOPE, STREAM_ONE))
+                                                                                        .addStream(Stream.of(SCOPE, STREAM_TWO))
                                                                                         .startingStreamCuts(combinationSlices.remove(0));
 
             // Remove the contiguous StreamCut to the starting one, as the slice [CN, CN+1) has been already tested.
@@ -304,8 +304,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                            List<Map<Stream, StreamCut>> streamSlices) {
         int readEvents;
         for (int i = 1; i < streamSlices.size(); i++) {
-            ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE))
-                                                                         .stream(Stream.of(SCOPE, STREAM_TWO))
+            ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM_ONE))
+                                                                         .addStream(Stream.of(SCOPE, STREAM_TWO))
                                                                          .startingStreamCuts(streamSlices.get(i - 1))
                                                                          .endingStreamCuts(streamSlices.get(i)).build();
 

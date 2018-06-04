@@ -90,7 +90,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(s2, 2L);
         AtomicLong clock = new AtomicLong();
         state1.initialize(new ReaderGroupState.ReaderGroupStateInit(
-                ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+                ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
         ReaderGroupStateManager r1 = new ReaderGroupStateManager("r1", state1, controller, clock::get);
         r1.initializeReader(0);
         r1.acquireNewSegmentsIfNeeded(0);
@@ -155,7 +155,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
         stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(
-                ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+                ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader(0);
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -194,7 +194,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(initialSegmentA, 1L);
         segments.put(initialSegmentB, 2L);
         stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(
-                ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+                ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader(0);
         Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
@@ -231,7 +231,7 @@ public class ReaderGroupStateManagerTest {
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 1L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
         ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
                 stateSynchronizer,
                 controller,
@@ -264,7 +264,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 123L);
         segments.put(new Segment(scope, stream, 1), 456L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
         ReaderGroupStateManager readerState1 = new ReaderGroupStateManager("testReader",
                 stateSynchronizer,
                 controller,
@@ -313,7 +313,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segmentMap = ImmutableMap.<Segment, Long>builder().put(new Segment(scope, stream, 0), 123L)
                                                                            .put(new Segment(scope, stream, 1), 456L)
                                                                            .build();
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build();
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build();
 
         // Setup mocks
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -384,7 +384,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        state.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+        state.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(),
                 segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", state, controller, clock::get);
@@ -440,7 +440,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        state1.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        state1.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", state1, controller, clock::get);
         reader1.initializeReader(0);
@@ -484,7 +484,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(),
                 segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
@@ -559,7 +559,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit( ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit( ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
                 clock::get);
@@ -650,7 +650,7 @@ public class ReaderGroupStateManagerTest {
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(),
                 segments, Collections.emptyMap()));
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader(0);
@@ -690,7 +690,7 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(),
                 segments, Collections.emptyMap()));
         val readerState1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, null);
         readerState1.initializeReader(0);
@@ -730,7 +730,7 @@ public class ReaderGroupStateManagerTest {
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         AtomicLong clock = new AtomicLong();
         Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build(),
                 segments, Collections.emptyMap()));
         val readerState1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, clock::get);
         readerState1.initializeReader(0);

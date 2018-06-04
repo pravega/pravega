@@ -157,7 +157,7 @@ class ClientReader implements StoreReader, AutoCloseable {
                             .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                             .validateHostName(false).build())) {
                 readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
-                                                                                        .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
+                                                                                        .addStream(Stream.of(ClientAdapterBase.SCOPE, streamName))
                                                                                         .build());
             }
 

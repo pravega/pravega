@@ -115,7 +115,7 @@ public class UnreadBytesTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes", "unreadbytes").build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().addStream("unreadbytes", "unreadbytes").build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
@@ -175,7 +175,7 @@ public class UnreadBytesTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
         //create a bounded reader group.
         groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of("unreadbytes/unreadbytes"), StreamCut.UNBOUNDED,
+                .builder().disableAutomaticCheckpoints().addStream(Stream.of("unreadbytes/unreadbytes"), StreamCut.UNBOUNDED,
                         getStreamCut("unreadbytes", 90L, 0)).build());
 
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
