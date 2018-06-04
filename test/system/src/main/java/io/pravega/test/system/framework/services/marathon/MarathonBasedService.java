@@ -32,6 +32,7 @@ import mesosphere.marathon.client.model.v2.LocalVolume;
 import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.model.v2.Result;
+import mesosphere.marathon.client.model.v2.PersistentLocalVolume;
 import mesosphere.marathon.client.MarathonException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -141,6 +142,13 @@ public abstract class MarathonBasedService implements Service {
         v.setHostPath(hostPath);
         v.setMode(mode);
         return v;
+    }
+
+    Volume createPersistentVolume(final String containerPath, final String mode) {
+        PersistentLocalVolume pv = new PersistentLocalVolume();
+        pv.setContainerPath(containerPath);
+        pv.setMode(mode);
+        return pv;
     }
 
     HealthCheck setHealthCheck(final int gracePeriodSeconds, final String protocol,
