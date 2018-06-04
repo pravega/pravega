@@ -45,6 +45,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -192,7 +194,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         readerGroupManager.createReaderGroup(newReaderGroupName, ReaderGroupConfig.builder()
                                                                                   .addStream(Stream.of(SCOPE, STREAM_ONE))
                                                                                   .addStream(Stream.of(SCOPE, STREAM_TWO))
-                                                                                  .startingStreamCuts(streamCutBeforeScale).build());
+                                                                                  .startingStreamCuts(getStreamCutMap(streamCutBeforeScale)).build());
         @Cleanup
         ReaderGroup newReaderGroup = readerGroupManager.getReaderGroup(newReaderGroupName);
         log.info("Checking slices again starting from {}.", streamCutBeforeScale);
@@ -236,8 +238,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         ReaderGroupConfig firstSliceConfig = ReaderGroupConfig.builder()
                                                               .addStream(Stream.of(SCOPE, STREAM_ONE))
                                                               .addStream(Stream.of(SCOPE, STREAM_TWO))
-                                                              .startingStreamCuts(initialPosition)
-                                                              .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
+                                                              .startingStreamCuts(getStreamCutMap(initialPosition))
+                                                              .endingStreamCuts(getStreamCutMap(streamSlices.get(streamSlices.size() - 1))).build();
         readerGroup.resetReaderGroup(firstSliceConfig);
         log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, initialPosition);
         final int readEvents = readEventFutures(clientFactory, readerGroup.getGroupName(),
@@ -270,7 +272,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
             ReaderGroupConfig.ReaderGroupConfigBuilder configBuilder = ReaderGroupConfig.builder()
                                                                                         .addStream(Stream.of(SCOPE, STREAM_ONE))
                                                                                         .addStream(Stream.of(SCOPE, STREAM_TWO))
-                                                                                        .startingStreamCuts(combinationSlices.remove(0));
+                                                                                        .startingStreamCuts(getStreamCutMap(combinationSlices.remove(0)));
 
             // Remove the contiguous StreamCut to the starting one, as the slice [CN, CN+1) has been already tested.
             combinationSlices.remove(0);
@@ -278,7 +280,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
             // The minimum slice we are going to test is twice the size of CUT_SIZE.
             int readEvents, combinationCutSize = 2;
             for (Map<Stream, StreamCut> endingPoint : combinationSlices) {
-                configBuilder = configBuilder.endingStreamCuts(endingPoint);
+                configBuilder = configBuilder.endingStreamCuts(getStreamCutMap(endingPoint));
 
                 // Create a new reader group per stream cut slice and read in parallel only events within the cut.
                 final String readerGroupId = READER_GROUP + "CombSize" + String.valueOf(combinationCutSize) + "-" + System.nanoTime();
@@ -306,8 +308,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         for (int i = 1; i < streamSlices.size(); i++) {
             ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().addStream(Stream.of(SCOPE, STREAM_ONE))
                                                                          .addStream(Stream.of(SCOPE, STREAM_TWO))
-                                                                         .startingStreamCuts(streamSlices.get(i - 1))
-                                                                         .endingStreamCuts(streamSlices.get(i)).build();
+                                                                         .startingStreamCuts(getStreamCutMap(streamSlices.get(i - 1)))
+                                                                         .endingStreamCuts(getStreamCutMap(streamSlices.get(i))).build();
 
             // Create a new reader group per stream cut slice and read in parallel only events within the cut.
             final String readerGroupId = READER_GROUP + String.valueOf(i) + "-" + System.nanoTime();
@@ -379,6 +381,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         } else {
             Assert.fail("Scale operation threw an exception");
         }
+    }
+
+    private Map<String, StreamCut> getStreamCutMap(final Map<Stream, StreamCut> streamStreamCutMap) {
+        return streamStreamCutMap.entrySet().stream().collect(Collectors.toMap(o -> o.getKey().getScopedName(), Map.Entry::getValue));
     }
 
     // End utils region
