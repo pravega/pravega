@@ -15,22 +15,22 @@ import org.junit.Assert;
 import java.util.Random;
 
 /**
- * Unit tests for MergeTransactionOperation class.
+ * Unit tests for MergeSegmentOperation class.
  */
-public class MergeTransactionOperationTests extends OperationTestsBase<MergeTransactionOperation> {
+public class MergeSegmentOperationTests extends OperationTestsBase<MergeSegmentOperation> {
     @Override
-    protected MergeTransactionOperation createOperation(Random random) {
-        return new MergeTransactionOperation(random.nextLong(), random.nextLong());
+    protected MergeSegmentOperation createOperation(Random random) {
+        return new MergeSegmentOperation(random.nextLong(), random.nextLong());
     }
 
     @Override
-    protected boolean isPreSerializationConfigRequired(MergeTransactionOperation operation) {
+    protected boolean isPreSerializationConfigRequired(MergeSegmentOperation operation) {
         return operation.getLength() < 0
                 || operation.getStreamSegmentOffset() < 0;
     }
 
     @Override
-    protected void configurePreSerialization(MergeTransactionOperation operation, Random random) {
+    protected void configurePreSerialization(MergeSegmentOperation operation, Random random) {
         if (operation.getLength() < 0) {
             operation.setLength(MathHelpers.abs(random.nextLong()));
         } else if (operation.getStreamSegmentOffset() < 0) {

@@ -839,7 +839,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
-        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
@@ -847,9 +846,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < appendsPerSegment; i++) {
             for (String segmentName : segmentNames) {
                 appendFutures.add(context.container.append(segmentName, getAppendData(segmentName, i), null, TIMEOUT));
-                for (String transactionName : transactionsBySegment.get(segmentName)) {
-                    appendFutures.add(context.container.append(transactionName, getAppendData(transactionName, i), null, TIMEOUT));
-                }
             }
         }
 
@@ -864,11 +860,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         Futures.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Verify that only the first half of the segments (and their Transactions) were deleted, and not the others.
+        // 4. Verify that only the first half of the segments were deleted, and not the others.
         for (int i = 0; i < segmentNames.size(); i++) {
             ArrayList<String> toCheck = new ArrayList<>();
             toCheck.add(segmentNames.get(i));
-            toCheck.addAll(transactionsBySegment.get(segmentNames.get(i)));
 
             boolean expectedDeleted = i < segmentNames.size() / 2;
             if (expectedDeleted) {
@@ -892,10 +887,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     Assert.assertFalse("Segment not deleted in storage.", context.storage.exists(sn, TIMEOUT).join());
                 }
             } else {
-                // Verify the segments and their Transactions are still there.
+                // Verify the Segments are still there.
                 for (String sn : toCheck) {
                     SegmentProperties props = context.container.getStreamSegmentInfo(sn, false, TIMEOUT).join();
-                    Assert.assertFalse("Not-deleted segment (or one of its Transactions) was marked as deleted in metadata.", props.isDeleted());
+                    Assert.assertFalse("Not-deleted segment was marked as deleted in metadata.", props.isDeleted());
 
                     // Verify we can still append and read from this segment.
                     context.container.append(sn, "foo".getBytes(), null, TIMEOUT).join();
@@ -1221,6 +1216,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testForcedMetadataCleanup() throws Exception {
         final int maxSegmentCount = 3;
+        final int createdSegmentCount = maxSegmentCount * 2;
         final ContainerConfig containerConfig = ContainerConfig
                 .builder()
                 .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
@@ -1244,63 +1240,55 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
         localContainer.startAsync().awaitRunning();
 
-        // Create 4 segments and one transaction.
-        String segment0 = getSegmentName(0);
-        localContainer.createStreamSegment(segment0, null, TIMEOUT).join();
-        String segment1 = getSegmentName(1);
-        localContainer.createStreamSegment(segment1, null, TIMEOUT).join();
-        String segment2 = getSegmentName(2);
-        localContainer.createStreamSegment(segment2, null, TIMEOUT).join();
-        String segment3 = getSegmentName(3);
-        localContainer.createStreamSegment(segment3, null, TIMEOUT).join();
-        String txn1 = localContainer.createTransaction(segment3, UUID.randomUUID(), null, TIMEOUT).join();
+        // Create 6 segments.
+        val segments = new ArrayList<String>();
+        for (int i = 0; i < createdSegmentCount; i++) {
+            String name = getSegmentName(i);
+            segments.add(name);
+            localContainer.createStreamSegment(name, null, TIMEOUT).join();
+        }
 
-        // Activate one segment.
-        activateSegment(segment2, localContainer).join();
+        // Activate three segments (this should fill up available capacity).
+        activateSegment(segments.get(2), localContainer).join();
+        activateSegment(segments.get(4), localContainer).join();
+        activateSegment(segments.get(5), localContainer).join();
 
-        // Activate the transaction; this should fill up the metadata (itself + parent).
-        activateSegment(txn1, localContainer).join();
-
-        // Verify the transaction's parent has been activated.
-        Assert.assertNotNull("Transaction's parent has not been activated.",
-                localContainer.getStreamSegmentInfo(segment3, false, TIMEOUT).join());
-
-        // At this point, the active segments should be: 2, 3 and Txn.
+        // At this point, the active segments should be: 2, 4 and 5.
         // Verify we cannot activate any other segment.
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> activateSegment(segment1, localContainer),
+                () -> activateSegment(segments.get(1), localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> activateSegment(segment0, localContainer),
+                () -> activateSegment(segments.get(0), localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         // Test the ability to forcefully evict items from the metadata when there is pressure and we need to register something new.
         // Case 1: following a Segment deletion.
-        localContainer.deleteStreamSegment(segment2, TIMEOUT).join();
-        val segment1Activation = tryActivate(localContainer, segment1, segment3);
+        localContainer.deleteStreamSegment(segments.get(2), TIMEOUT).join();
+        val segment1Activation = tryActivate(localContainer, segments.get(1), segments.get(4));
         val segment1Info = segment1Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNotNull("Unable to properly activate dormant segment (1).", segment1Info);
 
         // Case 2: following a Merge.
-        localContainer.sealStreamSegment(txn1, TIMEOUT).join();
-        localContainer.mergeTransaction(txn1, TIMEOUT).join();
-        val segment0Activation = tryActivate(localContainer, segment0, segment3);
+        localContainer.sealStreamSegment(segments.get(5), TIMEOUT).join();
+        localContainer.mergeStreamSegment(segments.get(4), segments.get(5), TIMEOUT).join();
+        val segment0Activation = tryActivate(localContainer, segments.get(0), segments.get(3));
         val segment0Info = segment0Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNotNull("Unable to properly activate dormant segment (0).", segment0Info);
 
-        tryActivate(localContainer, segment1, segment3).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        tryActivate(localContainer, segments.get(1), segments.get(3)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         // At this point the active segments should be: 0, 1 and 3.
         Assert.assertNotNull("Pre-activated segment did not stay in metadata (3).",
-                localContainer.getStreamSegmentInfo(segment3, false, TIMEOUT).join());
+                localContainer.getStreamSegmentInfo(segments.get(3), false, TIMEOUT).join());
 
         Assert.assertNotNull("Pre-activated segment did not stay in metadata (1).",
-                localContainer.getStreamSegmentInfo(segment1, false, TIMEOUT).join());
+                localContainer.getStreamSegmentInfo(segments.get(1), false, TIMEOUT).join());
 
         Assert.assertNotNull("Pre-activated segment did not stay in metadata (0).",
-                localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT).join());
+                localContainer.getStreamSegmentInfo(segments.get(0), false, TIMEOUT).join());
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -1532,7 +1520,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Append continuously to an existing segment in order to trigger truncations (these are necessary for forced evictions).
         val appendFuture = localContainer.appendRandomly(appendSegment, false, () -> !successfulMap.isDone());
-        Futures.exceptionListener(appendFuture, successfulMap::completeExceptionally);
+        //Futures.exceptionListener(appendFuture, successfulMap::completeExceptionally);
+        Futures.exceptionListener(appendFuture, ex -> {
+            System.err.println("AppendEx: " + ex);
+            successfulMap.completeExceptionally(ex);
+        });
 
         // Repeatedly try to get info on 'segment1' (activate it), until we succeed or time out.
         TimeoutTimer remaining = new TimeoutTimer(TIMEOUT);
@@ -1543,6 +1535,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
                         .thenAccept(successfulMap::complete)
                         .exceptionally(ex -> {
+                            System.err.println("EXCaught: " + ex);
                             if (!(Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException)) {
                                 // Some other error.
                                 successfulMap.completeExceptionally(ex);
@@ -1684,7 +1677,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
                 mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
-                mergeFutures.add(context.container.mergeTransaction(transactionName, TIMEOUT));
+                mergeFutures.add(context.container.mergeStreamSegment(parentName, transactionName, TIMEOUT));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
@@ -1722,30 +1715,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, TestContext context) {
         // Create the Transaction.
-        ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
         for (String segmentName : segmentNames) {
+            val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
+            transactions.put(segmentName, txnList);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                futures.add(context.container.createTransaction(segmentName, UUID.randomUUID(), null, TIMEOUT));
+                String txnName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                txnList.add(txnName);
+                futures.add(context.container.createStreamSegment(txnName, null, TIMEOUT));
             }
         }
 
         Futures.allOf(futures).join();
-
-        // Get the Transaction names and index them by parent segment names.
-        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
-        for (CompletableFuture<String> transactionFuture : futures) {
-            String transactionName = transactionFuture.join();
-            String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-            assert parentName != null : "Transaction created with invalid parent";
-            ArrayList<String> segmentTransactions = transactions.get(parentName);
-            if (segmentTransactions == null) {
-                segmentTransactions = new ArrayList<>();
-                transactions.put(parentName, segmentTransactions);
-            }
-
-            segmentTransactions.add(transactionName);
-        }
-
         return transactions;
     }
 

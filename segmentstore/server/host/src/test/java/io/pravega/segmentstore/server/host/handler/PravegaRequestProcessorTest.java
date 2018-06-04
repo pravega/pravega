@@ -324,8 +324,8 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeTransaction(
-                anyString(), any());
+        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeStreamSegment(
+                anyString(), anyString(), any());
 
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
@@ -342,8 +342,8 @@ public class PravegaRequestProcessorTest {
 
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
                 anyString(), any());
-        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeTransaction(
-                anyString(), any());
+        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
+                anyString(), anyString(), any());
 
         processor.createTransaction(new WireCommands.CreateTransaction(3, streamSegmentName, txnid, ""));
         order.verify(connection).send(new WireCommands.TransactionCreated(3, streamSegmentName, txnid));
