@@ -150,14 +150,14 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Deletes all the Attribute data associated with the given Segment.
      *
-     * @param segmentMetadata The SegmentMetadata for the Segment whose attribute data should be deleted.
-     * @param storage         A Storage Adapter to execute the deletion on.
-     * @param timeout         Timeout for the operation.
+     * @param segmentName The name of the Segment whose attribute data should be deleted.
+     * @param storage     A Storage Adapter to execute the deletion on.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully.
      */
-    static CompletableFuture<Void> delete(SegmentMetadata segmentMetadata, Storage storage, Duration timeout) {
+    static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentMetadata.getName());
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),

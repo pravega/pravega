@@ -839,33 +839,43 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
+        val emptySegmentName = segmentNames.get(0);
+        val nonEmptySegmentNames = segmentNames.subList(1, segmentNames.size() - 1);
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
 
         for (int i = 0; i < appendsPerSegment; i++) {
-            for (String segmentName : segmentNames) {
+            // Append to all but the "empty" segment.
+            for (String segmentName : nonEmptySegmentNames) {
                 appendFutures.add(context.container.append(segmentName, getAppendData(segmentName, i), null, TIMEOUT));
             }
         }
 
         Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 3. Delete the first half of the segments.
+        // 3. Delete the empty segment (twice).
+        context.container.deleteStreamSegment(emptySegmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        AssertExtensions.assertThrows(
+                "Empty segment was not deleted.",
+                () -> context.container.deleteStreamSegment(emptySegmentName, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // 3.1. Delete the first half of the segments.
         ArrayList<CompletableFuture<Void>> deleteFutures = new ArrayList<>();
-        for (int i = 0; i < segmentNames.size() / 2; i++) {
-            String segmentName = segmentNames.get(i);
+        for (int i = 0; i < nonEmptySegmentNames.size() / 2; i++) {
+            String segmentName = nonEmptySegmentNames.get(i);
             deleteFutures.add(context.container.deleteStreamSegment(segmentName, TIMEOUT));
         }
 
         Futures.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Verify that only the first half of the segments were deleted, and not the others.
-        for (int i = 0; i < segmentNames.size(); i++) {
+        // 3.2. Verify that only the first half of the segments were deleted, and not the others.
+        for (int i = 0; i < nonEmptySegmentNames.size(); i++) {
             ArrayList<String> toCheck = new ArrayList<>();
-            toCheck.add(segmentNames.get(i));
+            toCheck.add(nonEmptySegmentNames.get(i));
 
-            boolean expectedDeleted = i < segmentNames.size() / 2;
+            boolean expectedDeleted = i < nonEmptySegmentNames.size() / 2;
             if (expectedDeleted) {
                 // Verify the segments and their Transactions are not there anymore.
                 for (String sn : toCheck) {

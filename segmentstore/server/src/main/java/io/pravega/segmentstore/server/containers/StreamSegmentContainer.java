@@ -401,12 +401,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // exceptions or ignore it altogether (such as StorageWriter).
         SegmentMetadata toDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture<Void> deletionFuture = this.storage
-                .openWrite(toDelete.getName())
+                .openWrite(streamSegmentName)
                 .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> this.attributeIndex.delete(toDelete, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor);
+                .thenComposeAsync(v -> this.attributeIndex.delete(streamSegmentName, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.stateStore.remove(streamSegmentName, timer.getRemaining()), this.executor);
 
-        notifyMetadataRemoved(Collections.singleton(toDelete));
+        if (toDelete != null) {
+            notifyMetadataRemoved(Collections.singleton(toDelete));
+        }
+
         return deletionFuture;
     }
 
