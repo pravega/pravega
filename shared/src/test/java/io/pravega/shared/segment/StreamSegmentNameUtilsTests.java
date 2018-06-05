@@ -75,8 +75,8 @@ public class StreamSegmentNameUtilsTests {
     public void testSegmentId() {
         // compute segment id and then extract primary and secondary ids
         long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 14);
-        assertEquals(10, StreamSegmentNameUtils.getPrimaryId(segmentId));
-        assertEquals(14, StreamSegmentNameUtils.getSecondaryId(segmentId));
+        assertEquals(10, StreamSegmentNameUtils.getSegmentNumber(segmentId));
+        assertEquals(14, StreamSegmentNameUtils.getEpoch(segmentId));
 
         AssertExtensions.assertThrows("Negative integers not allowed", () -> StreamSegmentNameUtils.computeSegmentId(-1, 10),
                 e -> e instanceof IllegalArgumentException);

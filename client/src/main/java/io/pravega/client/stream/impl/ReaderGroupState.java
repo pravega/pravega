@@ -398,7 +398,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
                 builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
-                                                                 in -> in.readCollection(RevisionDataInput::readInt, HashSet::new)));
+                                                                 in -> in.readCollection(RevisionDataInput::readLong, HashSet::new)));
                 builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
                                                                    in -> in.readMap(segmentDeserializer, longDeserializer)));
                 builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
@@ -413,7 +413,7 @@ public class ReaderGroupState implements Revisioned {
                 revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
                 revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
                 revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
-                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeInt));
+                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeLong));
                 revisionDataOutput.writeMap(object.assignedSegments, stringSerializer,
                                             (out, obj) -> out.writeMap(obj, segmentSerializer, longSerializer));
                 revisionDataOutput.writeMap(object.unassignedSegments, segmentSerializer, longSerializer);
@@ -801,7 +801,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.readerId(in.readUTF());
                 builder.segmentCompleted(Segment.fromScopedName(in.readUTF()));
                 builder.successorsMappedToTheirPredecessors(in.readMap(i -> Segment.fromScopedName(i.readUTF()),
-                                                                       i -> i.readCollection(RevisionDataInput::readInt, ArrayList::new)));
+                                                                       i -> i.readCollection(RevisionDataInput::readLong, ArrayList::new)));
             }
 
             private void write00(SegmentCompleted object, RevisionDataOutput out) throws IOException {
@@ -809,7 +809,7 @@ public class ReaderGroupState implements Revisioned {
                 out.writeUTF(object.segmentCompleted.getScopedName());
                 out.writeMap(object.successorsMappedToTheirPredecessors,
                              (o, segment) -> o.writeUTF(segment.getScopedName()),
-                             (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeInt));
+                             (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeLong));
             }
         }
     }

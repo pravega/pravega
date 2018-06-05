@@ -40,8 +40,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSecondaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 
 /**
  * Helper class for operations pertaining to segment store tables (segment, history, index).
@@ -61,12 +61,12 @@ public class TableHelper {
      */
     public static Segment getSegment(final long segmentId, final byte[] segmentIndex, final byte[] segmentTable,
                                      final byte[] historyIndex, final byte[] historyTable) {
-        int primaryId = getPrimaryId(segmentId);
+        int primaryId = getSegmentNumber(segmentId);
         Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, primaryId);
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
             long creationTime;
-            int epoch = getSecondaryId(segmentId);
+            int epoch = getEpoch(segmentId);
 
             if (epoch == record.getCreationEpoch()) {
                 creationTime = record.getStartTime();
@@ -670,9 +670,9 @@ public class TableHelper {
         // verify that epoch transition record is consistent with segment table
         if (latest.getCreationEpoch() == epochTransitionRecord.newEpoch) { // if segment table is updated
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
-                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getPrimaryId(segmentWithRange.getKey()));
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentWithRange.getKey()));
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
-                        // TODO: shivesh this check will break after rolling transaction, getPrimaryId
+                        // TODO: shivesh this check will break after rolling transaction, getSegmentNumber
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
                         segmentOpt.get().getRoutingKeyEnd() == segmentWithRange.getValue().getValue());
@@ -864,7 +864,7 @@ public class TableHelper {
                 x.getKey() >= 0 && x.getValue() > 0);
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getPrimaryId(segmentId)).map(x ->
+                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentId)).map(x ->
                         new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)

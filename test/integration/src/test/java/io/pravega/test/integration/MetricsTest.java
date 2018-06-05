@@ -188,7 +188,7 @@ public class MetricsTest {
                 }
             }
 
-            long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0#secondary.0.Counter");
+            long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0#epoch.0.Counter");
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -212,7 +212,7 @@ public class MetricsTest {
                 }
             }
 
-            long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0#secondary.0.Counter");
+            long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0#epoch.0.Counter");
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -254,7 +254,7 @@ public class MetricsTest {
                 }
             }
 
-            long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1#secondary.1.Counter");
+            long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1#epoch.1.Counter");
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
 

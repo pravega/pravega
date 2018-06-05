@@ -48,9 +48,9 @@ public final class StreamSegmentNameUtils {
     private static final String TRANSACTION_DELIMITER = "#transaction.";
 
     /**
-     * This is appended to the end of the Primary Segment Name, followed by secondary id.
+     * This is appended to the end of the Primary Segment Name, followed by epoch.
      */
-    private static final String SECONDARY_ID_DELIMITER = "#secondary.";
+    private static final String EPOCH_DELIMITER = "#epoch.";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -118,8 +118,8 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
-     * Attempts to extract the primary part of stream segment name before the secondary delimiter. This method returns a
-     * valid value only if the StreamSegmentName was generated using the getQualifiedStreamSegmentName or getScopedPrimaryName method.
+     * Attempts to extract the primary part of stream segment name before the epoch delimiter. This method returns a
+     * valid value only if the StreamSegmentName was generated using the getQualifiedStreamSegmentName method.
      *
      * @param streamSegmentName The name of the StreamSegment to extract the name of the Primary StreamSegment name.
      * @return The primary part of StreamSegment.
@@ -128,9 +128,9 @@ public final class StreamSegmentNameUtils {
         if (isTransactionSegment(streamSegmentName)) {
             return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
         }
-        int endOfStreamNamePos = streamSegmentName.lastIndexOf(SECONDARY_ID_DELIMITER);
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(EPOCH_DELIMITER);
         if (endOfStreamNamePos < 0) {
-            // secondary id delimiter not present in the name, return the full name
+            // epoch delimiter not present in the name, return the full name
             return streamSegmentName;
         }
         return streamSegmentName.substring(0, endOfStreamNamePos);
@@ -195,38 +195,38 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
-     * Method to compute 64 bit segment id which takes primary id and secondary id and composes it as
-     * `msb = secondary` `lsb = primary`.
+     * Method to compute 64 bit segment id which takes segment number and epoch and composes it as
+     * `msb = epoch` `lsb = segmentNumber`.
      * Primary id identifies the segment container mappeing and primary + secondary uniquely identifies a segment
      * within a stream.
      *
-     * @param primaryId primary part of id.
-     * @param secondaryId secondary part of id.
-     * @return segment id which is composed using primary and secondary ids.
+     * @param segmentNumber segment number.
+     * @param epoch epoch in which segment was created.
+     * @return segment id which is composed using segment number and epoch.
      */
-    public static long computeSegmentId(int primaryId, int secondaryId) {
-        Preconditions.checkArgument(primaryId >= 0);
-        Preconditions.checkArgument(secondaryId >= 0);
-        return (long) secondaryId << 32 | (primaryId & 0xFFFFFFFFL);
+    public static long computeSegmentId(int segmentNumber, int epoch) {
+        Preconditions.checkArgument(segmentNumber >= 0);
+        Preconditions.checkArgument(epoch >= 0);
+        return (long) epoch << 32 | (segmentNumber & 0xFFFFFFFFL);
     }
 
     /**
-     * Method to extract primary id from given segment id.
+     * Method to extract segmentNumber from given segment id. Segment number is encoded in 32 msb of segment id
      *
      * @param segmentId segment id.
-     * @return primary part of segment id.
+     * @return segment number by extracting it from segment id.
      */
-    public static int getPrimaryId(long segmentId) {
+    public static int getSegmentNumber(long segmentId) {
         return (int) segmentId;
     }
 
     /**
-     * Method to extract secondary id from given segment id.
+     * Method to extract epoch from given segment id. Epoch is encoded in 32 lsb of the segment id.
      *
      * @param segmentId segment id.
-     * @return secondary part of segment id.
+     * @return epoch by extracting it from segment id.
      */
-    public static int getSecondaryId(long segmentId) {
+    public static int getEpoch(long segmentId) {
         return (int) (segmentId >> 32);
     }
 
@@ -250,13 +250,13 @@ public final class StreamSegmentNameUtils {
      * @return fully qualified StreamSegmentName.
      */
     public static String getQualifiedStreamSegmentName(String scope, String streamName, long segmentId) {
-        int primaryId = getPrimaryId(segmentId);
-        int secondaryId = getSecondaryId(segmentId);
+        int segmentNumber = getSegmentNumber(segmentId);
+        int epoch = getEpoch(segmentId);
         StringBuffer sb = getScopedStreamNameInternal(scope, streamName);
         sb.append('/');
-        sb.append(primaryId);
-        sb.append(SECONDARY_ID_DELIMITER);
-        sb.append(secondaryId);
+        sb.append(segmentNumber);
+        sb.append(EPOCH_DELIMITER);
+        sb.append(epoch);
         return sb.toString();
     }
 
@@ -278,8 +278,8 @@ public final class StreamSegmentNameUtils {
         String[] tokens = originalSegmentName.split("[/]");
         int segmentIdIndex = tokens.length == 2 ? 1 : 2;
         long segmentId;
-        if (tokens[segmentIdIndex].contains(SECONDARY_ID_DELIMITER)) {
-            String[] segmentIdTokens = tokens[segmentIdIndex].split(SECONDARY_ID_DELIMITER);
+        if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
+            String[] segmentIdTokens = tokens[segmentIdIndex].split(EPOCH_DELIMITER);
             segmentId = computeSegmentId(Integer.parseInt(segmentIdTokens[0]), Integer.parseInt(segmentIdTokens[1]));
         } else {
             // no secondary delimiter, set the secondary id to 0 for segment id computation
