@@ -173,7 +173,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
 
     @Override
     public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
-        return unsupported("mergeTransaction");
+        return unsupported("mergeStreamSegment");
     }
 
     @Override
