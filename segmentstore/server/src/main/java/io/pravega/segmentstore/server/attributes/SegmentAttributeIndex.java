@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -150,14 +151,14 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Deletes all the Attribute data associated with the given Segment.
      *
-     * @param segmentMetadata The SegmentMetadata for the Segment whose attribute data should be deleted.
-     * @param storage         A Storage Adapter to execute the deletion on.
-     * @param timeout         Timeout for the operation.
+     * @param segmentName The name of the Segment whose attribute data should be deleted.
+     * @param storage     A Storage Adapter to execute the deletion on.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully.
      */
-    static CompletableFuture<Void> delete(SegmentMetadata segmentMetadata, Storage storage, Duration timeout) {
+    static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentMetadata.getName());
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
@@ -336,13 +337,30 @@ class SegmentAttributeIndex implements AttributeIndex {
         UpdateAttributesOperation op = new UpdateAttributesOperation(this.segmentMetadata.getId(), Arrays.asList(
                 new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, AttributeUpdateType.ReplaceIfGreater, writeInfo.offset),
                 new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, AttributeUpdateType.Replace, writeInfo.length)));
+
         CompletableFuture<Void> result = this.operationLog
                 .add(op, timer.getRemaining())
-                .thenComposeAsync(v -> {
+                .handleAsync((v, ex) -> {
+                    if (ex != null) {
+                        // If we are unable to update the main segment attributes due to the segment having been sealed,
+                        // merged or deleted, do not do anything else.
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof StreamSegmentMergedException
+                                || ex instanceof StreamSegmentSealedException
+                                || ex instanceof StreamSegmentNotExistsException) {
+                            log.warn("{}: Snapshot serialized to attribute segment, but failed to update snapshot location due to {}.",
+                                    this.traceObjectId, ex.toString());
+                            return CompletableFuture.<Void>completedFuture(null);
+                        } else {
+                            return Futures.<Void>failedFuture(ex);
+                        }
+                    }
+
                     log.debug("{}: Snapshot location updated in main segment's metadata ({}).", this.traceObjectId, writeInfo);
                     ensureMainSegmentExists();
                     return this.storage.truncate(this.attributeSegment.get().handle, writeInfo.offset, timer.getRemaining());
-                }, this.executor);
+                }, this.executor)
+                .thenCompose(f -> f);
 
         if (!mustComplete) {
             result = result.exceptionally(ex -> {
