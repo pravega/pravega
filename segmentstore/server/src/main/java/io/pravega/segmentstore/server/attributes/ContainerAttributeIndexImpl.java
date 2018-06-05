@@ -145,12 +145,9 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentMetadata sm, Duration timeout) {
+    public CompletableFuture<Void> delete(String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-
-        // Check if the Segment is deleted or merged (in other words, unusable or inaccessible).
-        Preconditions.checkArgument(sm.isDeleted() || sm.isMerged(), "Segment %s is not deleted.", sm.getId());
-        return SegmentAttributeIndex.delete(sm, this.storage, timeout);
+        return SegmentAttributeIndex.delete(segmentName, this.storage, timeout);
     }
 
     @Override
