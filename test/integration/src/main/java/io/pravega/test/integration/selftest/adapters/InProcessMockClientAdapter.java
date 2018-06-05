@@ -180,7 +180,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("deleteStreamSegment");
         }
 
         @Override
