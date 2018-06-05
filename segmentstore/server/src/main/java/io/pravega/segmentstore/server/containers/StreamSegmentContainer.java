@@ -449,15 +449,23 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
-        // Seal the Source Segment, but handle the fact that it may already be Sealed, either explicitly or due to a
-        // previous partial execution of this method.
-        CompletableFuture<Void> seal = Futures.exceptionallyExpecting(
-                this.durableLog.add(new StreamSegmentSealOperation(sourceSegmentId), timer.getRemaining()),
-                ex -> ex instanceof StreamSegmentSealedException,
-                null);
-        CompletableFuture<Void> merge = this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
-        return CompletableFuture.allOf(seal, merge)
-                                .thenApply(v -> sourceMetadata.getSnapshot());
+        CompletableFuture<Void> result;
+        if (sourceMetadata.isSealed()) {
+            // Source Segment is already sealed, so we only need to merge it.
+            result = this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
+        } else {
+            // We make use of the DurableLog's pipelining abilities by queueing up the Merge right after the Seal.
+            // It is possible that a concurrent call to this method (or to seal) may have already sealed the Segment after
+            // we checked above, so it should be OK to ignore any StreamSegmentSealedExceptions.
+            result = CompletableFuture.allOf(
+                    Futures.exceptionallyExpecting(
+                            this.durableLog.add(new StreamSegmentSealOperation(sourceSegmentId), timer.getRemaining()),
+                            ex -> ex instanceof StreamSegmentSealedException,
+                            null),
+                    this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining()));
+        }
+
+        return result.thenApply(v -> sourceMetadata.getSnapshot());
     }
 
     @Override
