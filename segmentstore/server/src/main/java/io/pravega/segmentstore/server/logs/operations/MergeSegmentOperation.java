@@ -15,28 +15,28 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import java.io.IOException;
 
 /**
- * Log Operation that indicates a Transaction StreamSegment is merged into its parent StreamSegment.
+ * Log Operation that indicates a Segment is to be merged into another Segment.
  */
-public class MergeTransactionOperation extends StorageOperation {
+public class MergeSegmentOperation extends StorageOperation {
     //region Members
 
     private long streamSegmentOffset;
     private long length;
-    private long transactionSegmentId;
+    private long sourceSegmentId;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the MergeTransactionOperation class.
+     * Creates a new instance of the MergeSegmentOperation class.
      *
-     * @param streamSegmentId      The Id of the Parent StreamSegment (the StreamSegment to merge into).
-     * @param transactionSegmentId The Id of the Transaction StreamSegment (the StreamSegment to be merged).
+     * @param targetSegmentId The Id of the Target StreamSegment (the StreamSegment to merge into).
+     * @param sourceSegmentId The Id of the Source StreamSegment (the StreamSegment to be merged).
      */
-    public MergeTransactionOperation(long streamSegmentId, long transactionSegmentId) {
-        super(streamSegmentId);
-        this.transactionSegmentId = transactionSegmentId;
+    public MergeSegmentOperation(long targetSegmentId, long sourceSegmentId) {
+        super(targetSegmentId);
+        this.sourceSegmentId = sourceSegmentId;
         this.length = -1;
         this.streamSegmentOffset = -1;
     }
@@ -44,24 +44,24 @@ public class MergeTransactionOperation extends StorageOperation {
     /**
      * Deserialization constructor.
      */
-    private MergeTransactionOperation() {
+    private MergeSegmentOperation() {
     }
 
     //endregion
 
-    //region MergeTransactionOperation Properties
+    //region MergeSegmentOperation Properties
 
     /**
-     * Gets a value indicating the Id of the Transaction StreamSegment (the StreamSegment to be merged).
+     * Gets a value indicating the Id of the Source StreamSegment (the StreamSegment to be merged).
      *
      * @return The Id.
      */
-    public long getTransactionSegmentId() {
-        return this.transactionSegmentId;
+    public long getSourceSegmentId() {
+        return this.sourceSegmentId;
     }
 
     /**
-     * Sets the length of the Transaction StreamSegment.
+     * Sets the length of the Source StreamSegment.
      *
      * @param value The length.
      */
@@ -95,7 +95,7 @@ public class MergeTransactionOperation extends StorageOperation {
     }
 
     /**
-     * Gets a value indicating the Length of the Transaction StreamSegment.
+     * Gets a value indicating the Length of the Source StreamSegment.
      *
      * @return The length.
      */
@@ -107,21 +107,21 @@ public class MergeTransactionOperation extends StorageOperation {
     @Override
     public String toString() {
         return String.format(
-                "%s, TransactionSegmentId = %d, Length = %s, ParentOffset = %s",
+                "%s, SourceSegmentId = %d, Length = %s, MergeOffset = %s",
                 super.toString(),
-                getTransactionSegmentId(),
+                getSourceSegmentId(),
                 toString(getLength(), -1),
                 toString(getStreamSegmentOffset(), -1));
     }
 
     //endregion
 
-    static class Serializer extends OperationSerializer<MergeTransactionOperation> {
+    static class Serializer extends OperationSerializer<MergeSegmentOperation> {
         private static final int SERIALIZATION_LENGTH = 5 * Long.BYTES;
 
         @Override
-        protected OperationBuilder<MergeTransactionOperation> newBuilder() {
-            return new OperationBuilder<>(new MergeTransactionOperation());
+        protected OperationBuilder<MergeSegmentOperation> newBuilder() {
+            return new OperationBuilder<>(new MergeSegmentOperation());
         }
 
         @Override
@@ -135,25 +135,25 @@ public class MergeTransactionOperation extends StorageOperation {
         }
 
         @Override
-        protected void beforeSerialization(MergeTransactionOperation o) {
+        protected void beforeSerialization(MergeSegmentOperation o) {
             super.beforeSerialization(o);
-            Preconditions.checkState(o.length >= 0, "Transaction StreamSegment Length has not been assigned.");
+            Preconditions.checkState(o.length >= 0, "Source StreamSegment Length has not been assigned.");
             Preconditions.checkState(o.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned.");
         }
 
-        private void write00(MergeTransactionOperation o, RevisionDataOutput target) throws IOException {
+        private void write00(MergeSegmentOperation o, RevisionDataOutput target) throws IOException {
             target.length(SERIALIZATION_LENGTH);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
-            target.writeLong(o.transactionSegmentId);
+            target.writeLong(o.sourceSegmentId);
             target.writeLong(o.length);
             target.writeLong(o.streamSegmentOffset);
         }
 
-        private void read00(RevisionDataInput source, OperationBuilder<MergeTransactionOperation> b) throws IOException {
+        private void read00(RevisionDataInput source, OperationBuilder<MergeSegmentOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.setStreamSegmentId(source.readLong());
-            b.instance.transactionSegmentId = source.readLong();
+            b.instance.sourceSegmentId = source.readLong();
             b.instance.length = source.readLong();
             b.instance.streamSegmentOffset = source.readLong();
         }

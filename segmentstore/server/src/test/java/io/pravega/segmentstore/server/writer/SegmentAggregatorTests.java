@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
@@ -27,7 +28,7 @@ import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -170,14 +171,27 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // We only needs one Transaction for this test.
+        // We want to make sure we do not prematurely acknowledge anything.
+        context.dataSource.setCompleteMergeCallback((target, source) -> Assert.fail("Not expecting any merger callbacks yet."));
+
+        // We need one Transaction for this test (to which we populate data).
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
+        // We also need an empty transaction.
+        SegmentAggregator emptyTransactionAggregator = context.transactionAggregators[1];
+        SegmentMetadata emptyTransactionMetadata = emptyTransactionAggregator.getMetadata();
+
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
+        context.storage.create(emptyTransactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
+        emptyTransactionAggregator.initialize(TIMEOUT).join();
+
+        // Seal the Empty Transaction and add a MergeTransactionOperation to the parent (do this before everything else.
+        emptyTransactionAggregator.add(generateSealAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(emptyTransactionMetadata.getId(), context));
 
         // Verify Appends with correct parameters work as expected.
         for (int i = 0; i < appendCount; i++) {
@@ -185,7 +199,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             transactionAggregator.add(generateAppendAndUpdateMetadata(i, transactionMetadata.getId(), context));
         }
 
-        // Seal the Transaction and add a MergeTransactionOperation to the parent.
+        // Seal the Transaction and add a MergeSegmentOperation to the parent.
         transactionAggregator.add(generateSealAndUpdateMetadata(transactionMetadata.getId(), context));
         context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(transactionMetadata.getId(), context));
 
@@ -225,24 +239,18 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
 
-        // Create 2 more segments that can be used to verify MergeTransactionOperation.
+        // Create 2 more segments that can be used to verify MergeSegmentOperation.
         context.containerMetadata.mapStreamSegmentId(badParentName, badParentId);
-        UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.mapStreamSegmentId(badTransactionName, badTransactionId, badParentId);
+        UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.mapStreamSegmentId(badTransactionName, badTransactionId);
         badTransactionMetadata.setLength(0);
         badTransactionMetadata.setStorageLength(0);
         context.storage.create(badTransactionMetadata.getName(), TIMEOUT).join();
 
-        // 1. MergeTransactionOperation
-        // 1a.Verify that MergeTransactionOperation cannot be added to the Transaction segment.
+        // 1. MergeSegmentOperation
+        // Verify that MergeSegmentOperation cannot be added to the Segment to be merged.
         AssertExtensions.assertThrows(
-                "add() allowed a MergeTransactionOperation on the Transaction segment.",
+                "add() allowed a MergeSegmentOperation on the Transaction segment.",
                 () -> transactionAggregator.add(generateSimpleMergeTransaction(transactionMetadata.getId(), context)),
-                ex -> ex instanceof IllegalArgumentException);
-
-        // 1b. Verify that MergeTransactionOperation has the right parent.
-        AssertExtensions.assertThrows(
-                "add() allowed a MergeTransactionOperation on the parent for a Transaction that did not have it as a parent.",
-                () -> transactionAggregator.add(generateSimpleMergeTransaction(badTransactionId, context)),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 2. StreamSegmentSealOperation.
@@ -363,9 +371,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "add() allowed a MergeTransactionOperation with wrong SegmentId.",
+                "add() allowed a MergeSegmentOperation with wrong SegmentId.",
                 () -> {
-                    MergeTransactionOperation badIdMerge = new MergeTransactionOperation(Integer.MAX_VALUE, transactionMetadata.getId());
+                    MergeSegmentOperation badIdMerge = new MergeSegmentOperation(Integer.MAX_VALUE, transactionMetadata.getId());
                     badIdMerge.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     badIdMerge.setLength(1);
                     context.segmentAggregator.add(badIdMerge);
@@ -1516,8 +1524,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         });
 
         // Attempt to concat.
-        StorageOperation sealOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
-        context.segmentAggregator.add(sealOp);
+        StorageOperation mergeOp = generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context);
+        context.segmentAggregator.add(mergeOp);
 
         // First time: attempt to flush/seal, which must end in failure.
         AssertExtensions.assertThrows(
@@ -1546,6 +1554,45 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
         checkAttributes(context);
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
+     * Tests the ability of the SegmentAggregator to reconcile an operation on the Source Segment after it has already been
+     * merged in Storage. This situation would normally be detected by the initialize() method (as the Segment would be
+     * deleted), however, in some cases, a previous instance of the same Container would still be running while we execute
+     * the initialization, and it may be in the process of merging the Segment. If so, our call to initialize() would
+     * still pick the Segment, but when we execute the operations in Storage, it would not be there anymore.
+     */
+    @Test
+    public void testReconcileMergeSeal() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a parent segment and one transaction segment.
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT).join();
+
+        // This is the operation that should be reconciled.
+        transactionAggregator.add(generateSealAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context));
+        val sm = context.containerMetadata.getStreamSegmentMetadata(transactionAggregator.getMetadata().getId());
+
+        // Mark the Segment as merged, and then delete it from Storage.
+        sm.markMerged();
+        context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
+
+        // Verify the first invocation to flush() fails.
+        AssertExtensions.assertThrows(
+                "Expected Segment to not exist.",
+                () -> transactionAggregator.flush(TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // But the second time it must have worked.
+        transactionAggregator.flush(TIMEOUT).join();
+        Assert.assertTrue("Expected metadata to be updated properly.", sm.isDeleted());
     }
 
     /**
@@ -1740,6 +1787,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     TIMEOUT).join();
         }
 
+        // Initialize the SegmentAggregators, before doing any Storage deletes. This will prevent them from properly
+        // updating the Metadata with the appropriate state (we deliberately choose this order because it is more likely
+        // that the Metadata and Storage state are out of sync during recovery).
+        context.segmentAggregator.initialize(TIMEOUT).join();
+        for (SegmentAggregator a : context.transactionAggregators) {
+            a.initialize(TIMEOUT).join();
+        }
+
         for (SegmentAggregator a : context.transactionAggregators) {
             if (a.getMetadata().isSealed()) {
                 context.storage.seal(writeHandle(a.getMetadata().getName()), TIMEOUT).join();
@@ -1750,15 +1805,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             }
         }
 
-        // Now initialize the SegmentAggregators
-        context.segmentAggregator.initialize(TIMEOUT).join();
-        for (SegmentAggregator a : context.transactionAggregators) {
-            a.initialize(TIMEOUT).join();
-        }
-
         // Add all operations we had so far.
         val actualMergeOpAck = new ArrayList<Map.Entry<Long, Long>>();
-        context.dataSource.setCompleteMergeCallback((target, source) -> actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source)));
+        context.dataSource.setCompleteMergeCallback((target, source) -> {
+            // The ReadIndex performs a similar check.
+            Preconditions.checkArgument(context.containerMetadata.getStreamSegmentMetadata(source).isDeleted(),
+                    "Cannot completeMerge() a Segment that is not marked as Deleted.");
+            actualMergeOpAck.add(new AbstractMap.SimpleImmutableEntry<Long, Long>(target, source));
+        });
         for (StorageOperation o : operations) {
             int transactionIndex = (int) (o.getStreamSegmentId() - TRANSACTION_ID_START);
             SegmentAggregator a = transactionIndex < 0 ? context.segmentAggregator : context.transactionAggregators[transactionIndex];
@@ -1851,7 +1905,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private void checkAttributes(SegmentMetadata metadata, TestContext context) {
         val persistedAttributes = context.dataSource.getPersistedAttributes(metadata.getId());
         int extendedAttributeCount = 0;
-        if (metadata.isTransaction() && metadata.isMerged()) {
+        if (context.transactionIds.containsKey(metadata.getId()) && metadata.isMerged()) {
             Assert.assertEquals("Unexpected number of attributes in attribute index for merged transaction " + metadata.getId(),
                     0, persistedAttributes.size());
             AssertExtensions.assertThrows(
@@ -1890,9 +1944,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
     private StorageOperation generateMergeTransactionAndUpdateMetadata(long transactionId, TestContext context) {
         UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
+        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(context.transactionIds.get(transactionMetadata.getId()));
 
-        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+        MergeSegmentOperation op = new MergeSegmentOperation(parentMetadata.getId(), transactionMetadata.getId());
         op.setLength(transactionMetadata.getLength());
         op.setStreamSegmentOffset(parentMetadata.getLength());
 
@@ -1903,9 +1957,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
     private StorageOperation generateSimpleMergeTransaction(long transactionId, TestContext context) {
         UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
+        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(context.transactionIds.get(transactionMetadata.getId()));
 
-        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+        MergeSegmentOperation op = new MergeSegmentOperation(parentMetadata.getId(), transactionMetadata.getId());
         op.setLength(transactionMetadata.getLength());
         op.setStreamSegmentOffset(parentMetadata.getLength());
 
@@ -2062,6 +2116,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         final ManualTimer timer;
         final SegmentAggregator segmentAggregator;
         final SegmentAggregator[] transactionAggregators;
+        final Map<Long, Long> transactionIds;
 
         TestContext(WriterConfig config) {
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
@@ -2074,9 +2129,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
             UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
             this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config, this.timer, executorService());
+            this.transactionIds = new HashMap<>();
             for (int i = 0; i < TRANSACTION_COUNT; i++) {
                 String name = TRANSACTION_NAME_PREFIX + i;
-                UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID));
+                long id = TRANSACTION_ID_START + i;
+                this.transactionIds.put(id, SEGMENT_ID);
+                UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i));
                 this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this.storage, config, this.timer, executorService());
             }
         }

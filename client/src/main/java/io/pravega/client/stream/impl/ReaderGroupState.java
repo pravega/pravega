@@ -20,7 +20,16 @@ import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
-import java.io.Serializable;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -34,6 +43,9 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -271,10 +283,10 @@ public class ReaderGroupState implements Revisioned {
         return sb.toString();
     }
     
+    @Data
+    @Builder
     @RequiredArgsConstructor
-    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
-
+    public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState> {
         private final ReaderGroupConfig config;
         private final Map<Segment, Long> segments;
         private final Map<Segment, Long> endSegments;
@@ -283,10 +295,47 @@ public class ReaderGroupState implements Revisioned {
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, revision, config, segments, endSegments);
         }
+        
+        private static class ReaderGroupStateInitBuilder implements ObjectBuilder<ReaderGroupStateInit> {
+        }
+        
+        static class ReaderGroupStateInitSerializer extends VersionedSerializer.WithBuilder<ReaderGroupStateInit, ReaderGroupStateInitBuilder> {
+            @Override
+            protected ReaderGroupStateInitBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
+                builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                ElementDeserializer<Segment> keyDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                builder.segments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readLong));
+                builder.endSegments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readLong));
+            }
+
+            private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeArray(new ByteArraySegment(state.config.toBytes()));
+                ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+                revisionDataOutput.writeMap(state.segments, keySerializer, RevisionDataOutput::writeLong);
+                revisionDataOutput.writeMap(state.endSegments, keySerializer, RevisionDataOutput::writeLong);
+            }
+        }
+        
     }
     
-    static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
+    @Data
+    @Builder
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    static class CompactReaderGroupState implements InitialUpdate<ReaderGroupState> {
 
         private final ReaderGroupConfig config;
         private final CheckpointState checkpointState;
@@ -319,13 +368,65 @@ public class ReaderGroupState implements Revisioned {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
                                         futureSegments, assignedSegments, unassignedSegments, endSegments);
         }
+        
+        @VisibleForTesting
+        static class CompactReaderGroupStateBuilder implements ObjectBuilder<CompactReaderGroupState> {
+            
+        }
+        
+        static class CompactReaderGroupStateSerializer extends VersionedSerializer.WithBuilder<CompactReaderGroupState, CompactReaderGroupStateBuilder> {
+            @Override
+            protected CompactReaderGroupStateBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput revisionDataInput, CompactReaderGroupStateBuilder builder) throws IOException {
+                ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
+                ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
+                builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
+                                                                 in -> in.readCollection(RevisionDataInput::readInt, HashSet::new)));
+                builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
+                                                                   in -> in.readMap(segmentDeserializer, longDeserializer)));
+                builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+                builder.endSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+            }
+
+            private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
+                ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
+                ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+                revisionDataOutput.writeArray(new ByteArraySegment(object.config.toBytes()));
+                revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
+                revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
+                revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
+                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeInt));
+                revisionDataOutput.writeMap(object.assignedSegments, stringSerializer,
+                                            (out, obj) -> out.writeMap(obj, segmentSerializer, longSerializer));
+                revisionDataOutput.writeMap(object.unassignedSegments, segmentSerializer, longSerializer);
+                revisionDataOutput.writeMap(object.endSegments, segmentSerializer, longSerializer);
+            }
+        }
     }
     
     /**
      * Abstract class from which all state updates extend.
      */
-    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState>, Serializable {
-        private static final long serialVersionUID = 1L;
+    @EqualsAndHashCode
+    static abstract class ReaderGroupStateUpdate implements Update<ReaderGroupState> {
 
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
@@ -348,9 +449,9 @@ public class ReaderGroupState implements Revisioned {
     /**
      * Adds a reader to the reader group. (No segments are initially assigned to it)
      */
+    @Builder
     @RequiredArgsConstructor
     static class AddReader extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         private final String readerId;
 
         /**
@@ -364,14 +465,44 @@ public class ReaderGroupState implements Revisioned {
             }
             state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
         }
+        
+        private static class AddReaderBuilder implements ObjectBuilder<AddReader> {
+
+        }
+
+        private static class AddReaderSerializer extends VersionedSerializer.WithBuilder<AddReader, AddReaderBuilder> {
+            @Override
+            protected AddReaderBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, AddReaderBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+            }
+
+            private void write00(AddReader object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+            }
+        }
     }
     
     /**
      * Remove a reader from reader group, releasing all segments it owned.
      */
+    @Builder
     @RequiredArgsConstructor
     static class RemoveReader extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+
         private final String readerId;
         private final Map<Segment, Long> ownedSegments;
         
@@ -388,7 +519,7 @@ public class ReaderGroupState implements Revisioned {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
                     Long offset;
-                    if (ownedSegments == null) {
+                    if (ownedSegments == null || ownedSegments.isEmpty()) {
                         offset = entry.getValue();
                     } else {
                         offset = ownedSegments.get(segment);
@@ -403,14 +534,47 @@ public class ReaderGroupState implements Revisioned {
             state.distanceToTail.remove(readerId);
             state.checkpointState.removeReader(readerId, finalPositions);
         }
+        
+        private static class RemoveReaderBuilder implements ObjectBuilder<RemoveReader> {
+
+        }
+
+        private static class RemoveReaderSerializer
+                extends VersionedSerializer.WithBuilder<RemoveReader, RemoveReaderBuilder> {
+            @Override
+            protected RemoveReaderBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, RemoveReaderBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.ownedSegments(in.readMap(i -> Segment.fromScopedName(i.readUTF()), RevisionDataInput::readLong));
+            }
+
+            private void write00(RemoveReader object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeMap(object.ownedSegments, (o, segment) -> o.writeUTF(segment.getScopedName()), RevisionDataOutput::writeLong);
+            }
+        }
     }
 
     /**
      * Release a currently owned segment.
      */
+    @Builder
     @RequiredArgsConstructor
     static class ReleaseSegment extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+        
         private final String readerId;
         private final Segment segment;
         private final long offset;
@@ -428,14 +592,48 @@ public class ReaderGroupState implements Revisioned {
             }
             state.unassignedSegments.put(segment, offset);
         }
+
+        private static class ReleaseSegmentBuilder implements ObjectBuilder<ReleaseSegment> {
+
+        }
+
+        private static class ReleaseSegmentSerializer
+                extends VersionedSerializer.WithBuilder<ReleaseSegment, ReleaseSegmentBuilder> {
+            @Override
+            protected ReleaseSegmentBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, ReleaseSegmentBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.segment(Segment.fromScopedName(in.readUTF()));
+                builder.offset(in.readLong());
+            }
+
+            private void write00(ReleaseSegment object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeUTF(object.segment.getScopedName());
+                out.writeLong(object.offset);
+            }
+        }
     }
 
     /**
      * Acquire a currently unassigned segment.
      */
+    @Builder
     @RequiredArgsConstructor
     static class AcquireSegment extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         private final String readerId;
         private final Segment segment;
 
@@ -452,14 +650,47 @@ public class ReaderGroupState implements Revisioned {
             }
             assigned.put(segment, offset);
         }
+
+        private static class AcquireSegmentBuilder implements ObjectBuilder<AcquireSegment> {
+
+        }
+
+        private static class AcquireSegmentSerializer
+                extends VersionedSerializer.WithBuilder<AcquireSegment, AcquireSegmentBuilder> {
+            @Override
+            protected AcquireSegmentBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, AcquireSegmentBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.segment(Segment.fromScopedName(in.readUTF()));
+            }
+
+            private void write00(AcquireSegment object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeUTF(object.segment.getScopedName());
+            }
+        }
     }
     
     /**
      * Update the size of this reader's backlog for load balancing purposes. 
      */
+    @Builder
     @RequiredArgsConstructor
     static class UpdateDistanceToTail extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+
         private final String readerId;
         private final long distanceToTail;
         
@@ -470,14 +701,47 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             state.distanceToTail.put(readerId, Math.max(ASSUMED_LAG_MILLIS, distanceToTail));
         }
+
+        private static class UpdateDistanceToTailBuilder implements ObjectBuilder<UpdateDistanceToTail> {
+
+        }
+
+        private static class UpdateDistanceToTailSerializer
+                extends VersionedSerializer.WithBuilder<UpdateDistanceToTail, UpdateDistanceToTailBuilder> {
+            @Override
+            protected UpdateDistanceToTailBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, UpdateDistanceToTailBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.distanceToTail(in.readLong());
+            }
+
+            private void write00(UpdateDistanceToTail object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeLong(object.distanceToTail);
+            }
+        }
     }
     
     /**
      * Updates a position object when the reader has completed a segment.
      */
+    @Builder
     @RequiredArgsConstructor
     static class SegmentCompleted extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
+
         private final String readerId;
         private final Segment segmentCompleted;
         private final Map<Segment, List<Long>> successorsMappedToTheirPredecessors; //Immutable
@@ -511,11 +775,48 @@ public class ReaderGroupState implements Revisioned {
                 }
             }
         }
+
+        private static class SegmentCompletedBuilder implements ObjectBuilder<SegmentCompleted> {
+
+        }
+
+        private static class SegmentCompletedSerializer
+                extends VersionedSerializer.WithBuilder<SegmentCompleted, SegmentCompletedBuilder> {
+            @Override
+            protected SegmentCompletedBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, SegmentCompletedBuilder builder) throws IOException {
+                builder.readerId(in.readUTF());
+                builder.segmentCompleted(Segment.fromScopedName(in.readUTF()));
+                builder.successorsMappedToTheirPredecessors(in.readMap(i -> Segment.fromScopedName(i.readUTF()),
+                                                                       i -> i.readCollection(RevisionDataInput::readInt, ArrayList::new)));
+            }
+
+            private void write00(SegmentCompleted object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.readerId);
+                out.writeUTF(object.segmentCompleted.getScopedName());
+                out.writeMap(object.successorsMappedToTheirPredecessors,
+                             (o, segment) -> o.writeUTF(segment.getScopedName()),
+                             (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeInt));
+            }
+        }
     }
     
+    @Builder
     @RequiredArgsConstructor
     static class CheckpointReader extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         private final String checkpointId;
         private final String readerId;
         private final Map<Segment, Long> positions; //Immutable
@@ -527,11 +828,45 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
         }
+        
+        private static class CheckpointReaderBuilder implements ObjectBuilder<CheckpointReader> {
+
+        }
+
+        private static class CheckpointReaderSerializer
+                extends VersionedSerializer.WithBuilder<CheckpointReader, CheckpointReaderBuilder> {
+            @Override
+            protected CheckpointReaderBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, CheckpointReaderBuilder builder) throws IOException {
+                builder.checkpointId(in.readUTF());
+                builder.readerId(in.readUTF());
+                builder.positions(in.readMap(i -> Segment.fromScopedName(i.readUTF()), RevisionDataInput::readLong));
+            }
+
+            private void write00(CheckpointReader object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.checkpointId);
+                out.writeUTF(object.readerId);
+                out.writeMap(object.positions, (o, segment) -> o.writeUTF(segment.getScopedName()), RevisionDataOutput::writeLong);
+            }
+        }
     }
     
+    @Builder
     @RequiredArgsConstructor
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         @Getter
         private final String checkpointId;
         
@@ -546,13 +881,43 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments());
         }
+
+        private static class CreateCheckpointBuilder implements ObjectBuilder<CreateCheckpoint> {
+
+        }
+
+        private static class CreateCheckpointSerializer
+                extends VersionedSerializer.WithBuilder<CreateCheckpoint, CreateCheckpointBuilder> {
+            @Override
+            protected CreateCheckpointBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, CreateCheckpointBuilder builder) throws IOException {
+                builder.checkpointId(in.readUTF());
+            }
+
+            private void write00(CreateCheckpoint object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.checkpointId);
+            }
+        }
     }
     
+    @Builder
     @RequiredArgsConstructor
     static class ClearCheckpointsBefore extends ReaderGroupStateUpdate {
-        private static final long serialVersionUID = 1L;
         private final String clearUpToCheckpoint;
-        
+
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
          */
@@ -560,7 +925,64 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             state.checkpointState.clearCheckpointsBefore(clearUpToCheckpoint);
         }
+
+        private static class ClearCheckpointsBeforeBuilder implements ObjectBuilder<ClearCheckpointsBefore> {
+
+        }
+
+        private static class ClearCheckpointsBeforeSerializer
+                extends VersionedSerializer.WithBuilder<ClearCheckpointsBefore, ClearCheckpointsBeforeBuilder> {
+            @Override
+            protected ClearCheckpointsBeforeBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, ClearCheckpointsBeforeBuilder builder) throws IOException {
+                builder.clearUpToCheckpoint(in.readUTF());
+            }
+
+            private void write00(ClearCheckpointsBefore object, RevisionDataOutput out) throws IOException {
+                out.writeUTF(object.clearUpToCheckpoint);
+            }
+        }
+    }
+    
+    public static class ReaderGroupInitSerializer
+            extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
+        @Override
+        protected void declareSerializers(Builder b) {
+            b.serializer(ReaderGroupStateInit.class, 0, new ReaderGroupStateInit.ReaderGroupStateInitSerializer())
+             .serializer(CompactReaderGroupState.class, 1, new CompactReaderGroupState.CompactReaderGroupStateSerializer());
+        }
     }
 
-
+    public static class ReaderGroupUpdateSerializer extends VersionedSerializer.MultiType<Update<ReaderGroupState>> {
+        @Override
+        protected void declareSerializers(Builder b) {
+            // Declare sub-serializers here. IDs must be unique, non-changeable (during refactoring)
+            // and not necessarily sequential or contiguous.
+            b.serializer(ReaderGroupStateInit.class, 0, new ReaderGroupStateInit.ReaderGroupStateInitSerializer())
+             .serializer(CompactReaderGroupState.class, 1, new CompactReaderGroupState.CompactReaderGroupStateSerializer())
+             .serializer(AddReader.class, 2, new AddReader.AddReaderSerializer())
+             .serializer(RemoveReader.class, 3, new RemoveReader.RemoveReaderSerializer())
+             .serializer(ReleaseSegment.class, 4, new ReleaseSegment.ReleaseSegmentSerializer())
+             .serializer(AcquireSegment.class, 5, new AcquireSegment.AcquireSegmentSerializer())
+             .serializer(UpdateDistanceToTail.class, 6, new UpdateDistanceToTail.UpdateDistanceToTailSerializer())
+             .serializer(SegmentCompleted.class, 7, new SegmentCompleted.SegmentCompletedSerializer())
+             .serializer(CheckpointReader.class, 8, new CheckpointReader.CheckpointReaderSerializer())
+             .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
+             .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer());
+        }
+    }
+    
 }

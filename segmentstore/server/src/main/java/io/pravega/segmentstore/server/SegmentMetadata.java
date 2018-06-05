@@ -23,11 +23,6 @@ public interface SegmentMetadata extends SegmentProperties {
     long getId();
 
     /**
-     * Gets a value indicating the id of this StreamSegment's parent.
-     */
-    long getParentId();
-
-    /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
      */
     int getContainerId();
@@ -71,14 +66,5 @@ public interface SegmentMetadata extends SegmentProperties {
      */
     default SegmentProperties getSnapshot() {
         return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
-    }
-
-    /**
-     * Determines whether the Segment represented by this SegmentMetadata is a Transaction.
-     *
-     * @return True if Transaction, False otherwise.
-     */
-    default boolean isTransaction() {
-        return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 }

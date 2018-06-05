@@ -42,7 +42,7 @@ import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -53,20 +53,19 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -391,15 +390,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
-        ensureRunning();
-
-        logRequest("createTransaction", parentSegmentName);
-        this.metrics.createTxn();
-        return this.segmentMapper.createNewTransactionStreamSegment(parentSegmentName, transactionId, attributes, timeout);
-    }
-
-    @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
@@ -407,33 +397,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metrics.deleteSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
-        // metadata.deleteStreamSegment will delete the given StreamSegment and all Transactions associated with it.
-        // It returns a mapping of segment ids to names of StreamSegments that were deleted.
-        // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
-        // or ignore the segments altogether (such as StorageWriter).
-        Collection<SegmentMetadata> deletedSegments = this.metadata.deleteStreamSegment(streamSegmentName);
+        // As soon the Segment is deleted in the Metadata, all operations that deal with it will start throwing appropriate
+        // exceptions or ignore it altogether (such as StorageWriter).
+        SegmentMetadata toDelete = this.metadata.deleteStreamSegment(streamSegmentName);
+        CompletableFuture<Void> deletionFuture = this.storage
+                .openWrite(toDelete.getName())
+                .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.attributeIndex.delete(toDelete, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor);
 
-        val deletionFutures = new ArrayList<CompletableFuture<Void>>();
-        for (SegmentMetadata toDelete : deletedSegments) {
-            deletionFutures.add(this.storage
-                    .openWrite(toDelete.getName())
-                    .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                    .thenComposeAsync(v -> this.attributeIndex.delete(toDelete, timer.getRemaining()), this.executor)
-                    .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor)
-                    .exceptionally(ex -> {
-                        ex = Exceptions.unwrap(ex);
-                        if (ex instanceof StreamSegmentNotExistsException && toDelete.isTransaction()) {
-                            // We are ok if transactions are not found; they may have just been merged in and the metadata
-                            // did not get a chance to get updated.
-                            return null;
-                        }
-
-                        throw new CompletionException(ex);
-                    }));
-        }
-
-        notifyMetadataRemoved(deletedSegments);
-        return Futures.allOf(deletionFutures);
+        notifyMetadataRemoved(Collections.singleton(toDelete));
+        return deletionFuture;
     }
 
     @Override
@@ -452,24 +426,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         ensureRunning();
 
-        logRequest("mergeTransaction", transactionName);
-        this.metrics.mergeTxn();
+        logRequest("mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
+        this.metrics.mergeSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining(),
-                        transactionId -> {
-                    SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
-                    if (transactionMetadata == null) {
-                        throw new CompletionException(new StreamSegmentNotExistsException(transactionName));
-                    }
 
-                    Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
-                    return this.durableLog.add(op, timer.getRemaining());
-                })
-                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(targetStreamSegment, timer.getRemaining(),
+                        targetSegmentId -> this.segmentMapper.getOrAssignStreamSegmentId(sourceStreamSegment, timer.getRemaining(),
+                                sourceSegmentId -> {
+                                    Operation op = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
+                                    return this.durableLog.add(op, timer.getRemaining());
+                                }))
+                .thenComposeAsync(v -> this.stateStore.remove(sourceStreamSegment, timer.getRemaining()), this.executor);
     }
 
     @Override

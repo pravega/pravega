@@ -400,6 +400,29 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the merging of empty Segments.
+     */
+    @Test
+    public void testMergeEmptySegment() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+        Collection<Long> segmentIds = Collections.singleton(createSegment(0, context));
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, 1, context);
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        // Add a bunch of writes.
+        appendData(segmentIds, segmentContents, context);
+
+        // Begin-merge all Transactions (part 1/2), and check contents.
+        beginMergeTransactions(transactionsBySegment, segmentContents, context);
+        checkReadIndex("BeginMerge", segmentContents, context);
+
+        // Complete the merger (part 2/2), and check contents.
+        completeMergeTransactions(transactionsBySegment, context);
+        checkReadIndex("CompleteMerge", segmentContents, context);
+    }
+
+    /**
      * Tests the behavior of Future Reads. Scenarios tested include:
      * * Regular appends
      * * Segment sealing
@@ -534,7 +557,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         long transactionId = segmentId + 1;
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
-        context.metadata.mapStreamSegmentId(transactionName, transactionId, segmentId);
+        context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
 
         byte[] appendData = "foo".getBytes();
@@ -1165,8 +1188,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionMetadata.markMerged();
 
         // Update parent contents.
-        segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionId).toByteArray());
-        segmentContents.remove(transactionId);
+        if (segmentContents.containsKey(transactionId)) {
+            segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionId).toByteArray());
+            segmentContents.remove(transactionId);
+        }
         return mergeOffset;
     }
 
@@ -1300,7 +1325,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private long createTransaction(SegmentMetadata parentMetadata, long transactionId, TestContext context) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
-        context.metadata.mapStreamSegmentId(transactionName, transactionId, parentMetadata.getId());
+        context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
         return transactionId;
     }

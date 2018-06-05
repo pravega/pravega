@@ -43,7 +43,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.assertTrue;
 
@@ -51,9 +53,9 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
-    private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
-    private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";
+    private static final String SCALE_UP_STREAM_NAME = "testScaleUp";
+    private static final String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
+    private static final String SCALE_DOWN_STREAM_NAME = "testScaleDown";
 
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 1);
     private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
@@ -65,6 +67,10 @@ public class AutoScaleTest extends AbstractScaleTests {
     private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+
+    //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
     @Environment
     public static void setup() {
@@ -147,7 +153,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
-    @Test (timeout = 300000) // 5 minutes
+    @Test
     public void scaleTests() {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();

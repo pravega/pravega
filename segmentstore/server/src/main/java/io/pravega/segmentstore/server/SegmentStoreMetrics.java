@@ -269,8 +269,7 @@ public final class SegmentStoreMetrics {
         private final String getInfoCount;
         private final String createSegmentCount;
         private final String deleteSegmentCount;
-        private final String createTxnCount;
-        private final String mergeTxnCount;
+        private final String mergeSegmentCount;
         private final String sealCount;
         private final String truncateCount;
 
@@ -283,8 +282,7 @@ public final class SegmentStoreMetrics {
             this.getInfoCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_GET_INFO_COUNT, containerId);
             this.createSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerId);
             this.deleteSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerId);
-            this.createTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_TXN_COUNT, containerId);
-            this.mergeTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_MERGE_TXN_COUNT, containerId);
+            this.mergeSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerId);
             this.sealCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_SEAL_COUNT, containerId);
             this.truncateCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerId);
         }
@@ -321,12 +319,8 @@ public final class SegmentStoreMetrics {
             DYNAMIC_LOGGER.recordMeterEvents(this.getInfoCount, 1);
         }
 
-        public void createTxn() {
-            DYNAMIC_LOGGER.recordMeterEvents(this.createTxnCount, 1);
-        }
-
-        public void mergeTxn() {
-            DYNAMIC_LOGGER.recordMeterEvents(this.mergeTxnCount, 1);
+        public void mergeSegment() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.mergeSegmentCount, 1);
         }
 
         public void seal() {
