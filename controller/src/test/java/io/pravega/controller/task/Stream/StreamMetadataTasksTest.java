@@ -28,6 +28,7 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
@@ -149,6 +150,7 @@ public class StreamMetadataTasksTest {
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new CommitTransactionTask(streamStorePartialMock, streamMetadataTasks, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),

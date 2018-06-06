@@ -19,19 +19,25 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -39,21 +45,11 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.AbstractMap;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -61,6 +57,19 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -152,7 +161,7 @@ public class ScaleRequestHandlerTest {
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, null, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 
@@ -239,6 +248,59 @@ public class ScaleRequestHandlerTest {
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
+    @Test(timeout = 30000)
+    public void testScaleWithTransactionRequest() throws InterruptedException {
+        EventWriterMock writer = new EventWriterMock();
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler, commitEventProcessor,
+                null, null, null, null, executor);
+
+        // 1 create transaction on old epoch and set it to committing
+        UUID txnIdOldEpoch = UUID.randomUUID();
+        VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000, 10000,
+                null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
+
+        // 2. start scale
+        requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0, 1, 2),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis())).join();
+
+        // 3. verify that scale is not complete
+        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        assertEquals(State.SCALING, state);
+
+        // 4. create transaction -> verify that this is created on new epoch
+        UUID txnIdNewEpoch = UUID.randomUUID();
+        VersionedTransactionData txnDataNew = streamStore.createTransaction(scope, stream, txnIdNewEpoch, 10000, 10000, 10000,
+                null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
+
+        // 5. commit new epoch --> verify that this is postponed
+        AssertExtensions.assertThrows("operation not allowed expected", requestHandler.process(new CommitEvent(scope, stream, txnDataNew.getEpoch())),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        assertEquals(1, writer.queue.size());
+        ControllerEvent event = writer.queue.take();
+        assertTrue(event instanceof CommitEvent);
+        assertTrue(((CommitEvent) event).getEpoch() == txnDataNew.getEpoch());
+
+        // 6. commit old epoch --> verify that transaction on old epoch is committed and scale is also complete;
+        requestHandler.process(new CommitEvent(scope, stream, txnData.getEpoch())).join();
+        TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
+        assertEquals(TxnStatus.COMMITTING, txnStatus);
+
+        state = streamStore.getState(scope, stream, false, null, executor).join();
+        assertEquals(State.ACTIVE, state);
+        txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, txnStatus);
+
+        requestHandler.process(event).join();
+        txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, txnStatus);
+    }
+
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
@@ -247,7 +309,7 @@ public class ScaleRequestHandlerTest {
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, null, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 

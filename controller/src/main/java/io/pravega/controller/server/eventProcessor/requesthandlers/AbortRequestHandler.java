@@ -10,23 +10,16 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,43 +32,29 @@ import lombok.extern.slf4j.Slf4j;
 public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
-    private final HostControllerStore hostControllerStore;
     private final ScheduledExecutorService executor;
-    private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
+
     private final BlockingQueue<AbortEvent> processedEvents;
 
     @VisibleForTesting
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
-                               final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
-                               final SegmentHelper segmentHelper,
-                               final ConnectionFactory connectionFactory,
                                final BlockingQueue<AbortEvent> queue) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
-        this.hostControllerStore = hostControllerStore;
-        this.segmentHelper = segmentHelper;
         this.executor = executor;
-        this.connectionFactory = connectionFactory;
         this.processedEvents = queue;
     }
 
     public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
-                               final HostControllerStore hostControllerStore,
-                               final ScheduledExecutorService executor,
-                               final SegmentHelper segmentHelper,
-                               final ConnectionFactory connectionFactory) {
+                               final ScheduledExecutorService executor) {
         super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
-        this.hostControllerStore = hostControllerStore;
-        this.segmentHelper = segmentHelper;
         this.executor = executor;
-        this.connectionFactory = connectionFactory;
         this.processedEvents = null;
     }
 
@@ -89,12 +68,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         return streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
-                .thenCompose(segments ->
-                        Futures.allOfWithResults(
-                                segments.stream()
-                                        .parallel()
-                                        .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
-                                        .collect(Collectors.toList())))
+                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
                 .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context,
                         this.streamMetadataTasks.retrieveDelegationToken())))
@@ -110,23 +84,5 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                         }
                     }
                 });
-    }
-
-    private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        final long retryInitialDelay = 100;
-        final int retryMultiplier = 10;
-        final int retryMaxAttempts = 100;
-        final long retryMaxDelay = 100000;
-
-        return Retry.withExpBackoff(retryInitialDelay, retryMultiplier, retryMaxAttempts, retryMaxDelay)
-                .retryWhen(RetryableException::isRetryable)
-                .runAsync(() -> segmentHelper.abortTransaction(scope,
-                        stream,
-                        segmentNumber,
-                        txId,
-                        this.hostControllerStore,
-                        this.connectionFactory,
-                        this.streamMetadataTasks.retrieveDelegationToken()),
-                        executor);
     }
 }

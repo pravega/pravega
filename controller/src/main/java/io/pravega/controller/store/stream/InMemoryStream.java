@@ -60,6 +60,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> sealedSegments;
     @GuardedBy("lock")
     private Data<Integer> epochTransition;
+    @GuardedBy("lock")
+    private Data<Integer> committingTxnRecord;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -700,6 +702,22 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    CompletableFuture<Map<String, Data<Integer>>> getTxnInEpoch(int epoch) {
+        synchronized (txnsLock) {
+            Set<String> transactions = epochTxnMap.get(epoch);
+            Map<String, Data<Integer>> map;
+            if (transactions != null) {
+                map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
+                map = Collections.unmodifiableMap(map);
+            } else {
+                map = Collections.emptyMap();
+            }
+            return CompletableFuture.completedFuture(map);
+        }
+    }
+
+    @Override
     CompletableFuture<Void> checkScopeExists() throws StoreException {
         return CompletableFuture.completedFuture(null);
     }
@@ -830,6 +848,45 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                         "sealedSegments for stream: " + getName()));
             }
         }
+    }
+
+    @Override
+    CompletableFuture<Void> createCommittingTxnRecord(byte[] committingTxns) {
+        Preconditions.checkNotNull(committingTxns);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.committingTxnRecord != null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "committing transactions record exists"));
+            } else {
+                this.committingTxnRecord = new Data<>(committingTxns, 0);
+                result.complete(null);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getCommittingTxnRecord() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.committingTxnRecord == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "committing transactions not found"));
+            } else {
+                result.complete(copy(committingTxnRecord));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> deleteCommittingTxnRecord() {
+        synchronized (lock) {
+            this.committingTxnRecord = null;
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     private Data<Integer> copy(Data<Integer> input) {

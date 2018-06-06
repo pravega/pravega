@@ -37,6 +37,7 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -62,6 +63,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -835,6 +837,42 @@ public class StreamMetadataTasks extends TaskBase {
             log.warn("Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
         }
+    }
+
+    public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
+                                                   final List<Integer> segments, final UUID txnId) {
+        return Futures.allOf(segments.stream()
+                .parallel()
+                .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
+                                                                    final int segmentNumber, final UUID txnId) {
+        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
+                stream,
+                segmentNumber,
+                txnId,
+                this.hostControllerStore,
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
+    }
+
+    public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
+                                                  final List<Integer> segments, final UUID txnId) {
+        return Futures.allOf(segments.stream()
+                .parallel()
+                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
+                                                                   final int segmentNumber, final UUID txnId) {
+        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.abortTransaction(scope,
+                stream,
+                segmentNumber,
+                txnId,
+                this.hostControllerStore,
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
     @Override

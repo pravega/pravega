@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
@@ -101,6 +102,7 @@ public class ControllerServiceWithZKStreamTest {
                 segmentHelperMock, executor, "host", connectionFactory, false, "");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new CommitTransactionTask(streamStore, streamMetadataTasks, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executor),

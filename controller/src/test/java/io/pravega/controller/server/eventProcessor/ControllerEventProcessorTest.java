@@ -12,14 +12,17 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
@@ -29,12 +32,8 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -44,11 +43,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
+
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Controller Event ProcessorTests.
@@ -108,37 +111,91 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
-        CommitEventProcessor commitEventProcessor = new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
-                segmentHelperMock, null);
-        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
+        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
     @Test(timeout = 10000)
-    public void testCommitEventProcessorFailedWrite() {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
-                null, executor).join();
+    public void testMultipleTransactionsSuccess() {
+        // 1. commit request for an older epoch
+        // this should be ignored
+        // 2. multiple transactions in committing state
+        // first event should commit all of them
+        // subsequent events should be no op
+        // 3. commit request for future epoch
+        // this should be postponed
+        List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
+        int epoch = txnDataList.get(0).getEpoch();
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
+        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        for (VersionedTransactionData txnData : txnDataList) {
+            checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
+        }
 
-        CommitEventProcessor commitEventProcessor = spy(new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
-                segmentHelperMock, null));
-
-        EventProcessor.Writer<CommitEvent> successWriter = event -> CompletableFuture.completedFuture(null);
-
-        EventProcessor.Writer<CommitEvent> failedWriter = event -> {
-            CompletableFuture<Void> future = new CompletableFuture<>();
-            future.completeExceptionally(new RuntimeException("Error"));
-            return future;
-        };
-        //Simulate a failed write
-        when(commitEventProcessor.getSelfWriter()).thenReturn(failedWriter).thenReturn(successWriter);
-        //invoke process with epoch > txnData.
-        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getEpoch() + 1, txnData.getId()), null);
-
-        verify(commitEventProcessor, times(2)).getSelfWriter();
-
+        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch))));
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
     }
 
+    @Test(timeout = 10000)
+    public void testTransactionOutstandingCommit() {
+        // keep a committxnlist in the store
+        // same epoch --> commit txn list should be cleared first
+        //     subsequent events should complete remainder txns that are in committing state
+        // lower epoch --> do nothing and exit
+        // higher epoch --> postpone and exit
+        List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
+        List<VersionedTransactionData> txnDataList2 = createAndCommitTransactions(3);
+        int epoch = txnDataList1.get(0).getEpoch();
+        streamStore.createCommittingTransactionsRecord(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
+
+        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
+
+        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        for (VersionedTransactionData txnData : txnDataList1) {
+            checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
+        }
+
+        for (VersionedTransactionData txnData : txnDataList2) {
+            checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
+        }
+
+        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        for (VersionedTransactionData txnData : txnDataList2) {
+            checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
+        }
+    }
+
+    private List<VersionedTransactionData> createAndCommitTransactions(int count) {
+        List<VersionedTransactionData> retVal = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            UUID txnId = UUID.randomUUID();
+            VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
+                    null, executor).join();
+            Assert.assertNotNull(txnData);
+            checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
+
+            streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
+            checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
+
+            retVal.add(txnData);
+        }
+        return retVal;
+    }
+
+
+    // commit with scale
+    // 1. scale started
+    // 2. commit on old epoch should complete scale
+    // 3. commit on older epoch should be ignored
+    // 4. commit on new epoch should be postponed
+    // 5.
 
     @Test(timeout = 10000)
     public void testAbortEventProcessor() {
@@ -151,8 +208,7 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
-        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor,
-                segmentHelperMock, null);
+        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor);
         abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }

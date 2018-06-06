@@ -177,9 +177,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public Void initializeStreamWriters(final ClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        this.commitStreamName = config.getCommitStreamName();
+        this.commitStreamName = config.getRequestStreamName();
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getCommitStreamName(),
+                config.getRequestStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
@@ -616,13 +616,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor);
     }
 
-    public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
-        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
-    }
-
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
