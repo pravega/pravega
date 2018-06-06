@@ -71,7 +71,7 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected final String scope = "scope";
@@ -639,7 +639,9 @@ public abstract class StreamMetadataStoreTest {
 
         // region Txn created before scale and during scale
         // scale with transaction test
-        VersionedTransactionData tx1 = store.createTransaction(scope, stream, UUID.randomUUID(),
+        // first txn created before-scale
+        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(0, tx1.getEpoch());
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
@@ -650,17 +652,22 @@ public abstract class StreamMetadataStoreTest {
         assertNotNull(scale1SegmentsCreated);
         store.setState(scope, stream, State.SCALING, null, executor).join();
 
+        // second txn created after new segments are created in segment table but not yet in history table
         // assert that txn is created on old epoch
-        VersionedTransactionData tx2 = store.createTransaction(scope, stream, UUID.randomUUID(),
+        store.scaleCreateNewSegments(scope, stream, null, executor).join();
+        txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(0, tx2.getEpoch());
+        assertEquals(0, (int) (tx2.getId().getMostSignificantBits() >> 32));
 
-        store.scaleCreateNewSegments(scope, stream, null, executor).join();
+        // third transaction created after new epoch created in history table
         store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
-
-        VersionedTransactionData tx3 = store.createTransaction(scope, stream, UUID.randomUUID(),
+        txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx3 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(1, tx3.getEpoch());
+        assertEquals(1, (int) (tx3.getId().getMostSignificantBits() >> 32));
 
         DeleteEpochResponse deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch
         assertEquals(false, deleteResponse.isDeleted());
@@ -701,7 +708,8 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, epoch2);
         assertNotNull(scale2SegmentsCreated);
 
-        VersionedTransactionData txn = store.createTransaction(scope, stream, UUID.randomUUID(),
+        txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData txn = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(1, txn.getEpoch());
 
@@ -712,7 +720,8 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(false, deleteResponse.isDeleted());
 
         // verify that new txns can be created and are created on old epoch
-        VersionedTransactionData txn2 = store.createTransaction(scope, stream, UUID.randomUUID(),
+        txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData txn2 = store.createTransaction(scope, stream, txnId,
                 100, 100, 100, null, executor).get();
         assertEquals(1, txn2.getEpoch());
 

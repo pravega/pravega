@@ -58,7 +58,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                                                                       final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final UUID txnId = UUID.randomUUID();
+        final UUID txnId = streamMetadataStore.generateTransactionId(scope, stream, null, executor).join();
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, 10 * lease, scaleGracePeriod,
                 context, executor)
                 .thenCompose(txData -> {

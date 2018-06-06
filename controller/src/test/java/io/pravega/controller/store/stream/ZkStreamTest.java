@@ -13,7 +13,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.tables.Data;
-import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -443,12 +442,12 @@ public class ZkStreamTest {
 
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
-        UUID txnId1 = UUID.randomUUID();
+        UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
                 context, executor).get();
         Assert.assertEquals(txnId1, tx.getId());
 
-        UUID txnId2 = UUID.randomUUID();
+        UUID txnId2 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
         VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
                 context, executor).get();
         Assert.assertEquals(txnId2, tx2.getId());
@@ -536,15 +535,14 @@ public class ZkStreamTest {
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZKStream stream = new ZKStream("scope", "stream", storeHelper);
-        // create epoch
-        stream.createEpochNodeIfAbsent(0).join();
 
-        byte[] historyIndex = TableHelper.createHistoryIndex();
-        byte[] historyTable = TableHelper.createHistoryTable(1L, Lists.newArrayList(0L, 1L));
-        stream.createHistoryIndexIfAbsent(new Data<>(historyIndex, 0)).join();
-        stream.createHistoryTableIfAbsent(new Data<>(historyTable, 0)).join();
-        stream.createStateIfAbsent(State.ACTIVE).join();
-        UUID txId = UUID.randomUUID();
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope("scope").streamName("stream").scalingPolicy(policy1).build();
+        stream.create(configuration1, System.currentTimeMillis()).join();
+        stream.updateState(State.ACTIVE).join();
+        UUID txId = stream.generateNewTxnId(0, 0L).join();
         stream.createTransaction(txId, 1000L, 1000L, 1000L).join();
 
         String activeTxPath = stream.getActiveTxPath(0, txId.toString());

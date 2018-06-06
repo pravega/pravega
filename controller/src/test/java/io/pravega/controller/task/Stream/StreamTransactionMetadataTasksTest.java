@@ -39,10 +39,13 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -65,11 +68,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -85,7 +90,13 @@ import org.mockito.stubbing.Answer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for StreamTransactionMetadataTasks.
@@ -164,7 +175,7 @@ public class StreamTransactionMetadataTasksTest {
         List<CompletableFuture<Void>> ackFutures = new ArrayList<>();
         for (int i = 0; i < count; i++) {
 
-            CompletableFuture<Void> spy = Mockito.spy(CompletableFuture.completedFuture(null));
+            CompletableFuture<Void> spy = spy(CompletableFuture.completedFuture(null));
             Mockito.when(spy.get()).thenThrow(InterruptedException.class);
             ackFutures.add(spy);
             ackFutures.add(Futures.failedFuture(new WriteFailedException()));
@@ -252,7 +263,7 @@ public class StreamTransactionMetadataTasksTest {
         VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
 
         // Ping another txn from failedHost.
-        UUID txnId = UUID.randomUUID();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, 30000, null, executor).join();
         PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
         VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
@@ -466,8 +477,79 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(txnTasks.getTimeoutService().containsTxn(SCOPE, STREAM, txn1));
     }
 
-    private <T extends ControllerEvent>
-    void createEventProcessor(final String readerGroupName,
+    @Test(timeout = 10000)
+    public void txnCreationTest() {
+        // Create mock writer objects.
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
+
+        StreamMetadataStore streamStoreMock = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+
+        // Create transaction tasks.
+        txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, hostStore,
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host", connectionFactory, this.authEnabled, "secret");
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
+                abortWriter);
+
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+
+        // Create stream and scope
+        streamStoreMock.createScope(SCOPE).join();
+        streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
+        streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+
+        // mock streamMetadataStore.generateTxnId should throw excecption first time.
+        // Note: it should be retried.
+        // now the id should have been generated
+        doAnswer(new Answer<CompletableFuture<UUID>>() {
+            AtomicInteger count = new AtomicInteger(0);
+            @Override
+            public CompletableFuture<UUID> answer(InvocationOnMock invocation) throws Throwable {
+
+                // first time throw exception.
+                if (count.getAndIncrement() == 0) {
+                    return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict on counter update"));
+                }
+
+                // subsequent times call origin method
+                @SuppressWarnings("unchecked")
+                CompletableFuture<UUID> future = (CompletableFuture<UUID>) invocation.callRealMethod();
+                return future;
+            }
+        }).when(streamStoreMock).generateTransactionId(eq(SCOPE), eq(STREAM), any(), any());
+
+        doAnswer(new Answer<CompletableFuture<VersionedTransactionData>>() {
+            AtomicInteger count = new AtomicInteger(0);
+
+            @Override
+            public CompletableFuture<VersionedTransactionData> answer(InvocationOnMock invocation) throws Throwable {
+                // first time throw exception.
+                if (count.getAndIncrement() == 0) {
+                    return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Epoch not found"));
+                }
+
+                // subsequent times call origin method
+                @SuppressWarnings("unchecked")
+                CompletableFuture<VersionedTransactionData> future = (CompletableFuture<VersionedTransactionData>) invocation.callRealMethod();
+                return future;
+            }
+        }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+        Pair<VersionedTransactionData, List<Segment>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 10000L, null).join();
+
+        // verify that generate transaction id is called 3 times
+        verify(streamStoreMock, times(3)).generateTransactionId(any(), any(), any(), any());
+        // verify that create transaction is called 2 times
+        verify(streamStoreMock, times(2)).createTransaction(any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+
+        // verify that the txn id that is generated is of type ""
+        UUID txnId = txn.getKey().getId();
+        assertEquals(0, (int) (txnId.getMostSignificantBits() >> 32));
+        assertEquals(2, txnId.getLeastSignificantBits());
+    }
+
+    private <T extends ControllerEvent> void createEventProcessor(final String readerGroupName,
                               final String streamName,
                               final EventStreamReader<T> reader,
                               final EventStreamWriter<T> writer,
