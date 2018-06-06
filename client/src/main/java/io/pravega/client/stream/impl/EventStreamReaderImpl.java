@@ -66,7 +66,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean closed;
     @GuardedBy("readers")
     private final List<ReaderState> readers = new ArrayList<>();
-    @GuardedBy("readers")
     private final BlockingQueue<ReaderState> readCompletionQueue;
     @GuardedBy("readers")
     private Sequence lastRead;
@@ -107,16 +106,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     }
 
                     // poll for a completed read
-                    ReaderState segmentReader;
-                    try {
-                        long waitTime = Math.max(0, Math.min(timeout - timer.getElapsedMillis(), ReaderGroupStateManager.TIME_UNIT.toMillis()));
-                        segmentReader = readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
+                    long waitTime = Math.max(0, Math.min(timeout - timer.getElapsedMillis(), ReaderGroupStateManager.TIME_UNIT.toMillis()));
+                    ReaderState segmentReader = Exceptions.handleInterrupted(() -> readCompletionQueue.poll(waitTime, TimeUnit.MILLISECONDS));
 
-                    // note: a read may complete with a value and be enqueued for processing, but be released
-                    // and closed before the value has been processed.
+                    // note: a read may complete with a value and be enqueued for processing, but its reader be released
+                    // and closed before the value has been processed.  In this scenario we discard the value.
                     if (segmentReader != null && !segmentReader.isClosed()) {
                         try {
                             segment = segmentReader.getSegmentId();

@@ -56,6 +56,10 @@ public interface AsyncSegmentEventReader {
      * The offset is advanced iff the future completes successfully.  If called while a read is outstanding,
      * cancels that read and re-reads the same data.
      *
+     * NOTE: a thread-safe implementation of {@link AsyncSegmentEventReader} may acquire a lock that is taken
+     * upon calls to {@code readAsync}, and may re-acquire the lock upon completion of the future.  To avoid
+     * a deadlock, be careful about acquiring locks in the completion handler of the returned future.
+     *
      * @return a future containing the event data.
      * @throws EndOfSegmentException if the configured end offset was reached.
      */
