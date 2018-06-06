@@ -33,7 +33,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
-import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -158,9 +159,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
             .build();
 
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
-            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
-            .build();
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
             .builder()
@@ -839,33 +838,43 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
+        val emptySegmentName = segmentNames.get(0);
+        val nonEmptySegmentNames = segmentNames.subList(1, segmentNames.size() - 1);
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
 
         for (int i = 0; i < appendsPerSegment; i++) {
-            for (String segmentName : segmentNames) {
+            // Append to all but the "empty" segment.
+            for (String segmentName : nonEmptySegmentNames) {
                 appendFutures.add(context.container.append(segmentName, getAppendData(segmentName, i), null, TIMEOUT));
             }
         }
 
         Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 3. Delete the first half of the segments.
+        // 3. Delete the empty segment (twice).
+        context.container.deleteStreamSegment(emptySegmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        AssertExtensions.assertThrows(
+                "Empty segment was not deleted.",
+                () -> context.container.deleteStreamSegment(emptySegmentName, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // 3.1. Delete the first half of the segments.
         ArrayList<CompletableFuture<Void>> deleteFutures = new ArrayList<>();
-        for (int i = 0; i < segmentNames.size() / 2; i++) {
-            String segmentName = segmentNames.get(i);
+        for (int i = 0; i < nonEmptySegmentNames.size() / 2; i++) {
+            String segmentName = nonEmptySegmentNames.get(i);
             deleteFutures.add(context.container.deleteStreamSegment(segmentName, TIMEOUT));
         }
 
         Futures.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // 4. Verify that only the first half of the segments were deleted, and not the others.
-        for (int i = 0; i < segmentNames.size(); i++) {
+        // 3.2. Verify that only the first half of the segments were deleted, and not the others.
+        for (int i = 0; i < nonEmptySegmentNames.size(); i++) {
             ArrayList<String> toCheck = new ArrayList<>();
-            toCheck.add(segmentNames.get(i));
+            toCheck.add(nonEmptySegmentNames.get(i));
 
-            boolean expectedDeleted = i < segmentNames.size() / 2;
+            boolean expectedDeleted = i < nonEmptySegmentNames.size() / 2;
             if (expectedDeleted) {
                 // Verify the segments and their Transactions are not there anymore.
                 for (String sn : toCheck) {
@@ -1848,6 +1857,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
         private final CacheFactory cacheFactory;
+        private final CacheManager cacheManager;
         private final Storage storage;
 
         TestContext() {
@@ -1859,8 +1869,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, executorService());
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, executorService());
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, executorService());
@@ -1874,6 +1885,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.storage.close();
             this.storageFactory.close();
+            this.cacheManager.close();
         }
     }
 
