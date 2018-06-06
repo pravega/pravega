@@ -52,7 +52,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -79,7 +79,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -106,7 +106,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

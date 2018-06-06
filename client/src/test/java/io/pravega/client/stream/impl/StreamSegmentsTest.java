@@ -45,7 +45,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -56,7 +56,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey(r.nextDouble());
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -83,7 +83,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -114,7 +114,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("" + i);
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertEquals(0, counts[0]);
         assertEquals(0, counts[1]);
@@ -139,7 +139,7 @@ public class StreamSegmentsTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = streamSegments.getSegmentForKey("Foo");
             assertNotNull(segment);
-            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentNumber())]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

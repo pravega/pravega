@@ -764,7 +764,7 @@ public class ReaderGroupState implements Revisioned {
                 }
             }
             for (Set<Long> requiredToComplete : state.futureSegments.values()) {
-                requiredToComplete.remove(segmentCompleted.getSegmentNumber());
+                requiredToComplete.remove(segmentCompleted.getSegmentId());
             }
             val iter = state.futureSegments.entrySet().iterator();
             while (iter.hasNext()) {

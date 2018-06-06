@@ -28,19 +28,19 @@ public class Segment implements Comparable<Segment>, Serializable {
     private final String scope;
     @NonNull
     private final String streamName;
-    private final long segmentNumber;
+    private final long segmentId;
 
     /**
      * Creates a new instance of Segment class.
      *
      * @param scope      The scope string the segment belongs to.
      * @param streamName The stream name that the segment belongs to.
-     * @param number     ID number for the segment.
+     * @param id     ID number for the segment.
      */
-    public Segment(String scope, String streamName, long number) {
+    public Segment(String scope, String streamName, long id) {
         this.scope = scope;
         this.streamName = streamName;
-        this.segmentNumber = number;
+        this.segmentId = id;
     }
 
     public String getScopedStreamName() {
@@ -48,7 +48,7 @@ public class Segment implements Comparable<Segment>, Serializable {
     }
 
     public String getScopedName() {
-        return StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentNumber);
+        return StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, streamName, segmentId);
     }
 
     public Stream getStream() {
@@ -93,7 +93,7 @@ public class Segment implements Comparable<Segment>, Serializable {
             result = streamName.compareTo(o.streamName);
         }
         if (result == 0) {
-            result = Long.compare(segmentNumber, o.segmentNumber);
+            result = Long.compare(segmentId, o.segmentId);
         }
         return result;
     }

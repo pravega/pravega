@@ -338,7 +338,7 @@ public class EndToEndTruncationTest {
 
         // Assert that from the truncation call onwards, the available segments are the ones after scaling.
         List<Long> currentSegments = controller.getCurrentSegments(scope, streamName).join().getSegments().stream()
-                                                  .map(Segment::getSegmentNumber)
+                                                  .map(Segment::getSegmentId)
                                                   .sorted()
                                                   .collect(toList());
         currentSegments.removeAll(Lists.newArrayList(one, two));

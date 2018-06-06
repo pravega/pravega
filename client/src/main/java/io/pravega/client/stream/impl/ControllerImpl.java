@@ -674,7 +674,7 @@ public class ControllerImpl implements Controller {
             return Collections.emptyMap();
         }
         return streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue));
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 
     @Override
@@ -715,7 +715,7 @@ public class ControllerImpl implements Controller {
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             client.getURI(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
-                    segment.getSegmentNumber()),
+                    segment.getSegmentId()),
                     callback);
             return callback.getFuture();
         }, this.executor);
@@ -737,7 +737,7 @@ public class ControllerImpl implements Controller {
             RPCAsyncCallback<SegmentValidityResponse> callback = new RPCAsyncCallback<>(traceId, "isSegmentOpen");
             client.isSegmentValid(ModelHelper.createSegmentId(segment.getScope(),
                     segment.getStreamName(),
-                    segment.getSegmentNumber()),
+                    segment.getSegmentId()),
                     callback);
             return callback.getFuture();
         }, this.executor);

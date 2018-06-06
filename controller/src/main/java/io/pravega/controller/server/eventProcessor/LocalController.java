@@ -139,7 +139,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
-                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
+                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                        Map.Entry::getValue));
         return truncateStream(scope, stream, segmentToOffsetMap);
     }
@@ -367,12 +367,12 @@ public class LocalController implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
-                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
+                    segment.getSegmentId())).thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
-        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     @Override
@@ -401,6 +401,6 @@ public class LocalController implements Controller {
             return Collections.emptyMap();
         }
         return streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue));
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 }

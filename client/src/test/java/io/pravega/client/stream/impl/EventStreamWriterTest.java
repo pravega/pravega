@@ -86,7 +86,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     
     private CompletableFuture<StreamSegmentsWithPredecessors> getReplacement(Segment old, Segment repacement) {
         Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
-        segments.put(new SegmentWithRange(repacement, 0, 1), Collections.singletonList(old.getSegmentNumber()));
+        segments.put(new SegmentWithRange(repacement, 0, 1), Collections.singletonList(old.getSegmentId()));
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
 

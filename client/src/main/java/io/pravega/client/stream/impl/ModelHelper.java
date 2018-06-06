@@ -216,7 +216,7 @@ public final class ModelHelper {
      */
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "segment");
-        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     /**
@@ -303,7 +303,7 @@ public final class ModelHelper {
     public static final Set<Long> getSegmentsFromPositions(final List<PositionInternal> positions) {
         Preconditions.checkNotNull(positions, "positions");
         return positions.stream()
-            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
+            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentId))
             .collect(Collectors.toSet());
     }
     
@@ -312,7 +312,7 @@ public final class ModelHelper {
         return position.getOwnedSegmentsWithOffsets()
             .entrySet()
             .stream()
-            .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
+            .map(e -> new SimpleEntry<>(e.getKey().getSegmentId(), e.getValue()))
             .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 

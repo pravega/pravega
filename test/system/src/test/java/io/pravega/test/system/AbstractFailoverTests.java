@@ -613,7 +613,7 @@ abstract class AbstractFailoverTests {
         boolean scaled = false;
         for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
             StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
-            if (streamSegments.getSegments().stream().mapToLong(Segment::getSegmentNumber).max().orElse(-1) > initialMaxSegmentNumber) {
+            if (streamSegments.getSegments().stream().mapToLong(Segment::getSegmentId).max().orElse(-1) > initialMaxSegmentNumber) {
                 scaled = true;
                 break;
             }
