@@ -60,20 +60,13 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
 
     @Override
     public CompletableFuture<Void> execute(CommitEvent event) {
-        // 1. get epoch.. check if the epoch matches the epoch in commit event.. if true, we can proceed.. else throw OperationNotAllowedException
-        // 2. check if txn-commit-node exists.
-        //      if node exists and has same epoch, process the node.
-        // 3. if node doesnt exist, collect all committing txn in the epoch and create txn-commit-node.
-        // 4. loop over the transactions and commit one transaction at a time until all such transactions are committed.
-        // 5. delete txn-commit-node
-        // 6. try complete scale.
-        // Note: Once scale is completed, all events for this epoch will become a no-op as all transactions would have been committed already.
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
 
+        // 1. get epoch.. check if the epoch matches the epoch in commit event.. if true, we can proceed.. else throw OperationNotAllowedException
         return streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenCompose(pair -> {
             if (epoch < pair.getKey()) {
                 log.debug("Epoch {} on stream {}/{} is already complete.", epoch, scope, stream);
