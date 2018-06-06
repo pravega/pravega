@@ -81,7 +81,7 @@ public class CheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
-                                                         .stream(Stream.of(scope, streamName)).build();
+                                                         .addStream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)
@@ -169,7 +169,7 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)

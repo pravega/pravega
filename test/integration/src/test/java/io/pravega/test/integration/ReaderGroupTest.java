@@ -91,7 +91,7 @@ public class ReaderGroupTest {
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(-1)
-                                                         .stream(Stream.of(SCOPE, STREAM_NAME))
+                                                         .addStream(Stream.of(SCOPE, STREAM_NAME))
                                                          .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig);
 
@@ -138,7 +138,7 @@ public class ReaderGroupTest {
 
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(-1)
-                                                         .stream(Stream.of(SCOPE, STREAM_NAME))
+                                                         .addStream(Stream.of(SCOPE, STREAM_NAME))
                                                          .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig);
 

@@ -23,6 +23,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -114,7 +115,7 @@ public class EndToEndReaderGroupTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                  .stream("test/test").build());
+                                                                 .addStream(Stream.of("test/test")).build());
 
         final ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 

@@ -187,7 +187,7 @@ public class MultiSegmentStoreTest {
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(readerGroup,
-                ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, stream)).build());
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints().addStream(Stream.of(scope, stream)).build());
 
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

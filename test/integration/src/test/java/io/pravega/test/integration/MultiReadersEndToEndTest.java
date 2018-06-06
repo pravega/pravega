@@ -137,7 +137,7 @@ public class MultiReadersEndToEndTest {
                                     ClientConfig.builder()
                                                 .controllerURI(SETUP_UTILS.getControllerUri()).build());
         ReaderGroupConfig.ReaderGroupConfigBuilder builder = ReaderGroupConfig.builder();
-        streamNames.forEach(s -> builder.stream(Stream.of(SETUP_UTILS.getScope(), s)));
+        streamNames.forEach(s -> builder.addStream(Stream.of(SETUP_UTILS.getScope(), s)));
         readerGroupManager.createReaderGroup(readerGroupName, builder.build());
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);
@@ -220,7 +220,7 @@ public class MultiReadersEndToEndTest {
 
         final String readerGroupName = "testReaderGroup";
         ReaderGroupConfig.ReaderGroupConfigBuilder builder = ReaderGroupConfig.builder();
-        streamNames.forEach(s -> builder.stream(Stream.of("scope", s)));
+        streamNames.forEach(s -> builder.addStream(Stream.of("scope", s)));
         streamManager.createReaderGroup(readerGroupName, builder.build());
 
         Collection<Integer> read = readAllEvents(numParallelReaders, clientFactory, readerGroupName, numSegments);

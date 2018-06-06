@@ -273,12 +273,12 @@ public class ControllerRestApiTest {
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()
-                                                                                    .stream(Stream.of(testScope, testStream1))
-                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .addStream(Stream.of(testScope, testStream1))
+                                                                                    .addStream(Stream.of(testScope, testStream2))
                                                                                     .build());
             readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder()
-                                                                                    .stream(Stream.of(testScope, testStream1))
-                                                                                    .stream(Stream.of(testScope, testStream2))
+                                                                                    .addStream(Stream.of(testScope, testStream1))
+                                                                                    .addStream(Stream.of(testScope, testStream2))
                                                                                     .build());
             clientFactory.createReader(reader1, readerGroupName1, new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());

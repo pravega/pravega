@@ -25,6 +25,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
+
+import java.util.stream.Collectors;
+
+import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -40,12 +44,14 @@ public class ReaderGroupConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
+    private static final String USE_DEFAULT_SCOPE = "_defaultScope";
     private final long groupRefreshTimeMillis;
     @Getter
     private final long automaticCheckpointIntervalMillis;
 
-    private final Map<Stream, StreamCut> startingStreamCuts;
-    private final Map<Stream, StreamCut> endingStreamCuts;
+    private final String defaultScope;
+    private final Map<String, StreamCut> startingStreamCuts;
+    private final Map<String, StreamCut> endingStreamCuts;
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -65,49 +71,101 @@ public class ReaderGroupConfig implements Serializable {
        }
 
        /**
+        * Sets the default scope to be used by the ReaderGroupConfig.
+        *
+        * @param scope Default Scope.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder defaultScope(final String scope) {
+           this.defaultScope = NameUtils.validateScopeName(scope);
+           return this;
+       }
+
+       /**
         * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
         * readers of a ReaderGroup.
         *
-        * @param scopedStreamName Scoped Name of the Stream.
-        * @param startStreamCut Start {@link StreamCut}
-        * @param endStreamCut End {@link StreamCut}
+        * @param scope Scope of the stream.
+        * @param streamName Stream name.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
-           final Stream stream = Stream.of(scopedStreamName);
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName,
+                                                 final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final String scopedStreamName = Stream.of(scope, streamName).getScopedName();
 
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(stream, startStreamCut);
+           this.startingStreamCuts.put(scopedStreamName, startStreamCut);
 
            if (endingStreamCuts == null) {
                endingStreamCuts = new HashMap<>();
            }
-           this.endingStreamCuts.put(stream, endStreamCut);
+           this.endingStreamCuts.put(scopedStreamName, endStreamCut);
 
            return this;
        }
 
        /**
+        * Add a stream and its associated start {@link StreamCut} and end {@link StreamCut} to be read by the
+        * readers of a ReaderGroup. {@link ReaderGroupConfig#getDefaultScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @param endStreamCut End {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder addStream(final String streamName, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, startStreamCut, endStreamCut);
+       }
+
+       /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
-        * @param scopedStreamName Scoped Name of the Stream.
+        *
+        * @param scope Scope of the stream.
+        * @param streamName Stream name.
         * @param startStreamCut Start {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName, final StreamCut startStreamCut) {
-           return stream(scopedStreamName, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName, final StreamCut startStreamCut) {
+           return addStream(scope, streamName, startStreamCut, StreamCut.UNBOUNDED);
        }
 
+       /**
+        * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        * {@link ReaderGroupConfig#getDefaultScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @param startStreamCut Start {@link StreamCut}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder addStream(final String streamName, final StreamCut startStreamCut) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, startStreamCut, StreamCut.UNBOUNDED);
+       }
 
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
-        * @param scopedStreamName Stream name.
+        *
+        * @param scope Scope of the stream.
+        * @param streamName Stream name.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final String scopedStreamName) {
-           return stream(scopedStreamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final String scope, final String streamName) {
+           return addStream(scope, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       }
+
+       /**
+        * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
+        * will be used as the starting StreamCut. {@link ReaderGroupConfig#getDefaultScope()} is used for the scope of the stream.
+        *
+        * @param streamName Stream name.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder addStream(final String streamName) {
+           return addStream(USE_DEFAULT_SCOPE, streamName, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
@@ -119,57 +177,66 @@ public class ReaderGroupConfig implements Serializable {
         * @param endStreamCut End {@link StreamCut}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+       public ReaderGroupConfigBuilder addStream(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
+           final String scopedStreamName = stream.getScopedName();
            if (startingStreamCuts == null) {
                startingStreamCuts = new HashMap<>();
            }
-           this.startingStreamCuts.put(stream, startStreamCut);
+           this.startingStreamCuts.put(scopedStreamName, startStreamCut);
 
            if (endingStreamCuts == null) {
                endingStreamCuts = new HashMap<>();
            }
-           this.endingStreamCuts.put(stream, endStreamCut);
+           this.endingStreamCuts.put(scopedStreamName, endStreamCut);
 
            return this;
        }
 
        /**
         * Add a stream and its associated start {@link StreamCut} to be read by the readers of a ReaderGroup.
+        *
         * @param stream Stream.
         * @param startStreamCut Start {@link StreamCut}
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream, final StreamCut startStreamCut) {
-            return stream(stream, startStreamCut, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final Stream stream, final StreamCut startStreamCut) {
+            return addStream(stream, startStreamCut, StreamCut.UNBOUNDED);
        }
 
        /**
         * Add a stream that needs to be read by the readers of a ReaderGroup. The current starting position of the stream
         * will be used as the starting StreamCut.
+        *
         * @param stream Stream.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder stream(final Stream stream) {
-           return stream(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
+       public ReaderGroupConfigBuilder addStream(final Stream stream) {
+           return addStream(stream, StreamCut.UNBOUNDED, StreamCut.UNBOUNDED);
        }
 
        /**
         * Ensure the readers of the ReaderGroup start from this provided streamCuts.
+        *
         * @param streamCuts Map of {@link Stream} and its corresponding {@link StreamCut}.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder startFromStreamCuts(final Map<Stream, StreamCut> streamCuts) {
-           this.startingStreamCuts(streamCuts);
+           this.startingStreamCuts(streamCuts.entrySet().stream()
+                                             .collect(Collectors.toMap(o -> o.getKey().getScopedName(),
+                                                     Map.Entry::getValue)));
            return this;
        }
 
        /**
         * Ensure the readers of the ReaderGroup start from the provided {@link Checkpoint}.
+        *
         * @param checkpoint {@link Checkpoint}.
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder startFromCheckpoint(final Checkpoint checkpoint) {
-           this.startingStreamCuts(checkpoint.asImpl().getPositions());
+           this.startingStreamCuts(checkpoint.asImpl().getPositions().entrySet().stream()
+                                             .collect(Collectors.toMap(o -> o.getKey().getScopedName(),
+                                                     Map.Entry::getValue)));
            return this;
        }
 
@@ -183,25 +250,41 @@ public class ReaderGroupConfig implements Serializable {
                endingStreamCuts = Collections.emptyMap();
            }
 
+           //fetch StreamCuts with the specified default scope.
+           final Map<String, StreamCut> startCutsWithDefaultScope = getCutsWithDefaultScope(startingStreamCuts);
+           final Map<String, StreamCut> endCutsWithDefaultScope = getCutsWithDefaultScope(endingStreamCuts);
+
            //validate start and end StreamCuts
-           validateStreamCut(startingStreamCuts);
-           validateStreamCut(endingStreamCuts);
+           validateStreamCut(startCutsWithDefaultScope);
+           validateStreamCut(endCutsWithDefaultScope);
 
            //basic check to verify if endStreamCut > startStreamCut.
-           validateStartAndEndStreamCuts(startingStreamCuts, endingStreamCuts);
+           validateStartAndEndStreamCuts(startCutsWithDefaultScope, endCutsWithDefaultScope);
 
-           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts);
+           return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis, defaultScope,
+                   startCutsWithDefaultScope, endCutsWithDefaultScope);
        }
 
-       private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
-                                                  Map<Stream, StreamCut> endStreamCuts) {
+        private Map<String, StreamCut> getCutsWithDefaultScope(final Map<String, StreamCut> streamCutMap) {
+            return streamCutMap.entrySet().stream().collect(Collectors.toMap(e -> {
+                Stream s = Stream.of(e.getKey());
+                if (s.getScope().equals(USE_DEFAULT_SCOPE)) {
+                    checkArgument(defaultScope != null, "defaultScope should be set");
+                    return Stream.of(defaultScope, s.getStreamName()).getScopedName();
+                } else {
+                    return e.getKey();
+                }
+            }, Map.Entry::getValue));
+        }
+
+        private void validateStartAndEndStreamCuts(Map<String, StreamCut> startStreamCuts,
+                                                  Map<String, StreamCut> endStreamCuts) {
            endStreamCuts.entrySet().stream().filter(e -> !e.getValue().equals(StreamCut.UNBOUNDED))
-                                .forEach(e -> {
-                               if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
-                                   verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
-                               }
-                           });
+                        .forEach(e -> {
+                            if (startStreamCuts.get(e.getKey()) != StreamCut.UNBOUNDED) {
+                                verifyStartAndEndStreamCuts(startStreamCuts.get(e.getKey()), e.getValue());
+                            }
+                        });
        }
 
        /**
@@ -225,10 +308,10 @@ public class ReaderGroupConfig implements Serializable {
                    "Start stream cut must precede end stream cut.");
        }
 
-       private void validateStreamCut(Map<Stream, StreamCut> streamCuts) {
+       private void validateStreamCut(Map<String, StreamCut> streamCuts) {
            streamCuts.forEach((s, streamCut) -> {
                if (!streamCut.equals(StreamCut.UNBOUNDED)) {
-                   checkArgument(s.equals(streamCut.asImpl().getStream()));
+                   checkArgument(s.equals(streamCut.asImpl().getStream().getScopedName()));
                }
            });
        }
@@ -254,16 +337,16 @@ public class ReaderGroupConfig implements Serializable {
         private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
             builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
             builder.groupRefreshTimeMillis(revisionDataInput.readLong());
-            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
+            ElementDeserializer<String> keyDeserializer = in -> in.readUTF();
             ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
-            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.startingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
             builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
         }
 
         private void write00(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
             revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
-            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            ElementSerializer<String> keySerializer = (out, s) -> out.writeUTF(s);
             ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeArray(new ByteArraySegment(cut.toBytes()));
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);

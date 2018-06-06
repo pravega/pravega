@@ -156,7 +156,7 @@ public class RetentionTest {
 
         //create a reader
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().addStream(Stream.of(SCOPE, STREAM)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),

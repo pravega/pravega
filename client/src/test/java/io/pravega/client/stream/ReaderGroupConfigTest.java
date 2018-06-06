@@ -28,14 +28,22 @@ public class ReaderGroupConfigTest {
     public void testValidConfigWithScopedStreamName() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
-                .stream("scope/s1", getStreamCut("s1"))
-                .stream("scope/s2", getStreamCut("s2"))
+                .addStream(SCOPE, "s1", getStreamCut(SCOPE, "s1"))
+                .addStream(SCOPE, "s2", getStreamCut(SCOPE, "s2"))
+                .addStream("s3", getStreamCut("defaultScope", "s3"))
+                .addStream("s4", StreamCut.UNBOUNDED, getStreamCut("defaultScope", "s4"))
+                .defaultScope("defaultScope")
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut(SCOPE, "s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getEndingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut(SCOPE, "s2"), cfg.getStartingStreamCuts().get("scope/s2"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getEndingStreamCuts().get("scope/s2"));
+        assertEquals(getStreamCut("defaultScope", "s3"), cfg.getStartingStreamCuts().get("defaultScope/s3"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("defaultScope/s4"));
+        assertEquals(getStreamCut("defaultScope", "s4"), cfg.getEndingStreamCuts().get("defaultScope/s4"));
     }
 
     @Test
@@ -44,8 +52,8 @@ public class ReaderGroupConfigTest {
         CheckpointImpl checkpointImpl = Mockito.mock(CheckpointImpl.class);
         when(checkpoint.asImpl()).thenReturn(checkpointImpl);
         when(checkpointImpl.getPositions()).thenReturn(ImmutableMap.<Stream, StreamCut>builder()
-                .put(Stream.of(SCOPE, "s1"), getStreamCut("s1"))
-                .put(Stream.of(SCOPE, "s2"), getStreamCut("s2")).build());
+                .put(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1"))
+                .put(Stream.of(SCOPE, "s2"), getStreamCut(SCOPE, "s2")).build());
 
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
@@ -54,15 +62,15 @@ public class ReaderGroupConfigTest {
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut(SCOPE, "s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut(SCOPE, "s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
     public void testStartFromStreamCuts() {
         Map<Stream, StreamCut> streamCuts = ImmutableMap.<Stream, StreamCut>builder()
-                .put(Stream.of(SCOPE, "s1"), getStreamCut("s1"))
-                .put(Stream.of("scope/s2"), getStreamCut("s2")).build();
+                .put(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1"))
+                .put(Stream.of("scope/s2"), getStreamCut(SCOPE, "s2")).build();
 
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
@@ -71,36 +79,41 @@ public class ReaderGroupConfigTest {
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut(SCOPE, "s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut(SCOPE, "s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
     public void testValidConfig() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
-                                                 .stream("scope/s1", getStreamCut("s1"))
-                                                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                                                 .addStream("scope", "s1", getStreamCut(SCOPE, "s1"))
+                                                 .addStream(Stream.of(SCOPE, "s2"), getStreamCut(SCOPE, "s2"))
                                                  .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(getStreamCut(SCOPE, "s1"), cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut(SCOPE, "s2"), cfg.getStartingStreamCuts().get("scope/s2"));
     }
 
     @Test
     public void testValidConfigWithoutStartStreamCut() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
-                                                 .stream("scope/s1")
-                                                 .stream("scope/s2", getStreamCut("s2"))
+                                                 .addStream("scope", "s1")
+                                                 .addStream("scope", "s2", getStreamCut(SCOPE, "s2"))
+                                                 .addStream("s3")
+                                                 .addStream("s4", getStreamCut("defaultScope", "s4"))
+                                                 .defaultScope("defaultScope")
                                                  .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
-        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
-        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("scope/s1"));
+        assertEquals(getStreamCut(SCOPE, "s2"), cfg.getStartingStreamCuts().get("scope/s2"));
+        assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get("defaultScope/s3"));
+        assertEquals(getStreamCut("defaultScope", "s4"), cfg.getStartingStreamCuts().get("defaultScope/s4"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -111,11 +124,18 @@ public class ReaderGroupConfigTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void testEmptyStreamName() {
+        ReaderGroupConfig.builder()
+                         .addStream("")
+                         .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void testInValidStartStreamCut() {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()
-                         .stream("scope/s1", getStreamCut("s2"))
-                         .stream("scope/s2", getStreamCut("s1"))
+                         .addStream("scope", "s1", getStreamCut(SCOPE, "s2"))
+                         .addStream("scope", "s2", getStreamCut(SCOPE, "s1"))
                          .build();
     }
 
@@ -123,8 +143,24 @@ public class ReaderGroupConfigTest {
     public void testInValidStartStreamCutForStream() {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s2"))
-                         .stream("scope2/s2", getStreamCut("s1"))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s2"))
+                         .addStream("scope2", "s2", getStreamCut(SCOPE, "s1"))
+                         .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testMissingDefaultScope() {
+        ReaderGroupConfig.builder()
+                .addStream(SCOPE, "s2", getStreamCut(SCOPE, "s2"))
+                .addStream("s3", getStreamCut("defaultScope", "s3"))
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidStreamName() {
+        ReaderGroupConfig.builder()
+                         .addStream(SCOPE, "s2", getStreamCut(SCOPE, "s2"))
+                         .addStream("scope3/s3", getStreamCut("defaultScope", "s3"))
                          .build();
     }
 
@@ -132,38 +168,39 @@ public class ReaderGroupConfigTest {
     public void testValidStartAndEndStreamCuts() {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1"), StreamCut.UNBOUNDED)
-                         .stream(Stream.of(SCOPE, "s2"), StreamCut.UNBOUNDED, getStreamCut("s2"))
-                         .stream(Stream.of(SCOPE, "s3"))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1"), StreamCut.UNBOUNDED)
+                         .addStream(Stream.of(SCOPE, "s2"), StreamCut.UNBOUNDED, getStreamCut(SCOPE, "s2"))
+                         .addStream(Stream.of(SCOPE, "s3"))
+                         .defaultScope("defaultScope")
                          .build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidEndStreamCutForStream() {
         ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED, getStreamCut("s2"))
+                         .addStream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED, getStreamCut(SCOPE, "s2"))
                          .build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidStartAndEndStreamCuts() {
         ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 15L), getStreamCut("s1", 10L))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1", 15L), getStreamCut(SCOPE, "s1", 10L))
                          .build();
     }
 
     @Test
     public void testValidStartAndEndStreamCutsWithSimilarSegments() {
         ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 10L), getStreamCut("s1", 15L))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1", 10L), getStreamCut(SCOPE, "s1", 15L))
                          .build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testStartAndEndStreamCutsWithOverlap() {
         ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 1, 2, 3),
-                                 getStreamCut("s1", 0, 7))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1", 1, 2, 3),
+                                 getStreamCut(SCOPE, "s1", 0, 7))
                          .build();
 
     }
@@ -171,25 +208,25 @@ public class ReaderGroupConfigTest {
     @Test(expected = IllegalArgumentException.class)
     public void testStartAndEndStreamCutsWithPartialOverlap() {
         ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 0, 7),
-                                 getStreamCut("s1", 5, 4, 6))
+                         .addStream(Stream.of(SCOPE, "s1"), getStreamCut(SCOPE, "s1", 0, 7),
+                                 getStreamCut(SCOPE, "s1", 5, 4, 6))
                          .build();
     }
 
-    private StreamCut getStreamCut(String streamName) {
-        return getStreamCut(streamName, 10L);
+    private StreamCut getStreamCut(String scope, String streamName) {
+        return getStreamCut(scope, streamName, 10L);
     }
 
-    private StreamCut getStreamCut(String streamName, int...segments) {
+    private StreamCut getStreamCut(String scope, String streamName, int...segments) {
         ImmutableMap.Builder<Segment, Long> builder = ImmutableMap.<Segment, Long>builder();
-        Arrays.stream(segments).forEach(seg -> builder.put(new Segment(SCOPE, streamName, seg), 10L));
+        Arrays.stream(segments).forEach(seg -> builder.put(new Segment(scope, streamName, seg), 10L));
 
-        return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
+        return new StreamCutImpl(Stream.of(scope, streamName), builder.build());
     }
 
-    private StreamCut getStreamCut(String streamName, long offset) {
-        ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(SCOPE,
+    private StreamCut getStreamCut(String scope, String streamName, long offset) {
+        ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(scope,
                 streamName, 0), offset).build();
-        return new StreamCutImpl(Stream.of(SCOPE, streamName), positions);
+        return new StreamCutImpl(Stream.of(scope, streamName), positions);
     }
 }

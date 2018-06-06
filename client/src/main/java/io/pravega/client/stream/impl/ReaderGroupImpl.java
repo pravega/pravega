@@ -159,7 +159,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     public static Map<Segment, Long> getSegmentsForStreams(Controller controller, ReaderGroupConfig config) {
-        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        Map<Stream, StreamCut> streamToStreamCuts =  config.getStartingStreamCuts().entrySet().stream()
+                                                           .collect(Collectors.toMap(o -> Stream.of(o.getKey()), Entry::getValue));
         final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
         streamToStreamCuts.entrySet().forEach(e -> {
                   if (e.getValue().equals(StreamCut.UNBOUNDED)) {

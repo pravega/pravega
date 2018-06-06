@@ -133,12 +133,12 @@ public class BoundedStreamReaderTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints()
-                .stream(Stream.of(SCOPE, STREAM1),
+                .addStream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
                         getStreamCut(STREAM1, 60L, 0))
-                .stream(Stream.of(SCOPE, STREAM2))
+                .addStream(Stream.of(SCOPE, STREAM2))
                 .build());
 
         //Create a reader
@@ -195,7 +195,7 @@ public class BoundedStreamReaderTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
 
         ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(Stream.of(SCOPE, STREAM1),
+                .addStream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
@@ -214,7 +214,7 @@ public class BoundedStreamReaderTest {
         Assert.assertNull("Null is expected", reader1.readNextEvent(2000).getEvent());
 
         final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                             .stream(Stream.of(SCOPE, STREAM1),
+                                                             .addStream(Stream.of(SCOPE, STREAM1),
                                                                      getStreamCut(STREAM1, 60L, 0),
                                                                      //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
                                                                      getStreamCut(STREAM1, 90L, 1, 2, 3))
@@ -253,7 +253,7 @@ public class BoundedStreamReaderTest {
         StreamCut offset60SC = getStreamCut(STREAM3, 60L, 0);
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints()
-                .stream(Stream.of(SCOPE, STREAM3),
+                .addStream(Stream.of(SCOPE, STREAM3),
                         //startStreamCut points to second event in the stream.
                         offset30SC,
                         //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
@@ -279,7 +279,7 @@ public class BoundedStreamReaderTest {
 
         //Reset RG with startStreamCut which is already truncated.
         rg.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                             .stream(Stream.of(SCOPE, STREAM3), offset30SC, StreamCut.UNBOUNDED)
+                                             .addStream(Stream.of(SCOPE, STREAM3), offset30SC, StreamCut.UNBOUNDED)
                                              .build());
 
         verifyReinitializationRequiredException(reader);

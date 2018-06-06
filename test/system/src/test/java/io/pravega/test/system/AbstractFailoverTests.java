@@ -500,7 +500,7 @@ abstract class AbstractFailoverTests {
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
                                  ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
-        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
+        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().addStream(Stream.of(scope, stream)).build());
         log.info("Reader group name: {}, Reader group scope: {}, Online readers: {}",
                 readerGroupManager.getReaderGroup(readerGroupName).getGroupName(), readerGroupManager
                         .getReaderGroup(readerGroupName).getScope(), readerGroupManager

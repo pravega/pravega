@@ -302,8 +302,8 @@ public class ControllerRestApiTest {
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
-                                                       .stream(Stream.of(testScope, testStream1))
-                                                       .stream(Stream.of(testScope, testStream2))
+                                                       .addStream(Stream.of(testScope, testStream1))
+                                                       .addStream(Stream.of(testScope, testStream2))
                                                        .build();
             readerGroupManager.createReaderGroup(readerGroupName1, config);
             readerGroupManager.createReaderGroup(readerGroupName2, config);

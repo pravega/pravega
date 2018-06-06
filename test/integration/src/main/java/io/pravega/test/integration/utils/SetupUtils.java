@@ -196,7 +196,7 @@ public final class SetupUtils {
         final String readerGroup = "testReaderGroup" + scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
-                ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+                ReaderGroupConfig.builder().addStream(Stream.of(scope, streamName)).build());
 
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(readerGroupId, readerGroup, new IntegerSerializer(),

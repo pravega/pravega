@@ -130,7 +130,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     public void close() {
         clientFactory.close();
     }
-    
+
     @VisibleForTesting
     public static class ReaderGroupStateInitSerializer implements Serializer<InitialUpdate<ReaderGroupState>> {
         private final ReaderGroupState.ReaderGroupInitSerializer serializer = new ReaderGroupState.ReaderGroupInitSerializer();
@@ -148,7 +148,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
             return serializer.deserialize(new ByteArraySegment(serializedValue));
         }
     }
-    
+
     @VisibleForTesting
     public static class ReaderGroupStateUpdatesSerializer implements Serializer<Update<ReaderGroupState>> {
         private final ReaderGroupState.ReaderGroupUpdateSerializer serializer = new ReaderGroupState.ReaderGroupUpdateSerializer();
