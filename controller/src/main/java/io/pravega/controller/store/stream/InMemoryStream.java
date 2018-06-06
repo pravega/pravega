@@ -20,7 +20,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
-import io.pravega.controller.store.stream.tables.TableHelper;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Arrays;
@@ -70,7 +69,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final Map<String, Data<Integer>> completedTxns = new HashMap<>();
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
-    private final Map<Integer, Data<Integer>> markers = new HashMap<>();
+    private final Map<Long, Data<Integer>> markers = new HashMap<>();
     /**
      * This is used to guard updates to values in epoch txn map.
      * This ensures that we remove an epoch node if an only if there are no transactions against that epoch.
@@ -336,13 +335,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         }
 
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    CompletableFuture<Segment> getSegmentRow(int number) {
-        return getSegmentIndex()
-                .thenCompose(segmentIndex -> getSegmentTable()
-                        .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(), segmentTable.getData())));
     }
 
     @Override
@@ -640,7 +632,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
+    CompletableFuture<Void> createMarkerData(long segmentNumber, long timestamp) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, timestamp);
         synchronized (markersLock) {
@@ -650,7 +642,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
+    CompletableFuture<Void> updateMarkerData(long segmentNumber, Data<Integer> data) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Data<Integer> next = updatedCopy(data);
         synchronized (markersLock) {
@@ -674,7 +666,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> removeMarkerData(int segmentNumber) {
+    CompletableFuture<Void> removeMarkerData(long segmentNumber) {
         synchronized (markersLock) {
             markers.remove(segmentNumber);
         }
@@ -682,7 +674,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
+    CompletableFuture<Data<Integer>> getMarkerData(long segmentNumber) {
         synchronized (markersLock) {
             if (!markers.containsKey(segmentNumber)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,

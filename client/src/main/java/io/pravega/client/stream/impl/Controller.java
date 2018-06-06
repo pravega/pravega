@@ -115,7 +115,7 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the scaling was started or not.
      */
-    CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
+    CompletableFuture<Boolean> startScale(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges);
 
     /**
@@ -128,7 +128,7 @@ public interface Controller extends AutoCloseable {
      * @param executorService executor to be used for busy waiting.
      * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
      */
-    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges,
                                            final ScheduledExecutorService executorService);
 

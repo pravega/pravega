@@ -11,7 +11,6 @@ package io.pravega.controller.server;
 
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
@@ -31,6 +30,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -42,53 +43,52 @@ public class SegmentHelper {
 
     public Controller.NodeUri getSegmentUri(final String scope,
                                             final String stream,
-                                            final int segmentNumber,
+                                            final long segmentId,
                                             final HostControllerStore hostStore) {
-        final Host host = hostStore.getHostForSegment(scope, stream, segmentNumber);
+        final Host host = hostStore.getHostForSegment(scope, stream, segmentId);
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
     public CompletableFuture<Boolean> createSegment(final String scope,
                                                     final String stream,
-                                                    final int segmentNumber,
+                                                    final long segmentId,
                                                     final ScalingPolicy policy,
                                                     final HostControllerStore hostControllerStore,
                                                     final ConnectionFactory clientCF, String controllerToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-
+        final String qualifiedStreamSegmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
 
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
-
             @Override
             public void connectionDropped() {
-                log.warn("CreateSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
+                log.warn("CreateSegment {} Connection dropped", qualifiedStreamSegmentName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("CreateSegment {}/{}/{} wrong host", scope, stream, segmentNumber);
+                log.warn("CreateSegment {} wrong host", qualifiedStreamSegmentName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.info("CreateSegment {}/{}/{} segmentAlreadyExists", scope, stream, segmentNumber);
+                log.info("CreateSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-                log.info("CreateSegment {}/{}/{} SegmentCreated", scope, stream, segmentNumber);
+                log.info("CreateSegment {} SegmentCreated", qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("CreateSegment {}/{}/{} threw exception", scope, stream, segmentNumber, error);
+                log.error("CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
                 result.completeExceptionally(error);
             }
 
@@ -103,52 +103,52 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight(), controllerToken);
+                qualifiedStreamSegmentName, extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Boolean> truncateSegment(final String scope,
                                                       final String stream,
-                                                      final int segmentNumber,
+                                                      final long segmentId,
                                                       final long offset,
                                                       final HostControllerStore hostControllerStore,
                                                       final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
 
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("truncateSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
+                log.warn("truncateSegment {} Connection dropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("truncateSegment {}/{}/{} Wrong host", scope, stream, segmentNumber);
+                log.warn("truncateSegment {} Wrong host", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
-                log.info("truncateSegment {}/{}/{} SegmentTruncated", scope, stream, segmentNumber);
+                log.info("truncateSegment {} SegmentTruncated", qualifiedName);
                 result.complete(true);
             }
             
             @Override
             public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-                log.info("truncateSegment {}/{}/{} SegmentIsTruncated", scope, stream, segmentNumber);
+                log.info("truncateSegment {} SegmentIsTruncated", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("truncateSegment {}/{}/{} error", scope, stream, segmentNumber, error);
+                log.error("truncateSegment {} error", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -161,51 +161,51 @@ public class SegmentHelper {
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), offset, delegationToken);
+                qualifiedName, offset, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Boolean> deleteSegment(final String scope,
                                                     final String stream,
-                                                    final int segmentNumber,
+                                                    final long segmentId,
                                                     final HostControllerStore hostControllerStore,
                                                     final ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("deleteSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
+                log.warn("deleteSegment {} Connection dropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("deleteSegment {}/{}/{} wrong host", scope, stream, segmentNumber);
+                log.warn("deleteSegment {} wrong host", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info("deleteSegment {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
+                log.info("deleteSegment {} NoSuchSegment", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-                log.info("deleteSegment {}/{}/{} SegmentDeleted", scope, stream, segmentNumber);
+                log.info("deleteSegment {} SegmentDeleted", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("deleteSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.error("deleteSegment {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -218,7 +218,7 @@ public class SegmentHelper {
         };
 
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), delegationToken);
+                qualifiedName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
@@ -229,7 +229,7 @@ public class SegmentHelper {
      *
      * @param scope               stream scope
      * @param stream              stream name
-     * @param segmentNumber       number of segment to be sealed
+     * @param segmentId       number of segment to be sealed
      * @param hostControllerStore host controller store
      * @param clientCF            connection factory
      * @param delegationToken     the token to be presented to segmentstore.
@@ -237,43 +237,43 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
-                                                  final int segmentNumber,
+                                                  final long segmentId,
                                                   final HostControllerStore hostControllerStore,
                                                   final ConnectionFactory clientCF, String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
-
             @Override
             public void connectionDropped() {
-                log.warn("sealSegment {}/{}/{} connectionDropped", scope, stream, segmentNumber);
+                log.warn("sealSegment {} connectionDropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("sealSegment {}/{}/{} wrongHost", scope, stream, segmentNumber);
+                log.warn("sealSegment {} wrongHost", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
-                log.info("sealSegment {}/{}/{} segmentSealed", scope, stream, segmentNumber);
+                log.info("sealSegment {} segmentSealed", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
-                log.info("sealSegment {}/{}/{} SegmentIsSealed", scope, stream, segmentNumber);
+                log.info("sealSegment {} SegmentIsSealed", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("sealSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.error("sealSegment {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -286,51 +286,51 @@ public class SegmentHelper {
         };
 
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), delegationToken);
+                qualifiedName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
                                                      final String stream,
-                                                     final int segmentNumber,
+                                                     final long segmentId,
                                                      final UUID txId,
                                                      final HostControllerStore hostControllerStore,
                                                      final ConnectionFactory clientCF, String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<UUID> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("createTransaction {}/{}/{} connectionDropped", scope, stream, segmentNumber);
+                log.warn("createTransaction {} connectionDropped", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("createTransaction {}/{}/{} wrong host", scope, stream, segmentNumber);
+                log.warn("createTransaction {} wrong host", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
-                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
+                log.debug("createTransaction {} TransactionCreated", qualifiedName);
 
                 result.complete(txId);
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
+                log.debug("createTransaction {} TransactionCreated", qualifiedName);
                 result.complete(txId);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("createTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.error("createTransaction {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -343,59 +343,60 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateTransaction request = new WireCommands.CreateTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), txId, delegationToken);
+                qualifiedName, txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope,
                                                           final String stream,
-                                                          final int segmentNumber,
+                                                          final long segmentId,
                                                           final UUID txId,
                                                           final HostControllerStore hostControllerStore,
                                                           final ConnectionFactory clientCF, String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("commitTransaction {}/{}/{} connection dropped", scope, stream, segmentNumber);
+                log.warn("commitTransaction {} connection dropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("commitTransaction {}/{}/{} wrongHost", scope, stream, segmentNumber);
+                log.warn("commitTransaction {} wrongHost", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                log.debug("commitTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
+                log.debug("commitTransaction {} TransactionCommitted", qualifiedName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
-                log.warn("commitTransaction {}/{}/{} Transaction aborted", scope, stream, segmentNumber);
+                log.warn("commitTransaction {} Transaction aborted", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info("commitTransaction {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
+                log.info("commitTransaction {} NoSuchSegment", qualifiedName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("commitTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.error("commitTransaction {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -409,55 +410,56 @@ public class SegmentHelper {
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), txId, delegationToken);
+                qualifiedName, txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,
                                                          final String stream,
-                                                         final int segmentNumber,
+                                                         final long segmentId,
                                                          final UUID txId,
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF, String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("abortTransaction {}/{}/{} connectionDropped", scope, stream, segmentNumber);
+                log.warn("abortTransaction {} connectionDropped", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("abortTransaction {}/{}/{} wrongHost", scope, stream, segmentNumber);
+                log.warn("abortTransaction {} wrongHost", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                log.warn("abortTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
+                log.warn("abortTransaction {} TransactionCommitted", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
-                log.debug("abortTransaction {}/{}/{} transactionAborted", scope, stream, segmentNumber);
+                log.debug("abortTransaction {} transactionAborted", qualifiedName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info("abortTransaction {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
+                log.info("abortTransaction {} NoSuchSegment", qualifiedName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.info("abortTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.info("abortTransaction {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -470,41 +472,42 @@ public class SegmentHelper {
         };
 
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), txId, delegationToken);
+                qualifiedName, txId, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy,
-                                                int segmentNumber, HostControllerStore hostControllerStore,
+                                                long segmentId, HostControllerStore hostControllerStore,
                                                 ConnectionFactory clientCF, String delegationToken) {
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("updatePolicy {}/{}/{} connectionDropped", scope, stream, segmentNumber);
+                log.warn("updatePolicy {} connectionDropped", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("updatePolicy {}/{}/{} wrongHost", scope, stream, segmentNumber);
+                log.warn("updatePolicy {} wrongHost", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
-                log.info("updatePolicy {}/{}/{} SegmentPolicyUpdated", scope, stream, segmentNumber);
+                log.info("updatePolicy {} SegmentPolicyUpdated", qualifiedName);
                 result.complete(null);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.info("updatePolicy {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.info("updatePolicy {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -519,40 +522,41 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), extracted.getLeft(), extracted.getRight(), delegationToken);
+                qualifiedName, extracted.getLeft(), extracted.getRight(), delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
 
-    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, int segmentNumber,
+    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId,
                                                                             HostControllerStore hostControllerStore, ConnectionFactory clientCF, String delegationToken) {
         final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+        final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
 
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("getSegmentInfo {}/{}/{} connectionDropped", scope, stream, segmentNumber);
+                log.warn("getSegmentInfo {} connectionDropped", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("getSegmentInfo {}/{}/{} WrongHost", scope, stream, segmentNumber);
+                log.warn("getSegmentInfo {} WrongHost", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
-                log.info("getSegmentInfo {}/{}/{} got response", scope, stream, segmentNumber);
+                log.info("getSegmentInfo {} got response", qualifiedName);
                 result.complete(streamInfo);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("getSegmentInfo {}/{}/{} failed", scope, stream, segmentNumber, error);
+                log.error("getSegmentInfo {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -565,7 +569,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                Segment.getScopedName(scope, stream, segmentNumber), delegationToken);
+                qualifiedName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }

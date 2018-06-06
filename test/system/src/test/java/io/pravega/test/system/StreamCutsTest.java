@@ -365,7 +365,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
             keyRanges.put(keySpaceEnd - perSegmentKeySpace, keySpaceEnd);
         }
 
-        return controller.scaleStream(Stream.of(scope, stream), Collections.singletonList(0), keyRanges, executorService).getFuture();
+        return controller.scaleStream(Stream.of(scope, stream), Collections.singletonList(0L), keyRanges, executorService).getFuture();
     }
 
     private void checkScaleStatus(CompletableFuture<Boolean> scaleStatus) {
