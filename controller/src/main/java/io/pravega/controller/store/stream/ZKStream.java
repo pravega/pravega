@@ -27,10 +27,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -351,62 +349,18 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                    final long timestamp,
-                                                    final long leaseExpiryTime,
-                                                    final long maxExecutionExpiryTime,
-                                                    final long scaleGracePeriod) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
-        createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
-                .whenComplete((value, ex) -> {
-                    if (ex != null) {
-                        if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
-                            Futures.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
-                                    maxExecutionExpiryTime, scaleGracePeriod), future);
-                        } else {
-                            future.completeExceptionally(ex);
-                        }
-                    } else {
-                        future.complete(value);
-                    }
-                });
-        return future;
-    }
-
-    private CompletableFuture<Integer> createNewTransactionNode(final UUID txId,
-                                                                final long timestamp,
-                                                                final long leaseExpiryTime,
-                                                                final long maxExecutionExpiryTime,
-                                                                final long scaleGracePeriod) {
-        return getLatestEpoch().thenCompose(pair -> {
-            final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
-            final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                    scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-            return store.createZNodeIfNotExist(activePath, txnRecord, false)
-                    .thenApply(x -> cache.invalidateCache(activePath))
-                    .thenApply(y -> pair.getKey());
-        });
-    }
-
-    @Override
-    CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
-        return store.getChildren(activeTxRoot).thenCompose(list -> {
-            Map<String, CompletableFuture<Boolean>> map = new HashMap<>();
-            for (String str : list) {
-                int epoch = Integer.parseInt(str);
-                String activeTxnPath = getActiveTxPath(epoch, txId.toString());
-                map.put(str, store.checkExists(activeTxnPath));
-            }
-            return Futures.allOfWithResults(map);
-        }).thenApply(map -> {
-            Optional<Map.Entry<String, Boolean>> opt = map.entrySet().stream().filter(Map.Entry::getValue).findFirst();
-            if (opt.isPresent()) {
-                return Integer.parseInt(opt.get().getKey());
-            } else {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString());
-            }
-        });
+    CompletableFuture<Void> createNewTransaction(final UUID txId,
+                                                 final long timestamp,
+                                                 final long leaseExpiryTime,
+                                                 final long maxExecutionExpiryTime,
+                                                 final long scaleGracePeriod) {
+        int epoch = getTransactionEpoch(txId);
+        final String activePath = getActiveTxPath(epoch, txId.toString());
+        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+        // Note: this can throw DataNotFoundException as the epoch node (parent) may have been deleted.
+        return store.createZNodeIfNotExist(activePath, txnRecord, false)
+                .thenApply(x -> cache.invalidateCache(activePath));
     }
 
     @Override
@@ -443,16 +397,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
-        // TODO: no need to check existence, just delete the path, if the path is already deleted, will get error
-        return store.checkExists(activePath)
-                .thenCompose(x -> {
-                    if (x) {
-                        return store.deletePath(activePath, false)
+        return store.deletePath(activePath, false)
                                 .whenComplete((r, e) -> cache.invalidateCache(activePath));
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
     }
 
     @Override
@@ -615,12 +561,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     // region private helpers
     @VisibleForTesting
-    String getActiveTxPath(final long epoch, final String txId) {
-        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Long.toString(epoch)), txId);
+    String getActiveTxPath(final int epoch, final String txId) {
+        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Integer.toString(epoch)), txId);
     }
 
-    private String getEpochPath(final long epoch) {
-        return ZKPaths.makePath(activeTxRoot, Long.toString(epoch));
+    private String getEpochPath(final int epoch) {
+        return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
     }
 
     private String getCompletedTxPath(final String txId) {
