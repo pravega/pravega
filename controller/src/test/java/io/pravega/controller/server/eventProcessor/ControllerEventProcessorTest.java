@@ -124,7 +124,7 @@ public class ControllerEventProcessorTest {
         // first event should commit all of them
         // subsequent events should be no op
         // 3. commit request for future epoch
-        // this should be postponed
+        // this should be ignored as there is nothing in the epoch to commit
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
@@ -134,9 +134,8 @@ public class ControllerEventProcessorTest {
         }
 
         Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch))));
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
     }
 
     @Test(timeout = 10000)
@@ -144,8 +143,8 @@ public class ControllerEventProcessorTest {
         // keep a committxnlist in the store
         // same epoch --> commit txn list should be cleared first
         //     subsequent events should complete remainder txns that are in committing state
-        // lower epoch --> do nothing and exit
-        // higher epoch --> postpone and exit
+        // lower epoch --> rolling transaction
+        // higher epoch --> no transactions can exist on higher epoch. nothing to do. ignore.
         List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
         List<VersionedTransactionData> txnDataList2 = createAndCommitTransactions(3);
         int epoch = txnDataList1.get(0).getEpoch();
@@ -153,7 +152,8 @@ public class ControllerEventProcessorTest {
 
         CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
 
-        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
@@ -175,7 +175,7 @@ public class ControllerEventProcessorTest {
     private List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            UUID txnId = UUID.randomUUID();
+            UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
             VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
                     null, executor).join();
             Assert.assertNotNull(txnData);
@@ -188,14 +188,6 @@ public class ControllerEventProcessorTest {
         }
         return retVal;
     }
-
-
-    // commit with scale
-    // 1. scale started
-    // 2. commit on old epoch should complete scale
-    // 3. commit on older epoch should be ignored
-    // 4. commit on new epoch should be postponed
-    // 5.
 
     @Test(timeout = 10000)
     public void testAbortEventProcessor() {

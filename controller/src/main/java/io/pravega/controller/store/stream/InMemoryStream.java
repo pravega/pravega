@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -77,7 +76,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
      */
     @GuardedBy("txnsLock")
     private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
-    private final AtomicInteger activeEpoch = new AtomicInteger();
 
     InMemoryStream(String scope, String name) {
         super(scope, name);
@@ -481,31 +479,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochNodeIfAbsent(int epoch) {
-        Preconditions.checkArgument(epochTxnMap.size() <= 2);
-        activeEpoch.compareAndSet(epoch - 1, epoch);
-        synchronized (txnsLock) {
-            epochTxnMap.putIfAbsent(epoch, new HashSet<>());
-        }
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    CompletableFuture<Void> deleteEpochNode(int epoch) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (txnsLock) {
-            if (epochTxnMap.getOrDefault(epoch, Collections.emptySet()).isEmpty()) {
-                epochTxnMap.remove(epoch);
-                result.complete(null);
-            } else {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS,
-                        "Stream: " + getName() + " Epoch: " + epoch));
-            }
-        }
-        return result;
-    }
-
-    @Override
     CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
                                                     long scaleGracePeriod) {
         Preconditions.checkNotNull(txId);
@@ -517,17 +490,15 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         int epoch = getTransactionEpoch(txId);
 
         synchronized (txnsLock) {
-            if (!epochTxnMap.containsKey(epoch)) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString() + " Epoch: " + epoch));
-            } else {
-                activeTxns.putIfAbsent(txId.toString(), txnData);
-                epochTxnMap.compute(epoch, (x, y) -> {
-                    y.add(txId.toString());
-                    return y;
-                });
-                result.complete(null);
-            }
+            activeTxns.putIfAbsent(txId.toString(), txnData);
+            epochTxnMap.compute(epoch, (x, y) -> {
+                if (y == null) {
+                    y = new HashSet<>();
+                }
+                y.add(txId.toString());
+                return y;
+            });
+            result.complete(null);
         }
 
         return result;
@@ -617,6 +588,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 y.remove(txId.toString());
                 return y;
             });
+
+            if (epochTxnMap.get(epoch).isEmpty()) {
+                epochTxnMap.remove(epoch);
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -774,6 +749,23 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "epoch transition exists"));
             } else {
                 this.epochTransition = new Data<>(epochTransitionData, 0);
+                result.complete(null);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> updateEpochTransitionNode(byte[] epochTransitionData) {
+        Preconditions.checkNotNull(epochTransitionData);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        byte[] copy = Arrays.copyOf(epochTransitionData, epochTransitionData.length);
+        synchronized (lock) {
+            if (this.epochTransition == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "epoch transition not found"));
+            } else {
+                this.epochTransition = new Data<>(copy, this.epochTransition.getVersion() + 1);
                 result.complete(null);
             }
         }

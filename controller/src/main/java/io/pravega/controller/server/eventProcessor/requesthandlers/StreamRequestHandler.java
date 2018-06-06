@@ -13,7 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.store.stream.ScaleOperationExceptions;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -84,7 +84,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
         return withCompletion(commitTransactionTask, commitEvent,
-                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof ScaleOperationExceptions.ScaleConflictException));
+                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException));
     }
 
     @Override

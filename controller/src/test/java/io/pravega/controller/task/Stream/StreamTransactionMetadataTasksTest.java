@@ -290,7 +290,7 @@ public class StreamTransactionMetadataTasksTest {
         // Validate the txn index.
         Assert.assertEquals(1, streamStore.listHostsOwningTxn().join().size());
 
-        // Change state of one txn to COMMITTING.
+        // Change state of one txn to COMMITTING_TXN.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
                 null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
@@ -493,7 +493,7 @@ public class StreamTransactionMetadataTasksTest {
         // Commit the first one
         Assert.assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
 
-        // Ensure that transaction state is COMMITTING.
+        // Ensure that transaction state is COMMITTING_TXN.
         assertEquals(TxnStatus.COMMITTING, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Abort the second one
@@ -503,7 +503,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTING, streamStore.transactionStatus(SCOPE, STREAM, tx2, null, executor).join());
 
         // Ensure that commit (resp. abort) transaction tasks are idempotent
-        // when transaction is in COMMITTING state (resp. ABORTING state).
+        // when transaction is in COMMITTING_TXN state (resp. ABORTING state).
         assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
         assertEquals(TxnStatus.ABORTING, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
 

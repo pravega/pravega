@@ -19,7 +19,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -32,11 +31,11 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -48,7 +47,6 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -264,46 +262,49 @@ public class ScaleRequestHandlerTest {
                 null, null, null, null, executor);
 
         // 1 create transaction on old epoch and set it to committing
-        UUID txnIdOldEpoch = UUID.randomUUID();
+        UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000, 10000,
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
 
+        HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+
         // 2. start scale
-        requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0, 1, 2),
+        requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L, 1L, 2L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis())).join();
 
-        // 3. verify that scale is not complete
+        // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
-        assertEquals(State.SCALING, state);
+        assertEquals(State.ACTIVE, state);
+
+        HistoryRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
 
         // 4. create transaction -> verify that this is created on new epoch
-        UUID txnIdNewEpoch = UUID.randomUUID();
+        UUID txnIdNewEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnDataNew = streamStore.createTransaction(scope, stream, txnIdNewEpoch, 10000, 10000, 10000,
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
 
-        // 5. commit new epoch --> verify that this is postponed
-        AssertExtensions.assertThrows("operation not allowed expected", requestHandler.process(new CommitEvent(scope, stream, txnDataNew.getEpoch())),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-        assertEquals(1, writer.queue.size());
-        ControllerEvent event = writer.queue.take();
-        assertTrue(event instanceof CommitEvent);
-        assertTrue(((CommitEvent) event).getEpoch() == txnDataNew.getEpoch());
-
-        // 6. commit old epoch --> verify that transaction on old epoch is committed and scale is also complete;
-        requestHandler.process(new CommitEvent(scope, stream, txnData.getEpoch())).join();
-        TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
-        assertEquals(TxnStatus.COMMITTING, txnStatus);
-
-        state = streamStore.getState(scope, stream, false, null, executor).join();
-        assertEquals(State.ACTIVE, state);
-        txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
+        // 5. commit on old epoch.. this should roll over
+        assertTrue(Futures.await(requestHandler.process(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
-        requestHandler.process(event).join();
+        HistoryRecord epochTwo = streamStore.getEpoch(scope, stream, 2, null, executor).join();
+        HistoryRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
+        assertEquals(0, epochTwo.getReferenceEpoch());
+        assertEquals(1, epochThree.getReferenceEpoch());
+
+        HistoryRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(epochThree, activeEpoch);
+
+        // 6. commit on new epoch. This should happen on duplicate of new epoch successfully
+        assertTrue(Futures.await(requestHandler.process(new CommitEvent(scope, stream, txnDataNew.getEpoch()))));
         txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
+
+        activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(epochThree, activeEpoch);
     }
 
     @Test

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -40,14 +41,13 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamCutRecord;
@@ -135,8 +135,6 @@ public class StreamMetadataTasksTest {
 
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(1, executor);
         streamStorePartialMock = spy(streamStore); //create a partial mock.
-        doReturn(CompletableFuture.completedFuture(false)).when(streamStorePartialMock).isTransactionOngoing(
-                anyString(), anyString(), any(), any()); //mock only isTransactionOngoing call.
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -173,13 +171,14 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Long> sealedSegments = Collections.singletonList(1L);
-        StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
-        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        EpochTransitionRecord response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStorePartialMock.scaleCreateNewSegments(SCOPE, stream1, null, executor).get();
+        streamStorePartialMock.scaleCreateNewSegments(SCOPE, stream1, false, null, executor).get();
         streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
         streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
                 null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
     }
 
     @After
@@ -760,11 +759,11 @@ public class StreamMetadataTasksTest {
         long scaleTs = System.currentTimeMillis();
 
         ArrayList<Long> sealedSegments = Lists.newArrayList(sealedSegmentsWithSize.keySet());
-        StartScaleResponse response = streamStorePartialMock.startScale(scope, stream, sealedSegments,
+        EpochTransitionRecord response = streamStorePartialMock.startScale(scope, stream, sealedSegments,
                 newSegments, scaleTs, false, null, executor).join();
-        final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> scale1SegmentsCreated = response.getNewSegmentsWithRange();
         streamStorePartialMock.setState(scope, stream, State.SCALING, null, executor).join();
-        streamStorePartialMock.scaleCreateNewSegments(scope, stream, null, executor).join();
+        streamStorePartialMock.scaleCreateNewSegments(scope, stream, false, null, executor).join();
         streamStorePartialMock.scaleNewSegmentsCreated(scope, stream, null, executor).join();
         streamStorePartialMock.scaleSegmentsSealed(scope, stream, sealedSegmentsWithSize, null, executor).join();
         streamStorePartialMock.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -915,9 +914,8 @@ public class StreamMetadataTasksTest {
         reset(streamStorePartialMock);
 
         // Now complete all existing transactions and verify that seal completes
-        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, 0, openTxn.getId(), null, executor).join();
-        streamStorePartialMock.commitTransaction(SCOPE, streamWithTxn, 0, committingTxn.getId(), null, executor).join();
-
+        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
+        streamStorePartialMock.commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 
@@ -1006,18 +1004,19 @@ public class StreamMetadataTasksTest {
         OperationContext context = streamStorePartialMock.createContext(SCOPE, "test");
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", false, context, executor).get(), State.ACTIVE);
 
-        // Now when startScale runs even after that we should get the state as active.
-        StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, "test", Collections.singletonList(0L), newRanges, 30, true, null, executor).get();
+        // Now when runScale runs even after that we should get the state as active.
+        EpochTransitionRecord response = streamStorePartialMock.startScale(SCOPE, "test", Collections.singletonList(0L), newRanges, 30, true, null, executor).get();
         assertEquals(response.getActiveEpoch(), 0);
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", true, context, executor).get(), State.ACTIVE);
 
         AssertExtensions.assertThrows("", () -> streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, "test",
                 context, executor).get(), ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException);
 
-        List<Segment> segments = streamMetadataTasks.startScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
-
-        assertTrue(segments.stream().anyMatch(x -> x.getSegmentId() == computeSegmentId(1, 1) && x.getKeyStart() == 0.0 && x.getKeyEnd() == 0.5));
-        assertTrue(segments.stream().anyMatch(x -> x.getSegmentId() == computeSegmentId(2, 1) && x.getKeyStart() == 0.5 && x.getKeyEnd() == 1.0));
+        ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
+        EpochTransitionRecord record = task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segments = record.getNewSegmentsWithRange();
+        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(1, 1) && x.getValue().getKey() == 0.0 && x.getValue().getValue() == 0.5));
+        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(2, 1) && x.getValue().getKey() == 0.5 && x.getValue().getValue() == 1.0));
     }
 
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {

@@ -67,11 +67,9 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        return streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
+        return Futures.toVoid(streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
                 .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
-                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context,
-                        this.streamMetadataTasks.retrieveDelegationToken())))
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
@@ -83,6 +81,6 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                             processedEvents.offer(event);
                         }
                     }
-                });
+                }));
     }
 }

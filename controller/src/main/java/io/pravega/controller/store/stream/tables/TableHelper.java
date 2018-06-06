@@ -17,6 +17,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Lombok;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -41,7 +42,6 @@ import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 
 /**
  * Helper class for operations pertaining to segment store tables (segment, history, index).
@@ -66,7 +66,7 @@ public class TableHelper {
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
             long creationTime;
-            int epoch = getEpoch(segmentId);
+            int epoch = StreamSegmentNameUtils.getEpoch(segmentId);
 
             if (epoch == record.getCreationEpoch()) {
                 creationTime = record.getStartTime();
@@ -90,18 +90,8 @@ public class TableHelper {
         }
     }
 
-    public static Segment getLatestSegment(final byte[] segmentIndex, final byte[] segmentTable) {
-        Optional<Segment> segment = SegmentRecord.readLatest(segmentIndex, segmentTable).map(segmentRecord -> new Segment(
-                computeSegmentId(segmentRecord.getSegmentNumber(), segmentRecord.getCreationEpoch()),
-                segmentRecord.getCreationEpoch(),
-                segmentRecord.getStartTime(),
-                segmentRecord.getRoutingKeyStart(),
-                segmentRecord.getRoutingKeyEnd()));
-        if (segment.isPresent()) {
-            return segment.get();
-        } else {
-            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "No Segment found");
-        }
+    public static SegmentRecord getLatestSegmentRecord(final byte[] segmentIndex, final byte[] segmentTable) {
+        return SegmentRecord.readLatest(segmentIndex, segmentTable).get();
     }
 
     /**
@@ -128,9 +118,8 @@ public class TableHelper {
      * is ongoing and returns the latest completed epoch.
      */
     public static List<Long> getActiveSegments(final byte[] historyIndex, final byte[] historyTable) {
-        final Optional<HistoryRecord> record = HistoryRecord.readLatestRecord(historyIndex, historyTable, true);
-
-        return record.isPresent() ? record.get().getSegments() : Collections.emptyList();
+        HistoryRecord record = getActiveEpoch(historyIndex, historyTable);
+        return record.getSegments();
     }
 
     /**
@@ -531,6 +520,57 @@ public class TableHelper {
     }
 
     /**
+     * This method takes a reference epoch, seals the active epoch, creates a duplicate entry for referenced epoch.
+     * Follows it up with creating a partial duplicate entry for active epoch.
+     *
+     * @param historyIndex      history index
+     * @param historyTable      history table
+     * @param referenceEpoch    reference epoch to duplicate
+     * @param timestamp         timestamp to add to duplicate of the referenced epoch
+     * @return serialized history index and table as byte array
+     */
+    @SneakyThrows
+    public static Pair<byte[], byte[]> insertDuplicateRecordsInHistoryTable(final byte[] historyIndex, final byte[] historyTable,
+                                                           int referenceEpoch, long timestamp) {
+        HistoryRecord activeRecord = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
+        int nextEpoch = activeRecord.getEpoch() + 1;
+        // if nextepoch was already previously indexed, overwrite the index
+        int startingOffset = HistoryIndexRecord.readRecord(historyIndex, nextEpoch)
+                .map(index -> index.getIndexOffset()).orElse(historyIndex.length);
+
+        final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
+        indexStream.write(historyIndex, 0, startingOffset);
+
+        final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
+        historyStream.write(historyTable);
+        int historyOffset = historyTable.length;
+
+        // duplicate the reference epoch
+        HistoryRecord referenceRecord = HistoryRecord.readRecord(referenceEpoch, historyIndex, historyTable, true).get();
+        List<Long> newSegments = referenceRecord.getSegments().stream().map(segmentId -> computeSegmentId(getSegmentNumber(segmentId),
+                nextEpoch)).collect(Collectors.toList());
+        HistoryRecord record = new HistoryRecord(nextEpoch, referenceRecord.getReferenceEpoch(), newSegments, timestamp);
+        ArrayView arrayView = record.toArrayView();
+        // add to history table and index
+        indexStream.write(new HistoryIndexRecord(nextEpoch, historyOffset).toByteArray());
+        historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
+
+        historyOffset = historyStream.size();
+
+        // duplicate active epoch as a partial record. no time added here
+        int newEpoch = nextEpoch + 1;
+        newSegments = activeRecord.getSegments().stream().map(segmentId -> computeSegmentId(getSegmentNumber(segmentId), newEpoch)).collect(Collectors.toList());
+        record = new HistoryRecord(newEpoch, activeRecord.getReferenceEpoch(), newSegments);
+        arrayView = record.toArrayView();
+        historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
+        indexStream.write(new HistoryIndexRecord(newEpoch, historyOffset).toByteArray());
+
+        byte[] updatedHistoryTable = historyStream.toByteArray();
+        byte[] updatedIndex = indexStream.toByteArray();
+        return new ImmutablePair<>(updatedIndex, updatedHistoryTable);
+    }
+
+    /**
      * Add a new row to the history table. This row is only partial as it only contains list of segments.
      * Timestamp is added using completeHistoryRecord method.
      *
@@ -573,8 +613,8 @@ public class TableHelper {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
         historyStream.write(historyTable, 0, indexRecord.getHistoryOffset());
-        HistoryRecord historyRecord = new HistoryRecord(partialHistoryRecord.getEpoch(), partialHistoryRecord.getSegments(),
-                timestamp);
+        HistoryRecord historyRecord = new HistoryRecord(partialHistoryRecord.getEpoch(), partialHistoryRecord.getReferenceEpoch(),
+                partialHistoryRecord.getSegments(), timestamp);
         ArrayView arrayView = historyRecord.toArrayView();
         historyStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
         return historyStream.toByteArray();
@@ -628,17 +668,6 @@ public class TableHelper {
     }
 
     /**
-     * Method to check if a scale operation is currently ongoing and has created a new epoch (presence of partial record).
-     * @param historyTable history table
-     * @param historyIndex history index
-     * @return true if a scale operation is ongoing, false otherwise
-     */
-    public static boolean isNewEpochCreated(final byte[] historyIndex, final byte[] historyTable) {
-        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
-        return latestHistoryRecord.isPartial();
-    }
-
-    /**
      * Method to check scale operation can be performed with given input.
      * @param segmentsToSeal segments to seal
      * @param historyTable history table
@@ -646,13 +675,13 @@ public class TableHelper {
      * @return true if a scale operation can be performed, false otherwise
      */
     public static boolean canScaleFor(final List<Long> segmentsToSeal, final byte[] historyIndex, final byte[] historyTable) {
-        return getActiveEpoch(historyIndex, historyTable).getValue().containsAll(segmentsToSeal);
+        return getActiveEpoch(historyIndex, historyTable).getSegments().containsAll(segmentsToSeal);
     }
 
     /**
      * Method that looks at the supplied epoch transition record and compares it with partial state in metadata store to determine
      * if the partial state corresponds to supplied input.
-     * 
+     *
      * @param epochTransitionRecord epoch transition record
      * @param historyIndex history index
      * @param historyTable history table
@@ -661,18 +690,17 @@ public class TableHelper {
      * @return true if input matches partial state, false otherwise
      */
     public static boolean isEpochTransitionConsistent(final EpochTransitionRecord epochTransitionRecord,
-                    final byte[] historyIndex,
-                    final byte[] historyTable,
-                    final byte[] segmentIndex,
-                    final byte[] segmentTable) {
+                                                      final byte[] historyIndex,
+                                                      final byte[] historyTable,
+                                                      final byte[] segmentIndex,
+                                                      final byte[] segmentTable) {
         AtomicBoolean isConsistent = new AtomicBoolean(true);
         SegmentRecord latest = SegmentRecord.readLatest(segmentIndex, segmentTable).get();
         // verify that epoch transition record is consistent with segment table
-        if (latest.getCreationEpoch() == epochTransitionRecord.newEpoch) { // if segment table is updated
+        if (latest.getCreationEpoch() == epochTransitionRecord.getNewEpoch()) { // if segment table is updated
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
                 Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentWithRange.getKey()));
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
-                        // TODO: shivesh this check will break after rolling transaction, getSegmentId
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
                         segmentOpt.get().getRoutingKeyEnd() == segmentWithRange.getValue().getValue());
@@ -687,11 +715,11 @@ public class TableHelper {
         if (latestHistoryRecord.getEpoch() == epochTransitionRecord.activeEpoch) {
             isConsistent.compareAndSet(true,
                     !latestHistoryRecord.isPartial() &&
-                    latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.segmentsToSeal));
-        } else if (latestHistoryRecord.getEpoch() == epochTransitionRecord.newEpoch) {
+                            latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.segmentsToSeal));
+        } else if (latestHistoryRecord.getEpoch() == epochTransitionRecord.getNewEpoch()) {
             // if history table is updated
             boolean check = latestHistoryRecord.getSegments().containsAll(epochTransitionRecord.newSegmentsWithRange.keySet()) &&
-            epochTransitionRecord.segmentsToSeal.stream().noneMatch(x -> latestHistoryRecord.getSegments().contains(x));
+                    epochTransitionRecord.segmentsToSeal.stream().noneMatch(x -> latestHistoryRecord.getSegments().contains(x));
 
             isConsistent.compareAndSet(true, check);
         } else {
@@ -702,18 +730,36 @@ public class TableHelper {
     }
 
     /**
-     * Return the active epoch.
+     * Return the active epoch. The active epoch is the one whose segments are not sealed yet.
+     * It is typically the latest epoch. However, if the latest epoch is "partial" then it is one of the previous epochs.
+     * During scale we only add one new epoch at a time, so active epoch becomes epoch that is previous to partial epoch.
+     * However, during commit, it will always be behind by two.
+     *
      * @param historyTable history table
      * @param historyIndex history index
      * @return active epoch
      */
-    public static Pair<Integer, List<Long>> getActiveEpoch(final byte[] historyIndex, final byte[] historyTable) {
+    public static HistoryRecord getActiveEpoch(final byte[] historyIndex, final byte[] historyTable) {
         HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyIndex, historyTable, true).get();
-        return new ImmutablePair<>(historyRecord.getEpoch(), historyRecord.getSegments());
+        // if the record is created as a sealed epoch, the previous epoch may not have been sealed yet and hence that will be active.
+        if (historyRecord.isPartial()) {
+            // Scale creates new fresh epochs. So if latest epoch is partial and a duplicate, then its previous epoch
+            // is created by rolling txn workflow.
+            // So for partial epochs created by scale, go back one epoch from latest to get active epoch. For rolling txn
+            // go back by two epochs.
+            if (historyRecord.isDuplicate()) {
+                historyRecord = HistoryRecord.readRecord(historyRecord.getEpoch() - 2, historyIndex, historyTable, true).get();
+            } else {
+                historyRecord = HistoryRecord.fetchPrevious(historyRecord, historyIndex, historyTable).get();
+            }
+        }
+
+        return historyRecord;
     }
 
     /**
      * Return segments in the epoch.
+     *
      * @param historyTable history table
      * @param historyIndex history index
      * @param epoch            epoch
@@ -728,13 +774,19 @@ public class TableHelper {
     }
 
     /**
-     * Return the active epoch.
+     * Method to fetch history record corresponding to the given epoch.
+     *
      * @param historyTable history table
      * @param historyIndex history index
-     * @return active epoch
+     * @param epoch            epoch
+     *
+     * @return History record corresponding to the epoch
      */
-    public static HistoryRecord getLatestEpoch(byte[] historyIndex, byte[] historyTable) {
-        return HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
+    public static HistoryRecord getEpochRecord(final byte[] historyIndex, final byte[] historyTable, final int epoch) {
+        Optional<HistoryRecord> record = HistoryRecord.readRecord(epoch, historyIndex, historyTable, false);
+
+        return record.orElseThrow(() -> StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                "Epoch: " + epoch + " not found in history table"));
     }
 
     /**
@@ -847,9 +899,8 @@ public class TableHelper {
     }
 
     /**
-     * Method to validate supplied scale input. It performs two checks
-     * 1. if segments to seal are active in the current epoch.
-     * 2. new ranges are identical to sealed ranges.
+     * Method to validate supplied scale input. It performs a check that new ranges are identical to sealed ranges.
+     *
      * @param segmentsToSeal segments to seal
      * @param newRanges      new ranges to create
      * @param segmentTable   segment table
@@ -885,8 +936,8 @@ public class TableHelper {
     /**
      * Method to compute epoch transition record. It takes segments to seal and new ranges and all the tables and
      * computes the next epoch transition record.
-     * @param historyIndex history index.
-     * @param historyTable history table.
+     * @param historyIndex history index
+     * @param historyTable history table
      * @param segmentIndex segment index
      * @param segmentTable segment table
      * @param segmentsToSeal segments to seal
@@ -897,19 +948,18 @@ public class TableHelper {
     public static EpochTransitionRecord computeEpochTransition(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
                                                                byte[] segmentTable, List<Long> segmentsToSeal,
                                                                List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Pair<Integer, List<Long>> activeEpoch = getActiveEpoch(historyIndex, historyTable);
-        Preconditions.checkState(activeEpoch.getValue().containsAll(segmentsToSeal), "Invalid epoch transition request");
+        HistoryRecord activeEpoch = getActiveEpoch(historyIndex, historyTable);
+        Preconditions.checkState(activeEpoch.getSegments().containsAll(segmentsToSeal), "Invalid epoch transition request");
 
-        int newEpoch = activeEpoch.getKey() + 1;
+        int newEpoch = activeEpoch.getEpoch() + 1;
         int segmentCount = getSegmentCount(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
         IntStream.range(0, newRanges.size()).forEach(x -> {
             newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
         });
-        return new EpochTransitionRecord(activeEpoch.getKey(), newEpoch, scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
+        return new EpochTransitionRecord(activeEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));
     }
-
 
     private static Map<Segment, Integer> computeEpochCutMapWithSegment(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
                                                                               byte[] segmentTable, Map<Long, Long> streamCut) {

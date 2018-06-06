@@ -146,7 +146,7 @@ public class ControllerMetadataSerializerTest {
     @Test
     public void historyRecordTest() throws IOException {
         List<Long> segments = Lists.newArrayList(1L, 2L, 3L);
-        HistoryRecord record = HistoryRecord.builder().epoch(0).scaleTime(System.currentTimeMillis()).segments(segments).build();
+        HistoryRecord record = HistoryRecord.builder().epoch(0).creationTime(System.currentTimeMillis()).segments(segments).build();
         byte[] serialized = HistoryRecord.SERIALIZER.serialize(record).array();
         HistoryRecord deserialized = HistoryRecord.SERIALIZER.deserialize(serialized);
         assertEquals(record, deserialized);
@@ -163,7 +163,7 @@ public class ControllerMetadataSerializerTest {
         set.add(0L);
         set.add(1L);
         set.add(2L);
-        EpochTransitionRecord record = EpochTransitionRecord.builder().activeEpoch(0).newEpoch(1).time(1L)
+        EpochTransitionRecord record = EpochTransitionRecord.builder().activeEpoch(0).time(1L)
                 .newSegmentsWithRange(ImmutableMap.copyOf(map)).segmentsToSeal(ImmutableSet.copyOf(set)).build();
         byte[] serialized = EpochTransitionRecord.SERIALIZER.serialize(record).array();
         EpochTransitionRecord deserialized = EpochTransitionRecord.SERIALIZER.deserialize(serialized);

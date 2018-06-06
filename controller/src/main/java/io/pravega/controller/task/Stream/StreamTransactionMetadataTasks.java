@@ -374,8 +374,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
-    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod, OperationContext ctx, long maxExecutionPeriod, UUID txnId, CompletableFuture<Void> addIndex) {
-        return (CompletableFuture<VersionedTransactionData>) addIndex.thenComposeAsync(ignore ->
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod,
+                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         CompletableFuture<Void> addIndex) {
+        return addIndex.thenComposeAsync(ignore ->
                                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                                         scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
                             if (e != null) {
@@ -526,16 +528,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     /**
-     * Seals a txn and transitions it to COMMITTING (resp. ABORTING) state if commit param is true (resp. false).
+     * Seals a txn and transitions it to COMMITTING_TXN (resp. ABORTING) state if commit param is true (resp. false).
      *
      * Post-condition:
      * 1. If seal completes successfully, then
-     *     (a) txn state is COMMITTING/ABORTING,
+     *     (a) txn state is COMMITTING_TXN/ABORTING,
      *     (b) CommitEvent/AbortEvent is present in the commit stream/abort stream,
      *     (c) txn is removed from host-txn index,
      *     (d) txn is removed from the timeout service.
      *
-     * 2. If process fails after transitioning txn to COMMITTING/ABORTING state, but before responding to client, then
+     * 2. If process fails after transitioning txn to COMMITTING_TXN/ABORTING state, but before responding to client, then
      * since txn is present in the host-txn index, some other controller process shall put CommitEvent/AbortEvent to
      * commit stream/abort stream.
      *

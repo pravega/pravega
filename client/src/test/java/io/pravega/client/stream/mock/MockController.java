@@ -19,7 +19,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
@@ -35,14 +34,8 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,6 +52,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
@@ -299,13 +294,8 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCommitted(TransactionCommitted transactionCommitted) {
+            public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
                 result.complete(null);
-            }
-
-            @Override
-            public void transactionAborted(TransactionAborted transactionAborted) {
-                result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
 
             @Override
@@ -318,7 +308,8 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
+        sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
+                StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
         return result;
     }
 
@@ -346,16 +337,6 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.completeExceptionally(new RuntimeException("Transaction already committed."));
-            }
-
-            @Override
-            public void transactionAborted(TransactionAborted transactionAborted) {
-                result.complete(null);
-            }
-
-            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
@@ -365,7 +346,8 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        sendRequestOverNewConnection(new DeleteSegment(idGenerator.get(), transactionName, ""), replyProcessor, result);
         return result;
     }
 
@@ -400,7 +382,7 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCreated(TransactionCreated transactionCreated) {
+            public void segmentCreated(WireCommands.SegmentCreated transactionCreated) {
                 result.complete(null);
             }
 
@@ -414,7 +396,9 @@ public class MockController implements Controller {
                 result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId, ""), replyProcessor, result);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
+                0, ""), replyProcessor, result);
         return result;
     }
 

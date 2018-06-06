@@ -68,7 +68,7 @@ public class SegmentHelperTest {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0, 0L,
+        CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0L, 0L,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -82,7 +82,7 @@ public class SegmentHelperTest {
     @Test
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Boolean> retVal = helper.deleteSegment("", "", 0, new MockHostControllerStore(),
+        CompletableFuture<Boolean> retVal = helper.deleteSegment("", "", 0L, new MockHostControllerStore(),
                 factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -95,7 +95,7 @@ public class SegmentHelperTest {
     @Test
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Boolean> retVal = helper.sealSegment("", "", 0,
+        CompletableFuture<Boolean> retVal = helper.sealSegment("", "", 0L,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -108,7 +108,7 @@ public class SegmentHelperTest {
     @Test
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0, UUID.randomUUID(),
+        CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0L, UUID.randomUUID(),
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -121,7 +121,7 @@ public class SegmentHelperTest {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0, UUID.randomUUID(),
+        CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, UUID.randomUUID(),
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -134,7 +134,7 @@ public class SegmentHelperTest {
     @Test
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0, UUID.randomUUID(),
+        CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, UUID.randomUUID(),
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -147,7 +147,7 @@ public class SegmentHelperTest {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0,
+        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -160,7 +160,7 @@ public class SegmentHelperTest {
     @Test
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0,
+        CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
