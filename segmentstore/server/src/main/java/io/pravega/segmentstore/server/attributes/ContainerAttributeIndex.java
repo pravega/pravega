@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Collection of Attribute Index objects.
  */
-public interface ContainerAttributeIndex {
+public interface ContainerAttributeIndex extends AutoCloseable {
     /**
      * Gets or creates an AttributeIndex instance and initializes it.
      *
@@ -43,4 +43,7 @@ public interface ContainerAttributeIndex {
      *                   registered in this ContainerAttributeIndex are eligible for removal.
      */
     void cleanup(Collection<Long> segmentIds);
+
+    @Override
+    void close();
 }

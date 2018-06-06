@@ -7,10 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.reading;
+package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 
 /**
@@ -18,7 +17,7 @@ import java.time.Duration;
  */
 public class CachePolicy {
     //region Members
-
+    public static final CachePolicy INFINITE = new CachePolicy(Long.MAX_VALUE, Duration.ofSeconds(Integer.MAX_VALUE), Duration.ofSeconds(Integer.MAX_VALUE));
     private final long maxSize;
     private final int maxGenerations;
     private final Duration generationDuration;
