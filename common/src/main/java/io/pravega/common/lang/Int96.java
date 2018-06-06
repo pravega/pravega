@@ -19,12 +19,12 @@ import lombok.Data;
  * It is unsigned and only allows for non negative values. It also implements comparable interface and comparison involves
  * first compariging msbs and if msbs are equal then we compare lsbs.
  */
-public class BigLong implements Comparable {
-    public static final BigLong ZERO = new BigLong(0, 0L);
+public class Int96 implements Comparable {
+    public static final Int96 ZERO = new Int96(0, 0L);
     private final int msb;
     private final long lsb;
 
-    public BigLong(int msb, long lsb) {
+    public Int96(int msb, long lsb) {
         Preconditions.checkArgument(msb >= 0);
         Preconditions.checkArgument(lsb >= 0);
 
@@ -34,10 +34,10 @@ public class BigLong implements Comparable {
 
     @Override
     public int compareTo(Object o) {
-        if (!(o instanceof BigLong)) {
+        if (!(o instanceof Int96)) {
             throw new RuntimeException("incomparable objects");
         }
-        BigLong other = (BigLong) o;
+        Int96 other = (Int96) o;
 
         if (msb != other.msb) {
             return Integer.compare(msb, other.msb);
@@ -53,21 +53,21 @@ public class BigLong implements Comparable {
         return b;
     }
 
-    public static BigLong fromBytes(byte[] b) {
+    public static Int96 fromBytes(byte[] b) {
         int msb = BitConverter.readInt(b, 0);
         long lsb = BitConverter.readLong(b, Integer.BYTES);
 
-        return new BigLong(msb, lsb);
+        return new Int96(msb, lsb);
     }
 
-    public BigLong add(int increment) {
+    public Int96 add(int increment) {
         Preconditions.checkArgument(increment >= 0);
-        BigLong retVal;
+        Int96 retVal;
         if (this.lsb <= Long.MAX_VALUE - increment) {
-            retVal = new BigLong(this.msb, this.lsb + increment);
+            retVal = new Int96(this.msb, this.lsb + increment);
         } else if (this.msb < Integer.MAX_VALUE) {
             int remainder = increment - (int) (Long.MAX_VALUE - this.lsb);
-            retVal = new BigLong(this.msb + 1, remainder);
+            retVal = new Int96(this.msb + 1, remainder);
         } else {
             // overflow: throw exception
             throw new ArithmeticException("Overflow");

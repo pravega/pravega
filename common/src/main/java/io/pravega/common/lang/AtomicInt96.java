@@ -14,29 +14,29 @@ import com.google.common.annotations.VisibleForTesting;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
- * This class provides the ability to atomically update a BigLong value.
+ * This class provides the ability to atomically update a Int96 value.
  */
-public class AtomicBigLong {
+public class AtomicInt96 {
     @GuardedBy("lock")
-    private BigLong value;
+    private Int96 value;
     private final Object lock = new Object();
 
-    public AtomicBigLong() {
-        this.value = BigLong.ZERO;
+    public AtomicInt96() {
+        this.value = Int96.ZERO;
     }
 
     @VisibleForTesting
-    AtomicBigLong(int msb, long lsb) {
-        this.value = new BigLong(msb, lsb);
+    AtomicInt96(int msb, long lsb) {
+        this.value = new Int96(msb, lsb);
     }
 
-    public BigLong get() {
+    public Int96 get() {
         synchronized (lock) {
             return this.value;
         }
     }
 
-    public BigLong incrementAndGet() {
+    public Int96 incrementAndGet() {
         synchronized (lock) {
             this.value = this.value.add(1);
             return this.value;
@@ -45,7 +45,7 @@ public class AtomicBigLong {
 
     public void set(int msb, long lsb) {
         synchronized (lock) {
-            value = new BigLong(msb, lsb);
+            value = new Int96(msb, lsb);
         }
     }
 }

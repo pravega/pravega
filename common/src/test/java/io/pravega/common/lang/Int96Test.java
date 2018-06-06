@@ -14,14 +14,14 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class BigLongTest {
+public class Int96Test {
     @Test
     public void bigLongTest() {
-        BigLong counter = new BigLong(0, 1L);
-        BigLong counter2 = new BigLong(0, 1L);
-        BigLong counter3 = new BigLong(0, 2L);
-        BigLong counter4 = new BigLong(1, 1L);
-        BigLong counter5 = new BigLong(1, Long.MAX_VALUE - 1);
+        Int96 counter = new Int96(0, 1L);
+        Int96 counter2 = new Int96(0, 1L);
+        Int96 counter3 = new Int96(0, 2L);
+        Int96 counter4 = new Int96(1, 1L);
+        Int96 counter5 = new Int96(1, Long.MAX_VALUE - 1);
 
         // comparison
         assertTrue(counter.compareTo(counter2) == 0);
@@ -30,34 +30,34 @@ public class BigLongTest {
         assertTrue(counter4.compareTo(counter3) > 0);
 
         // tobytes and frombytes
-        assertEquals(counter, BigLong.fromBytes(counter.toBytes()));
+        assertEquals(counter, Int96.fromBytes(counter.toBytes()));
 
         // add
-        BigLong added = counter.add(100);
+        Int96 added = counter.add(100);
         assertEquals(0, added.getMsb());
         assertEquals(101, added.getLsb());
 
         // add 1 to check we have max allowed lsb covered
-        BigLong added2 = counter5.add(1);
+        Int96 added2 = counter5.add(1);
         assertEquals(1, added2.getMsb());
         assertEquals(Long.MAX_VALUE, added2.getLsb());
 
         // add hundred to verify if that the range is covered.
-        BigLong added3 = counter5.add(100);
+        Int96 added3 = counter5.add(100);
         assertEquals(2, added3.getMsb());
         assertEquals(99, added3.getLsb());
     }
 
     @Test
     public void atomicBigLongTest() {
-        AtomicBigLong atomicCounter = new AtomicBigLong();
-        assertEquals(BigLong.ZERO, atomicCounter.get());
+        AtomicInt96 atomicCounter = new AtomicInt96();
+        assertEquals(Int96.ZERO, atomicCounter.get());
 
-        AtomicBigLong atomicCounter2 = new AtomicBigLong(0, 1L);
-        assertEquals(new BigLong(0, 1L), atomicCounter2.get());
+        AtomicInt96 atomicCounter2 = new AtomicInt96(0, 1L);
+        assertEquals(new Int96(0, 1L), atomicCounter2.get());
 
-        BigLong counter = atomicCounter.incrementAndGet();
+        Int96 counter = atomicCounter.incrementAndGet();
         assertEquals(counter, atomicCounter.get());
-        assertEquals(new BigLong(0, 1L), counter);
+        assertEquals(new Int96(0, 1L), counter);
     }
 }

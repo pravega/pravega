@@ -13,8 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.lang.AtomicBigLong;
-import io.pravega.common.lang.BigLong;
+import io.pravega.common.lang.AtomicInt96;
+import io.pravega.common.lang.Int96;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
@@ -66,9 +66,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
     private final Object lock;
     @GuardedBy("lock")
-    private final AtomicBigLong limit;
+    private final AtomicInt96 limit;
     @GuardedBy("lock")
-    private final AtomicBigLong counter;
+    private final AtomicInt96 counter;
     @GuardedBy("lock")
     private volatile CompletableFuture<Void> refreshFutureRef;
 
@@ -83,8 +83,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         bucketCacheMap = new ConcurrentHashMap<>();
         bucketOwnershipCacheRef = new AtomicReference<>();
         this.lock = new Object();
-        this.counter = new AtomicBigLong();
-        this.limit = new AtomicBigLong();
+        this.counter = new AtomicInt96();
+        this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
     }
 
@@ -98,10 +98,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    CompletableFuture<BigLong> getNextCounter() {
-        CompletableFuture<BigLong> future;
+    CompletableFuture<Int96> getNextCounter() {
+        CompletableFuture<Int96> future;
         synchronized (lock) {
-            BigLong next = counter.incrementAndGet();
+            Int96 next = counter.incrementAndGet();
             if (next.compareTo(limit.get()) > 0) {
                 // ignore the counter value and after refreshing call getNextCounter
                 future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
@@ -151,11 +151,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
-        return storeHelper.createZNodeIfNotExist(ZKStoreHelper.COUNTER_PATH, BigLong.ZERO.toBytes())
+        return storeHelper.createZNodeIfNotExist(ZKStoreHelper.COUNTER_PATH, Int96.ZERO.toBytes())
                 .thenCompose(v -> storeHelper.getData(ZKStoreHelper.COUNTER_PATH)
                         .thenCompose(data -> {
-                            BigLong previous = BigLong.fromBytes(data.getData());
-                            BigLong nextLimit = previous.add(COUNTER_RANGE);
+                            Int96 previous = Int96.fromBytes(data.getData());
+                            Int96 nextLimit = previous.add(COUNTER_RANGE);
                             return storeHelper.setData(ZKStoreHelper.COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock
@@ -384,14 +384,14 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @VisibleForTesting
-    BigLong getLimitForTesting() {
+    Int96 getLimitForTesting() {
         synchronized (lock) {
             return limit.get();
         }
     }
 
     @VisibleForTesting
-    BigLong getCounterForTesting() {
+    Int96 getCounterForTesting() {
         synchronized (lock) {
             return counter.get();
         }

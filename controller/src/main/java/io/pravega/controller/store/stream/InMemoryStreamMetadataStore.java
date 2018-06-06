@@ -13,8 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.lang.AtomicBigLong;
-import io.pravega.common.lang.BigLong;
+import io.pravega.common.lang.AtomicInt96;
+import io.pravega.common.lang.Int96;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.index.InMemoryHostIndex;
@@ -57,7 +57,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicReference<BucketOwnershipListener> ownershipListenerRef;
 
     private final ConcurrentMap<Integer, BucketChangeListener> listeners;
-    private final AtomicBigLong counter;
+    private final AtomicInt96 counter;
 
     private final Executor executor;
 
@@ -66,7 +66,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
         this.ownershipListenerRef = new AtomicReference<>();
-        this.counter = new AtomicBigLong();
+        this.counter = new AtomicInt96();
     }
 
     @Override
@@ -80,7 +80,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    CompletableFuture<BigLong> getNextCounter() {
+    CompletableFuture<Int96> getNextCounter() {
         return CompletableFuture.completedFuture(counter.incrementAndGet());
     }
 

@@ -16,7 +16,7 @@ import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.common.lang.BigLong;
+import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -500,7 +500,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Stream stream = getStream(scopeName, streamName, context);
 
         // This can throw write conflict exception
-        CompletableFuture<BigLong> nextFuture = getNextCounter();
+        CompletableFuture<Int96> nextFuture = getNextCounter();
         return withCompletion(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb())), executor);
     }
 
@@ -730,7 +730,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     abstract Stream newStream(final String scope, final String name);
 
-    abstract CompletableFuture<BigLong> getNextCounter();
+    abstract CompletableFuture<Int96> getNextCounter();
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);
