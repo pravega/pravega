@@ -34,7 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
 /**
  * Request handler for processing commit events in request-stream.
@@ -242,9 +242,9 @@ public class CommitTransactionTask implements StreamTask<CommitEvent> {
         int newActieEpoch = newTxnEpoch + 1;
 
         List<Long> txnEpochDuplicate = txnEpoch.getSegments().stream().map(segment ->
-                computeSegmentId(getPrimaryId(segment), newTxnEpoch)).collect(Collectors.toList());
+                computeSegmentId(getSegmentNumber(segment), newTxnEpoch)).collect(Collectors.toList());
         List<Long> activeEpochDuplicate = activeEpoch.getSegments().stream()
-                .map(segment -> computeSegmentId(getPrimaryId(segment), newActieEpoch)).collect(Collectors.toList());
+                .map(segment -> computeSegmentId(getSegmentNumber(segment), newActieEpoch)).collect(Collectors.toList());
 
         return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context)
                 .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context, delegationToken))

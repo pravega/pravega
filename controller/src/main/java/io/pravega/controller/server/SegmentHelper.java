@@ -36,7 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
@@ -373,7 +373,7 @@ public class SegmentHelper {
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
         // Transaction segments are created against a logical primary such that all transaction segments become mergable.
         // So we will erase secondary id while creating transaction's qualified name.
-        final int primaryId = getPrimaryId(segmentId);
+        final int primaryId = getSegmentNumber(segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, primaryId);
         return getTransactionNameFromId(qualifiedName, txId);
     }
@@ -385,7 +385,7 @@ public class SegmentHelper {
                                                           final UUID txId,
                                                           final HostControllerStore hostControllerStore,
                                                           final ConnectionFactory clientCF, String delegationToken) {
-        Preconditions.checkArgument(getPrimaryId(targetSegmentId) == getPrimaryId(sourceSegmentId));
+        Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId, hostControllerStore);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
         final String transactionName = getTransactionName(scope, stream, sourceSegmentId, txId);

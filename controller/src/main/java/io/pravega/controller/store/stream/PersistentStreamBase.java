@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getPrimaryId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.toMap;
 
 @Slf4j
@@ -535,8 +535,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .anyMatch(y -> y.getKey().equals(x.getKey())
                                 && y.getValue().equals(x.getValue())));
         boolean segmentsToSealMatch = record.getSegmentsToSeal().stream().allMatch(segmentsToSeal::contains) ||
-                (isManualScale && record.getSegmentsToSeal().stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toSet())
-                    .equals(segmentsToSeal.stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toSet())));
+                (isManualScale && record.getSegmentsToSeal().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet())
+                    .equals(segmentsToSeal.stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet())));
 
         return newRangeMatch && segmentsToSealMatch;
     }
@@ -636,7 +636,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .stream().sorted(Comparator.comparingLong(Map.Entry::getKey)).map(Map.Entry::getValue)
                 .collect(Collectors.toList());
 
-        int nextSegmentNumber = epochTransitionRecord.getNewSegmentsWithRange().keySet().stream().mapToInt(StreamSegmentNameUtils::getPrimaryId).min().getAsInt();
+        int nextSegmentNumber = epochTransitionRecord.getNewSegmentsWithRange().keySet().stream().mapToInt(StreamSegmentNameUtils::getSegmentNumber).min().getAsInt();
         final Pair<byte[], byte[]> updated = TableHelper.addNewSegmentsToSegmentTableAndIndex(nextSegmentNumber,
                 epochTransitionRecord.getNewEpoch(), segmentIndex.getData(), segmentTable.getData(), newRanges, segmentCreationTimestamp);
 
@@ -657,7 +657,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
             return CompletableFuture.completedFuture(epochTransition);
         } else if (activeEpoch.getEpoch() > epochTransition.getActiveEpoch() && activeEpoch.getReferenceEpoch() == recordActiveEpoch.getReferenceEpoch()) {
             List<Long> duplicateSegmentsToSeal = epochTransition.getSegmentsToSeal().stream()
-                    .map(x -> computeSegmentId(getPrimaryId(x), activeEpoch.getEpoch()))
+                    .map(x -> computeSegmentId(getSegmentNumber(x), activeEpoch.getEpoch()))
                     .collect(Collectors.toList());
 
             EpochTransitionRecord updatedRecord = TableHelper.computeEpochTransition(
@@ -903,8 +903,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Void> rollingTxnActiveEpochSealed(Map<Long, Long> sealedActiveEpochSegments, int activeEpoch, long time) {
         Predicate<HistoryRecord> idempotent = input -> {
-            Set<Integer> set1 = input.getSegments().stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toSet());
-            Set<Integer> set2 = sealedActiveEpochSegments.keySet().stream().map(StreamSegmentNameUtils::getPrimaryId).collect(Collectors.toSet());
+            Set<Integer> set1 = input.getSegments().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet());
+            Set<Integer> set2 = sealedActiveEpochSegments.keySet().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet());
             return input.getEpoch() == activeEpoch + 2 && set1.equals(set2);
         };
 
