@@ -90,10 +90,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
-            .include(ServiceConfig.builder()
-                                  .with(ServiceConfig.CONTAINER_COUNT, 4)
-                                  .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
-                                  .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE))
+            .include(ServiceConfig
+                    .builder()
+                    .with(ServiceConfig.CONTAINER_COUNT, 4)
+                    .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
+                    .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
+                    .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
+                    .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 30))
             .include(ContainerConfig
                     .builder()
                     .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
@@ -102,11 +105,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
                     .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L))
-            .include(ReadIndexConfig.builder()
-                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 512) // Need this for truncation testing.
-                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 30 * 1000))
+            .include(ReadIndexConfig
+                    .builder()
+                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 512) // Need this for truncation testing.
+                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)

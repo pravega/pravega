@@ -18,10 +18,10 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.server.CacheKey;
-import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
@@ -71,10 +71,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CONTAINER_ID = 123;
 
-    private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers
-            .withInfiniteCachePolicy(ReadIndexConfig.builder()
-                                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
-                                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+    private static final ReadIndexConfig DEFAULT_CONFIG = ReadIndexConfig
+            .builder()
+            .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
+            .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
             .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
 
@@ -122,12 +122,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final Random rnd = new Random(0);
         rnd.nextBytes(segmentData);
 
-        final ReadIndexConfig config = ConfigHelpers
-                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, minReadLength))
-                .build();
+        final ReadIndexConfig config = ReadIndexConfig.builder().with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, minReadLength).build();
 
         @Cleanup
-        TestContext context = new TestContext(config, config.getCachePolicy());
+        TestContext context = new TestContext(config, CachePolicy.INFINITE);
 
         // Create the segment in Storage and populate it with all the data (one segment is sufficient for this test).
         final long segmentId = createSegment(0, context);
@@ -296,18 +294,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testTruncate() throws Exception {
-        // We use a custom ReadIndexConfig that allows more than one generation. This helps us verify that truncated entries
-        // are actually evicted.
-        val config = ReadIndexConfig.builder()
-                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, DEFAULT_CONFIG.getMemoryReadMinLength())
-                                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, DEFAULT_CONFIG.getStorageReadAlignment())
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
-                                    .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 1000000)
-                                    .with(ReadIndexConfig.CACHE_POLICY_GENERATION_TIME, 10000)
-                                    .build();
-
         @Cleanup
-        TestContext context = new TestContext(config, config.getCachePolicy());
+        TestContext context = new TestContext(DEFAULT_CONFIG, new CachePolicy(Long.MAX_VALUE, Duration.ofMillis(1000000), Duration.ofMillis(10000)));
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendData(segmentIds, segmentContents, context);
@@ -781,9 +769,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
 
         // To properly test this, we want predictable storage reads.
-        ReadIndexConfig config = ConfigHelpers
-                .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize))
-                .build();
+        ReadIndexConfig config = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize).build();
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
         @Cleanup
@@ -1352,7 +1338,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final Storage storage;
 
         TestContext() {
-            this(DEFAULT_CONFIG, DEFAULT_CONFIG.getCachePolicy());
+            this(DEFAULT_CONFIG, CachePolicy.INFINITE);
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {

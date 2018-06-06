@@ -7,17 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server;
+package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BitConverter;
+import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import com.google.common.base.Preconditions;
 
 /**
  * ReadIndex-specific implementation of Cache.Key.
  */
-public class CacheKey extends Cache.Key {
+class CacheKey extends Cache.Key {
     //region Members
 
     private static final HashHelper HASH = HashHelper.seededWith(CacheKey.class.getName());
@@ -35,7 +37,7 @@ public class CacheKey extends Cache.Key {
      * @param streamSegmentId The StreamSegmentId that the key refers to.
      * @param offset          The Offset within the StreamSegment that the key refers to.
      */
-    public CacheKey(long streamSegmentId, long offset) {
+    CacheKey(long streamSegmentId, long offset) {
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(offset >= 0, "offset");
 
@@ -48,6 +50,7 @@ public class CacheKey extends Cache.Key {
      *
      * @param serialization The serialization of the key.
      */
+    @VisibleForTesting
     CacheKey(byte[] serialization) {
         Preconditions.checkNotNull(serialization, "serialization");
         Preconditions.checkArgument(serialization.length == SERIALIZATION_LENGTH, "Invalid serialization length.");
