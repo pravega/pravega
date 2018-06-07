@@ -449,21 +449,28 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
-        // TODO: check if the source is empty. If so, maybe delete it (after re-checking after sealing).
-
         CompletableFuture<Void> result;
-        if (sourceMetadata.isSealed()) {
-            // Source Segment is already sealed, so we only need to merge it.
-            result = this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
+        if (sourceMetadata.getLength() == 0) {
+            // Source is empty. We may be able to skip the merge altogether and simply delete the segment. But we can only
+            // be certain of this if the source is also sealed, otherwise it's possible it may still have outstanding
+            // writes in the pipeline. As such, we cannot pipeline the two operations, and must wait for the seal to finish first.
+            result = trySealStreamSegment(sourceMetadata, timer.getRemaining())
+                    .thenComposeAsync(v -> {
+                        // Seal is done. The DurableLog guarantees that the metadata is now updated with all operations up
+                        // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
+                        if (sourceMetadata.getLength() == 0) {
+                            // Source is still empty after sealing - OK to delete.
+                            return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
+                        } else {
+                            // Source now has some data - we must merge the two.
+                            return this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
+                        }
+                    }, this.executor);
         } else {
-            // We make use of the DurableLog's pipelining abilities by queueing up the Merge right after the Seal.
-            // It is possible that a concurrent call to this method (or to seal) may have already sealed the Segment after
-            // we checked above, so it should be OK to ignore any StreamSegmentSealedExceptions.
+            // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
+            // the Merge right after the Seal.
             result = CompletableFuture.allOf(
-                    Futures.exceptionallyExpecting(
-                            this.durableLog.add(new StreamSegmentSealOperation(sourceSegmentId), timer.getRemaining()),
-                            ex -> ex instanceof StreamSegmentSealedException,
-                            null),
+                    trySealStreamSegment(sourceMetadata, timer.getRemaining()),
                     this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining()));
         }
 
@@ -509,6 +516,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
+
+    /**
+     * Attempts to seal a Segment that may already be sealed.
+     *
+     * @param metadata The SegmentMetadata for the Segment to Seal.
+     * @param timeout  Timeout for the operation.
+     * @return A CompletableFuture that will indicate when the operation completes. If the given segment is already sealed,
+     * this future will already be completed, otherwise it will complete once the seal is performed.
+     */
+    private CompletableFuture<Void> trySealStreamSegment(SegmentMetadata metadata, Duration timeout) {
+        if (metadata.isSealed()) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            // It is OK to ignore StreamSegmentSealedException as the segment may have already been sealed by a concurrent
+            // call to this or via some other operation.
+            return Futures.exceptionallyExpecting(
+                    this.durableLog.add(new StreamSegmentSealOperation(metadata.getId()), timeout),
+                    ex -> ex instanceof StreamSegmentSealedException,
+                    null);
+        }
+    }
 
     /**
      * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
