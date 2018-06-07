@@ -375,7 +375,7 @@ public class RollingStorage implements SyncStorage {
         if (shouldConcatNatively(source, target)) {
             // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
             // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
-            // having a lot of very small SegmentChunks around if the application has a lot of small transactions.
+            // having a lot of very small SegmentChunks around if we end up doing a lot of concatenations.
             log.debug("Concat '{}' into '{}' using native method.", source, target);
             SegmentChunk lastTarget = target.lastChunk();
             if (lastTarget == null || lastTarget.isSealed()) {
@@ -788,9 +788,17 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
-    private void ensureOffset(RollingSegmentHandle handle, long offset) throws BadOffsetException {
+    private void ensureOffset(RollingSegmentHandle handle, long offset) throws StreamSegmentException {
         if (offset != handle.length()) {
-            throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            // Force-refresh the handle to make sure it is still in sync with reality. Make sure we open a read handle
+            // so that we don't force any sort of fencing during this process.
+            val refreshedHandle = openHandle(handle.getSegmentName(), true);
+            handle.refresh(refreshedHandle);
+            log.debug("Handle refreshed: {}.", handle);
+            if (offset != handle.length()) {
+                // Still in disagreement; throw exception.
+                throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            }
         }
     }
 

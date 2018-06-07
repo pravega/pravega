@@ -269,6 +269,16 @@ interface Stream {
     CompletableFuture<Void> removeColdMarker(int segmentNumber);
 
     /**
+     * Method to generate new transaction Id.
+     * This takes the latest epoch and increments the counter to compose a TransactionId with 32 bit MSB as epoch number and
+     * 96 bit LSB as counter. 96 bit lsb is represented as msb32bit integer and lsb64 long
+     * @param msb32Bit 32 bit msb for the counter
+     * @param lsb64Bit 64 bit lsb for the counter
+     * @return Completable Future which when completed contains a unique txn id within context of this stream.
+     */
+    CompletableFuture<UUID> generateNewTxnId(int msb32Bit, long lsb64Bit);
+
+    /**
      * Method to start new transaction creation
      *
      * @return Details of created transaction.

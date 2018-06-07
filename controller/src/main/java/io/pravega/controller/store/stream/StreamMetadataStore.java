@@ -468,6 +468,20 @@ public interface StreamMetadataStore {
                                                                    final Executor executor);
 
     /**
+     * Method to create a new unique transaction id on the stream.
+     *
+     * @param scopeName        Scope
+     * @param streamName       Stream
+     *                         the scaling operation is initiated on the txn stream.
+     * @param context          operation context
+     * @param executor         callers executor
+     * @return Future when completed contains a new unique txn id.
+     */
+    CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
+                                                  final OperationContext context,
+                                                  final Executor executor);
+
+    /**
      * Method to create a new transaction on a stream.
      *
      * @param scopeName        Scope

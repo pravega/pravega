@@ -9,7 +9,13 @@
  */
 package io.pravega.common.hash;
 
+import io.pravega.test.common.AssertExtensions;
+import java.util.HashMap;
+import java.util.Random;
 import java.util.UUID;
+import java.util.function.Supplier;
+import lombok.val;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -49,6 +55,40 @@ public class HashHelperTest {
         UUID uuid = HashHelper.bytesToUUID(bytes);
         assertEquals(uuid.getMostSignificantBits(), 0x0001020304050607L);
         assertEquals(uuid.getLeastSignificantBits(), 0x08090A0B0C0D0E0FL);
+    }
+
+    @Test
+    public void testHashToBucketString() {
+        testBucketUniformity(HashHelper::hashToBucket, () -> RandomStringUtils.randomAlphanumeric(16));
+    }
+
+    @Test
+    public void testHashToBucketUUID() {
+        val r = new Random(0);
+        testBucketUniformity(HashHelper::hashToBucket, () -> new UUID(r.nextLong(), r.nextLong()));
+    }
+
+    private <T> void testBucketUniformity(HashBucketFunction<T> toTest, Supplier<T> generator) {
+        final int elementsPerBucket = 100000;
+        final int acceptedDeviation = (int) (0.05 * elementsPerBucket);
+        final int bucketCount = 16;
+        final int totalCount = bucketCount * elementsPerBucket;
+        val h = HashHelper.seededWith("Test");
+        val result = new HashMap<Integer, Integer>();
+        for (int i = 0; i < totalCount; i++) {
+            val u = generator.get();
+            int b = toTest.apply(h, u, bucketCount);
+            result.put(b, result.getOrDefault(b, 0) + 1);
+        }
+
+        result.forEach((bucket, count) ->
+                AssertExtensions.assertLessThan("Too many or too few elements in bucket " + bucket,
+                        acceptedDeviation, Math.abs(count - elementsPerBucket)));
+    }
+
+    @FunctionalInterface
+    interface HashBucketFunction<T> {
+        int apply(HashHelper hashHelper, T value, int bucketCount);
     }
     
 }

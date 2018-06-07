@@ -19,7 +19,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -39,7 +40,6 @@ import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointO
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
@@ -99,9 +99,7 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers
-            .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
-            .build();
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -716,7 +714,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         try (
                 ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
@@ -782,7 +780,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
@@ -900,7 +898,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
 
         // Write some data to the log. We'll read it later.
         HashSet<Long> streamSegmentIds;
@@ -1020,7 +1018,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         SegmentProperties originalSegmentInfo;
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
@@ -1107,7 +1105,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
         ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
 
@@ -1223,7 +1221,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
         ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
         HashSet<Long> streamSegmentIds;
@@ -1309,7 +1307,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
         val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
         HashSet<Long> streamSegmentIds;
@@ -1509,7 +1507,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.cacheFactory = new InMemoryCacheFactory();
             this.storage = InMemoryStorageFactory.newStorage(executorService);
             this.storage.initialize(1);
-            this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.executorService);
             this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);
         }
 
