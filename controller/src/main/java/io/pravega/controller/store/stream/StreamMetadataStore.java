@@ -227,7 +227,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> startTruncation(final String scope,
                                             final String name,
-                                            final Map<Integer, Long> streamCut,
+                                            final Map<Long, Long> streamCut,
                                             final OperationContext context,
                                             final Executor executor);
 
@@ -292,18 +292,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor);
-
-    /**
-     * Returns the total number of segments in the stream.
-     *
-     * @param scope    stream scope
-     * @param name     stream name.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return total number of segments in the stream.
-     */
-    CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<Segment> getSegment(final String scope, final String name, final long number, final OperationContext context, final Executor executor);
 
     /**
      * Get active segments.
@@ -326,7 +315,7 @@ public interface StreamMetadataStore {
      * @param executor  callers executor
      * @return the list of segments numbers active at timestamp.
      */
-    CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<List<Long>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Returns the segments in the specified epoch of the specified stream.
@@ -354,11 +343,11 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
-                                                         final String stream,
-                                                         final int epoch,
-                                                         final OperationContext context,
-                                                         final Executor executor);
+    CompletableFuture<List<Long>> getActiveSegmentIds(final String scope,
+                                                                   final String stream,
+                                                                   final int epoch,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
@@ -366,13 +355,34 @@ public interface StreamMetadataStore {
      *
      * @param scope         stream scope
      * @param streamName    stream name.
-     * @param segmentNumber the segment number
+     * @param segmentId the segment number
      * @param context       operation context
      * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
-                                                                 final int segmentNumber, final OperationContext context, final Executor executor);
+    CompletableFuture<Map<Long, List<Long>>> getSuccessors(final String scope,
+                                                                                     final String streamName,
+                                                                                     final long segmentId,
+                                                                                     final OperationContext context,
+                                                                                     final Executor executor);
+
+    /**
+     * Given two stream cuts, this method return a list of segments that lie between given stream cuts.
+     *
+     * @param scope      stream scope
+     * @param streamName stream name.
+     * @param from       from stream cut
+     * @param to         to stream cut
+     * @param context    operation context
+     * @param executor   callers executor
+     * @return Future which when completed contains list of segments between given stream cuts.
+     */
+    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final String scope,
+                                                           final String streamName,
+                                                           final Map<Long, Long> from,
+                                                           final Map<Long, Long> to,
+                                                           final OperationContext context,
+                                                           final Executor executor);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -388,7 +398,7 @@ public interface StreamMetadataStore {
      * @return the list of newly created segments
      */
     CompletableFuture<StartScaleResponse> startScale(final String scope, final String name,
-                                                            final List<Integer> sealedSegments,
+                                                            final List<Long> sealedSegments,
                                                             final List<SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             final boolean runOnlyIfStarted,
@@ -434,7 +444,7 @@ public interface StreamMetadataStore {
      * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
-                                                final Map<Integer, Long> sealedSegmentSizes,
+                                                final Map<Long, Long> sealedSegmentSizes,
                                                 final OperationContext context,
                                                 final Executor executor);
 
@@ -680,48 +690,48 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
-                                                                   final String stream,
-                                                                   final OperationContext context,
-                                                                   final boolean ignoreCached,
-                                                                   final Executor executor);
+    CompletableFuture<Pair<Integer, List<Long>>> getActiveEpoch(final String scope,
+                                                                             final String stream,
+                                                                             final OperationContext context,
+                                                                             final boolean ignoreCached,
+                                                                             final Executor executor);
 
     /**
      * Api to mark a segment as cold.
      *
      * @param scope         scope for stream
      * @param stream        name of stream
-     * @param segmentNumber segment number
+     * @param segmentId segment number
      * @param timestamp     time till which this cold marker is valid.
      * @param context       context in which this operation is taking place.
      * @param executor      callers executor
      * @return Completable future
      */
-    CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> markCold(final String scope, final String stream, final long segmentId, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Api to return if a cold marker is set.
      *
      * @param scope    scope for stream
      * @param stream   name of stream
-     * @param number   segment nunmber
+     * @param segmentId   segment nunmber
      * @param context  context in which this operation is taking place.
      * @param executor callers executor
      * @return Completable future Optional of marker's creation time.
      */
-    CompletableFuture<Boolean> isCold(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
+    CompletableFuture<Boolean> isCold(final String scope, final String stream, final long segmentId, final OperationContext context, final Executor executor);
 
     /**
      * Api to clear marker.
      *
      * @param scope    scope for stream
      * @param stream   name of stream
-     * @param number   segment nunmber
+     * @param segmentId   segment nunmber
      * @param context  context in which this operation is taking place.
      * @param executor callers executor
      * @return Completable Future
      */
-    CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> removeMarker(final String scope, final String stream, final long segmentId, final OperationContext context, final Executor executor);
 
     /**
      * Get all scale history segments.
@@ -852,7 +862,7 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A CompletableFuture which, when completed, will contain size of stream till given streamCut.
      */
-    CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Integer, Long> streamCut,
+    CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Long, Long> streamCut,
                                                  final OperationContext context, final ScheduledExecutorService executor);
 
     /**

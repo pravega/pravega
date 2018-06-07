@@ -116,7 +116,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (buffer == null) {
                return createEmptyEvent(null);
             } 
-            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            lastRead = Sequence.create(segment.getSegmentId(), offset);
             int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             return new EventReadImpl<>(lastRead,
                     deserializer.deserialize(buffer),

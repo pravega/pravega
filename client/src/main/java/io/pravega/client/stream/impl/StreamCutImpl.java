@@ -70,7 +70,7 @@ public class StreamCutImpl extends StreamCutInternal {
         return stream.getScopedName() + ":"
                 + ToStringUtils.mapToString(positions.entrySet()
                                                      .stream()
-                                                     .collect(Collectors.toMap(e -> e.getKey().getSegmentNumber(),
+                                                     .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                                e -> e.getValue())));
     }
 
@@ -108,7 +108,7 @@ public class StreamCutImpl extends StreamCutInternal {
             Stream stream = Stream.of(revisionDataInput.readUTF());
             builder.stream(stream);
             Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
-                                                                                 stream.getStreamName(), in.readCompactInt()),
+                                                                                 stream.getStreamName(), in.readCompactLong()),
                                                                in -> in.readCompactLong());
             builder.positions(map);
         }
@@ -116,7 +116,7 @@ public class StreamCutImpl extends StreamCutInternal {
         private void write00(StreamCutInternal cut, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeUTF(cut.getStream().getScopedName());
             Map<Segment, Long> map = cut.getPositions();
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactInt(s.getSegmentNumber()),
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
                                         (out, offset) -> out.writeCompactLong(offset));
         }
     }

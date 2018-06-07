@@ -241,7 +241,7 @@ public class StreamTransactionMetadataTasksTest {
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void failOverTests() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();

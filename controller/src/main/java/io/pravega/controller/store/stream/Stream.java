@@ -100,7 +100,7 @@ interface Stream {
      * @param streamCut new stream cut.
      * @return future of new StreamProperty.
      */
-    CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut);
+    CompletableFuture<Void> startTruncation(final Map<Long, Long> streamCut);
 
     /**
      * Completes an ongoing stream truncation.
@@ -144,48 +144,40 @@ interface Stream {
     /**
      * Fetches details of specified segment.
      *
-     * @param number segment number.
+     * @param segmentId segment number.
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final int number);
-
-    /**
-     * Returns the total number segments in the stream.
-     *
-     * @return total number of segments in the stream.
-     */
-    CompletableFuture<Integer> getSegmentCount();
-
-    /**
-     * @param number segment number.
-     * @return successors of specified segment.
-     */
-    CompletableFuture<List<Integer>> getSuccessors(final int number);
+    CompletableFuture<Segment> getSegment(final long segmentId);
 
     CompletableFuture<List<ScaleMetadata>> getScaleMetadata();
 
     /**
-     * @param number segment number.
+     * @param segmentId segment number.
      * @return successors of specified segment mapped to the list of their predecessors
      */
-    CompletableFuture<Map<Integer, List<Integer>>> getSuccessorsWithPredecessors(final int number);
+    CompletableFuture<Map<Long, List<Long>>> getSuccessorsWithPredecessors(final long segmentId);
 
     /**
-     * @param number segment number.
-     * @return predecessors of specified segment
+     * Method to get all segments between given stream cuts.
+     * Either from or to can be either well formed stream cuts OR empty sets indicating unbounded cuts.
+     * If from is unbounded, then head is taken as from, and if to is unbounded then tail is taken as the end.
+     *
+     * @param from from stream cut.
+     * @param to to stream cut.
+     * @return Future which when completed gives list of segments between given streamcuts.
      */
-    CompletableFuture<List<Integer>> getPredecessors(final int number);
+    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
 
     /**
      * @return currently active segments
      */
-    CompletableFuture<List<Integer>> getActiveSegments();
+    CompletableFuture<List<Long>> getActiveSegments();
 
     /**
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
+    CompletableFuture<List<Long>> getActiveSegments(final long timestamp);
 
     /**
      * Returns the active segments in the specified epoch.
@@ -193,7 +185,7 @@ interface Stream {
      * @param epoch epoch number.
      * @return list of numbers of segments active in the specified epoch.
      */
-    CompletableFuture<List<Integer>> getActiveSegments(int epoch);
+    CompletableFuture<List<Long>> getActiveSegments(int epoch);
 
     /**
      * Called to start metadata updates to stream store wrt new scale event.
@@ -203,7 +195,7 @@ interface Stream {
      * @param runOnlyIfStarted run only if scale is started
      * @return sequence of newly created segments
      */
-    CompletableFuture<StartScaleResponse> startScale(final List<Integer> sealedSegments,
+    CompletableFuture<StartScaleResponse> startScale(final List<Long> sealedSegments,
                                                      final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                      final long scaleTimestamp,
                                                      final boolean runOnlyIfStarted);
@@ -235,39 +227,39 @@ interface Stream {
      *
      * @param sealedSegmentSizes sealed segments with absolute sizes
      */
-    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Integer, Long> sealedSegmentSizes);
+    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Long, Long> sealedSegmentSizes);
 
     /**
      * Returns the latest sets of segments created and removed by doing a diff of last two epochs.
      * @return returns a pair of list of segments sealed and list of segments created in latest(including ongoing) scale event.
      */
-    CompletableFuture<Pair<List<Integer>, List<Integer>>> latestScaleData();
+    CompletableFuture<Pair<List<Long>, List<Long>>> latestScaleData();
 
     /**
      * Sets cold marker which is valid till the specified time stamp.
      * It creates a new marker if none is present or updates the previously set value.
      *
-     * @param segmentNumber segment number to be marked as cold.
+     * @param segmentId segment number to be marked as cold.
      * @param timestamp     time till when the marker is valid.
      * @return future
      */
-    CompletableFuture<Void> setColdMarker(int segmentNumber, long timestamp);
+    CompletableFuture<Void> setColdMarker(long segmentId, long timestamp);
 
     /**
      * Returns if a cold marker is set. Otherwise returns null.
      *
-     * @param segmentNumber segment to check for cold.
+     * @param segmentId segment to check for cold.
      * @return future of either timestamp till when the marker is valid or null.
      */
-    CompletableFuture<Long> getColdMarker(int segmentNumber);
+    CompletableFuture<Long> getColdMarker(long segmentId);
 
     /**
      * Remove the cold marker for the segment.
      *
-     * @param segmentNumber segment.
+     * @param segmentId segment.
      * @return future
      */
-    CompletableFuture<Void> removeColdMarker(int segmentNumber);
+    CompletableFuture<Void> removeColdMarker(long segmentId);
 
     /**
      * Method to generate new transaction Id.
@@ -363,7 +355,7 @@ interface Stream {
      * Returns the latest stream epoch.
      * @return latest stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
+    CompletableFuture<Pair<Integer, List<Long>>> getLatestEpoch();
 
     /**
      * Returns the currently active stream epoch.
@@ -371,14 +363,14 @@ interface Stream {
      * @param ignoreCached if ignore cache is set to true then fetch the value from the store. 
      * @return currently active stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
+    CompletableFuture<Pair<Integer, List<Long>>> getActiveEpoch(boolean ignoreCached);
 
     /**
      * Method to get stream size till the given stream cut
      * @param streamCut stream cut
      * @return A CompletableFuture, that when completed, will contain size of stream till given cut.
      */
-    CompletableFuture<Long> getSizeTillStreamCut(Map<Integer, Long> streamCut);
+    CompletableFuture<Long> getSizeTillStreamCut(Map<Long, Long> streamCut);
 
     /**
      *Add a new Stream cut to retention set.

@@ -166,7 +166,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             keyRanges.put(0.8, 1.0);
 
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
-                    Collections.singletonList(0),
+                    Collections.singletonList(0L),
                     keyRanges,
                     executorService).getFuture();
             Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
