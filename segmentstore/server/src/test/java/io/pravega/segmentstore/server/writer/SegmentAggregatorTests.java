@@ -1891,6 +1891,42 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         checkAttributes(context);
     }
 
+    /**
+     * Tests a scenario where a MergeSegmentOperation needs to be recovered but which has already been merged in Storage.
+     */
+    @Test
+    public void testRecoveryEmptyMergeOperation() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a parent segment and one transaction segment.
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
+        val txnHandle = context.storage.openWrite(transactionAggregator.getMetadata().getName()).join();
+        context.storage.seal(txnHandle, TIMEOUT).join();
+        val sm = context.containerMetadata.getStreamSegmentMetadata(transactionAggregator.getMetadata().getId());
+        sm.markSealed();
+        sm.markSealedInStorage();
+        transactionAggregator.initialize(TIMEOUT).join();
+
+        // This is the operation that should be reconciled.
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(transactionAggregator.getMetadata().getId(), context));
+
+        context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
+
+        // Verify the first works.
+        context.segmentAggregator.flush(TIMEOUT).join();
+
+        // .. and that it acknowledged the operation.
+
+        // TODO: verify ack and test with SegmentMetadata.isDeleted() true.
+        // TODO: comments in SegmentAggregator
+        // TODO: SegmentContainer - shortcut empty transactions
+    }
+
     //endregion
 
     //region Helpers

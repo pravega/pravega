@@ -825,12 +825,15 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * StreamSegment. If failed, the Future will contain the exception that caused it.
      */
     private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeSegmentOperation mergeOp, TimeoutTimer timer) {
-        if (transactionMetadata.isDeleted()) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
+
+        boolean emptyTransaction = transactionMetadata.getLength() == 0;
+        if (transactionMetadata.isDeleted() && !emptyTransaction) {
+            // TODO: verify correctness here
             setState(AggregatorState.ReconciliationNeeded);
             return Futures.failedFuture(new StreamSegmentNotExistsException(transactionMetadata.getName()));
         }
 
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
         FlushResult result = new FlushResult();
         if (!transactionMetadata.isSealedInStorage() || transactionMetadata.getLength() > transactionMetadata.getStorageLength()) {
             // Nothing to do. Given Transaction is not eligible for merger yet.
@@ -839,33 +842,52 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         AtomicLong mergedLength = new AtomicLong();
-        return this.storage
-                .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
-                .thenAcceptAsync(transProperties -> {
-                    // One last verification before the actual merger:
-                    // Check that the Storage agrees with our metadata (if not, we have a problem ...)
-                    if (transProperties.getLength() != transactionMetadata.getStorageLength()) {
-                        throw new CompletionException(new DataCorruptionException(String.format(
-                                "Transaction Segment '%s' cannot be merged into parent '%s' because its metadata disagrees with the Storage. Metadata.StorageLength=%d, Storage.StorageLength=%d",
-                                transactionMetadata.getName(),
-                                this.metadata.getName(),
-                                transactionMetadata.getStorageLength(),
-                                transProperties.getLength())));
-                    }
+        CompletableFuture<SegmentProperties> merge;
+        if (emptyTransaction && transactionMetadata.isDeleted()) {
+            // TODO: verify correctness here.
+            merge = CompletableFuture.completedFuture(this.metadata);
+        } else {
+            merge = this.storage
+                    .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
+                    .thenAcceptAsync(transProperties -> {
+                        // One last verification before the actual merger:
+                        // Check that the Storage agrees with our metadata (if not, we have a problem ...)
+                        if (transProperties.getLength() != transactionMetadata.getStorageLength()) {
+                            throw new CompletionException(new DataCorruptionException(String.format(
+                                    "Transaction Segment '%s' cannot be merged into parent '%s' because its metadata disagrees with the Storage. Metadata.StorageLength=%d, Storage.StorageLength=%d",
+                                    transactionMetadata.getName(),
+                                    this.metadata.getName(),
+                                    transactionMetadata.getStorageLength(),
+                                    transProperties.getLength())));
+                        }
 
-                    if (transProperties.getLength() != mergeOp.getLength()) {
-                        throw new CompletionException(new DataCorruptionException(String.format(
-                                "Transaction Segment '%s' cannot be merged into parent '%s' because the declared length in the operation disagrees with the Storage. Operation.Length=%d, Storage.StorageLength=%d",
-                                transactionMetadata.getName(),
-                                this.metadata.getName(),
-                                mergeOp.getLength(),
-                                transProperties.getLength())));
-                    }
+                        if (transProperties.getLength() != mergeOp.getLength()) {
+                            throw new CompletionException(new DataCorruptionException(String.format(
+                                    "Transaction Segment '%s' cannot be merged into parent '%s' because the declared length in the operation disagrees with the Storage. Operation.Length=%d, Storage.StorageLength=%d",
+                                    transactionMetadata.getName(),
+                                    this.metadata.getName(),
+                                    mergeOp.getLength(),
+                                    transProperties.getLength())));
+                        }
 
-                    mergedLength.set(transProperties.getLength());
-                }, this.executor)
-                .thenComposeAsync(v -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()), this.executor)
+                        mergedLength.set(transProperties.getLength());
+                    }, this.executor)
+                    .thenComposeAsync(v -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()), this.executor)
+                    .exceptionally(ex -> {
+                        ex = Exceptions.unwrap(ex);
+                        if (emptyTransaction
+                                && ex instanceof StreamSegmentNotExistsException
+                                && ((StreamSegmentNotExistsException) ex).getStreamSegmentName().equals(transactionMetadata.getName())) {
+                            log.warn("{}: Not applying '{}' because source segment is missing and was declared empty.", this.traceObjectId, mergeOp);
+                            return null;
+                        } else {
+                            throw new CompletionException(ex);
+                        }
+                    })
+                    .thenComposeAsync(v -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()), this.executor);
+        }
+
+        return merge
                 .thenAcceptAsync(segmentProperties -> {
                     // We have processed a MergeSegmentOperation, pop the first operation off and decrement the counter.
                     StorageOperation processedOperation = this.operations.removeFirst();
@@ -1017,7 +1039,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     private CompletableFuture<FlushResult> reconcile(TimeoutTimer timer) {
-        assert this.state.get() == AggregatorState.Reconciling : "reconcile cannot be called if state == " + this.state;
         ReconciliationState rc = this.reconciliationState.get();
         FlushResult result = new FlushResult();
         if (rc == null) {
@@ -1199,7 +1220,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         UpdateableSegmentMetadata transactionMeta = this.dataSource.getStreamSegmentMetadata(op.getSourceSegmentId());
         if (transactionMeta == null) {
             return Futures.failedFuture(new ReconciliationFailureException(String.format(
-                    "Cannot reconcile operation '%s' because the transaction segment is missing from the metadata.", op),
+                    "Cannot reconcile operation '%s' because the source segment is missing from the metadata.", op),
                     this.metadata, storageInfo));
         }
 

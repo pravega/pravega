@@ -449,6 +449,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
+        // TODO: check if the source is empty. If so, maybe delete it (after re-checking after sealing).
+
         CompletableFuture<Void> result;
         if (sourceMetadata.isSealed()) {
             // Source Segment is already sealed, so we only need to merge it.
