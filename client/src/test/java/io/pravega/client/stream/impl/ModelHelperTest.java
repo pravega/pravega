@@ -18,7 +18,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ModelHelperTest {
 
@@ -192,6 +195,30 @@ public class ModelHelperTest {
         final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
         assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
         assertEquals("testStream", resultSegmentID.getStreamInfo().getStream());
+    }
+
+    @Test
+    public void testStreamCutRequestAndResponse() {
+        List<SegmentId> segments = Collections.singletonList(SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
+                setScope("testScope").setStream("testStream")).build());
+        AssertExtensions.assertThrows("invalid scope and stream", () -> ModelHelper.createStreamCutRangeResponse("scope",
+                "stream", segments, ""), e -> e instanceof IllegalArgumentException);
+
+        Controller.StreamCutRangeResponse response = ModelHelper.createStreamCutRangeResponse("testScope", "testStream", segments, "");
+        Assert.assertEquals(1, response.getSegmentsCount());
+        final SegmentId resultSegmentID = response.getSegments(0);
+        assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
+        assertEquals("testStream", resultSegmentID.getStreamInfo().getStream());
+        assertEquals(0L, resultSegmentID.getSegmentId());
+    }
+
+    @Test
+    public void testStreamCutRange() {
+        Map<Long, Long> from = Collections.singletonMap(0L, 0L);
+        Map<Long, Long> to = Collections.singletonMap(1L, 0L);
+        Controller.StreamCutRange response = ModelHelper.decode("scope", "stream", from, to);
+        assertTrue(response.getFromMap().containsKey(0L));
+        assertTrue(response.getToMap().containsKey(1L));
     }
 
     @Test

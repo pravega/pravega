@@ -26,6 +26,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,6 +57,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String EPOCH_TRANSITION_PATH = STREAM_PATH + "/epochTransition";
     private static final String RETENTION_PATH = STREAM_PATH + "/retention";
     private static final String SEALED_SEGMENTS_PATH = STREAM_PATH + "/sealedSegments";
+    private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
@@ -69,6 +72,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String historyIndexPath;
     private final String retentionPath;
     private final String epochTransitionPath;
+    private final String committingTxnsPath;
     private final String sealedSegmentsPath;
     private final String activeTxRoot;
     private final String completedTxPath;
@@ -97,6 +101,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         sealedSegmentsPath = String.format(SEALED_SEGMENTS_PATH, scopeName, streamName);
         activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
         completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
+        committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
@@ -226,6 +231,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    CompletableFuture<Void> updateEpochTransitionNode(byte[] epochTransition) {
+        return store.setData(epochTransitionPath, new Data<>(epochTransition, null))
+                .thenApply(x -> cache.invalidateCache(epochTransitionPath));
+    }
+
+    @Override
     CompletableFuture<Data<Integer>> getEpochTransitionNode() {
         cache.invalidateCache(epochTransitionPath);
         return cache.getCachedData(epochTransitionPath);
@@ -331,20 +342,39 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        return getActiveEpoch(false)
-                .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
-                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                                Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))
-                                       .exceptionally(e -> {
-                                           if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                               return EMPTY_DATA;
-                                           } else {
-                                               throw new CompletionException(e);
-                                           }
-                                       })))
+        return store.getChildren(activeTxRoot)
+                .thenCompose(children -> {
+                    return Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x))).collect(Collectors.toList()))
+                            .thenApply(list -> {
+                                Map<String, Data<Integer>> map = new HashMap<>();
+                                list.forEach(map::putAll);
+                                return map;
+                            });
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Data<Integer>>> getTxnInEpoch(int epoch) {
+        return store.getChildren(getEpochPath(epoch))
+                .exceptionally(e -> {
+                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                        return Collections.emptyList();
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                })
+                .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
+                        Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch, txId))
+                                .exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                                        return EMPTY_DATA;
+                                    } else {
+                                        throw new CompletionException(e);
+                                    }
+                                })))
                         ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(EMPTY_DATA))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                        ));
+                );
     }
 
     @Override
@@ -357,8 +387,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
                 scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-        // Note: this can throw DataNotFoundException as the epoch node (parent) may have been deleted.
-        return store.createZNodeIfNotExist(activePath, txnRecord, false)
+        // we will always create parent if needed so that transactions are created successfully even if the epoch znode
+        // previously found to be empty and deleted.
+        // For this, send createParent flag = true
+        return store.createZNodeIfNotExist(activePath, txnRecord, true)
                 .thenApply(x -> cache.invalidateCache(activePath));
     }
 
@@ -396,7 +428,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
-        return store.deletePath(activePath, false)
+        // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
+        return store.deletePath(activePath, true)
                                 .whenComplete((r, e) -> cache.invalidateCache(activePath));
     }
 
@@ -522,17 +555,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochNodeIfAbsent(int epoch) {
-        return store.createZNodeIfNotExist(getEpochPath(epoch));
-    }
-
-    @Override
-    CompletableFuture<Void> deleteEpochNode(int epoch) {
-        String epochPath = getEpochPath(epoch);
-        return store.deletePath(epochPath, false).thenAccept(x -> cache.invalidateCache(epochPath));
-    }
-
-    @Override
     public CompletableFuture<Data<Integer>> getHistoryIndex() {
         return cache.getCachedData(historyIndexPath);
     }
@@ -547,6 +569,23 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> updateHistoryIndex(final Data<Integer> updated) {
         return store.setData(historyIndexPath, updated)
                 .whenComplete((r, e) -> cache.invalidateCache(historyIndexPath));
+    }
+
+    @Override
+    CompletableFuture<Void> createCommittingTxnRecord(byte[] committingTxns) {
+        return store.createZNode(committingTxnsPath, committingTxns)
+                .thenApply(x -> cache.invalidateCache(committingTxnsPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getCommittingTxnRecord() {
+        cache.invalidateCache(committingTxnsPath);
+        return cache.getCachedData(committingTxnsPath);
+    }
+
+    @Override
+    CompletableFuture<Void> deleteCommittingTxnRecord() {
+        return store.deletePath(committingTxnsPath, false);
     }
 
     // endregion

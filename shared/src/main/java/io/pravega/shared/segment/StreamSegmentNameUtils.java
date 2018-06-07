@@ -197,7 +197,7 @@ public final class StreamSegmentNameUtils {
     /**
      * Method to compute 64 bit segment id which takes segment number and epoch and composes it as
      * `msb = epoch` `lsb = segmentNumber`.
-     * Primary id identifies the segment container mapping and primary + secondary uniquely identifies a segment
+     * Primary id identifies the segment container mappeing and primary + secondary uniquely identifies a segment
      * within a stream.
      *
      * @param segmentNumber segment number.

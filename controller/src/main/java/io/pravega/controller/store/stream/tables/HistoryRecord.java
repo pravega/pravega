@@ -39,6 +39,16 @@ public class HistoryRecord {
     @Getter
     private final int epoch;
     /**
+     * This refers to epoch whose duplicate this epoch HistoryRecord may be.
+     * If referenceEpoch is same as epoch, then this is a clean creation of epoch rather than a duplicate.
+     * If we are creating a duplicate of an epoch that was already a duplicate, we set the reference to the parent.
+     * This ensures that instead of having a chain of duplicates we have a tree of duplicates with original epoch as
+     * common parent and all duplicates referencing the parent epoch.
+     */
+    @Getter
+    private final int referenceEpoch;
+
+    /**
      * Segment ids have two parts, primary id and secondary id.
      * Primary Id is encoded in LSB of each long and secondary id is encoded in MSB.
      * Note: secondary id is optional and 0 value will signify its absence.
@@ -51,11 +61,17 @@ public class HistoryRecord {
     private final boolean partial;
 
     @Builder
-    HistoryRecord(int epoch, List<Long> segments, long scaleTime) {
+    HistoryRecord(int epoch, int referenceEpoch, List<Long> segments, long creationTime) {
         this.epoch = epoch;
+        this.referenceEpoch = referenceEpoch;
         this.segments = segments;
-        this.scaleTime = scaleTime;
-        partial = scaleTime == Long.MIN_VALUE;
+        this.scaleTime = creationTime;
+        partial = creationTime == Long.MIN_VALUE;
+    }
+
+    @Builder
+    HistoryRecord(int epoch, List<Long> segments, long creationTime) {
+        this(epoch, epoch, segments, creationTime);
     }
 
     @Builder
@@ -63,9 +79,18 @@ public class HistoryRecord {
         this(epoch, segments, Long.MIN_VALUE);
     }
 
+    @Builder
+    HistoryRecord(int epoch, int referenceEpoch, List<Long> segments) {
+        this(epoch, referenceEpoch, segments, Long.MIN_VALUE);
+    }
+
     @SneakyThrows(IOException.class)
     public ArrayView toArrayView() {
         return SERIALIZER.serialize(this);
+    }
+
+    public boolean isDuplicate() {
+        return epoch != referenceEpoch;
     }
 
     /**

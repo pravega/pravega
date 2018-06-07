@@ -81,7 +81,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, x.getValue(), txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
     }
 
     @Override
@@ -112,7 +112,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, x.getValue(), txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
     }
 }
 

@@ -120,9 +120,10 @@ public class TableHelperTest {
         activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, startSegments);
 
-        int epoch = TableHelper.getActiveEpoch(historyIndex, historyTable).getKey();
+        HistoryRecord activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
+        int epoch = activeEpoch.getEpoch();
         assertEquals(0, epoch);
-        epoch = TableHelper.getLatestEpoch(historyIndex, historyTable).getEpoch();
+        epoch = HistoryRecord.fetchNext(activeEpoch, historyIndex, historyTable, false).get().getEpoch();
         assertEquals(1, epoch);
 
         timestamp = timestamp + 5;

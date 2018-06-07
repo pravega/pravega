@@ -285,7 +285,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 }
             } else {
                 if (statsRecorder != null) {
-                    statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
+                    if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
+                        statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
+                    }
                 }
                 final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
                         previousEventNumber);
@@ -294,7 +296,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 //Don't report metrics if segment is a transaction
                 //Update the parent segment metrics, once the transaction is merged
                 //TODO: https://github.com/pravega/pravega/issues/2570
-                if (StreamSegmentNameUtils.getParentStreamSegmentName(append.getSegment()) == null) {
+                if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
