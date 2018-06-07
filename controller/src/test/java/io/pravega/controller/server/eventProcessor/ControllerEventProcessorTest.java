@@ -175,7 +175,7 @@ public class ControllerEventProcessorTest {
     private List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            UUID txnId = UUID.randomUUID();
+            UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
             VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
                     null, executor).join();
             Assert.assertNotNull(txnData);
@@ -188,14 +188,6 @@ public class ControllerEventProcessorTest {
         }
         return retVal;
     }
-
-
-    // commit with scale
-    // 1. scale started
-    // 2. commit on old epoch should complete scale
-    // 3. commit on older epoch should be ignored
-    // 4. commit on new epoch should be postponed
-    // 5.
 
     @Test(timeout = 10000)
     public void testAbortEventProcessor() {
