@@ -64,7 +64,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     /**
-     * Returns a block size that in an estimate of how much data will be written in the next
+     * Returns a block size that is an estimate of how much data will be written in the next
      * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less).
      */
     @Override
@@ -74,7 +74,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
             return 0;
         }
         double appendsInMaxBatch = Math.max(1.0, MAX_BATCH_TIME_MILLIS / millisBetweenAppends.getCurrentValue());
-        double targetAppendsOutstanding = MathHelpers.minMax(appendsOutstanding.getCurrentValue() / 2.0, 1.0,
+        double targetAppendsOutstanding = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * 0.5, 1.0,
                                                              appendsInMaxBatch);
         return (int) MathHelpers.minMax((long) (targetAppendsOutstanding * eventSize.getCurrentValue()), 0,
                                         MAX_BATCH_SIZE);
