@@ -35,9 +35,9 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 @Slf4j
 @ToString
 class SegmentInputStreamImpl implements SegmentInputStream {
+    static final int DEFAULT_BUFFER_SIZE = 1024 * 1024;
     private static final int DEFAULT_READ_LENGTH = 256 * 1024;
     private static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
-    static final int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
     private final AsyncSegmentInputStream asyncInput;
     private final int readLength;
