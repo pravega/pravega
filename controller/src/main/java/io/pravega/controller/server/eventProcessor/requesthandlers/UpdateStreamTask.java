@@ -54,7 +54,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
                 .thenCompose(configProperty -> {
                     if (!configProperty.isUpdating()) {
-                        return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
+                        return streamMetadataStore.resetStateConditionally(scope, stream, State.UPDATING, context, executor)
                                 .thenApply(x -> {
                                     throw new TaskExceptions.StartException("Update Stream not started yet.");
                                 });
