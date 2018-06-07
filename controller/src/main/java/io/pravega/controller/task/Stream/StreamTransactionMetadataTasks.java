@@ -657,15 +657,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.getSegmentId(), txnId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final int segmentNumber, final UUID txnId) {
+                                                      final long segmentId, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
-                segmentNumber,
+                segmentId,
                 txnId,
                 this.hostControllerStore,
                 this.connectionFactory, this.retrieveDelegationToken()), executor);

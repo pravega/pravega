@@ -22,7 +22,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
-import io.pravega.controller.store.stream.tables.TableHelper;
 import lombok.AccessLevel;
 import lombok.Getter;
 import org.apache.curator.utils.ZKPaths;
@@ -284,8 +283,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    public CompletableFuture<Void> createMarkerData(long segmentId, long timestamp) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, timestamp);
 
@@ -294,17 +293,17 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    CompletableFuture<Void> updateMarkerData(long segmentId, Data<Integer> data) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
 
         return store.setData(path, data)
                 .whenComplete((r, e) -> cache.invalidateCache(path));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
+    CompletableFuture<Data<Integer>> getMarkerData(long segmentId) {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
@@ -323,8 +322,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> removeMarkerData(int segmentNumber) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    CompletableFuture<Void> removeMarkerData(long segmentId) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
 
         return store.deletePath(path, false)
                 .whenComplete((r, e) -> cache.invalidateCache(path));
@@ -492,13 +491,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> updateSegmentIndex(Data<Integer> data) {
         return store.setData(segmentIndexPath, data)
                 .whenComplete((r, e) -> cache.invalidateCache(segmentIndexPath));
-    }
-
-    @Override
-    public CompletableFuture<Segment> getSegmentRow(final int number) {
-        return getSegmentIndex()
-            .thenCompose(segmentIndex -> getSegmentTable()
-                .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(), segmentTable.getData())));
     }
 
     @Override

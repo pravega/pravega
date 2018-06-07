@@ -15,6 +15,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -169,13 +170,14 @@ public class StreamTest {
         newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
 
         long scale = System.currentTimeMillis();
-        ArrayList<Integer> sealedSegments = Lists.newArrayList(0);
-
+        ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         StartScaleResponse response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
         List<Segment> newSegments = response.getSegmentsCreated();
         zkStream.updateState(State.SCALING).join();
 
-        List<Integer> newSegmentInt = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        newSegments.stream().map(Segment::getSegmentId).collect(Collectors.toList());
         zkStream.scaleCreateNewSegments().get();
         zkStream.scaleNewSegmentsCreated().get();
         // history table has a partial record at this point.
@@ -202,9 +204,9 @@ public class StreamTest {
             return segmentTable;
         }).when(zkStream).getSegmentTable();
 
-        Map<Integer, List<Integer>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
+        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
 
-        assertTrue(successors.containsKey(1) && successors.containsKey(2));
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
@@ -235,6 +237,6 @@ public class StreamTest {
 
         successors = zkStream.getSuccessorsWithPredecessors(0).get();
 
-        assertTrue(successors.containsKey(1) && successors.containsKey(2));
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
     }
 }

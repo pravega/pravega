@@ -29,34 +29,34 @@ public class SegmentHelperMock {
         SegmentHelper helper = spy(new SegmentHelper());
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
-                anyString(), anyString(), anyInt(), any());
+                anyString(), anyString(), anyLong(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyInt(), any(), any(), any());
+                anyString(), anyString(), any(), anyLong(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).truncateSegment(
-                anyString(), anyString(), anyInt(), anyLong(), any(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyInt(), any(), any(), anyString());
+                anyString(), anyString(), anyLong(), any(), any(), anyString());
 
         return helper;
     }

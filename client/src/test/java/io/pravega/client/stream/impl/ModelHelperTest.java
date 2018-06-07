@@ -37,7 +37,7 @@ public class ModelHelperTest {
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
-    private static Segment createSegmentId(String streamName, int number) {
+    private static Segment createSegmentId(String streamName, long number) {
         return new Segment("scope", streamName, number);
     }
 
@@ -60,7 +60,7 @@ public class ModelHelperTest {
         SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamInfo().getStream());
         assertEquals("scope", segmentID.getStreamInfo().getScope());
-        assertEquals(2, segmentID.getSegmentNumber());
+        assertEquals(2, segmentID.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -70,10 +70,10 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2)));
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2L)));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
-        assertEquals(2, segment.getSegmentNumber());
+        assertEquals(2L, segment.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -184,8 +184,8 @@ public class ModelHelperTest {
     public void createSuccessorResponse() {
         Controller.SegmentRange segmentRange = createSegmentRange(0.1, 0.5);
 
-        Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
-        inputMap.put(segmentRange, Arrays.asList(1));
+        Map<Controller.SegmentRange, List<Long>> inputMap = new HashMap<>(1);
+        inputMap.put(segmentRange, Arrays.asList(1L));
 
         Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());
@@ -198,7 +198,7 @@ public class ModelHelperTest {
     public void encodeSegmentRange() {
         Controller.SegmentRange range = createSegmentRange(0.1, 0.5);
         SegmentWithRange result = ModelHelper.encode(range);
-        assertEquals(0, result.getSegment().getSegmentNumber());
+        assertEquals(0, result.getSegment().getSegmentId());
         assertEquals("testScope", result.getSegment().getScope());
         assertEquals("testStream", result.getSegment().getStreamName());
 
@@ -226,7 +226,7 @@ public class ModelHelperTest {
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {
         SegmentId.Builder segment = SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
-                setScope("testScope").setStream("testStream")).setSegmentNumber(0);
+                setScope("testScope").setStream("testStream")).setSegmentId(0);
         return Controller.SegmentRange.newBuilder().setSegmentId(segment)
                 .setMinKey(minKey).setMaxKey(maxKey).build();
     }
