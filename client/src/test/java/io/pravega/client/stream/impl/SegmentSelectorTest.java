@@ -155,6 +155,8 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         when(controller.getSuccessors(segment0))
                 .thenAnswer(i -> {
                     CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
+                    // Controller throws io.pravega.controller.store.stream.StoreException$DataNotFoundException which is type RuntimeException.
+                    // Using RunTimeException here as the controller exception is not visible.
                     result.completeExceptionally(new RuntimeException());
                     return result;
                 });
