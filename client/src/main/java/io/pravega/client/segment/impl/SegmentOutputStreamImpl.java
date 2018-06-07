@@ -75,7 +75,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
     private final UUID writerId;
-    private final Consumer<Segment> callBackForSealed;
+    private final Consumer<Segment> resendToSuccessorsCallback;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
@@ -107,7 +107,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private long eventNumber = 0;
         private final ReusableFutureLatch<ClientConnection> setupConnection = new ReusableFutureLatch<>();
         private final ReusableLatch waitingInflight = new ReusableLatch(true);
-        private final AtomicBoolean sealEncountered = new AtomicBoolean();
+        private final AtomicBoolean needSuccessors = new AtomicBoolean();
 
         /**
          * Block until all events are acked by the server.
@@ -215,7 +215,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 eventNumber++;
                 log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
                 inflight.put(eventNumber, event);
-                if (!sealEncountered.get()) {
+                if (!needSuccessors.get()) {
                     waitingInflight.reset();
                 }
                 return eventNumber;
@@ -304,14 +304,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {} on writer {}", segmentIsSealed, writerId);
-            retryOnWriteFail(segmentIsSealed);
+            invokeResendCallBack(segmentIsSealed);
         }
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
                     noSuchSegment.getSegment(), writerId);
-            retryOnWriteFail(noSuchSegment);
+            invokeResendCallBack(noSuchSegment);
         }
 
         @Override
@@ -358,14 +358,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private void retryOnWriteFail(WireCommand wireCommand) {
-            if (state.sealEncountered.compareAndSet(false, true)) {
+        private void invokeResendCallBack(WireCommand wireCommand) {
+            if (state.needSuccessors.compareAndSet(false, true)) {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                         retrySchedule.getMaxDelay(),
-                        t -> log.error(writerId + " to invoke sealed callback: ", t))
+                        t -> log.error(writerId + " to invoke resendToSuccessors callback: ", t))
                      .runInExecutor(() -> {
-                         log.debug("Invoking SealedSegment call back for {} on writer {}", wireCommand, writerId);
-                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                         log.debug("Invoking resendToSuccessors call back for {} on writer {}", wireCommand, writerId);
+                         resendToSuccessorsCallback.accept(Segment.fromScopedName(getSegmentName()));
                      }, connectionFactory.getInternalExecutor())
                      .thenRun(() -> {
                          log.trace("Release inflight latch for writer {}", writerId);
@@ -488,7 +488,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            if (state.sealEncountered.get()) {
+            if (state.needSuccessors.get()) {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
         }

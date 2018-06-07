@@ -90,8 +90,8 @@ public class SegmentSelector {
 
         if (successors == null) {
             // Stream is deleted, complete all pending writes exceptionally.
-            log.error("Pending writes for Segment: {} completed with NoSuchSegmentException", sealedSegment);
-            removeWriter(sealedSegment).forEach(event -> event.getAckFuture()
+            log.error("Stream is deleted, all pending writes will be completed exceptionally");
+            removeAllWriters().forEach(event -> event.getAckFuture()
                     .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
             return Collections.emptyList();
         } else {
@@ -143,12 +143,19 @@ public class SegmentSelector {
         currentSegments = currentSegments.withReplacementRange(successors);
         createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
-        return removeWriter(sealedSegment);
+        return writers.remove(sealedSegment).getUnackedEventsOnSeal();
     }
 
     @Synchronized
-    private List<PendingEvent> removeWriter(Segment segment) {
-        return writers.remove(segment).getUnackedEventsOnSeal();
+    private List<PendingEvent> removeAllWriters() {
+        //get all pending events.
+        List<PendingEvent> pendingEvents = new ArrayList<>();
+        writers.values().forEach(out -> {
+            pendingEvents.addAll(out.getUnackedEventsOnSeal());
+        });
+        // remove all writers.
+        writers.clear();
+        return pendingEvents;
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {

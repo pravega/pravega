@@ -18,6 +18,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -172,7 +173,7 @@ public class EndToEndTruncationTest {
     }
 
     @Test(timeout = 30000)
-    public void testWriteDuringTruncation() throws Exception {
+    public void testWriteDuringTruncationAndDeletion() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scope("test")
                 .streamName("test")
@@ -222,6 +223,18 @@ public class EndToEndTruncationTest {
         EventRead<String> event = reader.readNextEvent(10000);
         assertNotNull(event);
         assertEquals("truncationTest2", event.getEvent());
+
+        //Seal and Delete stream.
+        assertTrue(controller.sealStream("test", "test").get());
+        assertTrue(controller.deleteStream("test", "test").get());
+
+        //write by an existing writer to a deleted stream should complete exceptionally.
+        assertThrows("Should throw NoSuchSegmentException",
+                writer.writeEvent("2", "write to deleted stream"),
+                e -> NoSuchSegmentException.class.isAssignableFrom(e.getClass()));
+        
+        //subsequent writes will throw an exception to the application.
+        assertThrows(RuntimeException.class, () -> writer.writeEvent("test"));
     }
 
     /**
