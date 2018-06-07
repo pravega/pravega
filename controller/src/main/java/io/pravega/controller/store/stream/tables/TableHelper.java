@@ -81,7 +81,6 @@ public class TableHelper {
             }
 
             return new Segment(segmentId,
-                    epoch,
                     creationTime,
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
@@ -93,7 +92,6 @@ public class TableHelper {
     public static Segment getLatestSegment(final byte[] segmentIndex, final byte[] segmentTable) {
         Optional<Segment> segment = SegmentRecord.readLatest(segmentIndex, segmentTable).map(segmentRecord -> new Segment(
                 computeSegmentId(segmentRecord.getSegmentNumber(), segmentRecord.getCreationEpoch()),
-                segmentRecord.getCreationEpoch(),
                 segmentRecord.getStartTime(),
                 segmentRecord.getRoutingKeyStart(),
                 segmentRecord.getRoutingKeyEnd()));

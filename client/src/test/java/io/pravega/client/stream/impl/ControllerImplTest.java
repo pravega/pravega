@@ -391,15 +391,15 @@ public class ControllerImplTest {
             public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
-                    if (request.getSegmentNumber() == 0) {
+                    if (request.getSegmentId() == 0) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 2), Pair.of(0.0, 0.25));
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 3), Pair.of(0.25, 0.5));
-                    } else if (request.getSegmentNumber() == 1) {
+                    } else if (request.getSegmentId() == 1) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 4), Pair.of(0.5, 0.75));
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 5), Pair.of(0.75, 1.0));
-                    } else if (request.getSegmentNumber() == 2 || request.getSegmentNumber() == 3) {
+                    } else if (request.getSegmentId() == 2 || request.getSegmentId() == 3) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 6), Pair.of(0.0, 0.5));
-                    } else if (request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
+                    } else if (request.getSegmentId() == 4 || request.getSegmentId() == 5) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 7), Pair.of(0.5, 0.25));
                     }
                     val builder = SuccessorResponse.newBuilder();
@@ -410,25 +410,25 @@ public class ControllerImplTest {
                                                         .setMinKey(entry.getValue().getLeft())
                                                         .setMaxKey(entry.getValue().getRight())
                                                         .build())
-                                            .addValue(10 * entry.getKey().getSegmentNumber())
+                                            .addValue(10 * entry.getKey().getSegmentId())
                                             .build());
                     }
                     responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("stream8")) {
                     Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
-                    if (request.getSegmentNumber() == 0) {
+                    if (request.getSegmentId() == 0) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 3), Pair.of(0.0, 0.2));
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 4), Pair.of(0.2, 0.33));
-                    } else if (request.getSegmentNumber() == 1) {
+                    } else if (request.getSegmentId() == 1) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 5), Pair.of(0.33, 0.5));
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 6), Pair.of(0.5, 0.66));
-                    } else if (request.getSegmentNumber() == 2) {
+                    } else if (request.getSegmentId() == 2) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 7), Pair.of(0.66, 0.8));
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 8), Pair.of(0.8, 1.0));
-                    } else if (request.getSegmentNumber() == 3 || request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
+                    } else if (request.getSegmentId() == 3 || request.getSegmentId() == 4 || request.getSegmentId() == 5) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 9), Pair.of(0.0, 0.5));
-                    } else if (request.getSegmentNumber() == 6 || request.getSegmentNumber() == 7 || request.getSegmentNumber() == 8) {
+                    } else if (request.getSegmentId() == 6 || request.getSegmentId() == 7 || request.getSegmentId() == 8) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream8", 10), Pair.of(0.5, 1.0));
                     }
                     val builder = SuccessorResponse.newBuilder();
@@ -439,7 +439,7 @@ public class ControllerImplTest {
                                                                                                              .setMinKey(entry.getValue().getLeft())
                                                                                                              .setMaxKey(entry.getValue().getRight())
                                                                                                              .build())
-                                                                          .addValue(10 * entry.getKey().getSegmentNumber())
+                                                                          .addValue(10 * entry.getKey().getSegmentId())
                                                                           .build());
                     }
                     responseObserver.onNext(builder.build());

@@ -60,7 +60,7 @@ public class ModelHelperTest {
         SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamInfo().getStream());
         assertEquals("scope", segmentID.getStreamInfo().getScope());
-        assertEquals(2, segmentID.getSegmentNumber());
+        assertEquals(2, segmentID.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -226,7 +226,7 @@ public class ModelHelperTest {
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {
         SegmentId.Builder segment = SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
-                setScope("testScope").setStream("testStream")).setSegmentNumber(0);
+                setScope("testScope").setStream("testStream")).setSegmentId(0);
         return Controller.SegmentRange.newBuilder().setSegmentId(segment)
                 .setMinKey(minKey).setMaxKey(maxKey).build();
     }

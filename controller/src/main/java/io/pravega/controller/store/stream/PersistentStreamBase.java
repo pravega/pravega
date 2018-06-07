@@ -472,8 +472,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         .thenApply(epochTransition -> {
                                             List<Segment> newSegments = new ArrayList<>();
                                             epochTransition.getNewSegmentsWithRange().entrySet().forEach(x -> {
-                                                newSegments.add(new Segment(x.getKey(), epochTransition.getActiveEpoch(),
-                                                        scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
+                                                newSegments.add(new Segment(x.getKey(), scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
                                             });
                                             return new StartScaleResponse(epochTransition.getActiveEpoch(), newSegments);
                                         })))));

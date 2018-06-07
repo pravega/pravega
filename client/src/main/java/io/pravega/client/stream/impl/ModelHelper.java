@@ -62,7 +62,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(segment, "segment");
         return new Segment(segment.getStreamInfo().getScope(),
                 segment.getStreamInfo().getStream(),
-                segment.getSegmentNumber());
+                segment.getSegmentId());
     }
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
@@ -327,21 +327,21 @@ public final class ModelHelper {
         return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
     }
 
-    public static final SegmentId createSegmentId(final String scope, final String stream, final long segmentNumber) {
+    public static final SegmentId createSegmentId(final String scope, final String stream, final long segmentId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentId.newBuilder()
                 .setStreamInfo(createStreamInfo(scope, stream))
-                .setSegmentNumber(segmentNumber)
+                .setSegmentId(segmentId)
                 .build();
     }
 
     public static final SegmentRange createSegmentRange(final String scope, final String stream,
-            final long segmentNumber, final double rangeMinKey, final double rangeMaxKey) {
+            final long segmentId, final double rangeMinKey, final double rangeMaxKey) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentRange.newBuilder()
-                .setSegmentId(createSegmentId(scope, stream, segmentNumber))
+                .setSegmentId(createSegmentId(scope, stream, segmentId))
                 .setMinKey(rangeMinKey)
                 .setMaxKey(rangeMaxKey)
                 .build();

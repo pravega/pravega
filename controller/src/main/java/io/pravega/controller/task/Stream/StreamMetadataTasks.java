@@ -720,10 +720,10 @@ public class StreamMetadataTasks extends TaskBase {
         return retVal;
     }
 
-    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context, String controllerToken) {
+    private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segments, OperationContext context, String controllerToken) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration,
-                        segmentNumbers.stream().map(Segment::getSegmentId).collect(Collectors.toList()), controllerToken));
+                        segments.stream().map(Segment::getSegmentId).collect(Collectors.toList()), controllerToken));
     }
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Long> segmentIds, String controllerToken) {

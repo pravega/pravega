@@ -169,7 +169,7 @@ public class ControllerService {
                 .getStreamInfo().getStream());
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                 segment.getStreamInfo().getStream(),
-                segment.getSegmentNumber(),
+                segment.getSegmentId(),
                 context,
                 executor)
                 .thenComposeAsync(successors -> Futures.keysAllOfWithResults(successors.entrySet().stream()
@@ -241,7 +241,7 @@ public class ControllerService {
 
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                        segment.getSegmentNumber(), hostStore)
+                        segment.getSegmentId(), hostStore)
         );
     }
 
@@ -257,11 +257,11 @@ public class ControllerService {
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
-                                                     final long segmentNumber) {
+                                                     final long segmentId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getSegmentId() == segmentNumber), executor);
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getSegmentId() == segmentId), executor);
     }
 
     @SuppressWarnings("ReturnCount")

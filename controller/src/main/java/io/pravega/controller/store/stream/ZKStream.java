@@ -283,8 +283,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createMarkerData(long segmentNumber, long timestamp) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    public CompletableFuture<Void> createMarkerData(long segmentId, long timestamp) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, timestamp);
 
@@ -293,17 +293,17 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateMarkerData(long segmentNumber, Data<Integer> data) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    CompletableFuture<Void> updateMarkerData(long segmentId, Data<Integer> data) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
 
         return store.setData(path, data)
                 .whenComplete((r, e) -> cache.invalidateCache(path));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getMarkerData(long segmentNumber) {
+    CompletableFuture<Data<Integer>> getMarkerData(long segmentId) {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
@@ -322,8 +322,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> removeMarkerData(long segmentNumber) {
-        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentNumber));
+    CompletableFuture<Void> removeMarkerData(long segmentId) {
+        final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
 
         return store.deletePath(path, false)
                 .whenComplete((r, e) -> cache.invalidateCache(path));
