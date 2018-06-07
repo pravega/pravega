@@ -131,7 +131,7 @@ public class ControllerFailoverTest {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
-        List<Integer> segmentsToSeal = Collections.singletonList(0);
+        List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 0.25);
         newRangesToCreate.put(0.25, 0.5);

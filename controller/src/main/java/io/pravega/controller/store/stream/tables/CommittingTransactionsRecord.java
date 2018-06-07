@@ -10,46 +10,37 @@
 package io.pravega.controller.store.stream.tables;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.tables.serializers.StreamCutRecordSerializer;
+import io.pravega.controller.store.stream.tables.serializers.CommittingTransactionsRecordSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
+import java.util.UUID;
 
-/**
- * This is data class for storing stream cut with time when the cut was computed.
- * And the size of data being cut.
- */
 @Data
 @Builder
 @AllArgsConstructor
-@Slf4j
-public class StreamCutRecord {
-    public static final StreamCutRecordSerializer SERIALIZER = new StreamCutRecordSerializer();
+public class CommittingTransactionsRecord {
+    public static final CommittingTransactionsRecordSerializer SERIALIZER = new CommittingTransactionsRecordSerializer();
 
     /**
-     * Time when this stream cut was recorded.
+     * Epoch from which transactions are committed.
      */
-    final long recordingTime;
+    final int epoch;
     /**
-     * Amount of data in the stream preceeding this cut.
+     * Transactions to be be committed.
      */
-    final long recordingSize;
-    /**
-     * Actual Stream cut.
-     */
-    final Map<Long, Long> streamCut;
+    final List<UUID> transactionsToCommit;
 
-    public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
+    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static StreamCutRecord parse(final byte[] data) {
+    public static CommittingTransactionsRecord parse(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 

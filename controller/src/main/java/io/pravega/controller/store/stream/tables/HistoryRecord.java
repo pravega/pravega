@@ -38,29 +38,59 @@ public class HistoryRecord {
 
     @Getter
     private final int epoch;
+    /**
+     * This refers to epoch whose duplicate this epoch HistoryRecord may be.
+     * If referenceEpoch is same as epoch, then this is a clean creation of epoch rather than a duplicate.
+     * If we are creating a duplicate of an epoch that was already a duplicate, we set the reference to the parent.
+     * This ensures that instead of having a chain of duplicates we have a tree of duplicates with original epoch as
+     * common parent and all duplicates referencing the parent epoch.
+     */
     @Getter
-    private final List<Integer> segments;
+    private final int referenceEpoch;
+
+    /**
+     * Segment ids have two parts, primary id and secondary id.
+     * Primary Id is encoded in LSB of each long and secondary id is encoded in MSB.
+     * Note: secondary id is optional and 0 value will signify its absence.
+     */
+    @Getter
+    private final List<Long> segments;
     @Getter
     private final long scaleTime;
     @Getter
     private final boolean partial;
 
     @Builder
-    HistoryRecord(int epoch, List<Integer> segments, long scaleTime) {
+    HistoryRecord(int epoch, int referenceEpoch, List<Long> segments, long creationTime) {
         this.epoch = epoch;
+        this.referenceEpoch = referenceEpoch;
         this.segments = segments;
-        this.scaleTime = scaleTime;
-        partial = scaleTime == Long.MIN_VALUE;
+        this.scaleTime = creationTime;
+        partial = creationTime == Long.MIN_VALUE;
     }
 
     @Builder
-    HistoryRecord(int epoch, List<Integer> segments) {
+    HistoryRecord(int epoch, List<Long> segments, long creationTime) {
+        this(epoch, epoch, segments, creationTime);
+    }
+
+    @Builder
+    HistoryRecord(int epoch, List<Long> segments) {
         this(epoch, segments, Long.MIN_VALUE);
+    }
+
+    @Builder
+    HistoryRecord(int epoch, int referenceEpoch, List<Long> segments) {
+        this(epoch, referenceEpoch, segments, Long.MIN_VALUE);
     }
 
     @SneakyThrows(IOException.class)
     public ArrayView toArrayView() {
         return SERIALIZER.serialize(this);
+    }
+
+    public boolean isDuplicate() {
+        return epoch != referenceEpoch;
     }
 
     /**
@@ -165,8 +195,8 @@ public class HistoryRecord {
      * @param historyTable history table
      * @return list of pair of scale time and list of segments in the epoch.
      */
-    public static List<Pair<Long, List<Integer>>> readAllRecords(byte[] historyIndex, byte[] historyTable) {
-        List<Pair<Long, List<Integer>>> result = new LinkedList<>();
+    public static List<Pair<Long, List<Long>>> readAllRecords(byte[] historyIndex, byte[] historyTable) {
+        List<Pair<Long, List<Long>>> result = new LinkedList<>();
             Optional<HistoryRecord> record = HistoryRecord.readRecord(0, historyIndex, historyTable, true);
             while (record.isPresent()) {
                 result.add(new ImmutablePair<>(record.get().getScaleTime(), record.get().getSegments()));

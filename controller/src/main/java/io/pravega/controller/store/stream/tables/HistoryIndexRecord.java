@@ -49,4 +49,8 @@ public class HistoryIndexRecord {
 
         return b;
     }
+
+    int getIndexOffset() {
+        return epoch * INDEX_RECORD_SIZE;
+    }
 }

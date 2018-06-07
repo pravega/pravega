@@ -9,15 +9,21 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -49,7 +55,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         log.info("starting scale request for {}/{} segments {} to new ranges {}", request.getScope(), request.getStream(),
                 request.getSegmentsToSeal(), request.getNewRanges());
 
-        streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context,
+        runScale(request, request.isRunOnlyIfStarted(), context,
                 this.streamMetadataTasks.retrieveDelegationToken())
                 .whenCompleteAsync((res, e) -> {
                     if (e != null) {
@@ -75,4 +81,41 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<Void> writeBack(ScaleOpEvent event) {
         return streamMetadataTasks.writeEvent(event);
     }
+
+    @VisibleForTesting
+    public CompletableFuture<EpochTransitionRecord> runScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
+        String scope = scaleInput.getScope();
+        String stream = scaleInput.getStream();
+        // 1. create epoch transition node (metadatastore.startScale)
+        // 2. set state to scaling (metadatastore.setState)
+        // 3. create new segments in segment table (metadatastore.scaleCreateNewSegments)
+        // 4. create new physical segemnts in segment store
+        // 4. update metadata store with new partial epoch (metadatastore.scaleNewSegmentsCreated)
+        // 5. seal old segments in segment store (streamMetadataTasks.notifySealedSegments)
+        // 6. complete scale (metadataStore.scaleSegmentsSealed)
+        //      update metadata store to complete partial epoch + delete epoch transition node
+        // 7. set state to active
+        //      Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
+        //      and deleted in startScale method.
+        //      if we crash before setting state to active, in rerun (retry) we will find epoch transition to be null and
+        //      hence reset the state in startScale method before attempting to start scale in idempotent fashion.
+        return streamMetadataStore.startScale(scope, stream, scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
+                scaleInput.getScaleTime(), runOnlyIfStarted, context, executor)
+                .thenCompose(response -> streamMetadataStore.setState(scope, stream, State.SCALING, context, executor)
+                        .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scope, stream, runOnlyIfStarted, context, executor))
+                        .thenCompose(v -> {
+                            List<Long> segmentIds = response.getNewSegmentsWithRange().keySet().asList();
+                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken)
+                                    .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, context, executor))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken))
+                                    .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, context, executor))
+                                    .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor))
+                                    .thenApply(y -> {
+                                        log.info("scale processing for {}/{} epoch {} completed.", scope, stream, response.getActiveEpoch());
+                                        return response;
+                                    });
+                        }));
+    }
+
 }

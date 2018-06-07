@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -177,9 +178,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public Void initializeStreamWriters(final ClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        this.commitStreamName = config.getCommitStreamName();
+        this.commitStreamName = config.getRequestStreamName();
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getCommitStreamName(),
+                config.getRequestStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
@@ -356,7 +357,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     // Step 5. Start tracking txn in timeout service
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
-                    }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+                    }, executor).thenApplyAsync(v -> {
+                        int txnEpoch = TableHelper.getTransactionEpoch(txnId);
+                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                            long generalizedSegmentId = TableHelper.generializedSegmentId(x.getSegmentId(), txnId);
+                            return new Segment(generalizedSegmentId, txnEpoch, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                        }).collect(Collectors.toList());
+
+                        return new ImmutablePair<>(txnFuture.join(), segments);
+                    }, executor);
                 }), e -> {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
@@ -374,8 +383,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
-    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod, OperationContext ctx, long maxExecutionPeriod, UUID txnId, CompletableFuture<Void> addIndex) {
-        return (CompletableFuture<VersionedTransactionData>) addIndex.thenComposeAsync(ignore ->
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod,
+                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         CompletableFuture<Void> addIndex) {
+        return addIndex.thenComposeAsync(ignore ->
                                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                                         scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
                             if (e != null) {
@@ -526,16 +537,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     /**
-     * Seals a txn and transitions it to COMMITTING (resp. ABORTING) state if commit param is true (resp. false).
+     * Seals a txn and transitions it to COMMITTING_TXN (resp. ABORTING) state if commit param is true (resp. false).
      *
      * Post-condition:
      * 1. If seal completes successfully, then
-     *     (a) txn state is COMMITTING/ABORTING,
+     *     (a) txn state is COMMITTING_TXN/ABORTING,
      *     (b) CommitEvent/AbortEvent is present in the commit stream/abort stream,
      *     (c) txn is removed from host-txn index,
      *     (d) txn is removed from the timeout service.
      *
-     * 2. If process fails after transitioning txn to COMMITTING/ABORTING state, but before responding to client, then
+     * 2. If process fails after transitioning txn to COMMITTING_TXN/ABORTING state, but before responding to client, then
      * since txn is present in the host-txn index, some other controller process shall put CommitEvent/AbortEvent to
      * commit stream/abort stream.
      *
@@ -616,13 +627,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor);
     }
 
-    public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
-        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
-    }
-
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
@@ -657,15 +664,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.getSegmentId(), txnId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final int segmentNumber, final UUID txnId) {
+                                                      final long segmentId, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
-                segmentNumber,
+                segmentId,
                 txnId,
                 this.hostControllerStore,
                 this.connectionFactory, this.retrieveDelegationToken()), executor);
