@@ -26,12 +26,12 @@ public class Segment {
     private final double keyStart;
     private final double keyEnd;
 
-    public boolean overlaps(final Segment segment) {
-        return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
-    }
-
     public int getEpoch() {
         return StreamSegmentNameUtils.getEpoch(segmentId);
+    }
+
+    public boolean overlaps(final Segment segment) {
+        return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
     public boolean overlaps(final double keyStart, final double keyEnd) {
