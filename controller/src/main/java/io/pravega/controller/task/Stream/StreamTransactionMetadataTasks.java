@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -37,6 +38,7 @@ import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -56,6 +58,8 @@ import java.util.stream.Collectors;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -356,7 +360,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     // Step 5. Start tracking txn in timeout service
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
-                    }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+                    }, executor).thenApplyAsync(v -> {
+                        int txnEpoch = TableHelper.getTransactionEpoch(txnId);
+                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                            long generalizedSegmentId = TableHelper.generializedSegmentId(x.getSegmentId(), txnId);
+                            return new Segment(generalizedSegmentId, txnEpoch, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                        }).collect(Collectors.toList());
+
+                        return new ImmutablePair<>(txnFuture.join(), segments);
+                    }, executor);
                 }), e -> {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;

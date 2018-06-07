@@ -19,6 +19,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
@@ -299,6 +300,11 @@ public class MockController implements Controller {
             }
 
             @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+                result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
+            }
+
+            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
@@ -334,6 +340,16 @@ public class MockController implements Controller {
             @Override
             public void wrongHost(WrongHost wrongHost) {
                 result.completeExceptionally(new UnsupportedOperationException());
+            }
+
+            @Override
+            public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
+                result.completeExceptionally(new TxnFailedException("Transaction already committed."));
+            }
+
+            @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted transactionAborted) {
+                result.complete(null);
             }
 
             @Override

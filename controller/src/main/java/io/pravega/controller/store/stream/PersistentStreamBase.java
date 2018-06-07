@@ -1365,7 +1365,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     protected int getTransactionEpoch(UUID txId) {
         // epoch == UUID.msb >> 32
-        return (int) (txId.getMostSignificantBits() >> 32);
+        return TableHelper.getTransactionEpoch(txId);
     }
 
     abstract CompletableFuture<Void> deleteStream();

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -1091,5 +1092,14 @@ public class TableHelper {
     public static long getEpochScaleTime(int epoch, byte[] historyIndex, byte[] historyTable) {
         return HistoryRecord.readRecord(epoch, historyIndex, historyTable, true)
                 .map(HistoryRecord::getScaleTime).orElse(0L);
+    }
+
+    public static int getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb >> 32
+        return (int) (txId.getMostSignificantBits() >> 32);
+    }
+
+    public static long generializedSegmentId(long segmentId, UUID txId) {
+        return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
     }
 }

@@ -18,6 +18,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -36,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
@@ -309,6 +311,7 @@ public class SegmentHelper {
                                                      final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
+
         final CompletableFuture<UUID> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
@@ -373,8 +376,9 @@ public class SegmentHelper {
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
         // Transaction segments are created against a logical primary such that all transaction segments become mergable.
         // So we will erase secondary id while creating transaction's qualified name.
-        final int primaryId = getSegmentNumber(segmentId);
-        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, primaryId);
+        long generalizedSegmentId = TableHelper.generializedSegmentId(segmentId, txId);
+
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, generalizedSegmentId);
         return getTransactionNameFromId(qualifiedName, txId);
     }
 
