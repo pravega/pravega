@@ -364,7 +364,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                         retrySchedule.getMaxDelay(),
                         t -> log.error(writerId + " to invoke sealed callback: ", t))
                      .runInExecutor(() -> {
-                         log.debug("Invoking SealedSegment call back for {} on writer {}", segmentIsSealed, writerId);
+                         log.debug("Invoking SealedSegment call back for {} on writer {}", wireCommand, writerId);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
                      }, connectionFactory.getInternalExecutor())
                      .thenRun(() -> {
