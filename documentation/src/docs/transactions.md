@@ -17,7 +17,7 @@ Samples
 readme](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
-Concepts](http://pravega.io/Pravega-Concepts/index.html)) before continuing reading this page.
+Concepts](http://pravega.io/docs/latest/pravega-concepts/)) before continuing reading this page.
 
 ## Pravega Transactions and the Console Writer and Console Reader Apps
 
