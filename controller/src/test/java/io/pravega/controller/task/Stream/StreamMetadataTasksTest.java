@@ -278,6 +278,9 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && !configProp.isUpdating());
 
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
+        UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1);
+        AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
     @Test(timeout = 30000)
@@ -386,6 +389,13 @@ public class StreamMetadataTasksTest {
 
         truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", true, null, executor).join();
         assertTrue(truncProp.getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
+
+        streamStorePartialMock.setState(SCOPE, "test", State.TRUNCATING, null, executor).join();
+
+        TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test");
+        AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+
+        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
     }
 
     @Test(timeout = 30000)
