@@ -63,7 +63,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                     if (!property.isUpdating()) {
                         // if the state is TRUNCATING but the truncation record is not updating, we should reset the state to ACTIVE.
                         return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
-                                .thenApply(x -> {
+                                .thenRun(() -> {
                                     throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                                 });
                     } else {

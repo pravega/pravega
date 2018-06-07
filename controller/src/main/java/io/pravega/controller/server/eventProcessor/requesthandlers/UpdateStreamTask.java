@@ -56,7 +56,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                     if (!configProperty.isUpdating()) {
                         // if the state is updating but the configuration record is not updating, we should reset the state to ACTIVE.
                         return streamMetadataStore.resetStateConditionally(scope, stream, State.UPDATING, context, executor)
-                                .thenApply(x -> {
+                                .thenRun(() -> {
                                     throw new TaskExceptions.StartException("Update Stream not started yet.");
                                 });
                     } else {
