@@ -38,7 +38,6 @@ import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -58,8 +57,6 @@ import java.util.stream.Collectors;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
 /**
  * Collection of metadata update tasks on stream.

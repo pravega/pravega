@@ -37,7 +37,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
