@@ -159,15 +159,15 @@ public class TableHelperTest {
         List<Long> newSegments = Lists.newArrayList(0L, 1L, 2L, 3L, 4L);
         long timestamp = System.currentTimeMillis();
         int epoch = 0;
-        Segment zero = new Segment(0L, timestamp, 0, 0.2);
+        Segment zero = new Segment(0L, epoch, timestamp, 0, 0.2);
         segments.add(zero);
-        Segment one = new Segment(1L, timestamp, 0.2, 0.4);
+        Segment one = new Segment(1L, epoch, timestamp, 0.2, 0.4);
         segments.add(one);
-        Segment two = new Segment(2L, timestamp, 0.4, 0.6);
+        Segment two = new Segment(2L, epoch, timestamp, 0.4, 0.6);
         segments.add(two);
-        Segment three = new Segment(3L, timestamp, 0.6, 0.8);
+        Segment three = new Segment(3L, epoch, timestamp, 0.6, 0.8);
         segments.add(three);
-        Segment four = new Segment(4L, timestamp, 0.8, 1);
+        Segment four = new Segment(4L, epoch, timestamp, 0.8, 1);
         segments.add(four);
 
         List<Long> predecessors, successors;
@@ -202,7 +202,7 @@ public class TableHelperTest {
         long fiveSegmentId = computeSegmentId(5, 1);
         newSegments = Lists.newArrayList(0L, 1L, 2L, fiveSegmentId);
         timestamp = timestamp + 1;
-        Segment five = new Segment(fiveSegmentId, timestamp, 0.6, 1);
+        Segment five = new Segment(fiveSegmentId, epoch, timestamp, 0.6, 1);
         segments.add(five);
 
         historyIndex = TableHelper.updateHistoryIndex(historyIndex, nextHistoryOffset);
@@ -239,11 +239,11 @@ public class TableHelperTest {
 
         newSegments = Lists.newArrayList(0L, sixSegmentId, sevenSegmentId, eightSegmentId);
         timestamp = timestamp + 10;
-        Segment six = new Segment(sixSegmentId, timestamp, 0.2, 0.3);
+        Segment six = new Segment(sixSegmentId, epoch, timestamp, 0.2, 0.3);
         segments.add(six);
-        Segment seven = new Segment(sevenSegmentId, timestamp, 0.3, 0.4);
+        Segment seven = new Segment(sevenSegmentId, epoch, timestamp, 0.3, 0.4);
         segments.add(seven);
-        Segment eight = new Segment(eightSegmentId, timestamp, 0.4, 1);
+        Segment eight = new Segment(eightSegmentId, epoch, timestamp, 0.4, 1);
         segments.add(eight);
 
         historyIndex = TableHelper.updateHistoryIndex(historyIndex, nextHistoryOffset);
@@ -280,11 +280,11 @@ public class TableHelperTest {
 
         newSegments = Lists.newArrayList(0L, sixSegmentId, nineSegmentId, tenSegmentId, elevenSegmentId);
         timestamp = timestamp + 10;
-        Segment nine = new Segment(nineSegmentId, timestamp, 0.3, 0.35);
+        Segment nine = new Segment(nineSegmentId, epoch, timestamp, 0.3, 0.35);
         segments.add(nine);
-        Segment ten = new Segment(tenSegmentId, timestamp, 0.35, 0.6);
+        Segment ten = new Segment(tenSegmentId, epoch, timestamp, 0.35, 0.6);
         segments.add(ten);
-        Segment eleven = new Segment(elevenSegmentId, timestamp, 0.6, 1);
+        Segment eleven = new Segment(elevenSegmentId, epoch, timestamp, 0.6, 1);
         segments.add(eleven);
 
         historyIndex = TableHelper.updateHistoryIndex(historyIndex, nextHistoryOffset);
@@ -893,17 +893,17 @@ public class TableHelperTest {
         long eightId = computeSegmentId(8, 1);
         long nineId = computeSegmentId(9, 2);
         long tenId = computeSegmentId(10, 2);
-        Segment zero = new Segment(0L, timestamp, 0, 0.33);
-        Segment one = new Segment(1L, timestamp, 0.33, 0.66);
-        Segment two = new Segment(2L, timestamp, 0.66, 1.0);
-        Segment three = new Segment(threeId, timestamp, 0.0, 0.16);
-        Segment four = new Segment(fourId, timestamp, 0.16, 0.33);
-        Segment five = new Segment(fiveId, timestamp, 0.33, 0.5);
-        Segment six = new Segment(sixId, timestamp, 0.5, 0.66);
-        Segment seven = new Segment(sevenId, timestamp, 0.66, 0.83);
-        Segment eight = new Segment(eightId, timestamp, 0.83, 1);
-        Segment nine = new Segment(nineId, timestamp, 0.0, 0.5);
-        Segment ten = new Segment(tenId, timestamp, 0.5, 1);
+        Segment zero = new Segment(0L, epoch, timestamp, 0, 0.33);
+        Segment one = new Segment(1L, epoch, timestamp, 0.33, 0.66);
+        Segment two = new Segment(2L, epoch, timestamp, 0.66, 1.0);
+        Segment three = new Segment(threeId, epoch, timestamp, 0.0, 0.16);
+        Segment four = new Segment(fourId, epoch, timestamp, 0.16, 0.33);
+        Segment five = new Segment(fiveId, epoch, timestamp, 0.33, 0.5);
+        Segment six = new Segment(sixId, epoch, timestamp, 0.5, 0.66);
+        Segment seven = new Segment(sevenId, epoch, timestamp, 0.66, 0.83);
+        Segment eight = new Segment(eightId, epoch, timestamp, 0.83, 1);
+        Segment nine = new Segment(nineId, epoch, timestamp, 0.0, 0.5);
+        Segment ten = new Segment(tenId, epoch, timestamp, 0.5, 1);
 
         segments = new LinkedList<>();
         segments.add(zero);

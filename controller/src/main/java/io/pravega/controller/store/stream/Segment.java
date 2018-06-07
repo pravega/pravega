@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Data;
 import lombok.ToString;
 
@@ -22,13 +21,10 @@ import java.util.AbstractMap;
 @ToString(includeFieldNames = true)
 public class Segment {
     private final long segmentId;
+    private final int epoch;
     private final long start;
     private final double keyStart;
     private final double keyEnd;
-
-    public int getEpoch() {
-        return StreamSegmentNameUtils.getEpoch(segmentId);
-    }
 
     public boolean overlaps(final Segment segment) {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;

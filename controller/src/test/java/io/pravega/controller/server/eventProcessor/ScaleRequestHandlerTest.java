@@ -70,7 +70,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -310,7 +310,7 @@ public class ScaleRequestHandlerTest {
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
-        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 100L, 0.1706574888245243, 0.7085170563088633);
+        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 1, 100L, 0.1706574888245243, 0.7085170563088633);
         doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyLong(), any(), any());
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);

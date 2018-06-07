@@ -81,6 +81,7 @@ public class TableHelper {
             }
 
             return new Segment(segmentId,
+                    epoch,
                     creationTime,
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
