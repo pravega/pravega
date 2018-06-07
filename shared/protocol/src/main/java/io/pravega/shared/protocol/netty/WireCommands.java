@@ -1096,7 +1096,6 @@ public final class WireCommands {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
             return new SegmentsMerged(requestId, target, source);
         }
     }
