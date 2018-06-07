@@ -10,16 +10,13 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
