@@ -472,8 +472,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         .thenApply(epochTransition -> {
                                             List<Segment> newSegments = new ArrayList<>();
                                             epochTransition.getNewSegmentsWithRange().entrySet().forEach(x -> {
-                                                newSegments.add(new Segment(x.getKey(), epochTransition.getNewEpoch(),
-                                                        scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
+                                                newSegments.add(new Segment(x.getKey(), scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
                                             });
                                             return epochTransition;
                                         })))));
@@ -1354,11 +1353,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    protected int getTransactionEpoch(UUID txId) {
-        // epoch == UUID.msb >> 32
-        return (int) (txId.getMostSignificantBits() >> 32);
-    }
-
     private CompletableFuture<Segment> getSegmentRow(final long number) {
         return getHistoryIndex()
                 .thenCompose(historyIndex -> getHistoryTable()
@@ -1366,6 +1360,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .thenCompose(segmentIndex -> getSegmentTable()
                                         .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(),
                                                 segmentTable.getData(), historyIndex.getData(), historyTable.getData())))));
+    }
+
+    protected int getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb >> 32
+        return (int) (txId.getMostSignificantBits() >> 32);
     }
 
     abstract CompletableFuture<Void> deleteStream();

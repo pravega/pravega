@@ -181,7 +181,7 @@ message StreamCut {
 
 message SegmentId {
     StreamInfo streamInfo = 1;
-    int64 segmentNumber = 2;
+    int64 segmentId = 2;
 }
 
 message SegmentRange {

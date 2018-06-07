@@ -660,10 +660,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final long segmentNumber, final UUID txnId) {
+                                                      final long segmentId, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
-                segmentNumber,
+                segmentId,
                 txnId,
                 this.hostControllerStore,
                 this.connectionFactory, this.retrieveDelegationToken()), executor);

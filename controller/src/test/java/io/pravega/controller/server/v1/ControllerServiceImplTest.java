@@ -460,9 +460,9 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.getCurrentSegments(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
         final SegmentRanges segmentRanges = result3.get();
         Assert.assertEquals(3, segmentRanges.getSegmentRangesCount());
-        Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentId());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentId());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentId());
     }
 
     @Test

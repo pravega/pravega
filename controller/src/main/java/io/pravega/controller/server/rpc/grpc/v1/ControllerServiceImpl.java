@@ -212,7 +212,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentNumber());
+                request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.getURI(request),
@@ -223,12 +223,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void isSegmentValid(SegmentId request,
                                StreamObserver<SegmentValidityResponse> responseObserver) {
         log.info("isSegmentValid called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentNumber());
+                request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getSegmentNumber())
+                        request.getSegmentId())
                                        .thenApply(bRes -> SegmentValidityResponse.newBuilder().setResponse(bRes).build()),
                 responseObserver);
     }
