@@ -31,6 +31,7 @@ import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -190,18 +191,38 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             //scale down bookie
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
 
-            //check reads and writes after sleeps
+            //sleep to check the write count after bookie failover
+            Exceptions.handleInterrupted(() -> Thread.sleep(30 * 1000));
+
+            //write count after bookie failover
+            int writeCounteBeforeSleep  = testState.getEventWrittenCount();
+            log.info("Write count after bookie failover before sleep {}", writeCounteBeforeSleep);
+
             log.info("Sleeping for 2 mins");
             Exceptions.handleInterrupted(() -> Thread.sleep(2 * 60 * 1000));
 
+            int writeCounteAfterSleep  = testState.getEventWrittenCount();
+            log.info("Write count after bookie failover after sleep {}", writeCounteAfterSleep);
+
+            Assert.assertTrue(writeCounteAfterSleep == writeCounteBeforeSleep);
+            log.info("Writes failed when bookie is scaled down");
+
             //Bring back the bookie which was killed
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
+
+            //sleep to check the write count after bookie is brought back
+            Exceptions.handleInterrupted(() -> Thread.sleep(30 * 1000));
 
             stopWriters();
             stopReaders();
 
             //Verify that there is no data loss/duplication.
             validateResults();
+
+            //Also, verify writes happened after bookie is  brought back
+            int finalWriteCount = testState.getEventWrittenCount();
+            log.info("Final write count {}", finalWriteCount);
+            Assert.assertTrue( finalWriteCount > writeCounteAfterSleep);
 
             cleanUp(SCOPE, STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
