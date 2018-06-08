@@ -146,21 +146,25 @@ abstract class AbstractFailoverTests {
         }
 
         public void cancelAllPendingWork() {
-            readers.forEach(future -> {
-                try {
-                    future.cancel(true);
-                } catch (Exception e) {
-                    log.error("exception thrown while cancelling reader thread", e);
-                }
-            });
+            synchronized (readers) {
+                readers.forEach(future -> {
+                    try {
+                        future.cancel(true);
+                    } catch (Exception e) {
+                        log.error("exception thrown while cancelling reader thread", e);
+                    }
+                });
+            }
 
-            writers.forEach(future -> {
-                try {
-                    future.cancel(true);
-                } catch (Exception e) {
-                    log.error("exception thrown while cancelling writer thread", e);
-                }
-            });
+            synchronized (writers) {
+                writers.forEach(future -> {
+                    try {
+                        future.cancel(true);
+                    } catch (Exception e) {
+                        log.error("exception thrown while cancelling writer thread", e);
+                    }
+                });
+            }
         }
     }
 
