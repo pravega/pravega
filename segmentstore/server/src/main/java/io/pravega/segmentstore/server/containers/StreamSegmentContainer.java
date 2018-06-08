@@ -459,6 +459,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
+                    log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
                     return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
                 } else {
                     // Source now has some data - we must merge the two.
