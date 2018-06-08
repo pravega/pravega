@@ -20,6 +20,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -86,7 +87,8 @@ public class AutoScaleTask {
     }
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentId());
+        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+        log.info("scale up request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -111,7 +113,8 @@ public class AutoScaleTask {
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentId());
+        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+        log.info("scale down request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -164,7 +167,9 @@ public class AutoScaleTask {
                 .thenCompose(toMerge -> {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
-                            log.debug("merging stream {}: segment {} ", request.getStream(), x.getSegmentId());
+                            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.getSegmentId());
+
+                            log.debug("merging stream segment {} ", segmentName);
                         });
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();

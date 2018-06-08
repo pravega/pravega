@@ -148,7 +148,7 @@ public class HistoryRecord {
             int latestIndexedEpoch = latestIndex.get().getEpoch();
             do {
                 record = readRecord(--latestIndexedEpoch, historyIndex, historyTable, ignorePartial);
-            } while(!record.isPresent());
+            } while (!record.isPresent());
             assert record.isPresent();
         }
 
