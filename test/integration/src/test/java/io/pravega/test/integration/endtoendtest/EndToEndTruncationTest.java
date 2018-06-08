@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
@@ -36,7 +35,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.Exceptions;
@@ -66,6 +64,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -144,15 +143,16 @@ public class EndToEndTruncationTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0, 1), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get();
 
         assertTrue(result);
         writer.writeEvent("0", "truncationTest2").get();
 
-        Map<Integer, Long> streamCutPositions = new HashMap<>();
-        streamCutPositions.put(2, 0L);
-        streamCutPositions.put(3, 0L);
-        streamCutPositions.put(4, 0L);
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(computeSegmentId(2, 1), 0L);
+        streamCutPositions.put(computeSegmentId(3, 1), 0L);
+        streamCutPositions.put(computeSegmentId(4, 1), 0L);
+
         controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 
         @Cleanup
@@ -199,11 +199,12 @@ public class EndToEndTruncationTest {
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 1.0);
-        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0, 1), map, executor).getFuture().get());
+        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get());
 
         // truncate stream at segment 2, offset 0.
-        StreamCut sc = new StreamCutImpl(stream, ImmutableMap.of(new Segment("test", "test", 2), 0L));
-        assertTrue("Truncate stream", controller.truncateStream("test", "test", sc).get());
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(computeSegmentId(2, 1), 0L);
+        assertTrue("Truncate stream", controller.truncateStream("test", "test", streamCutPositions).get());
 
         // routing key "2" translates to key 0.2.
         // this write translates to a write to Segment 0, but since segment 0 is truncated the write should happen on segment 2.
@@ -350,7 +351,7 @@ public class EndToEndTruncationTest {
      *
      * @throws InterruptedException If the current thread is interrupted while waiting for the Controller service.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testSegmentTruncationWhileReading() throws InterruptedException {
         final int totalEvents = 100;
         final int parallelism = 1;
@@ -378,8 +379,10 @@ public class EndToEndTruncationTest {
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        assertTrue(controller.scaleStream(stream, Lists.newArrayList(0), map, executor).getFuture().join());
+        assertTrue(controller.scaleStream(stream, Lists.newArrayList(0L), map, executor).getFuture().join());
 
+        long one = computeSegmentId(1, 1);
+        long two = computeSegmentId(2, 1);
         // Write rest of events to the new Stream segments.
         writeDummyEvents(clientFactory, streamName, totalEvents, totalEvents / 2);
 
@@ -391,9 +394,9 @@ public class EndToEndTruncationTest {
 
         // Let readers to consume some events and truncate segment while readers are consuming events
         Exceptions.handleInterrupted(() -> Thread.sleep(500));
-        Map<Integer, Long> streamCutPositions = new HashMap<>();
-        streamCutPositions.put(1, 0L);
-        streamCutPositions.put(2, 0L);
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(one, 0L);
+        streamCutPositions.put(two, 0L);
         assertTrue(controller.truncateStream(scope, streamName, streamCutPositions).join());
 
         // Wait for readers to complete and assert that they have read all the events (totalEvents).
@@ -401,11 +404,11 @@ public class EndToEndTruncationTest {
         assertEquals((int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get(), totalEvents);
 
         // Assert that from the truncation call onwards, the available segments are the ones after scaling.
-        List<Integer> currentSegments = controller.getCurrentSegments(scope, streamName).join().getSegments().stream()
-                                                  .map(Segment::getSegmentNumber)
+        List<Long> currentSegments = controller.getCurrentSegments(scope, streamName).join().getSegments().stream()
+                                                  .map(Segment::getSegmentId)
                                                   .sorted()
                                                   .collect(toList());
-        currentSegments.removeAll(Lists.newArrayList(1, 2));
+        currentSegments.removeAll(Lists.newArrayList(one, two));
         assertTrue(currentSegments.isEmpty());
 
         // The new set of readers, should only read the events beyond truncation point (segments 1 and 2).

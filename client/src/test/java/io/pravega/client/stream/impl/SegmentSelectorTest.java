@@ -23,7 +23,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -35,7 +35,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-public class SegmentSelectorTest extends ThreadPooledTestSuite {
+public class SegmentSelectorTest {
 
     private final String scope = "scope";
     private final String streamName = "streamName";
@@ -62,7 +62,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -89,7 +89,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -116,7 +116,7 @@ public class SegmentSelectorTest extends ThreadPooledTestSuite {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
     }

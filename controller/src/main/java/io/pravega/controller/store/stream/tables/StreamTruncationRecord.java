@@ -39,7 +39,7 @@ public class StreamTruncationRecord  {
     /**
      * Stream cut that is applied as part of this truncation.
      */
-    private final ImmutableMap<Integer, Long> streamCut;
+    private final ImmutableMap<Long, Long> streamCut;
 
     /**
      * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
@@ -56,25 +56,25 @@ public class StreamTruncationRecord  {
      * applied on it to find segments that are available for consumption.
      * Refer to TableHelper.getActiveSegmentsAt
      */
-    private final ImmutableMap<Integer, Integer> cutEpochMap;
+    private final ImmutableMap<Long, Integer> cutEpochMap;
     /**
      * All segments that have been deleted for this stream so far.
      */
-    private final ImmutableSet<Integer> deletedSegments;
+    private final ImmutableSet<Long> deletedSegments;
     /**
      * Segments to delete as part of this truncation.
      * This is non empty while truncation is ongoing.
      * This is reset to empty once truncation completes by calling mergeDeleted method.
      */
-    private final ImmutableSet<Integer> toDelete;
+    private final ImmutableSet<Long> toDelete;
 
     private final boolean updating;
 
     @Builder
-    public StreamTruncationRecord(Map<Integer, Long> streamCut,
-                                  Map<Integer, Integer> cutEpochMap,
-                                  Set<Integer> deletedSegments,
-                                  Set<Integer> toDelete,
+    public StreamTruncationRecord(Map<Long, Long> streamCut,
+                                  Map<Long, Integer> cutEpochMap,
+                                  Set<Long> deletedSegments,
+                                  Set<Long> toDelete,
                                   boolean updating) {
         this.streamCut = ImmutableMap.copyOf(streamCut);
         this.cutEpochMap = ImmutableMap.copyOf(cutEpochMap);
@@ -91,25 +91,25 @@ public class StreamTruncationRecord  {
         return cutEpochMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
 
-    public ImmutableMap<Integer, Long> getStreamCut() {
+    public ImmutableMap<Long, Long> getStreamCut() {
         return streamCut;
     }
 
-    public ImmutableMap<Integer, Integer> getCutEpochMap() {
+    public ImmutableMap<Long, Integer> getCutEpochMap() {
         return cutEpochMap;
     }
 
-    public ImmutableSet<Integer> getDeletedSegments() {
+    public ImmutableSet<Long> getDeletedSegments() {
         return deletedSegments;
     }
 
-    public ImmutableSet<Integer> getToDelete() {
+    public ImmutableSet<Long> getToDelete() {
         return toDelete;
     }
 
     public static StreamTruncationRecord complete(StreamTruncationRecord toComplete) {
         Preconditions.checkState(toComplete.updating);
-        Set<Integer> deleted = new HashSet<>(toComplete.deletedSegments);
+        Set<Long> deleted = new HashSet<>(toComplete.deletedSegments);
         deleted.addAll(toComplete.toDelete);
 
         return StreamTruncationRecord.builder()

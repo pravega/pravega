@@ -69,9 +69,9 @@ public class StreamSegments {
     
     public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
         NavigableMap<Double, Segment> result = new TreeMap<>();
-        Map<Integer, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
+        Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
-            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentNumber());
+            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentId());
             if (replacements == null || replacements.isEmpty()) {
                 result.put(exitingSegment.getKey(), exitingSegment.getValue());
             } else {

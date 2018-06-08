@@ -149,7 +149,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     }
 
     private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments) {
-        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
+        List<Long> segmentsToBeSealed = activeSegments.stream().map(Segment::getSegmentId).
                 collect(Collectors.toList());
         log.debug("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
         return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed,

@@ -115,8 +115,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
-
+            controller.startScale(stream, Collections.singletonList(0L), map).get();
             Transaction<String> txn2 = test.beginTxn();
 
             txn2.writeEvent("2");
@@ -128,7 +127,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test").build());
+            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
 
             final EventStreamReader<String> reader = clientFactory.createReader("1",
                     "readergrp",
