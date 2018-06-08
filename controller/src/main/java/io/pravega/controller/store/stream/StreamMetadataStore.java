@@ -14,6 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamCutRecord;
@@ -863,4 +864,59 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Long, Long> streamCut,
                                                  final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to fetch committing transaction record from the store for a given stream.
+     * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
+     * it returns null.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param epoch epoch
+     * @param txnsToCommit transactions to commit within the epoch
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
+     */
+    CompletableFuture<Void> createCommittingTransactionsRecord(final String scope, final String stream, final int epoch, final List<UUID> txnsToCommit,
+                                                               final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to fetch committing transaction record from the store for a given stream.
+     * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
+     * it returns null.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
+     */
+    CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord(final String scope, final String stream,
+                                                                                    final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to delete committing transaction record from the store for a given stream.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
+     */
+    CompletableFuture<Void> deleteCommittingTransactionsRecord(final String scope, final String stream, final OperationContext context,
+                                                               final ScheduledExecutorService executor);
+
+    /**
+     * Method to get all transactions in a given epoch. This method returns a map of transaction id to transaction record.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param epoch epoch
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which when completed will contain a map of transaction id and its record.
+     */
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final String scope, final String stream, final int epoch,
+                                                                         final OperationContext context, final ScheduledExecutorService executor);
 }

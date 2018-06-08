@@ -14,7 +14,6 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
-import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -53,7 +52,7 @@ public class ControllerEventProcessorsTest {
         String scope = "test";
         String stream = "test";
         AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
-        CommitEvent commitEvent = new CommitEvent(scope, stream, 0, txid);
+        CommitEvent commitEvent = new CommitEvent(scope, stream, 0);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
     }
@@ -150,7 +149,7 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore,
-                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                 system, executor);
         processors.startAsync();
         processors.awaitRunning();
