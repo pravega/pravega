@@ -88,7 +88,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         String stream = event.getStream();
         int epoch = event.getEpoch();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        log.info("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
+        log.debug("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
 
         CompletableFuture<Void> future = new CompletableFuture<>();
 
@@ -111,7 +111,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                             future.completeExceptionally(cause);
                         }
                     } else {
-                        log.info("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
+                        log.debug("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
