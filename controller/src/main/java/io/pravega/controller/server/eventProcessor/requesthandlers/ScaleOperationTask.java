@@ -86,19 +86,11 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<EpochTransitionRecord> runScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
-        // 1. create epoch transition node (metadatastore.startScale)
-        // 2. set state to scaling (metadatastore.setState)
-        // 3. create new segments in segment table (metadatastore.scaleCreateNewSegments)
-        // 4. create new physical segemnts in segment store
-        // 4. update metadata store with new partial epoch (metadatastore.scaleNewSegmentsCreated)
-        // 5. seal old segments in segment store (streamMetadataTasks.notifySealedSegments)
-        // 6. complete scale (metadataStore.scaleSegmentsSealed)
-        //      update metadata store to complete partial epoch + delete epoch transition node
-        // 7. set state to active
-        //      Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
-        //      and deleted in startScale method.
-        //      if we crash before setting state to active, in rerun (retry) we will find epoch transition to be null and
-        //      hence reset the state in startScale method before attempting to start scale in idempotent fashion.
+        // create epoch transition node (metadatastore.startScale)
+        // Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
+        // and deleted in startScale method.
+        // if we crash before setting state to active, in rerun (retry) we will find epoch transition to be null and
+        // hence reset the state in startScale method before attempting to start scale in idempotent fashion.
         return streamMetadataStore.startScale(scope, stream, scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
                 scaleInput.getScaleTime(), runOnlyIfStarted, context, executor)
                 .thenCompose(response -> streamMetadataStore.setState(scope, stream, State.SCALING, context, executor)

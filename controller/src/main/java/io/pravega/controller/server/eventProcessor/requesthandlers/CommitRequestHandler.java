@@ -126,9 +126,9 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                                           final String stream,
                                                           final int txnEpoch,
                                                           final OperationContext context) {
-        // try creating txn commit list first. if node already exists and doesnt match the processing in the event, throw operation not allowed.
+        // try creating txn commit list first. if node already exists and doesn't match the processing in the event, throw operation not allowed.
         // This will result in event being posted back in the stream and retried later. Generally if a transaction commit starts, it will come to
-        // an end.. but during failover, once we have created the node, we are guaranteed that it will be only that transaction that will be getting
+        // an end. However, during failover, once we have created the node, we are guaranteed that it will be only that transaction that will be getting
         // committed at that time.
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenCompose(state -> {
@@ -164,7 +164,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                                 HistoryRecord activeEpochRecord = records.get(1);
                                                 if (activeEpochRecord.getEpoch() == txnEpoch ||
                                                         activeEpochRecord.getReferenceEpoch() == txnEpochRecord.getReferenceEpoch()) {
-                                                    // if transactions were created on or a duplicate of active epoch,
+                                                    // If active epoch's reference is same as transaction epoch,
                                                     // we can commit transactions immediately
                                                     return commitTransactions(scope, stream, activeEpochRecord.getSegments(), txnList, context);
                                                 } else {
@@ -214,8 +214,10 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
      */
     private CompletableFuture<Void> rollTransactions(String scope, String stream, HistoryRecord txnEpoch, HistoryRecord activeEpoch,
                                                      List<UUID> transactionsToCommit, OperationContext context) {
-        // check if all transactions are already committed. if so return all good immediately
-        // just checking the last one suffices as we perform processing of transactions in order.
+        // Idempotent: check if all transactions are already committed. if so, do nothing and return immediately
+        // Just checking the last transaction id in list of transactions to commit suffices as we perform processing of
+        // transactions commit in same order as in the last. So if last transaction is already committed, then everything
+        // preceeding it is also committed.
         UUID lastTransactionId = transactionsToCommit.get(transactionsToCommit.size() - 1);
         return streamMetadataStore.transactionStatus(scope, stream, lastTransactionId, context, executor)
                 .thenCompose(status -> {
@@ -286,9 +288,8 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
 
     /**
      * This method loops over each transaction in the list, commits them by calling into segment store followed by marking
-     * the transaction metadata for completion. Finally it will remove the from the txn commit list.
-     * At the end of this method's execution, all transactions in the list would have committed and committing list in the store
-     * would become empty.
+     * the transaction metadata as COMMITTED.
+     * At the end of this method's execution, all transactions in the list would have committed.
      */
     private CompletableFuture<Void> commitTransactions(String scope, String stream, List<Long> segments,
                                                        List<UUID> transactionsToCommit, OperationContext context) {

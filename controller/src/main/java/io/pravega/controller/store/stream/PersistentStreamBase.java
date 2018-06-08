@@ -561,7 +561,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             .thenCompose(historyTable -> getSegmentIndexFromStore().thenCompose(segmentIndex -> getSegmentTableFromStore()
                                     .thenCompose(segmentTable -> getEpochTransition().thenCompose(epochTransition -> {
                                         if (isManualScale) {
-                                            // The epochTransitionNode is the barrier that prevents concurrent scaling
+                                            // The epochTransitionNode is the barrier that prevents concurrent scaling.
                                             // State is the barrier to ensure only one work happens at a time.
                                             // However, if epochTransition node is created but before scaling happens,
                                             // we can have rolling transaction kick in which would create newer epochs.
