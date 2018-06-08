@@ -1099,6 +1099,13 @@ public class TableHelper {
         return (int) (txId.getMostSignificantBits() >> 32);
     }
 
+    /**
+     * This method takes a segment id and replaces its epoch with the epoch in the transaction.
+     *
+     * @param segmentId segment id
+     * @param txId transaction id
+     * @return new segment id which uses transaction's epoch.
+     */
     public static long generializedSegmentId(long segmentId, UUID txId) {
         return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
     }
