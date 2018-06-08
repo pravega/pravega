@@ -29,8 +29,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

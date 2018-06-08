@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 /**
@@ -359,7 +358,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                 .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
                         Collectors.toMap(txId -> txId, txId -> Futures.exceptionallyExpecting(cache.getCachedData(getActiveTxPath(epoch, txId)),
-                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, EMPTY_DATA)))
+                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, EMPTY_DATA)))
                         ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(EMPTY_DATA))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                 );
