@@ -34,7 +34,7 @@ import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
@@ -85,9 +85,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
+    private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
     private final StreamRequestHandler streamRequestHandler;
+    private final CommitRequestHandler commitRequestHandler;
     private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
@@ -123,12 +125,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
-                new CommitTransactionTask(streamMetadataStore, streamMetadataTasks, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 executor);
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
         this.executor = executor;
     }
@@ -166,6 +168,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> processes) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
+        if (this.commitEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.commitEventProcessors, processes));
+        }
         if (this.abortEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
         }
@@ -178,6 +183,16 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @Override
     public CompletableFuture<Void> handleFailedProcess(String process) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        if (commitEventProcessors != null) {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    commitEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
+        }
 
         if (abortEventProcessors != null) {
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
@@ -201,6 +216,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private CompletableFuture<Void> createStreams() {
+        StreamConfiguration commitStreamConfig =
+                StreamConfiguration.builder()
+                        .scope(config.getScopeName())
+                        .streamName(config.getCommitStreamName())
+                        .scalingPolicy(config.getCommitStreamScalingPolicy())
+                        .build();
 
         StreamConfiguration abortStreamConfig =
                 StreamConfiguration.builder()
@@ -218,7 +239,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         return createScope(config.getScopeName())
                 .thenCompose(ignore ->
-                        CompletableFuture.allOf(createStream(abortStreamConfig),
+                        CompletableFuture.allOf(createStream(commitStreamConfig),
+                                createStream(abortStreamConfig),
                                 createStream(requestStreamConfig)));
     }
 
@@ -296,6 +318,35 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private void initialize() throws Exception {
+
+        // region Create commit event processor
+
+        EventProcessorGroupConfig commitReadersConfig =
+                EventProcessorGroupConfigImpl.builder()
+                        .streamName(config.getCommitStreamName())
+                        .readerGroupName(config.getCommitReaderGroupName())
+                        .eventProcessorCount(config.getCommitReaderGroupSize())
+                        .checkpointConfig(CheckpointConfig.none())
+                        .build();
+
+        EventProcessorConfig<CommitEvent> commitConfig =
+                EventProcessorConfig.<CommitEvent>builder()
+                        .config(commitReadersConfig)
+                        .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
+                        .serializer(COMMIT_EVENT_SERIALIZER)
+                        .supplier(() -> new ConcurrentEventProcessor<>(commitRequestHandler, executor))
+                        .build();
+
+        log.info("Creating commit event processors");
+        Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
+                e -> log.warn("Error creating commit event processor group", e))
+                .run(() -> {
+                    commitEventProcessors = system.createEventProcessorGroup(commitConfig, checkpointStore);
+                    return null;
+                });
+
+        // endregion
+
         // region Create abort event processor
 
         EventProcessorGroupConfig abortReadersConfig =
@@ -352,6 +403,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
         // endregion
 
+        log.info("Awaiting start of commit event processors");
+        commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
         abortEventProcessors.awaitRunning();
         log.info("Awaiting start of request event processors");
@@ -359,6 +412,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private void stopEventProcessors() {
+        if (commitEventProcessors != null) {
+            log.info("Stopping commit event processors");
+            commitEventProcessors.stopAsync();
+        }
         if (abortEventProcessors != null) {
             log.info("Stopping abort event processors");
             abortEventProcessors.stopAsync();
@@ -366,6 +423,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (requestEventProcessors != null) {
             log.info("Stopping request event processors");
             requestEventProcessors.stopAsync();
+        }
+        if (commitEventProcessors != null) {
+            log.info("Awaiting termination of commit event processors");
+            commitEventProcessors.awaitTerminated();
         }
         if (abortEventProcessors != null) {
             log.info("Awaiting termination of abort event processors");

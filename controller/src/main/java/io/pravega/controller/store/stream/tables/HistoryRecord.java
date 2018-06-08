@@ -145,7 +145,10 @@ public class HistoryRecord {
         if (!record.isPresent()) {
             // This can happen if we have the index updated but the history table isnt updated yet. Or the latest record was partial.
             // So fetch the previous indexed record.
-            record = readRecord(latestIndex.get().getEpoch() - 1, historyIndex, historyTable, ignorePartial);
+            int latestIndexedEpoch = latestIndex.get().getEpoch();
+            do {
+                record = readRecord(--latestIndexedEpoch, historyIndex, historyTable, ignorePartial);
+            } while(!record.isPresent());
             assert record.isPresent();
         }
 

@@ -141,6 +141,32 @@ public class TableHelperTest {
 
         activeSegments = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null);
         assertEquals(newSegments, activeSegments);
+
+        // test active segments while rolling transaction is ongoing
+        activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
+        System.err.println(activeEpoch);
+        Pair<byte[], byte[]> historyAndIndexPair = TableHelper.insertDuplicateRecordsInHistoryTable(historyIndex, historyTable, 0, System.currentTimeMillis());
+        byte[] historyIndexUpdated = historyAndIndexPair.getKey();
+        byte[] historyTableUpdated = historyAndIndexPair.getValue();
+
+        // try with only index updated
+        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTable);
+        assertEquals(1, activeEpoch.getEpoch());
+
+        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTableUpdated);
+        assertEquals(1, activeEpoch.getEpoch());
+
+        HistoryRecord epochRecordTxnEpoch = TableHelper.getEpochRecord(historyIndexUpdated, historyTableUpdated, 2);
+        assertEquals(0, epochRecordTxnEpoch.getReferenceEpoch());
+        HistoryRecord epochRecordActiveDuplicate = TableHelper.getEpochRecord(historyIndexUpdated, historyTableUpdated, 3);
+        assertEquals(1, epochRecordActiveDuplicate.getReferenceEpoch());
+
+        partial = HistoryRecord.readLatestRecord(historyIndexUpdated, historyTableUpdated, false).get();
+        assertEquals(partial, epochRecordActiveDuplicate);
+
+        historyTableUpdated = TableHelper.completePartialRecordInHistoryTable(historyIndexUpdated, historyTableUpdated, partial, timestamp);
+        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTableUpdated);
+        assertEquals(3, activeEpoch.getEpoch());
     }
 
     private Segment getSegment(long number, List<Segment> segments) {

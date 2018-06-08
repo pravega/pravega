@@ -24,7 +24,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -161,7 +161,7 @@ public class ScaleRequestHandlerTest {
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, null, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 
@@ -256,10 +256,10 @@ public class ScaleRequestHandlerTest {
         EventWriterMock writer = new EventWriterMock();
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler, commitEventProcessor,
+        StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
@@ -268,6 +268,7 @@ public class ScaleRequestHandlerTest {
         streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
 
         HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(0, epochZero.getEpoch());
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L, 1L, 2L),
@@ -278,6 +279,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(State.ACTIVE, state);
 
         HistoryRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(1, epochOne.getEpoch());
 
         // 4. create transaction -> verify that this is created on new epoch
         UUID txnIdNewEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
@@ -286,7 +288,7 @@ public class ScaleRequestHandlerTest {
         streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
 
         // 5. commit on old epoch.. this should roll over
-        assertTrue(Futures.await(requestHandler.process(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
@@ -299,7 +301,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(epochThree, activeEpoch);
 
         // 6. commit on new epoch. This should happen on duplicate of new epoch successfully
-        assertTrue(Futures.await(requestHandler.process(new CommitEvent(scope, stream, txnDataNew.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnDataNew.getEpoch()))));
         txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
@@ -315,7 +317,7 @@ public class ScaleRequestHandlerTest {
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, null, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 

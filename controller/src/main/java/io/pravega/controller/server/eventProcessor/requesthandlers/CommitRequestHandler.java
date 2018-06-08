@@ -12,7 +12,10 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.Retry;
+import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -20,6 +23,7 @@ import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,94 +41,85 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
 /**
- * Request handler for processing commit events in request-stream.
+ * Request handler for processing commit events in commit-stream.
  */
 @Slf4j
-public class CommitTransactionTask implements StreamTask<CommitEvent> {
-    private final StreamMetadataTasks streamMetadataTasks;
+public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> {
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ScheduledExecutorService executor;
     private final BlockingQueue<CommitEvent> processedEvents;
 
-    public CommitTransactionTask(final StreamMetadataStore streamMetadataStore,
-                                 final StreamMetadataTasks streamMetadataTasks,
-                                 final ScheduledExecutorService executor) {
-        this(streamMetadataStore, streamMetadataTasks, executor, null);
+    public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
+                                final StreamMetadataTasks streamMetadataTasks,
+                                final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                final ScheduledExecutorService executor) {
+        this(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, executor, null);
     }
 
     @VisibleForTesting
-    public CommitTransactionTask(final StreamMetadataStore streamMetadataStore,
-                                 final StreamMetadataTasks streamMetadataTasks,
-                                 final ScheduledExecutorService executor,
-                                 final BlockingQueue<CommitEvent> queue) {
+    public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
+                                final StreamMetadataTasks streamMetadataTasks,
+                                final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
+                                final ScheduledExecutorService executor,
+                                final BlockingQueue<CommitEvent> queue) {
+        super(executor);
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
     }
 
     /**
-     * execute
-     * 1. check if txn-commit-list exists.
-     *      1.1 yes
-     *      if txn-commit-list-node.epoch != request.epoch
-     *          throw operationNotAllowedException
-     *      else proceed to step 2
-     *      1.2 no
-     *      collect all txns in the same referenceepoch which are in committing state and create txn-commit-list with this set.
-     * 2. set state to COMMITTING_TXN
-     *      once state is set to committing, no other workflow other than current one can run. So even after failover, we
-     *      will return to resume this work henceforth.
-     * 3. getActiveEpoch.
-     *      3.1 If txn.epoch == activeEpoch, // we can merge directly in the epoch.
-     *          call commitTxnsOnActiveEpoch
-     *          else commitTxnOnOldEpoch
-     * 4. reset state to ACTIVE
+     * This method attempts to collect all transactions in the epoch that are marked for commit and decides if they can be
+     * committed in active epoch or if it needs to roll the transactions.
      *
-     * commitTxnsOnActiveEpoch
-     * 1. loop over transaction commit list and commit transactions into active epoch one transaction at a time.
-     *
-     * commitTxnOnOldEpoch
-     * 1. Check if rolling txn needs to be performed --> basically if all transactions are already committed,
-     * we are in a rerun, do nothing and get out
-     * 2. start rolling txn
-     *      2.1 create duplicate txnepoch segments with secondaryId as activeepoch+1
-     *      2.2 create duplicate active segments with secondaryId as activeepoch+2
-     *      2.3 loop over segments and merge trasactions on segments on activeepoch+1
-     *      2.4 seal activeepoch+1
-     *      2.5 add to history table (activeepoch+1 in full and activeepoch+2 as partial entry)
-     *      2.6 seal active epoch
-     *      2.7 complete rolling txn by completing partial record in history table
      * @param event event to process
      * @return Completable future which indicates completion of processing of commit event.
      */
     @Override
-    public CompletableFuture<Void> execute(CommitEvent event) {
+    public CompletableFuture<Void> processEvent(CommitEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
 
-        return tryCommitTransactions(scope, stream, epoch, context)
-                .whenCompleteAsync((result, error) -> {
-                    if (error != null) {
-                        log.error("Exception while attempting to committ transaction on epoch {} on stream {}/{}", epoch, scope, stream, error);
+        CompletableFuture<Void> future = new CompletableFuture<>();
+
+        tryCommitTransactions(scope, stream, epoch, context)
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        Throwable cause = Exceptions.unwrap(e);
+                        // for operation not allowed, we will report the event
+                        if (cause instanceof StoreException.OperationNotAllowedException) {
+                            log.debug("Cannot commit transaction on epoch {} on stream {}/{}. Postponing", epoch, scope, stream);
+
+                            // post the event back and fail the processing.
+                            // Note: If we crash before posting the event, the checkpoint would not have moved ahead and
+                            // original event would be reprocessed.
+                            Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
+                                    .runAsync(() -> streamTransactionMetadataTasks.writeCommitEvent(event), executor)
+                                    .thenAccept(v -> future.completeExceptionally(cause));
+                        } else {
+                            log.error("Exception while attempting to commit transaction on epoch {} on stream {}/{}", epoch, scope, stream, e);
+                            future.completeExceptionally(cause);
+                        }
                     } else {
                         log.debug("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
+                        future.complete(r);
                     }
-                }, executor);
-    }
+                });
 
-    @Override
-    public CompletableFuture<Void> writeBack(CommitEvent event) {
-        return streamMetadataTasks.writeEvent(event);
+        return future;
     }
 
     private CompletableFuture<Void> tryCommitTransactions(final String scope,

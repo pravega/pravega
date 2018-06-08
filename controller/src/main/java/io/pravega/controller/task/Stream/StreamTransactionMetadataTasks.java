@@ -178,9 +178,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public Void initializeStreamWriters(final ClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        this.commitStreamName = config.getRequestStreamName();
+        this.commitStreamName = config.getCommitStreamName();
         this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getRequestStreamName(),
+                config.getCommitStreamName(),
                 ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build());
 
@@ -537,16 +537,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     /**
-     * Seals a txn and transitions it to COMMITTING_TXN (resp. ABORTING) state if commit param is true (resp. false).
+     * Seals a txn and transitions it to COMMITTING (resp. ABORTING) state if commit param is true (resp. false).
      *
      * Post-condition:
      * 1. If seal completes successfully, then
-     *     (a) txn state is COMMITTING_TXN/ABORTING,
+     *     (a) txn state is COMMITTING/ABORTING,
      *     (b) CommitEvent/AbortEvent is present in the commit stream/abort stream,
      *     (c) txn is removed from host-txn index,
      *     (d) txn is removed from the timeout service.
      *
-     * 2. If process fails after transitioning txn to COMMITTING_TXN/ABORTING state, but before responding to client, then
+     * 2. If process fails after transitioning txn to COMMITTING/ABORTING state, but before responding to client, then
      * since txn is present in the host-txn index, some other controller process shall put CommitEvent/AbortEvent to
      * commit stream/abort stream.
      *
@@ -625,6 +625,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }
             }).thenApply(x -> status);
         }, executor);
+    }
+
+    public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
+        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
     }
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {

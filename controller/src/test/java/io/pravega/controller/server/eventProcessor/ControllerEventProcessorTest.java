@@ -15,10 +15,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -30,6 +31,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.test.common.AssertExtensions;
@@ -63,6 +65,7 @@ public class ControllerEventProcessorTest {
     private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
@@ -81,8 +84,14 @@ public class ControllerEventProcessorTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", mock(ConnectionFactory.class), false, "");
+                segmentHelperMock, executor, "1", connectionFactory, false, "");
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
+                executor, "host", connectionFactory, false, "");
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
+                new EventStreamWriterMock<>());
+
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
@@ -97,6 +106,8 @@ public class ControllerEventProcessorTest {
     public void tearDown() throws Exception {
         zkClient.close();
         zkServer.close();
+        streamMetadataTasks.close();
+        streamTransactionMetadataTasks.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -111,8 +122,8 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
-        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
@@ -127,15 +138,15 @@ public class ControllerEventProcessorTest {
         // this should be ignored as there is nothing in the epoch to commit
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
-        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
 
-        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1))));
-        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1))));
-        Assert.assertTrue(Futures.await(commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch))));
     }
 
     @Test(timeout = 10000)
@@ -150,14 +161,15 @@ public class ControllerEventProcessorTest {
         int epoch = txnDataList1.get(0).getEpoch();
         streamStore.createCommittingTransactionsRecord(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
 
-        CommitTransactionTask commitEventProcessor = new CommitTransactionTask(streamStore, streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
 
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch - 1)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch + 1)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList1) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
@@ -166,7 +178,7 @@ public class ControllerEventProcessorTest {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
         }
 
-        commitEventProcessor.execute(new CommitEvent(SCOPE, STREAM, epoch)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList2) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }

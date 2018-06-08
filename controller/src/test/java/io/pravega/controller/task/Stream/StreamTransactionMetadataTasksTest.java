@@ -12,20 +12,11 @@ package io.pravega.controller.task.Stream;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.segment.impl.NoSuchEventException;
-import io.pravega.client.stream.EventPointer;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Position;
-import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -42,8 +33,7 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.CommitTransactionTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -174,6 +164,7 @@ public class StreamTransactionMetadataTasksTest {
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
+        txnTasks.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -245,11 +236,15 @@ public class StreamTransactionMetadataTasksTest {
     public void failOverTests() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
-        EventStreamWriter<ControllerEvent> commitWriter2 = getShadowWriter(commitWriter);
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
         EventStreamReader<CommitEvent> commitReader = commitWriter.getReader();
-        EventStreamReader<ControllerEvent> commitReader2 = getShadowReader(commitReader);
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
+
+        txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
+                connectionFactory, false, "");
+
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
+                abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
@@ -290,7 +285,7 @@ public class StreamTransactionMetadataTasksTest {
         // Validate the txn index.
         Assert.assertEquals(1, streamStore.listHostsOwningTxn().join().size());
 
-        // Change state of one txn to COMMITTING_TXN.
+        // Change state of one txn to COMMITTING.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
                 null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
@@ -333,10 +328,8 @@ public class StreamTransactionMetadataTasksTest {
         // Create commit and abort event processors.
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
-        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(null, null,
-                new CommitTransactionTask(streamStore, streamMetadataTasks, executor, processedCommitEvents), null, null, null, null, executor);
-        createEventProcessor("commitRG", "commitStream", commitReader2, commitWriter2,
-                () -> new ConcurrentEventProcessor<>(streamRequestHandler, executor));
+        createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
@@ -361,103 +354,12 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTED, streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
     }
 
-    private EventStreamReader<ControllerEvent> getShadowReader(EventStreamReader<CommitEvent> commitReader) throws ReinitializationRequiredException {
-        return new EventStreamReader<ControllerEvent>() {
-            @Override
-            public EventRead<ControllerEvent> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
-                EventRead<CommitEvent> event = commitReader.readNextEvent(timeout);
-                return new EventRead<ControllerEvent>() {
-                    @Override
-                    public ControllerEvent getEvent() {
-                        return (ControllerEvent) event.getEvent();
-                    }
-
-                    @Override
-                    public Position getPosition() {
-                        return event.getPosition();
-                    }
-
-                    @Override
-                    public EventPointer getEventPointer() {
-                        return event.getEventPointer();
-                    }
-
-                    @Override
-                    public boolean isCheckpoint() {
-                        return event.isCheckpoint();
-                    }
-
-                    @Override
-                    public String getCheckpointName() {
-                        return event.getCheckpointName();
-                    }
-                };
-            }
-
-            @Override
-            public ReaderConfig getConfig() {
-                return commitReader.getConfig();
-            }
-
-            @Override
-            public ControllerEvent fetchEvent(EventPointer pointer) throws NoSuchEventException {
-                return commitReader.fetchEvent(pointer);
-            }
-
-            @Override
-            public void close() {
-
-            }
-        };
-    }
-
-    private EventStreamWriter<ControllerEvent> getShadowWriter(EventStreamWriterMock<CommitEvent> commitWriter) {
-        return new EventStreamWriter<ControllerEvent>() {
-            @Override
-            public CompletableFuture<Void> writeEvent(ControllerEvent event) {
-                return commitWriter.writeEvent((CommitEvent) event);
-            }
-
-            @Override
-            public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
-                return commitWriter.writeEvent(routingKey, (CommitEvent) event);
-            }
-
-            @Override
-            public Transaction<ControllerEvent> beginTxn() {
-                return null;
-            }
-
-            @Override
-            public Transaction<ControllerEvent> getTxn(UUID transactionId) {
-                return null;
-            }
-
-            @Override
-            public EventWriterConfig getConfig() {
-                return null;
-            }
-
-            @Override
-            public void flush() {
-
-            }
-
-            @Override
-            public void close() {
-
-            }
-        };
-    }
-
     @Test(timeout = 10000)
-    public void idempotentOperationsTests() throws CheckpointStoreException, InterruptedException, ReinitializationRequiredException {
+    public void idempotentOperationsTests() throws CheckpointStoreException, InterruptedException {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
-        EventStreamWriter<ControllerEvent> commitWriter2 = getShadowWriter(commitWriter);
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
         EventStreamReader<CommitEvent> commitReader = commitWriter.getReader();
-        EventStreamReader<ControllerEvent> commitReader2 = getShadowReader(commitReader);
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
         // Create transaction tasks.
@@ -493,7 +395,7 @@ public class StreamTransactionMetadataTasksTest {
         // Commit the first one
         Assert.assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
 
-        // Ensure that transaction state is COMMITTING_TXN.
+        // Ensure that transaction state is COMMITTING.
         assertEquals(TxnStatus.COMMITTING, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Abort the second one
@@ -503,7 +405,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTING, streamStore.transactionStatus(SCOPE, STREAM, tx2, null, executor).join());
 
         // Ensure that commit (resp. abort) transaction tasks are idempotent
-        // when transaction is in COMMITTING_TXN state (resp. ABORTING state).
+        // when transaction is in COMMITTING state (resp. ABORTING state).
         assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
         assertEquals(TxnStatus.ABORTING, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
 
@@ -511,16 +413,14 @@ public class StreamTransactionMetadataTasksTest {
         ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
-        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(null, null,
-                new CommitTransactionTask(streamStore, streamMetadataTasks, executor, processedCommitEvents), null, null, null, null, executor);
-
-        createEventProcessor("commitRG", "commitStream", commitReader2, commitWriter2,
-                () -> new ConcurrentEventProcessor<>(streamRequestHandler, executor));
+        createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
+        assertEquals(0, commitEvent.getEpoch());
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Wait until the abort event is processed and ensure that the txn state is ABORTED.

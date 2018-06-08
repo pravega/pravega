@@ -38,7 +38,6 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 public class StreamRequestHandler extends SerializedRequestHandler<ControllerEvent> implements RequestProcessor {
     private static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> e instanceof StoreException.OperationNotAllowedException;
     private final AutoScaleTask autoScaleTask;
-    private final CommitTransactionTask commitTransactionTask;
     private final ScaleOperationTask scaleOperationTask;
     private final UpdateStreamTask updateStreamTask;
     private final SealStreamTask sealStreamTask;
@@ -47,7 +46,6 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
-                                CommitTransactionTask commitTransactionTask,
                                 UpdateStreamTask updateStreamTask,
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
@@ -55,7 +53,6 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
                                 ScheduledExecutorService executor) {
         super(executor);
         this.autoScaleTask = autoScaleTask;
-        this.commitTransactionTask = commitTransactionTask;
         this.scaleOperationTask = scaleOperationTask;
         this.updateStreamTask = updateStreamTask;
         this.sealStreamTask = sealStreamTask;
@@ -83,8 +80,8 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return withCompletion(commitTransactionTask, commitEvent,
-                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException));
+        return Futures.failedFuture(new RequestUnsupportedException(
+                "StreamRequestHandler: commit txn received on Stream Request Multiplexer"));
     }
 
     @Override
@@ -94,7 +91,8 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
 
     @Override
     public CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent) {
-        return withCompletion(scaleOperationTask, scaleOpEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+        return withCompletion(scaleOperationTask, scaleOpEvent,
+                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException));
     }
 
     @Override

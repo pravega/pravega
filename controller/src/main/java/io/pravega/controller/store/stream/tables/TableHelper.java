@@ -741,7 +741,7 @@ public class TableHelper {
      * @return active epoch
      */
     public static HistoryRecord getActiveEpoch(final byte[] historyIndex, final byte[] historyTable) {
-        HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyIndex, historyTable, true).get();
+        HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         // if the record is created as a sealed epoch, the previous epoch may not have been sealed yet and hence that will be active.
         if (historyRecord.isPartial()) {
             // Scale creates new fresh epochs. So if latest epoch is partial and a duplicate, then its previous epoch
@@ -788,28 +788,6 @@ public class TableHelper {
 
         return record.orElseThrow(() -> StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                 "Epoch: " + epoch + " not found in history table"));
-    }
-
-    /**
-     * Method to compute segments created and deleted in latest scale event.
-     *
-     * @param historyTable history table
-     * @param historyIndex history index
-     * @return pair of segments sealed and segments created in last scale event.
-     */
-    public static Pair<List<Long>, List<Long>> getLatestScaleData(final byte[] historyIndex, final byte[] historyTable) {
-        final Optional<HistoryRecord> current = HistoryRecord.readLatestRecord(historyIndex, historyTable, false);
-        ImmutablePair<List<Long>, List<Long>> result;
-        if (current.isPresent()) {
-            final Optional<HistoryRecord> previous = HistoryRecord.fetchPrevious(current.get(), historyIndex, historyTable);
-            result = previous.map(historyRecord ->
-                    new ImmutablePair<>(diff(historyRecord.getSegments(), current.get().getSegments()),
-                            diff(current.get().getSegments(), historyRecord.getSegments())))
-                    .orElseGet(() -> new ImmutablePair<>(Collections.emptyList(), current.get().getSegments()));
-        } else {
-            result = new ImmutablePair<>(Collections.emptyList(), Collections.emptyList());
-        }
-        return result;
     }
 
     private static List<Long> diff(List<Long> list1, List<Long> list2) {
