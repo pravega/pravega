@@ -299,38 +299,39 @@ public class SegmentHelper {
                                                      final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final String txnName = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, txId);
         final CompletableFuture<UUID> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("createTransaction {} connectionDropped", qualifiedName);
+                log.warn("createTransaction {} connectionDropped", txnName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("createTransaction {} wrong host", qualifiedName);
+                log.warn("createTransaction {} wrong host", txnName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
-                log.debug("createTransaction {} TransactionCreated", qualifiedName);
+                log.debug("createTransaction {} TransactionCreated", txnName);
 
                 result.complete(txId);
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.debug("createTransaction {} TransactionCreated", qualifiedName);
+                log.debug("createTransaction {} TransactionCreated", txnName);
                 result.complete(txId);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("createTransaction {} failed", qualifiedName, error);
+                log.error("createTransaction {} failed", txnName, error);
                 result.completeExceptionally(error);
             }
 
@@ -357,46 +358,47 @@ public class SegmentHelper {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final String txnName = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, txId);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                log.warn("commitTransaction {} connection dropped", qualifiedName);
+                log.warn("commitTransaction {} connection dropped", txnName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("commitTransaction {} wrongHost", qualifiedName);
+                log.warn("commitTransaction {} wrongHost", txnName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                log.debug("commitTransaction {} TransactionCommitted", qualifiedName);
+                log.debug("commitTransaction {} TransactionCommitted", txnName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
-                log.warn("commitTransaction {} Transaction aborted", qualifiedName);
+                log.warn("commitTransaction {} Transaction aborted", txnName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info("commitTransaction {} NoSuchSegment", qualifiedName);
+                log.info("commitTransaction {} NoSuchSegment", txnName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("commitTransaction {} failed", qualifiedName, error);
+                log.error("commitTransaction {} failed", txnName, error);
                 result.completeExceptionally(error);
             }
 
@@ -422,6 +424,7 @@ public class SegmentHelper {
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF, String delegationToken) {
         final String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final String txnName = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, txId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
@@ -429,37 +432,37 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                log.warn("abortTransaction {} connectionDropped", qualifiedName);
+                log.warn("abortTransaction {} connectionDropped", txnName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("abortTransaction {} wrongHost", qualifiedName);
+                log.warn("abortTransaction {} wrongHost", txnName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                log.warn("abortTransaction {} TransactionCommitted", qualifiedName);
+                log.warn("abortTransaction {} TransactionCommitted", txnName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
-                log.debug("abortTransaction {} transactionAborted", qualifiedName);
+                log.debug("abortTransaction {} transactionAborted", txnName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info("abortTransaction {} NoSuchSegment", qualifiedName);
+                log.info("abortTransaction {} NoSuchSegment", txnName);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.info("abortTransaction {} failed", qualifiedName, error);
+                log.info("abortTransaction {} failed", txnName, error);
                 result.completeExceptionally(error);
             }
 
