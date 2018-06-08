@@ -833,7 +833,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                     .whenComplete((r, e) -> {
                                         if (e != null) {
                                             log.warn("{}/{} attempt to complete epoch transition for epoch {}. {}", scope, name, activeEpoch,
-                                                    e.getClass().getName());
+                                                    e.toString());
                                         } else {
                                             log.debug("{}/{} epoch transition complete, index and history tables updated for epoch {}.",
                                                     scope, name, activeEpoch);

@@ -284,10 +284,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
                 }
             } else {
-                if (statsRecorder != null) {
-                    if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                        statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
-                    }
+                if (statsRecorder != null && !StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
+                    statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
                 final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
                         previousEventNumber);

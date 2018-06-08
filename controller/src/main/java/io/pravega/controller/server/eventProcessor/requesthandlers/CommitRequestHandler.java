@@ -122,14 +122,16 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         return future;
     }
 
+    /**
+     * Try creating txn commit list first. if node already exists and doesn't match the processing in the event, throw operation not allowed.
+     * This will result in event being posted back in the stream and retried later. Generally if a transaction commit starts, it will come to
+     * an end. However, during failover, once we have created the node, we are guaranteed that it will be only that transaction that will be getting
+     * committed at that time.
+     */
     private CompletableFuture<Void> tryCommitTransactions(final String scope,
                                                           final String stream,
                                                           final int txnEpoch,
                                                           final OperationContext context) {
-        // try creating txn commit list first. if node already exists and doesn't match the processing in the event, throw operation not allowed.
-        // This will result in event being posted back in the stream and retried later. Generally if a transaction commit starts, it will come to
-        // an end. However, during failover, once we have created the node, we are guaranteed that it will be only that transaction that will be getting
-        // committed at that time.
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenCompose(state -> {
                     CompletableFuture<List<UUID>> txnListFuture = createRecordAndGetCommitTxnList(scope, stream, txnEpoch, context);

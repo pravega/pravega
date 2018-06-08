@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -141,32 +143,91 @@ public class TableHelperTest {
 
         activeSegments = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null);
         assertEquals(newSegments, activeSegments);
+    }
+
+    @Test
+    public void rollingTxnTest() {
+        final List<Long> startSegments = Lists.newArrayList(0L, 1L, 2L, 3L, 4L);
+        long timestamp = 1;
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+        byte[] historyIndex = TableHelper.createHistoryIndex();
+        List<Long> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
+        assertEquals(activeSegments, startSegments);
+
+        // scale
+        long fiveOne = computeSegmentId(5, 1);
+        long sixOne = computeSegmentId(6, 1);
+        long sevenOne = computeSegmentId(7, 1);
+
+        List<Long> newSegments = Lists.newArrayList(0L, 1L, fiveOne,
+                sixOne, sevenOne);
+        historyIndex = TableHelper.updateHistoryIndex(historyIndex, historyTable.length);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyIndex, historyTable, newSegments);
+
+        timestamp = timestamp + 5;
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp);
 
         // test active segments while rolling transaction is ongoing
-        activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
-        System.err.println(activeEpoch);
         Pair<byte[], byte[]> historyAndIndexPair = TableHelper.insertDuplicateRecordsInHistoryTable(historyIndex, historyTable, 0, System.currentTimeMillis());
-        byte[] historyIndexUpdated = historyAndIndexPair.getKey();
-        byte[] historyTableUpdated = historyAndIndexPair.getValue();
+        historyIndex = historyAndIndexPair.getKey();
 
         // try with only index updated
-        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTable);
+        HistoryRecord activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
         assertEquals(1, activeEpoch.getEpoch());
 
-        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTableUpdated);
+        // now test with history table updates with 2 new epochs for txn.duplicate and active.duplicate
+        historyTable = historyAndIndexPair.getValue();
+        long zeroTwo = computeSegmentId(0, 2);
+        long oneTwo = computeSegmentId(1, 2);
+        long twoTwo = computeSegmentId(2, 2);
+        long threeTwo = computeSegmentId(3, 2);
+        long fourTwo = computeSegmentId(4, 2);
+        long zeroThree = computeSegmentId(0, 3);
+        long oneThree = computeSegmentId(1, 3);
+        long fiveThree = computeSegmentId(5, 3);
+        long sixThree = computeSegmentId(6, 3);
+        long sevenThree = computeSegmentId(7, 3);
+        HistoryRecord epoch0 = TableHelper.getEpochRecord(historyIndex, historyTable, 0); // 0, 1, 2, 3, 4
+        HistoryRecord epoch1 = TableHelper.getEpochRecord(historyIndex, historyTable, 1); // 0, 1, 5.1, 6.1, 7.1
+        HistoryRecord epoch2 = TableHelper.getEpochRecord(historyIndex, historyTable, 2); // 0.2, 1.2, 2.2, 3.2, 4.2
+        HistoryRecord epoch3 = TableHelper.getEpochRecord(historyIndex, historyTable, 3); // 0.3, 1.3, 5.3, 6.3, 7.3
+
+        activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
         assertEquals(1, activeEpoch.getEpoch());
 
-        HistoryRecord epochRecordTxnEpoch = TableHelper.getEpochRecord(historyIndexUpdated, historyTableUpdated, 2);
+        HistoryRecord epochRecordTxnEpoch = TableHelper.getEpochRecord(historyIndex, historyTable, 2);
         assertEquals(0, epochRecordTxnEpoch.getReferenceEpoch());
-        HistoryRecord epochRecordActiveDuplicate = TableHelper.getEpochRecord(historyIndexUpdated, historyTableUpdated, 3);
+        HistoryRecord epochRecordActiveDuplicate = TableHelper.getEpochRecord(historyIndex, historyTable, 3);
         assertEquals(1, epochRecordActiveDuplicate.getReferenceEpoch());
 
-        partial = HistoryRecord.readLatestRecord(historyIndexUpdated, historyTableUpdated, false).get();
+        List<Long> candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(0, 0, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch2.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(fiveOne, 1, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch2.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(zeroTwo, 2, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch3.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(sevenThree, 3, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.isEmpty());
+
+        partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         assertEquals(partial, epochRecordActiveDuplicate);
 
-        historyTableUpdated = TableHelper.completePartialRecordInHistoryTable(historyIndexUpdated, historyTableUpdated, partial, timestamp);
-        activeEpoch = TableHelper.getActiveEpoch(historyIndexUpdated, historyTableUpdated);
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp);
+        activeEpoch = TableHelper.getActiveEpoch(historyIndex, historyTable);
         assertEquals(3, activeEpoch.getEpoch());
+
+        assertTrue(epoch2.getSegments().stream().allMatch(x -> x == zeroTwo || x == oneTwo || x == twoTwo || x == threeTwo || x == fourTwo));
+        assertTrue(epoch3.getSegments().stream().allMatch(x -> x == zeroThree || x == oneThree || x == fiveThree || x == sixThree || x == sevenThree));
+
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(0, 0, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch2.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(fiveOne, 1, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch2.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(zeroTwo, 2, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.equals(epoch3.getSegments()));
+        candidates = TableHelper.findSegmentSuccessorCandidates(new Segment(sevenThree, 3, 0L, 0.0, 1.0), historyIndex, historyTable);
+        assertTrue(candidates.isEmpty());
     }
 
     private Segment getSegment(long number, List<Segment> segments) {

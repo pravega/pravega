@@ -355,23 +355,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getTxnInEpoch(int epoch) {
-        return store.getChildren(getEpochPath(epoch))
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                        return Collections.emptyList();
-                    } else {
-                        throw new CompletionException(e);
-                    }
-                })
+        return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                 .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                        Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch, txId))
-                                .exceptionally(e -> {
-                                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                        return EMPTY_DATA;
-                                    } else {
-                                        throw new CompletionException(e);
-                                    }
-                                })))
+                        Collectors.toMap(txId -> txId, txId -> Futures.exceptionallyExpecting(cache.getCachedData(getActiveTxPath(epoch, txId)),
+                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, EMPTY_DATA)))
                         ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(EMPTY_DATA))
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                 );
