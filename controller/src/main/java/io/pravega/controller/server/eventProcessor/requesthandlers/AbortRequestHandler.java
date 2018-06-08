@@ -112,7 +112,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                 });
     }
 
-    private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final long segmentId, final UUID txId) {
         final long retryInitialDelay = 100;
         final int retryMultiplier = 10;
         final int retryMaxAttempts = 100;
@@ -122,7 +122,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                 .retryWhen(RetryableException::isRetryable)
                 .runAsync(() -> segmentHelper.abortTransaction(scope,
                         stream,
-                        segmentNumber,
+                        segmentId,
                         txId,
                         this.hostControllerStore,
                         this.connectionFactory,

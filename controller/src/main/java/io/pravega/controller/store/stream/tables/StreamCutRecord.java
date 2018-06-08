@@ -42,7 +42,7 @@ public class StreamCutRecord {
     /**
      * Actual Stream cut.
      */
-    final Map<Integer, Long> streamCut;
+    final Map<Long, Long> streamCut;
 
     public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
 

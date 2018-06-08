@@ -35,19 +35,19 @@ public class StreamTruncationRecordSerializer
                         StreamTruncationRecord.StreamTruncationRecordBuilder streamTruncationRecordBuilder)
             throws IOException {
         streamTruncationRecordBuilder
-                .streamCut(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong))
-                .cutEpochMap(revisionDataInput.readMap(DataInput::readInt, DataInput::readInt))
-                .deletedSegments(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readInt)))
-                .toDelete(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readInt)))
+                .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
+                .cutEpochMap(revisionDataInput.readMap(DataInput::readLong, DataInput::readInt))
+                .deletedSegments(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
+                .toDelete(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
                 .updating(revisionDataInput.readBoolean());
     }
 
     private void write00(StreamTruncationRecord streamTruncationRecord, RevisionDataOutput revisionDataOutput)
             throws IOException {
-        revisionDataOutput.writeMap(streamTruncationRecord.getStreamCut(), DataOutput::writeInt, DataOutput::writeLong);
-        revisionDataOutput.writeMap(streamTruncationRecord.getCutEpochMap(), DataOutput::writeInt, DataOutput::writeInt);
-        revisionDataOutput.writeCollection(streamTruncationRecord.getDeletedSegments(), DataOutput::writeInt);
-        revisionDataOutput.writeCollection(streamTruncationRecord.getToDelete(), DataOutput::writeInt);
+        revisionDataOutput.writeMap(streamTruncationRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
+        revisionDataOutput.writeMap(streamTruncationRecord.getCutEpochMap(), DataOutput::writeLong, DataOutput::writeInt);
+        revisionDataOutput.writeCollection(streamTruncationRecord.getDeletedSegments(), DataOutput::writeLong);
+        revisionDataOutput.writeCollection(streamTruncationRecord.getToDelete(), DataOutput::writeLong);
         revisionDataOutput.writeBoolean(streamTruncationRecord.isUpdating());
     }
 

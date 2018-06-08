@@ -20,7 +20,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
-import io.pravega.controller.store.stream.tables.TableHelper;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Arrays;
@@ -29,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -69,7 +67,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final Map<String, Data<Integer>> completedTxns = new HashMap<>();
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
-    private final Map<Integer, Data<Integer>> markers = new HashMap<>();
+    private final Map<Long, Data<Integer>> markers = new HashMap<>();
     /**
      * This is used to guard updates to values in epoch txn map.
      * This ensures that we remove an epoch node if an only if there are no transactions against that epoch.
@@ -338,13 +336,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Segment> getSegmentRow(int number) {
-        return getSegmentIndex()
-                .thenCompose(segmentIndex -> getSegmentTable()
-                        .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(), segmentTable.getData())));
-    }
-
-    @Override
     CompletableFuture<Data<Integer>> getSegmentTable() {
         synchronized (lock) {
             if (this.segmentTable == null) {
@@ -513,44 +504,31 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
+    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
                                                     long scaleGracePeriod) {
         Preconditions.checkNotNull(txId);
 
-        final CompletableFuture<Integer> result = new CompletableFuture<>();
+        final CompletableFuture<Void> result = new CompletableFuture<>();
         final Data<Integer> txnData = new Data<>(
                 new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                 .toByteArray(), 0);
-        synchronized (txnsLock) {
-            activeTxns.putIfAbsent(txId.toString(), txnData);
-        }
-        int epoch = activeEpoch.get();
+        int epoch = getTransactionEpoch(txId);
+
         synchronized (txnsLock) {
             if (!epochTxnMap.containsKey(epoch)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString() + " Epoch: " + epoch));
             } else {
+                activeTxns.putIfAbsent(txId.toString(), txnData);
                 epochTxnMap.compute(epoch, (x, y) -> {
                     y.add(txId.toString());
                     return y;
                 });
-                result.complete(epoch);
+                result.complete(null);
             }
         }
 
         return result;
-    }
-
-    @Override
-    CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
-        Optional<Integer> epoch;
-        synchronized (txnsLock) {
-            epoch = epochTxnMap.entrySet().stream().filter(x -> x.getValue().contains(txId.toString())).findFirst()
-                    .map(Map.Entry::getKey);
-        }
-        return epoch.map(CompletableFuture::completedFuture)
-                .orElseGet(() -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString())));
     }
 
     @Override
@@ -652,31 +630,31 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createMarkerData(int segmentNumber, long timestamp) {
+    CompletableFuture<Void> createMarkerData(long segmentId, long timestamp) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, timestamp);
         synchronized (markersLock) {
-            markers.putIfAbsent(segmentNumber, new Data<>(b, 0));
+            markers.putIfAbsent(segmentId, new Data<>(b, 0));
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
+    CompletableFuture<Void> updateMarkerData(long segmentId, Data<Integer> data) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Data<Integer> next = updatedCopy(data);
         synchronized (markersLock) {
-            if (!markers.containsKey(segmentNumber)) {
+            if (!markers.containsKey(segmentId)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Segment number: " + segmentNumber));
+                        "Stream: " + getName() + " Segment number: " + segmentId));
             } else {
-                markers.compute(segmentNumber, (x, y) -> {
+                markers.compute(segmentId, (x, y) -> {
                     if (y.getVersion().equals(data.getVersion())) {
                         result.complete(null);
                         return next;
                     } else {
                         result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
-                                "Stream: " + getName() + " Segment number: " + segmentNumber));
+                                "Stream: " + getName() + " Segment number: " + segmentId));
                         return y;
                     }
                 });
@@ -686,21 +664,21 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> removeMarkerData(int segmentNumber) {
+    CompletableFuture<Void> removeMarkerData(long segmentId) {
         synchronized (markersLock) {
-            markers.remove(segmentNumber);
+            markers.remove(segmentId);
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
+    CompletableFuture<Data<Integer>> getMarkerData(long segmentId) {
         synchronized (markersLock) {
-            if (!markers.containsKey(segmentNumber)) {
+            if (!markers.containsKey(segmentId)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Segment: " + segmentNumber));
+                        "Stream: " + getName() + " Segment: " + segmentId));
             }
-            return CompletableFuture.completedFuture(copy(markers.get(segmentNumber)));
+            return CompletableFuture.completedFuture(copy(markers.get(segmentId)));
         }
     }
 

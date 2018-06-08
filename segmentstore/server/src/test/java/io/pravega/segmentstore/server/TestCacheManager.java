@@ -7,15 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.reading;
+package io.pravega.segmentstore.server;
 
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Exposes the applyCachePolicy method in the CacheManager.
  */
-class TestCacheManager extends CacheManager {
-    TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
+public class TestCacheManager extends CacheManager {
+    public TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         super(policy, executorService);
     }
 

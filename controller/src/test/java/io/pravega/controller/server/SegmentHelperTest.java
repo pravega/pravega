@@ -147,7 +147,7 @@ public class SegmentHelperTest {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(0), 0,
+        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0,
                 new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
         AssertExtensions.assertThrows("",
@@ -188,7 +188,7 @@ public class SegmentHelperTest {
         }
 
         @Override
-        public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+        public Host getHostForSegment(String scope, String stream, long segmentId) {
             return new Host("localhost", 1000, "");
         }
     }

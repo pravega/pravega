@@ -86,11 +86,11 @@ public class AutoScaleTask {
     }
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentId());
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
-        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
+        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentId(), context, executor)
                 .thenComposeAsync(segment -> {
                     // do not go above scale factor. Minimum scale factor is 2 though.
                     int numOfSplits = Math.min(Math.max(2, request.getNumOfSplits()), Math.max(2, policy.getScaleFactor()));
@@ -106,33 +106,33 @@ public class AutoScaleTask {
                     simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * (numOfSplits -1),
                             segment.getKeyEnd()));
 
-                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentNumber()), simpleEntries);
+                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentId()), simpleEntries);
                 }, executor);
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentId());
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
 
         return streamMetadataStore.markCold(request.getScope(),
                 request.getStream(),
-                request.getSegmentNumber(),
+                request.getSegmentId(),
                 request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
                 context, executor)
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
                 .thenApply(activeSegments -> {
                     assert activeSegments != null;
                     final Optional<Segment> currentOpt = activeSegments.stream()
-                            .filter(y -> y.getNumber() == request.getSegmentNumber()).findAny();
+                            .filter(y -> y.getSegmentId() == request.getSegmentId()).findAny();
                     if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
                         // if we are already at min-number of segments, we cant scale down, we have put the marker,
                         // we should simply return and do nothing.
                         return null;
                     } else {
                         final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
-                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getNumber() == request.getSegmentNumber())
+                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getSegmentId() == request.getSegmentId())
                                 .sorted(Comparator.comparingDouble(Segment::getKeyStart))
                                 .collect(Collectors.toList());
                         return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
@@ -147,7 +147,7 @@ public class AutoScaleTask {
                         return Futures.filter(candidates,
                                 candidate -> streamMetadataStore.isCold(request.getScope(),
                                         request.getStream(),
-                                        candidate.getNumber(),
+                                        candidate.getSegmentId(),
                                         context, executor))
                                       .thenApply(segments -> {
                                     if (maxScaleDownFactor == 1 && segments.size() == 3) {
@@ -164,15 +164,15 @@ public class AutoScaleTask {
                 .thenCompose(toMerge -> {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
-                            log.debug("merging stream {}: segment {} ", request.getStream(), x.getNumber());
+                            log.debug("merging stream {}: segment {} ", request.getStream(), x.getSegmentId());
                         });
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
                         double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
                         double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
-                        final ArrayList<Integer> segments = new ArrayList<>();
-                        toMerge.forEach(segment -> segments.add(segment.getNumber()));
+                        final ArrayList<Long> segments = new ArrayList<>();
+                        toMerge.forEach(segment -> segments.add(segment.getSegmentId()));
                         return postScaleRequest(request, segments, simpleEntries);
                     } else {
                         return CompletableFuture.completedFuture(null);
@@ -188,7 +188,7 @@ public class AutoScaleTask {
      * @param newRanges new ranges for segments to create
      * @return CompletableFuture
      */
-    private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final ArrayList<Integer> segments,
+    private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final ArrayList<Long> segments,
                                                      final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
         ScaleOpEvent event = new ScaleOpEvent(request.getScope(),
                 request.getStream(),
