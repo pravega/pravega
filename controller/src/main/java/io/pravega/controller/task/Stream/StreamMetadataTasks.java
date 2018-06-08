@@ -756,24 +756,6 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Void> notifyTxnSeal(final String scope, final String stream,
-                                                 final List<Long> segments, final UUID txnId) {
-        return Futures.allOf(segments.stream()
-                .parallel()
-                .map(segment -> notifyTxnSeal(scope, stream, segment, txnId))
-                .collect(Collectors.toList()));
-    }
-
-    private CompletableFuture<Boolean> notifyTxnSeal(final String scope, final String stream,
-                                                     final long segmentNumber, final UUID txnId) {
-        return TaskStepsRetryHelper.withRetries(() -> segmentHelper.sealTransaction(scope,
-                stream,
-                segmentNumber,
-                txnId,
-                this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
-    }
-
     public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
                                                    final List<Long> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()

@@ -360,18 +360,6 @@ public class SegmentHelper {
         return result;
     }
 
-    public CompletableFuture<Boolean> sealTransaction(final String scope,
-                                                      final String stream,
-                                                      final long segmentId,
-                                                      final UUID txId,
-                                                      final HostControllerStore hostControllerStore,
-                                                      final ConnectionFactory clientCF,
-                                                      String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        final String transactionName = getTransactionName(scope, stream, segmentId, txId);
-        return sealSegment(transactionName, uri, clientCF, delegationToken);
-    }
-
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
         // Transaction segments are created against a logical primary such that all transaction segments become mergable.
         // So we will erase secondary id while creating transaction's qualified name.

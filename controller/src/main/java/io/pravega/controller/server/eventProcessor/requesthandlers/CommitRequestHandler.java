@@ -299,10 +299,10 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
             log.debug("Committing transaction {} on stream {}/{}", txnId, scope, stream);
             // commit transaction in segment store
             future = future
-                    // Important: seal transaction segment. Note, we can use the same segments and transaction id as only
-                    // primary id is taken for creation of txn-segment name and secondary part is erased.
+                    // Note, we can use the same segments and transaction id as only
+                    // primary id is taken for creation of txn-segment name and secondary part is erased and replaced with
+                    // transaction's epoch.
                     // And we are creating duplicates of txn epoch keeping the primary same.
-                    .thenCompose(v -> streamMetadataTasks.notifyTxnSeal(scope, stream, segments, txnId))
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId))
                     // mark transaction as committed in metadata store.
                     .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txnId, context, executor)
