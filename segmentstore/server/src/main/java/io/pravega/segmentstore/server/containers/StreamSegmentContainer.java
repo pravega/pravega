@@ -449,28 +449,26 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
-        CompletableFuture<Void> result;
+        CompletableFuture<Void> result = trySealStreamSegment(sourceMetadata, timer.getRemaining());
         if (sourceMetadata.getLength() == 0) {
             // Source is empty. We may be able to skip the merge altogether and simply delete the segment. But we can only
             // be certain of this if the source is also sealed, otherwise it's possible it may still have outstanding
             // writes in the pipeline. As such, we cannot pipeline the two operations, and must wait for the seal to finish first.
-            result = trySealStreamSegment(sourceMetadata, timer.getRemaining())
-                    .thenComposeAsync(v -> {
-                        // Seal is done. The DurableLog guarantees that the metadata is now updated with all operations up
-                        // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
-                        if (sourceMetadata.getLength() == 0) {
-                            // Source is still empty after sealing - OK to delete.
-                            return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
-                        } else {
-                            // Source now has some data - we must merge the two.
-                            return this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
+            result = result.thenComposeAsync(v -> {
+                // Seal is done. The DurableLog guarantees that the metadata is now updated with all operations up
+                // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
+                if (sourceMetadata.getLength() == 0) {
+                    // Source is still empty after sealing - OK to delete.
+                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
+                } else {
+                    // Source now has some data - we must merge the two.
+                    return this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
                         }
-                    }, this.executor);
+            }, this.executor);
         } else {
             // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
             // the Merge right after the Seal.
-            result = CompletableFuture.allOf(
-                    trySealStreamSegment(sourceMetadata, timer.getRemaining()),
+            result = CompletableFuture.allOf(result,
                     this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining()));
         }
 
