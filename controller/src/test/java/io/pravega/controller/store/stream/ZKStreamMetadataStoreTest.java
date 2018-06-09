@@ -354,7 +354,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                        List<SimpleEntry<Double, Double>> newRanges) {
 
         long scaleTimestamp = System.currentTimeMillis();
-        List<Long> existingSegments = segments.stream().map(Segment::getSegmentId).collect(Collectors.toList());
+        List<Long> existingSegments = segments.stream().map(Segment::segmentId).collect(Collectors.toList());
         EpochTransitionRecord response = store.startScale(scope, stream, existingSegments, newRanges,
                 scaleTimestamp, false, null, executor).join();
         ImmutableMap<Long, SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();

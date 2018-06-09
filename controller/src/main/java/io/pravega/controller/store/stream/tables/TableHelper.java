@@ -62,8 +62,8 @@ public class TableHelper {
      */
     public static Segment getSegment(final long segmentId, final byte[] segmentIndex, final byte[] segmentTable,
                                      final byte[] historyIndex, final byte[] historyTable) {
-        int primaryId = getSegmentNumber(segmentId);
-        Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, primaryId);
+        int segmentNumber = getSegmentNumber(segmentId);
+        Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, segmentNumber);
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
             long creationTime;
@@ -82,7 +82,6 @@ public class TableHelper {
             }
 
             return new Segment(segmentId,
-                    epoch,
                     creationTime,
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
@@ -271,11 +270,11 @@ public class TableHelper {
                     // 4. if segment.number >= from.segmentNumber && segment.number <= to.segmentNumber include segment.number
                     Segment epochSegment = getSegment(segmentId, segmentIndex, segmentTable, historyIndex, historyTable);
                     boolean greatThanFrom = fromEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
-                            .allMatch(x -> x.getSegmentId() <= epochSegment.getSegmentId());
+                            .allMatch(x -> x.segmentId() <= epochSegment.segmentId());
                     boolean lessThanTo = toEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
-                            .allMatch(x -> epochSegment.getSegmentId() <= x.getSegmentId());
+                            .allMatch(x -> epochSegment.segmentId() <= x.segmentId());
                     if (greatThanFrom && lessThanTo) {
-                        segments.add(epochSegment.getSegmentId());
+                        segments.add(epochSegment.segmentId());
                     }
                 });
             }
@@ -324,7 +323,7 @@ public class TableHelper {
 
             size.addAndGet(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
                 Segment epochSegment = getSegment(epochSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
-                return epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getSegmentId() == epochSegment.getSegmentId() ||
+                return epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().segmentId() == epochSegment.segmentId() ||
                         (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).map(sealedSegmentSizeMap::get).reduce((x, y) -> x + y).orElse(0L));
             historyRecordOpt = HistoryRecord.fetchNext(historyRecord, historyIndex, historyTable, true);
@@ -353,7 +352,7 @@ public class TableHelper {
     public static List<Long> getOverlaps(
             final Segment current,
             final List<Segment> candidates) {
-        return candidates.stream().filter(x -> x.overlaps(current)).map(Segment::getSegmentId).collect(Collectors.toList());
+        return candidates.stream().filter(x -> x.overlaps(current)).map(Segment::segmentId).collect(Collectors.toList());
     }
 
     /**
@@ -396,7 +395,7 @@ public class TableHelper {
 
         final HistoryRecord latest = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
 
-        if (latest.getSegments().contains(segment.getSegmentId())) {
+        if (latest.getSegments().contains(segment.segmentId())) {
             // Segment is not sealed yet so there cannot be a successor.
             return Collections.emptyList();
         } else {
@@ -404,7 +403,7 @@ public class TableHelper {
             return findSegmentSealedEvent(
                     creationEpoch,
                     latest.getEpoch(),
-                    segment.getSegmentId(),
+                    segment.segmentId(),
                     historyIndex,
                     historyTable).map(HistoryRecord::getSegments).get();
         }
@@ -442,7 +441,7 @@ public class TableHelper {
         if (!previous.isPresent()) {
             return Collections.emptyList();
         } else {
-            assert !previous.get().getSegments().contains(segment.getSegmentId());
+            assert !previous.get().getSegments().contains(segment.segmentId());
             return previous.get().getSegments();
         }
     }
@@ -1007,7 +1006,7 @@ public class TableHelper {
                 // ignore already deleted segments from todelete
                 // toDelete.add(epoch.segment overlaps cut.segment && epoch < cut.segment.epoch)
                 return !deletedSegments.contains(epochSegmentNumber) &&
-                        epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getSegmentId() == epochSegment.getSegmentId() ||
+                        epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().segmentId() == epochSegment.segmentId() ||
                                 (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).collect(Collectors.toSet()));
             historyRecordOpt = HistoryRecord.fetchNext(historyRecord, historyIndex, historyTable, true);
@@ -1021,8 +1020,8 @@ public class TableHelper {
         // compare epochs. map1 should have epochs gt or eq its overlapping segments in map2
         return map1.entrySet().stream().allMatch(e1 ->
                 map2.entrySet().stream().noneMatch(e2 ->
-                        (e2.getKey().getSegmentId() == e1.getKey().getSegmentId() &&
-                                cut1.get(e1.getKey().getSegmentId()) < cut2.get(e2.getKey().getSegmentId()))
+                        (e2.getKey().segmentId() == e1.getKey().segmentId() &&
+                                cut1.get(e1.getKey().segmentId()) < cut2.get(e2.getKey().segmentId()))
                                 || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));
     }
 

@@ -180,7 +180,7 @@ public class ControllerService {
                                         context,
                                         executor)
                                         .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
-                                                segment.getStreamInfo().getStream(), seg.getSegmentId(),
+                                                segment.getStreamInfo().getStream(), seg.segmentId(),
                                                 seg.getKeyStart(),
                                                 seg.getKeyEnd())),
                                 entry -> entry.getValue()))), executor);
@@ -252,7 +252,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
         return ModelHelper.createSegmentRange(
-                scope, stream, segment.getSegmentId(), segment.getKeyStart(), segment.getKeyEnd());
+                scope, stream, segment.segmentId(), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
@@ -261,7 +261,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getSegmentId() == segmentId), executor);
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.segmentId() == segmentId), executor);
     }
 
     @SuppressWarnings("ReturnCount")

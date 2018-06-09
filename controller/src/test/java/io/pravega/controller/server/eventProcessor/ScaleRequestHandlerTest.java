@@ -192,12 +192,12 @@ public class ScaleRequestHandlerTest {
         // verify that the event is processed successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 2L));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == 2L));
         // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
         long three = computeSegmentId(3, 1);
         long four = computeSegmentId(4, 1);
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
@@ -206,7 +206,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(writer.queue.isEmpty());
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, four, null, executor).join());
 
@@ -232,9 +232,9 @@ public class ScaleRequestHandlerTest {
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == four));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == five));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
         // make it throw a non retryable failure so that test does not wait for number of retries.
@@ -243,9 +243,9 @@ public class ScaleRequestHandlerTest {
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == four));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == five));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
@@ -312,7 +312,7 @@ public class ScaleRequestHandlerTest {
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
-        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 1, 100L, 0.1706574888245243, 0.7085170563088633);
+        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 100L, 0.1706574888245243, 0.7085170563088633);
         doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyLong(), any(), any());
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);

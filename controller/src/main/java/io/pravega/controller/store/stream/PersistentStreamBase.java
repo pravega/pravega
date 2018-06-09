@@ -377,12 +377,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                         historyIndex.getData(),
                                                         historyTable.getData());
                                                 resultFutures.add(findOverlapping(successor, candidates).thenApply(
-                                                        list -> new SimpleImmutableEntry<>(successor, list.stream().map(Segment::getSegmentId)
+                                                        list -> new SimpleImmutableEntry<>(successor, list.stream().map(Segment::segmentId)
                                                                 .collect(Collectors.toList()))));
                                             }
                                             return Futures.allOfWithResults(resultFutures);
                                         })
-                                        .thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getSegmentId(), Map.Entry::getValue)))
+                                        .thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().segmentId(), Map.Entry::getValue)))
                                 )));
     }
 
@@ -468,14 +468,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                                             return startScale(segmentsToSeal, newRanges, scaleTimestamp, runOnlyIfStarted, historyIndex,
                                                     historyTable, segmentIndex, segmentTable);
-                                        })
-                                        .thenApply(epochTransition -> {
-                                            List<Segment> newSegments = new ArrayList<>();
-                                            epochTransition.getNewSegmentsWithRange().entrySet().forEach(x -> {
-                                                newSegments.add(new Segment(x.getKey(), epochTransition.getActiveEpoch(),
-                                                        scaleTimestamp, x.getValue().getKey(), x.getValue().getValue()));
-                                            });
-                                            return epochTransition;
                                         })))));
     }
 

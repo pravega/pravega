@@ -246,7 +246,7 @@ public class ZkStreamTest {
 
         List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 3L, 4L).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 3L, 4L).contains(x.segmentId())));
 
         long start = segments.get(0).getStart();
 
@@ -273,7 +273,7 @@ public class ZkStreamTest {
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, five).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, five).contains(x.segmentId())));
 
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
@@ -298,7 +298,7 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, seven, eight).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, seven, eight).contains(x.segmentId())));
 
         // 7 -> 9 = .3 - .35, 10 = .35 - .6
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
@@ -323,7 +323,7 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, nine, ten, eleven).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, nine, ten, eleven).contains(x.segmentId())));
 
         Map<Long, List<Long>> successors = store.getSuccessors(SCOPE, streamName, 0L, context, executor).get();
         assertTrue(successors.isEmpty());

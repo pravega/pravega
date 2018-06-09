@@ -300,7 +300,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
                         .stream()
                         .parallel()
-                        .collect(Collectors.toMap(Segment::getSegmentId, x -> getSegmentOffset(scope, stream, x.getSegmentId(), delegationToken)))))
+                        .collect(Collectors.toMap(Segment::segmentId, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, map, context, executor)
@@ -706,7 +706,7 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.toVoid(Futures.allOfWithResults(activeSegments
                 .stream()
                 .parallel()
-                .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.getSegmentId(), delegationToken))
+                .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.segmentId(), delegationToken))
                 .collect(Collectors.toList())));
     }
 

@@ -179,7 +179,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(v -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
                 () -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
-                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.getSegmentId()))
+                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
                                         .collect(Collectors.toList()), getCurrentDelegationToken())),
                 responseObserver);
     }

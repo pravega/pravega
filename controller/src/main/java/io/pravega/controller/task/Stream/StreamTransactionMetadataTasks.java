@@ -358,10 +358,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> {
-                        int txnEpoch = TableHelper.getTransactionEpoch(txnId);
                         List<Segment> segments = segmentsFuture.join().stream().map(x -> {
-                            long generalizedSegmentId = TableHelper.generializedSegmentId(x.getSegmentId(), txnId);
-                            return new Segment(generalizedSegmentId, txnEpoch, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                            long generalizedSegmentId = TableHelper.generializedSegmentId(x.segmentId(), txnId);
+                            return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
                         }).collect(Collectors.toList());
 
                         return new ImmutablePair<>(txnFuture.join(), segments);
@@ -668,7 +667,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getSegmentId(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
                 .collect(Collectors.toList()));
     }
 

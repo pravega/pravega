@@ -357,7 +357,7 @@ public class LocalController implements Controller {
         return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
                 getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)))
                 .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
-                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.getSegmentId()))
+                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.segmentId()))
                                 .collect(Collectors.toList()), retrieveDelegationToken()))
                 .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
                 response.getDelegationToken()));

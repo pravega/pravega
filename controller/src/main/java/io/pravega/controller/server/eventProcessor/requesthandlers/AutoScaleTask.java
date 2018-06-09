@@ -128,14 +128,14 @@ public class AutoScaleTask {
                 .thenApply(activeSegments -> {
                     assert activeSegments != null;
                     final Optional<Segment> currentOpt = activeSegments.stream()
-                            .filter(y -> y.getSegmentId() == request.getSegmentId()).findAny();
+                            .filter(y -> y.segmentId() == request.getSegmentId()).findAny();
                     if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
                         // if we are already at min-number of segments, we cant scale down, we have put the marker,
                         // we should simply return and do nothing.
                         return null;
                     } else {
                         final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
-                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.getSegmentId() == request.getSegmentId())
+                                z.getKeyStart() == currentOpt.get().getKeyEnd() || z.segmentId() == request.getSegmentId())
                                 .sorted(Comparator.comparingDouble(Segment::getKeyStart))
                                 .collect(Collectors.toList());
                         return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
@@ -150,7 +150,7 @@ public class AutoScaleTask {
                         return Futures.filter(candidates,
                                 candidate -> streamMetadataStore.isCold(request.getScope(),
                                         request.getStream(),
-                                        candidate.getSegmentId(),
+                                        candidate.segmentId(),
                                         context, executor))
                                       .thenApply(segments -> {
                                     if (maxScaleDownFactor == 1 && segments.size() == 3) {
@@ -167,7 +167,7 @@ public class AutoScaleTask {
                 .thenCompose(toMerge -> {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
-                            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.getSegmentId());
+                            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
 
                             log.debug("merging stream segment {} ", segmentName);
                         });
@@ -177,7 +177,7 @@ public class AutoScaleTask {
                         double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
                         final ArrayList<Long> segments = new ArrayList<>();
-                        toMerge.forEach(segment -> segments.add(segment.getSegmentId()));
+                        toMerge.forEach(segment -> segments.add(segment.segmentId()));
                         return postScaleRequest(request, segments, simpleEntries);
                     } else {
                         return CompletableFuture.completedFuture(null);
