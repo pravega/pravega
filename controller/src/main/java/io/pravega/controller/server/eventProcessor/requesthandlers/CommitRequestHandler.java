@@ -151,7 +151,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                     if (state.equals(State.SEALING)) {
                                         future = new CompletableFuture<>();
                                     } else {
-                                        // In normal course set the state to committing before proceeding.
+                                        // If state is not SEALING, try to set the state to COMMITTING_TXN before proceeding.
                                         // If we are unable to set the state to COMMITTING_TXN, it will get OPERATION_NOT_ALLOWED
                                         // and the processing will be retried later.
                                         future = Futures.toVoid(streamMetadataStore.setState(scope, stream, State.COMMITTING_TXN, context, executor));
@@ -238,12 +238,12 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor);
 
         int newTxnEpoch = activeEpoch.getEpoch() + 1;
-        int newActieEpoch = newTxnEpoch + 1;
+        int newActiveEpoch = newTxnEpoch + 1;
 
         List<Long> txnEpochDuplicate = txnEpoch.getSegments().stream().map(segment ->
                 computeSegmentId(getSegmentNumber(segment), newTxnEpoch)).collect(Collectors.toList());
         List<Long> activeEpochDuplicate = activeEpoch.getSegments().stream()
-                .map(segment -> computeSegmentId(getSegmentNumber(segment), newActieEpoch)).collect(Collectors.toList());
+                .map(segment -> computeSegmentId(getSegmentNumber(segment), newActiveEpoch)).collect(Collectors.toList());
 
         return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate, context)
                 .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context, delegationToken))

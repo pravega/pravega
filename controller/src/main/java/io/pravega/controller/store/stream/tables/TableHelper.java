@@ -520,8 +520,9 @@ public class TableHelper {
     }
 
     /**
-     * This method takes a reference epoch, seals the active epoch, creates a duplicate entry for referenced epoch.
-     * Follows it up with creating a partial duplicate entry for active epoch.
+     * This method is used in rolling transaction workflow. It is used to create duplicate epochs in the History Table.
+     * It takes a reference epoch, seals the active epoch, creates a duplicate entry for referenced epoch.
+     * It then follows it up with creating a partial duplicate entry for active epoch.
      *
      * @param historyIndex      history index
      * @param historyTable      history table
@@ -1083,7 +1084,7 @@ public class TableHelper {
      * @param txId transaction id
      * @return new segment id which uses transaction's epoch.
      */
-    public static long generializedSegmentId(long segmentId, UUID txId) {
+    public static long generalizedSegmentId(long segmentId, UUID txId) {
         return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
     }
 }

@@ -359,7 +359,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> {
                         List<Segment> segments = segmentsFuture.join().stream().map(x -> {
-                            long generalizedSegmentId = TableHelper.generializedSegmentId(x.segmentId(), txnId);
+                            long generalizedSegmentId = TableHelper.generalizedSegmentId(x.segmentId(), txnId);
                             return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
                         }).collect(Collectors.toList());
 

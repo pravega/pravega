@@ -23,6 +23,11 @@ import java.util.UUID;
 @Data
 @Builder
 @AllArgsConstructor
+/**
+ * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
+ * transcations that current round of processing will attempt to commit. If the processing fails and retries, it will
+ * find the list of transcations and reattempt to process them in exact same order.
+ */
 public class CommittingTransactionsRecord {
     public static final CommittingTransactionsRecordSerializer SERIALIZER = new CommittingTransactionsRecordSerializer();
 

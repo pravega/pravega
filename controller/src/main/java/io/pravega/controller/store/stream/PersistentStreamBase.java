@@ -440,7 +440,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * This method attpemts to start a new scale workflow. For this it first computes epoch transition and stores it in the metadastore.
+     * This method attempts to start a new scale workflow. For this it first computes epoch transition and stores it in the metadastore.
      * This method can be called by manual scale or during the processing of auto-scale event. Which means there could be
      * concurrent calls to this method.
      *

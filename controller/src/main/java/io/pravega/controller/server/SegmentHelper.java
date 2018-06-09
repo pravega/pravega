@@ -361,9 +361,9 @@ public class SegmentHelper {
     }
 
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
-        // Transaction segments are created against a logical primary such that all transaction segments become mergable.
+        // Transaction segments are created against a logical primary such that all transaction segments become mergeable.
         // So we will erase secondary id while creating transaction's qualified name.
-        long generalizedSegmentId = TableHelper.generializedSegmentId(segmentId, txId);
+        long generalizedSegmentId = TableHelper.generalizedSegmentId(segmentId, txId);
 
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, generalizedSegmentId);
         return getTransactionNameFromId(qualifiedName, txId);

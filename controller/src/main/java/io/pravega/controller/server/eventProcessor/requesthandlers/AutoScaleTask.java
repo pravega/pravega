@@ -88,7 +88,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("scale up request received for stream segment {}", qualifiedName);
+        log.info("Scale up request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -114,7 +114,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("scale down request received for stream segment {}", qualifiedName);
+        log.info("Scale down request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -169,7 +169,7 @@ public class AutoScaleTask {
                         toMerge.forEach(x -> {
                             String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
 
-                            log.debug("merging stream segment {} ", segmentName);
+                            log.debug("Merging stream segment {} ", segmentName);
                         });
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();

@@ -39,11 +39,11 @@ public class HistoryRecord {
     @Getter
     private final int epoch;
     /**
-     * This refers to epoch whose duplicate this epoch HistoryRecord may be.
+     * The reference epoch is the original epoch that this current epoch duplicates.
      * If referenceEpoch is same as epoch, then this is a clean creation of epoch rather than a duplicate.
      * If we are creating a duplicate of an epoch that was already a duplicate, we set the reference to the parent.
-     * This ensures that instead of having a chain of duplicates we have a tree of duplicates with original epoch as
-     * common parent and all duplicates referencing the parent epoch.
+     * This ensures that instead of having a chain of duplicates we have a tree of depth one where all duplicates
+     * are children of original epoch as common parent.
      */
     @Getter
     private final int referenceEpoch;
