@@ -692,27 +692,27 @@ public class StreamMetaDataTests {
         List<Segment> segmentList1 = Arrays.asList(segment1, segment2);
         ScaleMetadata scaleMetadata1 = new ScaleMetadata(System.currentTimeMillis() / 2, segmentList1, 0L, 0L);
 
-        Segment segment3 = new Segment(2, 1, System.currentTimeMillis(), 0.00, 0.40);
-        Segment segment4 = new Segment(3, 1, System.currentTimeMillis(), 0.40, 1.00);
+        Segment segment3 = new Segment(2, 0, System.currentTimeMillis(), 0.00, 0.40);
+        Segment segment4 = new Segment(3, 0, System.currentTimeMillis(), 0.40, 1.00);
         List<Segment> segmentList2 = Arrays.asList(segment3, segment4);
         ScaleMetadata scaleMetadata2 = new ScaleMetadata(1 + System.currentTimeMillis() / 2, segmentList2, 1L, 1L);
 
         long fromDateTime = System.currentTimeMillis();
 
-        Segment segment5 = new Segment(4, 2, System.currentTimeMillis(), 0.00, 0.50);
-        Segment segment6 = new Segment(5, 2, System.currentTimeMillis(), 0.50, 1.00);
+        Segment segment5 = new Segment(4, 0, System.currentTimeMillis(), 0.00, 0.50);
+        Segment segment6 = new Segment(5, 0, System.currentTimeMillis(), 0.50, 1.00);
         List<Segment> segmentList3 = Arrays.asList(segment5, segment6);
         ScaleMetadata scaleMetadata3 = new ScaleMetadata(System.currentTimeMillis(), segmentList3, 1L, 1L);
 
-        Segment segment7 = new Segment(6, 3, System.currentTimeMillis(), 0.00, 0.25);
-        Segment segment8 = new Segment(7, 3, System.currentTimeMillis(), 0.25, 1.00);
+        Segment segment7 = new Segment(6, 0, System.currentTimeMillis(), 0.00, 0.25);
+        Segment segment8 = new Segment(7, 0, System.currentTimeMillis(), 0.25, 1.00);
         List<Segment> segmentList4 = Arrays.asList(segment7, segment8);
         ScaleMetadata scaleMetadata4 = new ScaleMetadata(System.currentTimeMillis(), segmentList4, 1L, 1L);
 
         long toDateTime = System.currentTimeMillis();
 
-        Segment segment9 = new Segment(8, 4, System.currentTimeMillis(), 0.00, 0.40);
-        Segment segment10 = new Segment(9, 4, System.currentTimeMillis(), 0.40, 1.00);
+        Segment segment9 = new Segment(8, 0, System.currentTimeMillis(), 0.00, 0.40);
+        Segment segment10 = new Segment(9, 0, System.currentTimeMillis(), 0.40, 1.00);
         List<Segment> segmentList5 = Arrays.asList(segment9, segment10);
         ScaleMetadata scaleMetadata5 = new ScaleMetadata(toDateTime * 2, segmentList5, 1L, 1L);
 
@@ -736,8 +736,8 @@ public class StreamMetaDataTests {
         scaleMetadataListResponse.forEach(data -> {
             log.warn("Here");
             data.getSegments().forEach( segment -> {
-               log.debug("Checking segment number: " + segment.getSegmentId());
-               assertTrue("Event 1 shouldn't be included", segment.getSegmentId() != 0L);
+               log.debug("Checking segment number: " + segment.segmentId());
+               assertTrue("Event 1 shouldn't be included", segment.segmentId() != 0L);
             });
         });
 

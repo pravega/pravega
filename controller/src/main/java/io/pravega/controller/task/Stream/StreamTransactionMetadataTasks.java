@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -356,7 +357,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     // Step 5. Start tracking txn in timeout service
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, scaleGracePeriod, maxExecutionPeriod, txnId, txnFuture);
-                    }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+                    }, executor).thenApplyAsync(v -> {
+                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                            long generalizedSegmentId = TableHelper.generalizedSegmentId(x.segmentId(), txnId);
+                            return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                        }).collect(Collectors.toList());
+
+                        return new ImmutablePair<>(txnFuture.join(), segments);
+                    }, executor);
                 }), e -> {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
@@ -374,8 +382,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
-    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod, OperationContext ctx, long maxExecutionPeriod, UUID txnId, CompletableFuture<Void> addIndex) {
-        return (CompletableFuture<VersionedTransactionData>) addIndex.thenComposeAsync(ignore ->
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease, long scaleGracePeriod,
+                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         CompletableFuture<Void> addIndex) {
+        return addIndex.thenComposeAsync(ignore ->
                                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                                         scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
                             if (e != null) {
@@ -622,7 +632,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
@@ -657,7 +667,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getSegmentId(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
                 .collect(Collectors.toList()));
     }
 

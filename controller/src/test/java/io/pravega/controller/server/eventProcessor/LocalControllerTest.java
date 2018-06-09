@@ -11,12 +11,17 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerFailureException;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -307,5 +312,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.startScale(new StreamImpl("scope", "stream"),
                         new ArrayList<>(), new HashMap<>()).join(),
                 ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetSegmentsBetween() throws ExecutionException, InterruptedException {
+        List<Segment> list = new ArrayList<>();
+        when(this.mockControllerService.getSegmentsBetweenStreamCuts(any())).thenReturn(
+                CompletableFuture.completedFuture(list));
+        Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
+                new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
     }
 }

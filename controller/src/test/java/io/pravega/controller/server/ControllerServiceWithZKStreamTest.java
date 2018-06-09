@@ -277,41 +277,41 @@ public class ControllerServiceWithZKStreamTest {
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut023).build();
         List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(4, segments.size());
-        assertTrue(segments.stream().anyMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3)));
+        assertTrue(segments.stream().anyMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut423).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut41).putAllTo(streamCut56).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(6, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(1) || x.getSegmentId() == segmentIds.get(2) ||
-                x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) || x.getSegmentId() == segmentIds.get(5) ||
-                x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(1) || x.segmentId() == segmentIds.get(2) ||
+                x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) || x.segmentId() == segmentIds.get(5) ||
+                x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
     }
 
     private void testToBeforeFrom(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut56) {
@@ -336,50 +336,50 @@ public class ControllerServiceWithZKStreamTest {
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(Collections.emptyMap()).build();
         List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(7, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut023).putAllTo(Collections.emptyMap()).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(6, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut423).putAllTo(Collections.emptyMap()).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut56).putAllTo(Collections.emptyMap()).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(2, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut41).putAllTo(Collections.emptyMap()).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(6, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut06).putAllTo(Collections.emptyMap()).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(4, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
     }
 
     private void testEmptyFrom(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
@@ -391,48 +391,48 @@ public class ControllerServiceWithZKStreamTest {
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut01).build();
         List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(2, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut023).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(4, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut423).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut56).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(7, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(4) ||
-                x.getSegmentId() == segmentIds.get(5) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+                x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut41).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(3, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(4)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(4)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut06).build();
         segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.getSegmentId() == segmentIds.get(0) || x.getSegmentId() == segmentIds.get(1) ||
-                x.getSegmentId() == segmentIds.get(2) || x.getSegmentId() == segmentIds.get(3) || x.getSegmentId() == segmentIds.get(6)));
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
+                x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
     }
 
     private void scale(long start, List<Long> segmentsToSeal, Map<Double, Double> keyRanges) throws InterruptedException, java.util.concurrent.ExecutionException {

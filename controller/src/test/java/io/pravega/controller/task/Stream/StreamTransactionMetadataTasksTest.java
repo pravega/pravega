@@ -32,8 +32,8 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -164,6 +164,7 @@ public class StreamTransactionMetadataTasksTest {
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
+        txnTasks.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -238,6 +239,12 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
         EventStreamReader<CommitEvent> commitReader = commitWriter.getReader();
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
+
+        txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
+                connectionFactory, false, "");
+
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
+                abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
@@ -319,19 +326,16 @@ public class StreamTransactionMetadataTasksTest {
                 streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
 
         // Create commit and abort event processors.
-        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(tx2.getId(), commitEvent.getTxid());
+        assertEquals(tx2.getEpoch(), commitEvent.getEpoch());
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
 
         // Wait until 3 abort events are processed and ensure that the txn state is ABORTED.
@@ -410,15 +414,13 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
-        assertEquals(tx1, commitEvent.getTxid());
+        assertEquals(0, commitEvent.getEpoch());
         assertEquals(TxnStatus.COMMITTED, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
 
         // Wait until the abort event is processed and ensure that the txn state is ABORTED.

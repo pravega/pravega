@@ -24,6 +24,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -32,6 +33,10 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.tables.HistoryRecord;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -39,6 +44,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -55,6 +61,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -185,12 +192,12 @@ public class ScaleRequestHandlerTest {
         // verify that the event is processed successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == 2L));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == 2L));
         // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
         long three = computeSegmentId(3, 1);
         long four = computeSegmentId(4, 1);
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
@@ -199,7 +206,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(writer.queue.isEmpty());
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, four, null, executor).join());
 
@@ -225,9 +232,9 @@ public class ScaleRequestHandlerTest {
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == four));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == five));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
         // make it throw a non retryable failure so that test does not wait for number of retries.
@@ -236,18 +243,76 @@ public class ScaleRequestHandlerTest {
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == three));
-        assertTrue(activeSegments.stream().noneMatch(z -> z.getSegmentId() == four));
-        assertTrue(activeSegments.stream().anyMatch(z -> z.getSegmentId() == five));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
+    @Test(timeout = 30000)
+    public void testScaleWithTransactionRequest() throws InterruptedException {
+        EventWriterMock writer = new EventWriterMock();
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
+                null, null, null, null, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+
+        // 1 create transaction on old epoch and set it to committing
+        UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000, 10000,
+                null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
+
+        HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(0, epochZero.getEpoch());
+
+        // 2. start scale
+        requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L, 1L, 2L),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis())).join();
+
+        // 3. verify that scale is complete
+        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        assertEquals(State.ACTIVE, state);
+
+        HistoryRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(1, epochOne.getEpoch());
+
+        // 4. create transaction -> verify that this is created on new epoch
+        UUID txnIdNewEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData txnDataNew = streamStore.createTransaction(scope, stream, txnIdNewEpoch, 10000, 10000, 10000,
+                null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
+
+        // 5. commit on old epoch.. this should roll over
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, txnStatus);
+
+        HistoryRecord epochTwo = streamStore.getEpoch(scope, stream, 2, null, executor).join();
+        HistoryRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
+        assertEquals(0, epochTwo.getReferenceEpoch());
+        assertEquals(1, epochThree.getReferenceEpoch());
+
+        HistoryRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(epochThree, activeEpoch);
+
+        // 6. commit on new epoch. This should happen on duplicate of new epoch successfully
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnDataNew.getEpoch()))));
+        txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, txnStatus);
+
+        activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(epochThree, activeEpoch);
+    }
+
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
-        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 1, 100L, 0.1706574888245243, 0.7085170563088633);
+        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 100L, 0.1706574888245243, 0.7085170563088633);
         doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyLong(), any(), any());
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);

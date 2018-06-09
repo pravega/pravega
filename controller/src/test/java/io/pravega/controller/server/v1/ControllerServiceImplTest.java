@@ -390,17 +390,43 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void getSegmentsTest() {
+    public void getSegmentsBetweenTest() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 
-        ResultObserver<SegmentsAtTime> result2 = new ResultObserver<>();
-        this.controllerService.getSegments(GetSegmentsRequest.newBuilder()
-                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
-                        .setTimestamp(0L)
-                        .build(),
+        ResultObserver<Controller.StreamCutRangeResponse> result1 = new ResultObserver<>();
+        Map<Long, Long> from1 = new HashMap<>();
+        Map<Long, Long> to1 = new HashMap<>();
+        to1.put(0L, 0L);
+        to1.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from1).putAllTo(to1).build(),
+                result1);
+        Assert.assertEquals(2, result1.get().getSegmentsCount());
+
+        ResultObserver<Controller.StreamCutRangeResponse> result2 = new ResultObserver<>();
+        Map<Long, Long> from2 = new HashMap<>();
+        Map<Long, Long> to2 = new HashMap<>();
+        from2.put(0L, 0L);
+        from2.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from2).putAllTo(to2).build(),
                 result2);
-        final SegmentsAtTime segmentRanges = result2.get();
-        Assert.assertEquals(2, segmentRanges.getSegmentsCount());
+        Assert.assertEquals(2, result2.get().getSegmentsCount());
+
+        ResultObserver<Controller.StreamCutRangeResponse> result3 = new ResultObserver<>();
+        Map<Long, Long> from3 = new HashMap<>();
+        Map<Long, Long> to3 = new HashMap<>();
+        from3.put(0L, 0L);
+        from3.put(1L, 0L);
+        to3.put(0L, 0L);
+        to3.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from3).putAllTo(to3).build(),
+                result3);
+        Assert.assertEquals(2, result3.get().getSegmentsCount());
     }
 
     @Test
@@ -463,6 +489,20 @@ public abstract class ControllerServiceImplTest {
         Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentId());
         Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentId());
         Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentId());
+    }
+
+    @Test
+    public void getSegmentsTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentsAtTime> result2 = new ResultObserver<>();
+        this.controllerService.getSegments(GetSegmentsRequest.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .setTimestamp(0L)
+                        .build(),
+                result2);
+        final SegmentsAtTime segmentRanges = result2.get();
+        Assert.assertEquals(2, segmentRanges.getSegmentsCount());
     }
 
     @Test

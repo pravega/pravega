@@ -40,7 +40,6 @@ public class EpochTransitionRecordSerializer
     private void read00(RevisionDataInput revisionDataInput,
                         EpochTransitionRecord.EpochTransitionRecordBuilder epochTransitionRecordBuilder) throws IOException {
         epochTransitionRecordBuilder.activeEpoch(revisionDataInput.readInt())
-                .newEpoch(revisionDataInput.readInt())
                 .time(revisionDataInput.readLong());
 
         ArrayList<Long> ts = revisionDataInput.readCollection(DataInput::readLong, ArrayList::new);
@@ -61,7 +60,6 @@ public class EpochTransitionRecordSerializer
 
     private void write00(EpochTransitionRecord epochTransitionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeInt(epochTransitionRecord.getActiveEpoch());
-        revisionDataOutput.writeInt(epochTransitionRecord.getNewEpoch());
         revisionDataOutput.writeLong(epochTransitionRecord.getTime());
         revisionDataOutput.writeCollection(epochTransitionRecord.getSegmentsToSeal(), DataOutput::writeLong);
         revisionDataOutput.writeMap(epochTransitionRecord.getNewSegmentsWithRange(), DataOutput::writeLong, this::writeValue);
