@@ -266,12 +266,11 @@ public class ControllerService {
 
     @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
-                                                                               final long lease,
-                                                                               final long scaleGracePeriod) {
+                                                                               final long lease) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, scaleGracePeriod, null)
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<Segment> segments = pair.getValue();

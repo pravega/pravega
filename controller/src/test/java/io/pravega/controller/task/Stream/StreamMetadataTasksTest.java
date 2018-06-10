@@ -868,10 +868,10 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
-        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, 100L, null)
+        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
                 .get().getKey();
 
-        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, 100L, null)
+        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
                 .get().getKey();
         // set transaction to committing
         streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
@@ -884,7 +884,7 @@ public class StreamMetadataTasksTest {
                         ActiveTxnRecord txRecord = tx.getValue();
                         return new AbstractMap.SimpleEntry<>(tx.getKey(),
                                 new ActiveTxnRecord(txRecord.getTxCreationTimestamp(), txRecord.getLeaseExpiryTime(),
-                                        txRecord.getMaxExecutionExpiryTime(), txRecord.getScaleGracePeriod(), TxnStatus.OPEN));
+                                        txRecord.getMaxExecutionExpiryTime(), TxnStatus.OPEN));
                     } else {
                         return tx;
                     }
@@ -911,7 +911,7 @@ public class StreamMetadataTasksTest {
         // Mock getActiveTransactions call such that we return some non existent transaction id so that DataNotFound is simulated.
         // returning a random transaction with list of active txns such that when its abort is attempted, Data Not Found Exception gets thrown
         retVal = new HashMap<>();
-        retVal.put(UUID.randomUUID(), new ActiveTxnRecord(1L, 1L, 1L, 1L, TxnStatus.OPEN));
+        retVal.put(UUID.randomUUID(), new ActiveTxnRecord(1L, 1L, 1L, TxnStatus.OPEN));
 
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());

@@ -296,8 +296,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     @Override
     public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime(),
-                                                                                      config.getTransactionTimeoutScaleGracePeriod()),
+        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
                                                          RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();

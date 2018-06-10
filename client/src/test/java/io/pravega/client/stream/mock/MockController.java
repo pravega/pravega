@@ -373,7 +373,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         StreamSegments currentSegments = getCurrentSegments(stream);

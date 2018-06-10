@@ -254,7 +254,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).transactionTimeoutScaleGracePeriod(29000).build());
+                    EventWriterConfig.builder().transactionTimeoutTime(25000).build());
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.

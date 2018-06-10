@@ -479,14 +479,25 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
-                                                    long scaleGracePeriod) {
+    CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) {
+        synchronized (txnsLock) {
+            if (!activeTxns.containsKey(txId.toString())) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString()));
+            }
+
+            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
+        }
+    }
+
+    @Override
+    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime) {
         Preconditions.checkNotNull(txId);
 
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Data<Integer> txnData = new Data<>(
-                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
-                .toByteArray(), 0);
+                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, TxnStatus.OPEN)
+                        .toByteArray(), 0);
         int epoch = getTransactionEpoch(txId);
 
         synchronized (txnsLock) {
@@ -502,18 +513,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         }
 
         return result;
-    }
-
-    @Override
-    CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) {
-        synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
-                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString()));
-            }
-
-            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
-        }
     }
 
     @Override
@@ -555,7 +554,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                         ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                                 previous.getLeaseExpiryTime(),
                                 previous.getMaxExecutionExpiryTime(),
-                                previous.getScaleGracePeriod(),
                                 commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
                         result.complete(null);
                         return new Data<>(updated.toByteArray(), y.getVersion() + 1);

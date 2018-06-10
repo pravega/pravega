@@ -503,11 +503,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                          final UUID txnId,
                                                                          final long lease,
                                                                          final long maxExecutionTime,
-                                                                         final long scaleGracePeriod,
                                                                          final OperationContext context,
                                                                          final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime, scaleGracePeriod), executor)
+        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count -> {
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);

@@ -293,7 +293,7 @@ public class AutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
                     new JavaSerializer<>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).transactionTimeoutScaleGracePeriod(29000).build());
+                    EventWriterConfig.builder().transactionTimeoutTime(25000).build());
 
             while (!exit.get()) {
                 try {
