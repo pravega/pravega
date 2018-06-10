@@ -479,18 +479,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) {
-        synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
-                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString()));
-            }
-
-            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
-        }
-    }
-
-    @Override
     CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime) {
         Preconditions.checkNotNull(txId);
 
@@ -513,6 +501,18 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         }
 
         return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) {
+        synchronized (txnsLock) {
+            if (!activeTxns.containsKey(txId.toString())) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString()));
+            }
+
+            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
+        }
     }
 
     @Override
