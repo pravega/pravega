@@ -9,11 +9,13 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.tables.Data;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
@@ -173,12 +175,12 @@ public class StreamTest {
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        StartScaleResponse response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
-        List<Segment> newSegments = response.getSegmentsCreated();
+        EpochTransitionRecord response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getNewSegmentsWithRange();
         zkStream.updateState(State.SCALING).join();
 
-        newSegments.stream().map(Segment::getSegmentId).collect(Collectors.toList());
-        zkStream.scaleCreateNewSegments().get();
+        newSegments.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList());
+        zkStream.scaleCreateNewSegments(false).get();
         zkStream.scaleNewSegmentsCreated().get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.

@@ -19,6 +19,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -58,6 +59,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -452,9 +454,9 @@ public class ControllerImplTest {
             @Override
             public void getSegmentsBetween(Controller.StreamCutRange request, StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    SegmentId segment1 = ModelHelper.createSegmentId("scope1", "stream1", 0);
-                    SegmentId segment2 = ModelHelper.createSegmentId("scope1", "stream1", 1);
-                    responseObserver.onNext(Controller.StreamCutRangeResponse.newBuilder().build());
+                    SegmentId segment1 = ModelHelper.createSegmentId("scope1", "stream1", 0L);
+                    SegmentId segment2 = ModelHelper.createSegmentId("scope1", "stream1", 1L);
+                    responseObserver.onNext(Controller.StreamCutRangeResponse.newBuilder().addSegments(segment1).addSegments(segment2).build());
                     responseObserver.onCompleted();
                 }  else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -1000,6 +1002,13 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testGetStreamCutSuccessors() throws Exception {
+        StreamCut from = new StreamCutImpl(new StreamImpl("scope1", "stream1"), Collections.emptyMap());
+        CompletableFuture<StreamSegmentSuccessors> successors = controllerClient.getSuccessors(from);
+        assertEquals(2, successors.get().getSegments().size());
+    }
+
+    @Test
     public void testScale() throws Exception {
         CompletableFuture<Boolean> scaleStream;
         StreamImpl stream = new StreamImpl("scope1", "stream1");
@@ -1049,19 +1058,19 @@ public class ControllerImplTest {
     @Test
     public void testCreateTransaction() throws Exception {
         CompletableFuture<TxnSegments> transaction;
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0);
         assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
         assertEquals(2, transaction.get().getSteamSegments().getSegments().size());
         assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
         assertEquals(new Segment("scope1", "stream1", 1), transaction.get().getSteamSegments().getSegmentForKey(.8));
         
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0);
         assertEquals(new UUID(33L, 44L), transaction.get().getTxnId());
         assertEquals(1, transaction.get().getSteamSegments().getSegments().size());
         assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
         assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.8));
         
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0,  0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0);
         AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
     }
 

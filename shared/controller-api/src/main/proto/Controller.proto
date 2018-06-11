@@ -113,7 +113,7 @@ message PingTxnStatus {
         OK = 0;
         LEASE_TOO_LARGE = 1;
         MAX_EXECUTION_TIME_EXCEEDED = 2;
-        SCALE_GRACE_TIME_EXCEEDED = 3;
+        SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
     }
     Status status = 1;
@@ -212,7 +212,7 @@ message TxnId {
 message CreateTxnRequest {
     StreamInfo streamInfo = 1;
     int64 lease = 2;
-    int64 scaleGracePeriod = 3;
+    int64 scaleGracePeriod = 3 [deprecated=true];
 }
 
 message CreateTxnResponse {

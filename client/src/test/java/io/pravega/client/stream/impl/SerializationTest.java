@@ -104,8 +104,8 @@ public class SerializationTest {
     
     @Test
     public void testSegment() {
-        Segment segmnet = Segment.fromScopedName("foo/bar/2#epoch.0");
-        assertEquals("foo/bar/2#epoch.0", segmnet.getScopedName());
+        Segment segmnet = Segment.fromScopedName("foo/bar/2.#epoch.0");
+        assertEquals("foo/bar/2.#epoch.0", segmnet.getScopedName());
     }
     
     @Test

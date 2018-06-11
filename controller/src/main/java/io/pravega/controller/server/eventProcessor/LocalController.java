@@ -292,9 +292,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease, scaleGracePeriod)
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease)
                 .thenApply(pair -> new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey()));
     }
 
@@ -357,7 +357,7 @@ public class LocalController implements Controller {
         return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
                 getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)))
                 .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
-                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.getSegmentId()))
+                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.segmentId()))
                                 .collect(Collectors.toList()), retrieveDelegationToken()))
                 .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
                 response.getDelegationToken()));

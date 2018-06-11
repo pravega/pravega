@@ -9,10 +9,12 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.tables.Data;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -244,7 +246,7 @@ public class ZkStreamTest {
 
         List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 3L, 4L).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 3L, 4L).contains(x.segmentId())));
 
         long start = segments.get(0).getStart();
 
@@ -261,17 +263,17 @@ public class ZkStreamTest {
         long scale1 = start + 10000;
         ArrayList<Long> sealedSegments = Lists.newArrayList(3L, 4L);
         long five = computeSegmentId(5, 1);
-        StartScaleResponse response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
-        List<Segment> newSegments = response.getSegmentsCreated();
+        EpochTransitionRecord response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, context, executor).get();
+        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
         store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
                 context, executor).get();
-
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, five).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, five).contains(x.segmentId())));
 
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
@@ -286,16 +288,17 @@ public class ZkStreamTest {
         long seven = computeSegmentId(7, 2);
         long eight = computeSegmentId(8, 2);
         response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
-        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, context, executor).get();
+        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
         store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
                 context, executor).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, seven, eight).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, seven, eight).contains(x.segmentId())));
 
         // 7 -> 9 = .3 - .35, 10 = .35 - .6
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
@@ -310,16 +313,17 @@ public class ZkStreamTest {
         long eleven = computeSegmentId(11, 3);
         ArrayList<Long> sealedSegments2 = Lists.newArrayList(seven, eight);
         response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
-        segmentsCreated = response.getSegmentsCreated();
+        segmentsCreated = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, context, executor).get();
+        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
         store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
                 context, executor).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, nine, ten, eleven).contains(x.getSegmentId())));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, six, nine, ten, eleven).contains(x.segmentId())));
 
         Map<Long, List<Long>> successors = store.getSuccessors(SCOPE, streamName, 0L, context, executor).get();
         assertTrue(successors.isEmpty());
@@ -443,12 +447,12 @@ public class ZkStreamTest {
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
 
         UUID txnId1 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
-        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
+        VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000,
                 context, executor).get();
         Assert.assertEquals(txnId1, tx.getId());
 
         UUID txnId2 = store.generateTransactionId(SCOPE, streamName, null, executor).join();
-        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
+        VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000,
                 context, executor).get();
         Assert.assertEquals(txnId2, tx2.getId());
 
@@ -461,10 +465,12 @@ public class ZkStreamTest {
         Assert.assertEquals(TxnStatus.COMMITTING, store.sealTransaction(SCOPE, streamName, tx.getId(), true,
                 Optional.empty(), context, executor).join().getKey());
 
-        // Test to ensure that COMMITTING transaction cannot be aborted.
+        // Test to ensure that COMMITTING_TXN transaction cannot be aborted.
         testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
 
-        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getEpoch(), tx.getId(), context, executor);
+        store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
+        CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
+        store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
                 context, executor).get();
@@ -478,7 +484,7 @@ public class ZkStreamTest {
         // Test to ensure that ABORTING transaction cannot be committed.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
 
-        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, executor);
+        CompletableFuture<TxnStatus> f2 = store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor);
 
         CompletableFuture.allOf(f1, f2).get();
 
@@ -492,8 +498,10 @@ public class ZkStreamTest {
                 Optional.empty(), context, executor).join().getKey());
 
         // Test to ensure that commitTransaction is idempotent.
+        store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
         Assert.assertEquals(TxnStatus.COMMITTED,
-                store.commitTransaction(SCOPE, streamName, tx.getEpoch(), tx.getId(), context, executor).join());
+                store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
+        store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
@@ -504,12 +512,13 @@ public class ZkStreamTest {
 
         // Test to ensure that abortTransaction is idempotent.
         Assert.assertEquals(TxnStatus.ABORTED,
-                store.abortTransaction(SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, executor).join());
+                store.abortTransaction(SCOPE, streamName, tx2.getId(), context, executor).join());
 
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
 
-        assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
+        store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
+        assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof StoreException.DataNotFoundException) {
                         return true;
@@ -517,8 +526,9 @@ public class ZkStreamTest {
                         throw new RuntimeException("assert failed");
                     }
                 }).get();
+        store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
-        assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
+        assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof StoreException.DataNotFoundException) {
                         return true;
@@ -543,7 +553,7 @@ public class ZkStreamTest {
         stream.create(configuration1, System.currentTimeMillis()).join();
         stream.updateState(State.ACTIVE).join();
         UUID txId = stream.generateNewTxnId(0, 0L).join();
-        stream.createTransaction(txId, 1000L, 1000L, 1000L).join();
+        stream.createTransaction(txId, 1000L, 1000L).join();
 
         String activeTxPath = stream.getActiveTxPath(0, txId.toString());
         // throw DataNotFoundException for txn path
@@ -575,7 +585,7 @@ public class ZkStreamTest {
                 checker);
 
         AssertExtensions.assertThrows("Commit txn failure",
-                () -> store.commitTransaction(scope, stream, epoch, txnId, context, executor),
+                () -> store.commitTransaction(scope, stream, txnId, context, executor),
                 checker);
     }
 
@@ -587,7 +597,7 @@ public class ZkStreamTest {
                 checker);
 
         AssertExtensions.assertThrows("Abort txn failure",
-                () -> store.abortTransaction(scope, stream, epoch, txnId, context, executor),
+                () -> store.abortTransaction(scope, stream, txnId, context, executor),
                 checker);
     }
 }

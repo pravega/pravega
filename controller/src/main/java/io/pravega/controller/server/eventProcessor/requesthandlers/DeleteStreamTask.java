@@ -78,7 +78,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.getScaleMetadata(scope, stream, context, executor)
                 .thenComposeAsync(scaleMetadata -> {
                     Set<Long> toDelete = new HashSet<>();
-                    scaleMetadata.forEach(x -> toDelete.addAll(x.getSegments().stream().map(Segment::getSegmentId).collect(Collectors.toList())));
+                    scaleMetadata.forEach(x -> toDelete.addAll(x.getSegments().stream().map(Segment::segmentId).collect(Collectors.toList())));
                     return streamMetadataTasks.notifyDeleteSegments(scope, stream, toDelete, streamMetadataTasks.retrieveDelegationToken())
                             .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
                                     executor), executor)

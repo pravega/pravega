@@ -14,6 +14,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
+import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamCutRecord;
@@ -21,7 +24,6 @@ import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -396,7 +398,7 @@ public interface StreamMetadataStore {
      * @param executor       callers executor
      * @return the list of newly created segments
      */
-    CompletableFuture<StartScaleResponse> startScale(final String scope, final String name,
+    CompletableFuture<EpochTransitionRecord> startScale(final String scope, final String name,
                                                             final List<Long> sealedSegments,
                                                             final List<SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
@@ -409,12 +411,14 @@ public interface StreamMetadataStore {
      *
      * @param scope          stream scope
      * @param name           stream name.
+     * @param isManualScale  flag to indicate that the processing is being performed for manual scale
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
     CompletableFuture<Void> scaleCreateNewSegments(final String scope,
                                                    final String name,
+                                                   final boolean isManualScale,
                                                    final OperationContext context,
                                                    final Executor executor);
 
@@ -433,7 +437,7 @@ public interface StreamMetadataStore {
                                                     final Executor executor);
 
     /**
-     * Called after old segments are sealed in pravega.
+     * Called after old segments are sealed in segment store.
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -446,6 +450,41 @@ public interface StreamMetadataStore {
                                                 final Map<Long, Long> sealedSegmentSizes,
                                                 final OperationContext context,
                                                 final Executor executor);
+
+    /**
+     * This method is called from Rolling transaction workflow after new transactions that are duplicate of active transactions
+     * have been created successfully in segment store.
+     * This method will update metadata records for epoch to add two new epochs, one for duplicate txn epoch where transactions
+     * are merged and the other for duplicate active epoch.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param sealedTxnEpochSegments sealed segments from intermediate txn epoch with size at the time of sealing
+     * @param txnEpoch       epoch for transactions that need to be rolled over
+     * @param time           timestamp
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return CompletableFuture which upon completion will indicate that we have successfully created new epoch entries.
+     */
+    CompletableFuture<Void> rollingTxnNewSegmentsCreated(final String scope, final String name, Map<Long, Long> sealedTxnEpochSegments,
+                                                         final int txnEpoch, final long time, final OperationContext context, final Executor executor);
+
+    /**
+     * This is final step of rolling transaction and is called after old segments are sealed in segment store.
+     * This should complete the epoch transition in the metadata store.
+     *
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param sealedActiveEpochSegments sealed segments from active epoch with size at the time of sealing
+     * @param activeEpoch    active epoch against which rolling txn was started
+     * @param time           timestamp
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.
+     */
+    CompletableFuture<Void> rollingTxnActiveEpochSealed(final String scope, final String name, final Map<Long, Long> sealedActiveEpochSegments,
+                                                        final int activeEpoch, final long time, final OperationContext context, final Executor executor);
+
 
     /**
      * If the state of the stream in the store matches supplied state, reset.
@@ -461,21 +500,6 @@ public interface StreamMetadataStore {
                                                     final State state,
                                                     final OperationContext context,
                                                     final Executor executor);
-
-    /**
-     * Method to delete epoch if scale operation is ongoing.
-     * @param scope scope
-     * @param stream stream
-     * @param epoch epoch to delete
-     * @param context context
-     * @param executor executor
-     * @return returns a pair of segments sealed from previous epoch and new segments added in new epoch
-     */
-    CompletableFuture<DeleteEpochResponse> tryDeleteEpochIfScaling(final String scope,
-                                                                   final String stream,
-                                                                   final int epoch,
-                                                                   final OperationContext context,
-                                                                   final Executor executor);
 
     /**
      * Method to create a new unique transaction id on the stream.
@@ -499,8 +523,6 @@ public interface StreamMetadataStore {
      * @param txnId            Transaction identifier.
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
      * @param maxExecutionTime Maximum time for which client may extend txn lease.
-     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
-     *                         the scaling operation is initiated on the txn stream.
      * @param context          operation context
      * @param executor         callers executor
      * @return Transaction data along with version information.
@@ -508,7 +530,6 @@ public interface StreamMetadataStore {
     CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
                                                                   final UUID txnId,
                                                                   final long lease, final long maxExecutionTime,
-                                                                  final long scaleGracePeriod,
                                                                   final OperationContext context,
                                                                   final Executor executor);
 
@@ -558,13 +579,12 @@ public interface StreamMetadataStore {
      *
      * @param scope    scope
      * @param stream   stream
-     * @param epoch    transaction epoch
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
      * @return transaction status.
      */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final int epoch,
+    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream,
                                                    final UUID txId, final OperationContext context,
                                                    final Executor executor);
 
@@ -591,26 +611,14 @@ public interface StreamMetadataStore {
      *
      * @param scope    scope
      * @param stream   stream
-     * @param epoch    transaction epoch
      * @param txId     transaction id
      * @param context  operation context
      * @param executor callers executor
      * @return transaction status
      */
-    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream, final int epoch,
+    CompletableFuture<TxnStatus> abortTransaction(final String scope, final String stream,
                                                   final UUID txId, final OperationContext context,
                                                   final Executor executor);
-
-    /**
-     * Returns a boolean indicating whether any transaction is active on the specified stream.
-     *
-     * @param scope    scope.
-     * @param stream   stream.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return boolean indicating whether any transaction is active on the specified stream.
-     */
-    CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor);
 
     /**
      * Method to retrive all currently active transactions from the metadata store.
@@ -687,13 +695,29 @@ public interface StreamMetadataStore {
      * @param context  operation context
      * @param ignoreCached  boolean indicating whether to use cached value or force fetch from underlying store.
      * @param executor callers executor
-     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     * @return         Completable future that holds active epoch history record upon completion.
      */
-    CompletableFuture<Pair<Integer, List<Long>>> getActiveEpoch(final String scope,
-                                                                             final String stream,
-                                                                             final OperationContext context,
-                                                                             final boolean ignoreCached,
-                                                                             final Executor executor);
+    CompletableFuture<HistoryRecord> getActiveEpoch(final String scope,
+                                                    final String stream,
+                                                    final OperationContext context,
+                                                    final boolean ignoreCached,
+                                                    final Executor executor);
+
+    /**
+     * Returns the record for the given epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param epoch    epoch
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         Completable future that, upon completion, holds epoch history record corresponding to request epoch.
+     */
+    CompletableFuture<HistoryRecord> getEpoch(final String scope,
+                                              final String stream,
+                                              final int epoch,
+                                              final OperationContext context,
+                                              final Executor executor);
 
     /**
      * Api to mark a segment as cold.
@@ -863,4 +887,58 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String stream, final Map<Long, Long> streamCut,
                                                  final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to create committing transaction record in the store for a given stream.
+     * Note: this will not throw data exists exception if the committing transaction node already exists.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param epoch epoch
+     * @param txnsToCommit transactions to commit within the epoch
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, mean that the record has been created successfully.
+     */
+    CompletableFuture<Void> createCommittingTransactionsRecord(final String scope, final String stream, final int epoch, final List<UUID> txnsToCommit,
+                                                               final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to fetch committing transaction record from the store for a given stream.
+     * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
+     * it returns null.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
+     */
+    CompletableFuture<CommittingTransactionsRecord> getCommittingTransactionsRecord(final String scope, final String stream,
+                                                                                    final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * Method to delete committing transaction record from the store for a given stream.
+     *
+     * @param scope scope name
+     * @param stream stream name
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
+     */
+    CompletableFuture<Void> deleteCommittingTransactionsRecord(final String scope, final String stream, final OperationContext context,
+                                                               final ScheduledExecutorService executor);
+
+    /**
+     * Method to get all transactions in a given epoch. This method returns a map of transaction id to transaction record.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param epoch epoch
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which when completed will contain a map of transaction id and its record.
+     */
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final String scope, final String stream, final int epoch,
+                                                                         final OperationContext context, final ScheduledExecutorService executor);
 }

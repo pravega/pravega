@@ -179,7 +179,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(v -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
                 () -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
-                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.getSegmentId()))
+                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
                                         .collect(Collectors.toList()), getCurrentDelegationToken())),
                 responseObserver);
     }
@@ -241,8 +241,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getLease(),
-                        request.getScaleGracePeriod())
+                        request.getLease())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(getCurrentDelegationToken())
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))

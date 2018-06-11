@@ -351,6 +351,9 @@ public final class ModelHelper {
                                                                                        final List<SegmentId> segments, String delegationToken) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Exceptions.checkArgument(segments.stream().allMatch(x -> x.getStreamInfo().getScope().equals(scope) &&
+                        x.getStreamInfo().getStream().equals(stream)),
+                "streamInfo", "stream info does not match segment id", scope, stream, segments);
         return Controller.StreamCutRangeResponse.newBuilder()
                 .addAllSegments(segments)
                 .setDelegationToken(delegationToken)
