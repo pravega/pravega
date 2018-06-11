@@ -475,6 +475,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         if (oldEntry != null) {
+            System.err.println("FAIL");
             log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
                     this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
         }
@@ -839,9 +840,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getSingleReadResultEntry, this.executor);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getRedirectRetryResultEntry, this.executor);
         }
 
+        return result;
+    }
+
+    private CompletableReadResultEntry getRedirectRetryResultEntry(long resultStartOffset, int maxLength) {
+        CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength);
+        if (result instanceof RedirectedReadResultEntry) {
+            // We've hit the same problem. Try to do a direct Storage read.
+            result = createStorageRead(resultStartOffset, maxLength).addToCache(false);
+        }
         return result;
     }
 
@@ -907,27 +917,27 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param readLength          The maximum length of the Read, from the Offset of this ReadResultEntry.
      */
-    private ReadResultEntryBase createStorageRead(long streamSegmentOffset, int readLength) {
+    private StorageReadResultEntry createStorageRead(long streamSegmentOffset, int readLength) {
         return new StorageReadResultEntry(streamSegmentOffset, readLength, this::queueStorageRead);
     }
 
-    private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+    private void queueStorageRead(StorageReadResultEntry entry, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReadManager.Result> doneCallback = result -> {
             ByteArraySegment data = result.getData();
 
             // Make sure we invoke our callback first, before any chance of exceptions from insert() may block it.
-            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
-            if (!result.isDerived()) {
+            entry.complete(new ReadResultEntryContents(data.getReader(), data.getLength()));
+            if (!result.isDerived() && entry.canAddToCache()) {
                 // Only insert primary results into the cache. Derived results are always sub-portions of primaries
                 // and there is no need to insert them too, as they are already contained within.
-                insert(offset, data);
+                insert(entry.getStreamSegmentOffset(), data);
             }
         };
 
         // Queue the request for async processing.
-        length = getReadAlignedLength(offset, length);
-        this.storageReadManager.execute(new StorageReadManager.Request(offset, length, doneCallback, failureCallback, timeout));
+        int length = getReadAlignedLength(entry.getStreamSegmentOffset(), entry.getRequestedReadLength());
+        this.storageReadManager.execute(new StorageReadManager.Request(entry.getStreamSegmentOffset(), length, doneCallback, entry::fail, timeout));
     }
 
     /**

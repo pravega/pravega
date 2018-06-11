@@ -1017,6 +1017,32 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     /**
      * Tests the following scenario, where the Read Index has a read from a portion in a parent segment where a transaction
      * was just merged (fully in storage), but the read request might result in either an ObjectClosedException or
+     * StreamSegmentNotExistsException.
+     *
+     * As opposed from testConcurrentReadTransactionStorageMergeIncomplete(), this verifies the functioning of this
+     * when there has been a call to completeMerge().
+     */
+    @Test
+    public void testConcurrentReadTransactionStorageMergeComplete() throws Exception {
+        testConcurrentReadTransactionStorageMerge(true);
+    }
+
+    /**
+     * Tests the following scenario, where the Read Index has a read from a portion in a parent segment where a transaction
+     * was just merged (fully in storage), but the read request might result in either an ObjectClosedException or
+     * StreamSegmentNotExistsException.
+     *
+     * As opposed from testConcurrentReadTransactionStorageMergeComplete(), this verifies the functioning of this
+     * when no call to completeMerge() has been invoked.
+     */
+    @Test
+    public void testConcurrentReadTransactionStorageMergeIncomplete() throws Exception {
+        testConcurrentReadTransactionStorageMerge(false);
+    }
+
+    /**
+     * Tests the following scenario, where the Read Index has a read from a portion in a parent segment where a transaction
+     * was just merged (fully in storage), but the read request might result in either an ObjectClosedException or
      * StreamSegmentNotExistsException:
      * * A Parent Segment has a Transaction with some data in it, and at least 1 byte of data not in cache.
      * * The Transaction is begin-merged in the parent (Tier 1 only).
@@ -1025,8 +1051,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      * * The Read Request is invoked and its content requested. This should correctly retrieve the data from the Parent
      * Segment in Storage, and not attempt to access the now-defunct Transaction segment.
      */
-    @Test
-    public void testConcurrentReadTransactionStorageMerge() throws Exception {
+    private void testConcurrentReadTransactionStorageMerge(boolean invokeCompleteMerge) throws Exception {
         CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
@@ -1037,6 +1062,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         long transactionId = createTransaction(parentMetadata, 1, context);
         UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
         createSegmentsInStorage(context);
+        appendSingleWrite(parentId, new byte[1], context);
+        context.storage.openWrite(parentMetadata.getName())
+                       .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT)).join();
 
         // Write something to the transaction, and make sure it also makes its way to Storage.
         byte[] writeData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
@@ -1047,30 +1075,32 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Seal & Begin-merge the transaction (do not seal in storage).
         transactionMetadata.markSealed();
-        parentMetadata.setLength(transactionMetadata.getLength());
-        context.readIndex.beginMerge(parentId, 0, transactionId);
+        parentMetadata.setLength(transactionMetadata.getLength() + 1);
+        context.readIndex.beginMerge(parentId, 1, transactionId);
         transactionMetadata.markMerged();
 
         // Clear the cache.
         context.cacheManager.applyCachePolicy();
 
         // Issue read from the parent and fetch the first entry (there should only be one).
-        ReadResult rr = context.readIndex.read(parentId, 0, writeData.length, TIMEOUT);
+        ReadResult rr = context.readIndex.read(parentId, 1, writeData.length, TIMEOUT);
         Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
         ReadResultEntry entry = rr.next();
-        Assert.assertEquals("Unexpected offset for read result entry.", 0, entry.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected offset for read result entry.", 1, entry.getStreamSegmentOffset());
         Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
 
-        // Merge the transaction in storage & complete-merge it.
+        // Merge the transaction in storage. Do not complete-merge it.
         transactionMetadata.markSealed();
         transactionMetadata.markSealedInStorage();
         transactionMetadata.markDeleted();
         context.storage.seal(transactionWriteHandle, TIMEOUT).join();
         val parentWriteHandle = context.storage.openWrite(parentMetadata.getName()).join();
-        context.storage.concat(parentWriteHandle, 0, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
+        context.storage.concat(parentWriteHandle, 1, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
         parentMetadata.setStorageLength(parentMetadata.getLength());
 
-        context.readIndex.completeMerge(parentId, transactionId);
+        if (invokeCompleteMerge) {
+            context.readIndex.completeMerge(parentId, transactionId);
+        }
 
         // Attempt to extract data from the read.
         entry.requestContent(TIMEOUT);
