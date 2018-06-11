@@ -651,7 +651,7 @@ public abstract class StreamMetadataStoreTest {
         // first txn created before-scale
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
-                100, 100, 100, null, executor).get();
+                100, 100, null, executor).get();
         assertEquals(0, tx1.getEpoch());
         EpochTransitionRecord response = store.startScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment2, segment3), scaleTs, false, null, executor).join();
@@ -666,7 +666,7 @@ public abstract class StreamMetadataStoreTest {
         store.scaleCreateNewSegments(scope, stream, false, null, executor).join();
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx2 = store.createTransaction(scope, stream, txnId,
-                100, 100, 100, null, executor).get();
+                100, 100, null, executor).get();
         assertEquals(0, tx2.getEpoch());
         assertEquals(0, (int) (tx2.getId().getMostSignificantBits() >> 32));
 
@@ -684,7 +684,7 @@ public abstract class StreamMetadataStoreTest {
                 null, executor).join();
 
         VersionedTransactionData tx3 = store.createTransaction(scope, stream, txnId,
-                100, 100, 100, null, executor).get();
+                100, 100, null, executor).get();
         assertEquals(0, tx3.getEpoch());
         assertEquals(0, (int) (tx3.getId().getMostSignificantBits() >> 32));
         store.sealTransaction(scope, stream, tx3.getId(), true, Optional.of(tx3.getVersion()), null, executor).get();
@@ -729,7 +729,7 @@ public abstract class StreamMetadataStoreTest {
 
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txn = store.createTransaction(scope, stream, txnId,
-                100, 100, 100, null, executor).get();
+                100, 100, null, executor).get();
         assertEquals(1, txn.getEpoch());
 
         store.sealTransaction(scope, stream, txn.getId(), true, Optional.of(txn.getVersion()), null, executor).get();
@@ -739,7 +739,7 @@ public abstract class StreamMetadataStoreTest {
         // verify that new txns can be created and are created on original epoch
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txn2 = store.createTransaction(scope, stream, txnId,
-                100, 100, 100, null, executor).get();
+                100, 100, null, executor).get();
         assertEquals(1, txn2.getEpoch());
 
         store.scaleCreateNewSegments(scope, stream, false, null, executor).join();

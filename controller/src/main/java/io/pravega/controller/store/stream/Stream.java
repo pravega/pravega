@@ -291,8 +291,7 @@ interface Stream {
      */
     CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                   final long lease,
-                                                                  final long maxExecutionTime,
-                                                                  final long scaleGracePeriod);
+                                                                  final long maxExecutionTime);
 
 
     /**

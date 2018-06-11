@@ -101,7 +101,7 @@ public class ScaleTest {
             }
 
             // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-            CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 29000);
+            CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000);
             TxnSegments transaction = txnFuture.get();
             if (transaction == null) {
                 log.error("Create transaction failed, exiting");

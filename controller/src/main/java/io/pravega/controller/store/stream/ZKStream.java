@@ -368,12 +368,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createNewTransaction(final UUID txId,
                                                  final long timestamp,
                                                  final long leaseExpiryTime,
-                                                 final long maxExecutionExpiryTime,
-                                                 final long scaleGracePeriod) {
+                                                 final long maxExecutionExpiryTime) {
         int epoch = getTransactionEpoch(txId);
         final String activePath = getActiveTxPath(epoch, txId.toString());
-        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, TxnStatus.OPEN).toByteArray();
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode
         // previously found to be empty and deleted.
         // For this, send createParent flag = true
@@ -400,7 +398,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                             previous.getLeaseExpiryTime(),
                             previous.getMaxExecutionExpiryTime(),
-                            previous.getScaleGracePeriod(),
                             commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
         final Data<Integer> data = new Data<>(updated.toByteArray(), version);
         return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath))

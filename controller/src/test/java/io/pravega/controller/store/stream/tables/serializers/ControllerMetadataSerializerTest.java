@@ -68,7 +68,7 @@ public class ControllerMetadataSerializerTest {
 
     @Test
     public void txnRecordTest() throws IOException {
-        ActiveTxnRecord record = new ActiveTxnRecord(1L, 1L, 1L, 1L, TxnStatus.OPEN);
+        ActiveTxnRecord record = new ActiveTxnRecord(1L, 1L, 1L, TxnStatus.OPEN);
         byte[] serialized = ActiveTxnRecord.SERIALIZER.serialize(record).array();
         ActiveTxnRecord deserialized = ActiveTxnRecord.SERIALIZER.deserialize(serialized);
         assertEquals(record, deserialized);

@@ -54,12 +54,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Synchronized
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
                                                                                       final long lease,
-                                                                                      final long scaleGracePeriod,
                                                                                       final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final UUID txnId = streamMetadataStore.generateTransactionId(scope, stream, null, executor).join();
-        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, 10 * lease, scaleGracePeriod,
+        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, 10 * lease,
                 context, executor)
                 .thenCompose(txData -> {
                     log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());

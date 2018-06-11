@@ -217,10 +217,9 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, null).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, null).join().getKey();
 
         // Commit the first one
         TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), null).join();
@@ -265,13 +264,13 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
 
         // Ping another txn from failedHost.
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, 30000, null, executor).join();
+        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, null, executor).join();
         PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
         VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
 
@@ -381,12 +380,9 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
-                null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
-                null).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, null).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, null).join().getKey();
 
         UUID tx1 = txData1.getId();
         UUID tx2 = txData2.getId();
@@ -461,10 +457,9 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create partial transaction
         final long lease = 10000;
-        final long scaleGracePeriod = 10000;
 
         AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
-                txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null),
+                txnTasks.createTxn(SCOPE, STREAM, lease, null),
                 e -> e instanceof RuntimeException);
 
         // Ensure that exactly one transaction is active on the stream.
@@ -537,13 +532,13 @@ public class StreamTransactionMetadataTasksTest {
                 CompletableFuture<VersionedTransactionData> future = (CompletableFuture<VersionedTransactionData>) invocation.callRealMethod();
                 return future;
             }
-        }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
-        Pair<VersionedTransactionData, List<Segment>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, 10000L, null).join();
+        }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), any(), any());
+        Pair<VersionedTransactionData, List<Segment>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
 
         // verify that generate transaction id is called 3 times
         verify(streamStoreMock, times(3)).generateTransactionId(any(), any(), any(), any());
         // verify that create transaction is called 2 times
-        verify(streamStoreMock, times(2)).createTransaction(any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+        verify(streamStoreMock, times(2)).createTransaction(any(), any(), any(), anyLong(), anyLong(), any(), any());
 
         // verify that the txn id that is generated is of type ""
         UUID txnId = txn.getKey().getId();

@@ -241,8 +241,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getLease(),
-                        request.getScaleGracePeriod())
+                        request.getLease())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(getCurrentDelegationToken())
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))

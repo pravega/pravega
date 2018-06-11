@@ -106,7 +106,7 @@ public class EndToEndStatsTest {
 
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
 
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
