@@ -689,9 +689,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     /**
      * Returns the first ReadResultEntry that matches the specified search parameters.
-     * <p>
+     *
      * Compared to getMultiReadResultEntry(), this method returns exactly one ReadResultEntry.
-     * <p>
+     *
      * Compared to getSingleMemoryReadResultEntry(), this method will return a CompletableReadResultEntry regardless of
      * whether the data is cached or not. This may involve registering a future read or triggering a Storage read if necessary,
      * as well as redirecting the read to a Transaction if necessary.
@@ -840,18 +840,43 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getRedirectRetryResultEntry, this.executor);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getRedirectedReadOrDirectStorageRead, this.executor);
         }
 
         return result;
     }
 
-    private CompletableReadResultEntry getRedirectRetryResultEntry(long resultStartOffset, int maxLength) {
+    /**
+     * Similarly to getSingleReadResultEntry(), returns the first ReadResultEntry that matches the specified search parameters.
+     * This should be only invoked as the sole retry for a RedirectedReadResultEntry in case that the source segment no longer
+     * exists in Storage. As such, if the result would have been a RedirectReadResultEntry (i.e., we'd end up in the same
+     * situation as the one that got us here), then this will attempt to execute a direct Storage Read from this segment
+     * (not the redirected one) at the given offsets, even if the metadata currently disagrees.
+     *
+     * Since this goes against the knowledge in the metadata, there is a chance that the requested Storage Read be for
+     * invalid offsets, however if the source segment is indeed fully merged into this one then there should be no problem.
+     *
+     * In order to avoid confusion in the Cache, whatever data is fetched from Storage as a result of a call to this method
+     * will not be cached.
+     *
+     * This method is required in order to solve a rather tricky scenario, where a Source Segment was requested to be
+     * merged in a Target Segment, and this has been executed in Storage, however the Segment Container has been restarted
+     * and the call to completeMerge() was never baked into the DurableDataLog. As such, there is a small window right
+     * after the Segment Container's recovery when the Read Index and Container/Segment Metadata are in disagreement with
+     * the state of things in Storage. Until that is reconciled, if we ever get a read request for the corresponding offsets
+     * of Source Segment within Target Segment, we will end up needing this solution.
+     *
+     * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
+     * @param maxLength         The maximum number of bytes to return.
+     * @return A ReadResultEntry representing the data to return.
+     */
+    private CompletableReadResultEntry getRedirectedReadOrDirectStorageRead(long resultStartOffset, int maxLength) {
         CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength);
         if (result instanceof RedirectedReadResultEntry) {
-            // We've hit the same problem. Try to do a direct Storage read.
+            // We've hit the same problem. Try to do a direct Storage read, making sure we don't add the data to the cache.
             result = createStorageRead(resultStartOffset, maxLength).addToCache(false);
         }
+
         return result;
     }
 
