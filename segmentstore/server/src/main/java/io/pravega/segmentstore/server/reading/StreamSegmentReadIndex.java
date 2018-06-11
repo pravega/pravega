@@ -516,29 +516,29 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
-        // Get all eligible Future Reads which wait for data prior to the end offset.
-        // Since we are not actually using this entry's data, there is no need to 'touch' it.
-        ReadIndexEntry lastEntry;
-        synchronized (this.lock) {
-            lastEntry = this.indexEntries.getLast();
-        }
-
-        if (lastEntry == null) {
-            // Nothing to do.
-            return;
-        }
-
-        Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
+        Collection<FutureReadResultEntry> futureReads;
         if (sealed) {
             // Get everything, even if some Future Reads are in the future - those will eventually return EndOfSegment.
             futureReads = this.futureReads.pollAll();
+            log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = True).", this.traceObjectId, futureReads.size(), this.metadata.getLength());
         } else {
+            // Get all eligible Future Reads which wait for data prior to the end offset.
+            // Since we are not actually using this entry's data, there is no need to 'touch' it.
+            ReadIndexEntry lastEntry;
+            synchronized (this.lock) {
+                lastEntry = this.indexEntries.getLast();
+            }
+
+            if (lastEntry == null) {
+                // Nothing to do.
+                return;
+            }
+
             // Get only those up to the last offset of the last append.
             futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
+            log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = False).", this.traceObjectId, futureReads.size(), lastEntry.getLastStreamSegmentOffset());
         }
-
-        log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), lastEntry.getLastStreamSegmentOffset(), sealed);
 
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
