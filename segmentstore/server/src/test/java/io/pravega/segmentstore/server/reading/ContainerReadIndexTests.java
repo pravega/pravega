@@ -950,14 +950,6 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
     }
 
-    /**
-     * Tests the ability to cancel Future Reads upon closing.
-     */
-    @Test
-    public void testCloseCancelFutureReads() throws Exception {
-        // Record a Future Read and a Merge Read
-    }
-
     // region Scenario-based tests
 
     /**
