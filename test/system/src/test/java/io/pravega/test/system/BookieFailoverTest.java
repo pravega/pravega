@@ -191,18 +191,17 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             //scale down bookie
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
 
-            //sleep to check the write count after bookie failover
-            Exceptions.handleInterrupted(() -> Thread.sleep(30 * 1000));
+            log.info("Sleeping for 1 min");
+            Exceptions.handleInterrupted(() -> Thread.sleep(1 * 60 * 1000));
 
-            //write count after bookie failover
             int writeCounteBeforeSleep  = testState.getEventWrittenCount();
-            log.info("Write count after bookie failover before sleep {}", writeCounteBeforeSleep);
+            log.info("Write count after bookie failover after 1 min sleep {}", writeCounteBeforeSleep);
 
-            log.info("Sleeping for 2 mins");
-            Exceptions.handleInterrupted(() -> Thread.sleep(2 * 60 * 1000));
+            log.info("Sleeping for 1 min");
+            Exceptions.handleInterrupted(() -> Thread.sleep(1 * 60 * 1000));
 
             int writeCounteAfterSleep  = testState.getEventWrittenCount();
-            log.info("Write count after bookie failover after sleep {}", writeCounteAfterSleep);
+            log.info("Write count after bookie failover after 2 mins sleep {}", writeCounteAfterSleep);
 
             Assert.assertTrue(writeCounteAfterSleep == writeCounteBeforeSleep);
             log.info("Writes failed when bookie is scaled down");
@@ -210,19 +209,17 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             //Bring back the bookie which was killed
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
-            //sleep to check the write count after bookie is brought back
-            Exceptions.handleInterrupted(() -> Thread.sleep(30 * 1000));
-
             stopWriters();
-            stopReaders();
-
-            //Verify that there is no data loss/duplication.
-            validateResults();
 
             //Also, verify writes happened after bookie is  brought back
             int finalWriteCount = testState.getEventWrittenCount();
             log.info("Final write count {}", finalWriteCount);
             Assert.assertTrue( finalWriteCount > writeCounteAfterSleep);
+
+            stopReaders();
+
+            //Verify that there is no data loss/duplication.
+            validateResults();
 
             cleanUp(SCOPE, STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
