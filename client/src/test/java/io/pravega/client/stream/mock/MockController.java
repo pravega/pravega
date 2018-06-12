@@ -430,7 +430,14 @@ public class MockController implements Controller {
     
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap(), ""));
+        final Stream segmentStream = Stream.of(segment.getScopedStreamName());
+        final CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
+        if (!createdStreams.containsKey(segmentStream)) {
+            result.completeExceptionally(new RuntimeException("Stream is deleted"));
+        } else {
+            result.complete(new StreamSegmentsWithPredecessors(Collections.emptyMap(), ""));
+        }
+        return result;
     }
 
     @Override
