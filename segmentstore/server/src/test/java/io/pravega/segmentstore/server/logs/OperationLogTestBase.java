@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.Iterators;
-import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.SequencedItemList;
@@ -56,7 +55,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.Cleanup;
@@ -398,17 +396,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    protected void await(Supplier<Boolean> condition, int checkFrequencyMillis) throws TimeoutException {
-        long remainingMillis = TIMEOUT.toMillis();
-        while (!condition.get() && remainingMillis > 0) {
-            Exceptions.handleInterrupted(() -> Thread.sleep(checkFrequencyMillis));
-            remainingMillis -= checkFrequencyMillis;
-        }
-
-        if (!condition.get() && remainingMillis <= 0) {
-            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
-        }
-    }
     //endregion
 
     //region FailedStreamSegmentAppendOperation
