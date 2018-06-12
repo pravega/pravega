@@ -890,11 +890,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             if (pendingMerge != null && pendingMerge.register(futureResult)) {
                 // We were able to register the result.
                 result = futureResult;
-                log.debug("{}: Registered Pending Merge Future Read %s.", this.traceObjectId, result);
+                log.debug("{}: Registered Pending Merge Future Read {}.", this.traceObjectId, result);
             } else {
                 // The merge has been unregistered. Our only hope now is that the index has settled and re-invoking this
                 // will yield the sought-after result.
-                log.debug("{}: Could not find Pending Merge or it was sealed for %s; re-issuing.", this.traceObjectId, result);
+                log.debug("{}: Could not find Pending Merge or it was sealed for {}; re-issuing.", this.traceObjectId, result);
                 result = getSingleReadResultEntry(resultStartOffset, maxLength);
             }
         }
