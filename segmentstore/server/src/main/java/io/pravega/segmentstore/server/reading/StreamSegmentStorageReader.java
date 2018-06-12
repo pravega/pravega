@@ -21,6 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Helps read Segment data directly from Storage.
@@ -113,21 +114,22 @@ public final class StreamSegmentStorageReader {
             }
         }
 
-        private void fetchContents(StorageReadResultEntry entry, Duration timeout) {
+        private void fetchContents(long segmentOffset, int readLength, Consumer<ReadResultEntryContents> successCallback,
+                                   Consumer<Throwable> failureCallback, Duration timeout) {
             try {
-                byte[] readBuffer = new byte[entry.getRequestedReadLength()];
+                byte[] readBuffer = new byte[readLength];
                 getHandle()
-                        .thenCompose(h -> this.storage.read(h, entry.getStreamSegmentOffset(), readBuffer, 0, entry.getRequestedReadLength(), timeout))
-                        .thenAccept(bytesRead -> entry.complete(toReadResultEntry(readBuffer, bytesRead)))
+                        .thenCompose(h -> this.storage.read(h, segmentOffset, readBuffer, 0, readLength, timeout))
+                        .thenAccept(bytesRead -> successCallback.accept(toReadResultEntry(readBuffer, bytesRead)))
                         .exceptionally(ex -> {
                             // Async failure.
-                            Callbacks.invokeSafely(entry::fail, ex, null);
+                            Callbacks.invokeSafely(failureCallback, ex, null);
                             return null;
                         });
             } catch (Throwable ex) {
                 // Synchronous failure.
                 if (!Exceptions.mustRethrow(ex)) {
-                    Callbacks.invokeSafely(entry::fail, ex, null);
+                    Callbacks.invokeSafely(failureCallback, ex, null);
                 }
 
                 throw ex;
