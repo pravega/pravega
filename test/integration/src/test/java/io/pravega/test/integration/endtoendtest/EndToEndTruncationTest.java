@@ -17,6 +17,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -171,6 +172,72 @@ public class EndToEndTruncationTest {
         assertNull(event.getEvent());
     }
 
+    @Test(timeout = 30000)
+    public void testWriteDuringTruncationAndDeletion() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scope("test")
+                .streamName("test")
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                .build();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream(config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
+        // routing key "0" translates to key 0.8. This write happens to segment 1.
+        writer.writeEvent("0", "truncationTest1").get();
+
+        // scale down to one segment.
+        Stream stream = new StreamImpl("test", "test");
+        Map<Double, Double> map = new HashMap<>();
+        map.put(0.0, 1.0);
+        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get());
+
+        // truncate stream at segment 2, offset 0.
+        Map<Long, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(computeSegmentId(2, 1), 0L);
+        assertTrue("Truncate stream", controller.truncateStream("test", "test", streamCutPositions).get());
+
+        // routing key "2" translates to key 0.2.
+        // this write translates to a write to Segment 0, but since segment 0 is truncated the write should happen on segment 2.
+        // write to segment 0
+        writer.writeEvent("2", "truncationTest2").get();
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test").build());
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+
+        EventRead<String> event = reader.readNextEvent(10000);
+        assertNotNull(event);
+        assertEquals("truncationTest2", event.getEvent());
+
+        //Seal and Delete stream.
+        assertTrue(controller.sealStream("test", "test").get());
+        assertTrue(controller.deleteStream("test", "test").get());
+
+        //write by an existing writer to a deleted stream should complete exceptionally.
+        assertThrows("Should throw NoSuchSegmentException",
+                writer.writeEvent("2", "write to deleted stream"),
+                e -> NoSuchSegmentException.class.isAssignableFrom(e.getClass()));
+        
+        //subsequent writes will throw an exception to the application.
+        assertThrows(RuntimeException.class, () -> writer.writeEvent("test"));
+    }
+
     /**
      * This test checks the basic operation of truncation with offsets. The test first writes two events on a Stream
      * (1 segment) and then truncates the Stream after the first event. We verify that a new reader first gets a
@@ -284,7 +351,7 @@ public class EndToEndTruncationTest {
      *
      * @throws InterruptedException If the current thread is interrupted while waiting for the Controller service.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testSegmentTruncationWhileReading() throws InterruptedException {
         final int totalEvents = 100;
         final int parallelism = 1;
