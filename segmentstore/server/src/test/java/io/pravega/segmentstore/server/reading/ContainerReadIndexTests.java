@@ -31,6 +31,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -523,6 +524,18 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected read length for segment " + expectedData.length, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentId, expectedData, 0, actualData, 0, actualData.length);
         }
+
+        // Finally, pick a non-sealed segment, issue a Future Read from it and then close the index - verify the Future
+        // Read is cancelled.
+        Long notSealedId = segmentIds.stream().filter(id -> !segmentsToSeal.contains(id)).findFirst().orElse(null);
+        Assert.assertNotNull("Expecting at least one non-sealed segment.", notSealedId);
+        @Cleanup
+        ReadResult rr = context.readIndex.read(notSealedId, context.metadata.getStreamSegmentMetadata(notSealedId).getLength(), 1, TIMEOUT);
+        ReadResultEntry fe = rr.next();
+        Assert.assertEquals("Expecting a Future Read.", ReadResultEntryType.Future, fe.getType());
+        Assert.assertFalse("Not expecting Future Read to be completed.", fe.getContent().isDone());
+        context.readIndex.close();
+        Assert.assertTrue("Expected the Future Read to have been cancelled when the ReadIndex was closed.", fe.getContent().isCancelled());
     }
 
     /**
@@ -960,13 +973,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Create parent segment and one transaction
         long parentId = createSegment(0, context);
-        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
-        long transactionId = createTransaction(parentMetadata, 1, context);
-        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        long transactionId = createTransaction(1, context);
         createSegmentsInStorage(context);
         ByteArrayOutputStream writtenStream = new ByteArrayOutputStream();
 
         // Write something to the transaction, and make sure it also makes its way to Storage.
+        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
+        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
         byte[] transactionWriteData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
         appendSingleWrite(transactionId, transactionWriteData, context);
         val handle = context.storage.openWrite(transactionMetadata.getName()).join();
@@ -1033,52 +1046,97 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Create parent segment and one transaction
         long parentId = createSegment(0, context);
-        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
-        long transactionId = createTransaction(parentMetadata, 1, context);
-        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        long transactionId = createTransaction(1, context);
         createSegmentsInStorage(context);
 
+        byte[] writeData = getAppendData(context.metadata.getStreamSegmentMetadata(transactionId).getName(), transactionId, 0, 0);
+        ReadResultEntry entry = setupMergeRead(parentId, transactionId, writeData, context);
+        context.readIndex.completeMerge(parentId, transactionId);
+
+        ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] readData = new byte[contents.getLength()];
+        StreamHelpers.readAll(contents.getData(), readData, 0, readData.length);
+
+        Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData, readData);
+    }
+
+    /**
+     * Verifies that any FutureRead that resulted from a partial merge operation is cancelled when the ReadIndex is closed.
+     */
+    @Test
+    public void testMergeReadCancelledOnClose() throws Exception {
+        CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+
+        // Create parent segment and one transaction
+        long parentId = createSegment(0, context);
+        long transactionId = createTransaction(1, context);
+        createSegmentsInStorage(context);
+
+        byte[] writeData = getAppendData(context.metadata.getStreamSegmentMetadata(transactionId).getName(), transactionId, 0, 0);
+        RedirectedReadResultEntry entry = (RedirectedReadResultEntry) setupMergeRead(parentId, transactionId, writeData, context);
+
+        // There are a number of async tasks going on here. One of them is in RedirectedReadResultEntry which needs to switch
+        // from the first attempt to a second one. Since we have no hook to know when that happens exactly, the only thing
+        // we can do is check periodically until that is done.
+        TestUtils.await(entry::hasSecondEntrySet, 10, TIMEOUT.toMillis());
+
+        // Close the index and verify the entry is cancelled.
+        context.readIndex.close();
+        Assert.assertTrue("Expected entry to have been cancelled upon closing", entry.getContent().isCancelled());
+    }
+
+    /**
+     * Sets up a partial-merge Future Read for the two segments:
+     * 1. Writes some data to transactionId (both Read Index and Storage).
+     * 2. Calls beginMerge(parentId, transactionId)
+     * 3. Executes a Storage concat (transactionId -> parentId)
+     * 4. Clears the cache and returns a ReadResultEntry that requests data at the first offset of the merged transaction.
+     * NOTE: this does not call completeMerge().
+     */
+    private ReadResultEntry setupMergeRead(long parentId, long transactionId, byte[] txnData, TestContext context) throws Exception {
+        UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
+        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        appendSingleWrite(parentId, new byte[1], context);
+        context.storage.openWrite(parentMetadata.getName())
+                       .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT)).join();
+
         // Write something to the transaction, and make sure it also makes its way to Storage.
-        byte[] writeData = getAppendData(transactionMetadata.getName(), transactionId, 0, 0);
-        appendSingleWrite(transactionId, writeData, context);
+        appendSingleWrite(transactionId, txnData, context);
         val transactionWriteHandle = context.storage.openWrite(transactionMetadata.getName()).join();
-        context.storage.write(transactionWriteHandle, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).join();
+        context.storage.write(transactionWriteHandle, 0, new ByteArrayInputStream(txnData), txnData.length, TIMEOUT).join();
         transactionMetadata.setStorageLength(transactionMetadata.getLength());
 
         // Seal & Begin-merge the transaction (do not seal in storage).
         transactionMetadata.markSealed();
-        parentMetadata.setLength(transactionMetadata.getLength());
-        context.readIndex.beginMerge(parentId, 0, transactionId);
+        parentMetadata.setLength(transactionMetadata.getLength() + 1);
+        context.readIndex.beginMerge(parentId, 1, transactionId);
         transactionMetadata.markMerged();
 
         // Clear the cache.
         context.cacheManager.applyCachePolicy();
 
         // Issue read from the parent and fetch the first entry (there should only be one).
-        ReadResult rr = context.readIndex.read(parentId, 0, writeData.length, TIMEOUT);
+        ReadResult rr = context.readIndex.read(parentId, 1, txnData.length, TIMEOUT);
         Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
         ReadResultEntry entry = rr.next();
-        Assert.assertEquals("Unexpected offset for read result entry.", 0, entry.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected offset for read result entry.", 1, entry.getStreamSegmentOffset());
         Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
 
-        // Merge the transaction in storage & complete-merge it.
+        // Merge the transaction in storage. Do not complete-merge it.
         transactionMetadata.markSealed();
         transactionMetadata.markSealedInStorage();
         transactionMetadata.markDeleted();
         context.storage.seal(transactionWriteHandle, TIMEOUT).join();
         val parentWriteHandle = context.storage.openWrite(parentMetadata.getName()).join();
-        context.storage.concat(parentWriteHandle, 0, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
+        context.storage.concat(parentWriteHandle, 1, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
         parentMetadata.setStorageLength(parentMetadata.getLength());
-
-        context.readIndex.completeMerge(parentId, transactionId);
 
         // Attempt to extract data from the read.
         entry.requestContent(TIMEOUT);
-        ReadResultEntryContents contents = entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] readData = new byte[contents.getLength()];
-        StreamHelpers.readAll(contents.getData(), readData, 0, readData.length);
-
-        Assert.assertArrayEquals("Unexpected data read from parent segment.", writeData, readData);
+        Assert.assertFalse("Not expecting the read to be completed.", entry.getContent().isDone());
+        return entry;
     }
 
     //endregion
@@ -1324,10 +1382,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         for (long parentId : segmentIds) {
             ArrayList<Long> segmentTransactions = new ArrayList<>();
             transactions.put(parentId, segmentTransactions);
-            SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
             for (int i = 0; i < transactionsPerSegment; i++) {
-                segmentTransactions.add(createTransaction(parentMetadata, transactionId, context));
+                segmentTransactions.add(createTransaction(transactionId, context));
                 transactionId++;
             }
         }
@@ -1335,8 +1392,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         return transactions;
     }
 
-    private long createTransaction(SegmentMetadata parentMetadata, long transactionId, TestContext context) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
+    private long createTransaction(long transactionId, TestContext context) {
+        String transactionName = "Txn" + UUID.randomUUID().toString();
         context.metadata.mapStreamSegmentId(transactionName, transactionId);
         initializeSegment(transactionId, context);
         return transactionId;
