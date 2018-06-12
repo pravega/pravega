@@ -496,7 +496,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         if (oldEntry != null) {
-            System.err.println("FAIL");
             log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
                     this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
         }
@@ -890,14 +889,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             FutureReadResultEntry futureResult = new FutureReadResultEntry(result.getStreamSegmentOffset(), result.getRequestedReadLength());
             if (pendingMerge != null && pendingMerge.register(futureResult)) {
                 // We were able to register the result.
-                System.out.println(String.format("Registered %s", futureResult));
                 result = futureResult;
                 log.debug("{}: Registered Pending Merge Future Read %s.", this.traceObjectId, result);
             } else {
                 // The merge has been unregistered. Our only hope now is that the index has settled and re-invoking this
                 // will yield the sought-after result.
-                System.out.println(String.format("pendingMerge == null || !record; reissue %s", result));
-                log.debug("{}: Could not find Pending Merge or it was sealed for %s; re-issuing..", this.traceObjectId, result);
+                log.debug("{}: Could not find Pending Merge or it was sealed for %s; re-issuing.", this.traceObjectId, result);
                 result = getSingleReadResultEntry(resultStartOffset, maxLength);
             }
         }

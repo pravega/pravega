@@ -132,7 +132,10 @@ public class RedirectedReadResultEntryTests {
     public void testGetContent() {
         // More than one retry (by design, it will only retry one time; the next time it will simply throw).
         MockReadResultEntry t1 = new MockReadResultEntry(1, 1);
-        RedirectedReadResultEntry e1 = new RedirectedReadResultEntry(t1, 0, (o, l, m) -> t1);
+        RedirectedReadResultEntry e1 = new RedirectedReadResultEntry(t1, 0, (o, l, m) -> {
+            Assert.assertEquals("Unexpected merge offset.", 1, m);
+            return t1;
+        });
         t1.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
         AssertExtensions.assertThrows(
                 "getContent() did not throw when attempting to retry more than once.",

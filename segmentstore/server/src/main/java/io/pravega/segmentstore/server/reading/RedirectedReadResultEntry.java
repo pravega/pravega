@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -197,6 +198,11 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
         sourceFuture.thenAccept(this.result::complete);
         Futures.exceptionListener(sourceFuture, this.result::completeExceptionally);
+    }
+
+    @VisibleForTesting
+    boolean hasSecondEntrySet() {
+        return this.secondEntry != null;
     }
 
     @Override
