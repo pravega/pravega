@@ -36,6 +36,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private TimeoutTimer timer;
     private final CompletableFuture<ReadResultEntryContents> result;
     private final GetEntry retryGetEntry;
+    private final long redirectedSegmentId;
 
     //endregion
 
@@ -44,16 +45,18 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     /**
      * Creates a new instance of the RedirectedReadResultEntry class.
      *
-     * @param entry            The CompletableReadResultEntry to wrap.
-     * @param offsetAdjustment The amount to adjust the offset by. This value, added to the entry's SegmentOffset, should
-     *                         equal the offset in the Parent Segment where the read is thought to be at.
-     * @param retryGetEntry    A BiFunction to invoke when needing to retry an entry. First argument: offset, Second: length.
+     * @param entry               The CompletableReadResultEntry to wrap.
+     * @param offsetAdjustment    The amount to adjust the offset by. This value, added to the entry's SegmentOffset, should
+     *                            equal the offset in the Parent Segment where the read is thought to be at.
+     * @param retryGetEntry       A BiFunction to invoke when needing to retry an entry. First argument: offset, Second: length.
+     * @param redirectedSegmentId The Id of the redirected Segment's read index.
      */
-    RedirectedReadResultEntry(CompletableReadResultEntry entry, long offsetAdjustment, GetEntry retryGetEntry) {
+    RedirectedReadResultEntry(CompletableReadResultEntry entry, long offsetAdjustment, GetEntry retryGetEntry, long redirectedSegmentId) {
         this.firstEntry = Preconditions.checkNotNull(entry, "entry");
         this.adjustedOffset = entry.getStreamSegmentOffset() + offsetAdjustment;
         Preconditions.checkArgument(this.adjustedOffset >= 0, "Given offset adjustment would result in a negative offset.");
         this.retryGetEntry = Preconditions.checkNotNull(retryGetEntry, "retryGetEntry");
+        this.redirectedSegmentId = redirectedSegmentId;
         if (Futures.isSuccessful(entry.getContent())) {
             this.result = entry.getContent();
         } else {
@@ -134,8 +137,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         ex = Exceptions.unwrap(ex);
         if (this.secondEntry == null && isRetryable(ex)) {
             // This is the first attempt and we caught a retry-eligible exception; issue the query for the new entry.
-            CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength(),
-                    getStreamSegmentOffset() - this.firstEntry.getStreamSegmentOffset());
+            CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength(), this.redirectedSegmentId);
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 // Request the content for the new entry (if that fails, we do not change any state).
                 newEntry.requestContent(this.timer == null ? DEFAULT_TIMEOUT : timer.getRemaining());
@@ -214,6 +216,6 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
     @FunctionalInterface
     public interface GetEntry {
-        CompletableReadResultEntry apply(long readOffset, int requestedReadLength, long offsetAdjustment);
+        CompletableReadResultEntry apply(long readOffset, int requestedReadLength, long redirectedSegmentId);
     }
 }

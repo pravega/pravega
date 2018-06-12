@@ -1096,11 +1096,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      * NOTE: this does not call completeMerge().
      */
     private ReadResultEntry setupMergeRead(long parentId, long transactionId, byte[] txnData, TestContext context) throws Exception {
+        int mergeOffset = 1;
         UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
         UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
-        appendSingleWrite(parentId, new byte[1], context);
+        appendSingleWrite(parentId, new byte[mergeOffset], context);
         context.storage.openWrite(parentMetadata.getName())
-                       .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT)).join();
+                       .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[mergeOffset]), mergeOffset, TIMEOUT)).join();
 
         // Write something to the transaction, and make sure it also makes its way to Storage.
         appendSingleWrite(transactionId, txnData, context);
@@ -1110,18 +1111,18 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Seal & Begin-merge the transaction (do not seal in storage).
         transactionMetadata.markSealed();
-        parentMetadata.setLength(transactionMetadata.getLength() + 1);
-        context.readIndex.beginMerge(parentId, 1, transactionId);
+        parentMetadata.setLength(transactionMetadata.getLength() + mergeOffset);
+        context.readIndex.beginMerge(parentId, mergeOffset, transactionId);
         transactionMetadata.markMerged();
 
         // Clear the cache.
         context.cacheManager.applyCachePolicy();
 
         // Issue read from the parent and fetch the first entry (there should only be one).
-        ReadResult rr = context.readIndex.read(parentId, 1, txnData.length, TIMEOUT);
+        ReadResult rr = context.readIndex.read(parentId, mergeOffset, txnData.length, TIMEOUT);
         Assert.assertTrue("Parent Segment read indicates no data available.", rr.hasNext());
         ReadResultEntry entry = rr.next();
-        Assert.assertEquals("Unexpected offset for read result entry.", 1, entry.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected offset for read result entry.", mergeOffset, entry.getStreamSegmentOffset());
         Assert.assertEquals("Served read result entry is not from storage.", ReadResultEntryType.Storage, entry.getType());
 
         // Merge the transaction in storage. Do not complete-merge it.

@@ -869,19 +869,19 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getOrRegisterRedirectedRead);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getOrRegisterRedirectedRead, redirectedIndex.metadata.getId());
         }
 
         return result;
     }
 
-    private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long mergeOffset) {
+    private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId) {
         CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength);
         if (result instanceof RedirectedReadResultEntry) {
             // The merger isn't completed yet. Register the read so that it is completed when the merger is done.
             PendingMerge pendingMerge;
             synchronized (this.lock) {
-                pendingMerge = this.mergeOffsets.getOrDefault(mergeOffset, null);
+                pendingMerge = this.mergeOffsets.getOrDefault(sourceSegmentId, null);
             }
 
             // Transform the read result entry into a Future Read, instead of adding it to futureReads, associate it
@@ -894,7 +894,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             } else {
                 // The merge has been unregistered. Our only hope now is that the index has settled and re-invoking this
                 // will yield the sought-after result.
-                log.debug("{}: Could not find Pending Merge or it was sealed for {}; re-issuing.", this.traceObjectId, result);
+                if (pendingMerge == null) {
+                    log.debug("{}: Could not find Pending Merge for Id {} for {}; re-issuing.", this.traceObjectId, sourceSegmentId, result);
+                } else {
+                    log.debug("{}: Pending Merge for id {} was sealed for {}; re-issuing.", this.traceObjectId, sourceSegmentId, result);
+                }
+
                 result = getSingleReadResultEntry(resultStartOffset, maxLength);
             }
         }
