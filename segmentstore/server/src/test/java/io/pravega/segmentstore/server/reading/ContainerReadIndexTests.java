@@ -526,6 +526,32 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the behavior of Future Reads on an empty index that is sealed.
+     */
+    @Test
+    public void testFutureReadsEmptyIndex() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Create an empty segment. This is the easiest way to ensure the Read Index is empty.
+        long segmentId = createSegment(0, context);
+        @Cleanup
+        val rr = context.readIndex.read(segmentId, 0, 1, TIMEOUT);
+        val futureReadEntry = rr.next();
+        Assert.assertEquals("Unexpected entry type.", ReadResultEntryType.Future, futureReadEntry.getType());
+        Assert.assertFalse("ReadResultEntry is completed.", futureReadEntry.getContent().isDone());
+
+        // Seal the segment. This should complete all future reads.
+        context.metadata.getStreamSegmentMetadata(segmentId).markSealed();
+        context.readIndex.triggerFutureReads(Collections.singleton(segmentId));
+        Assert.assertTrue("Expected future read to be failed after sealing.", futureReadEntry.getContent().isCompletedExceptionally());
+        AssertExtensions.assertThrows(
+                "Expected future read to be failed with appropriate exception.",
+                futureReadEntry::getContent,
+                ex -> ex instanceof StreamSegmentSealedException);
+    }
+
+    /**
      * Tests the handling of invalid operations. Scenarios include:
      * * Appends at wrong offsets
      * * Bad SegmentIds

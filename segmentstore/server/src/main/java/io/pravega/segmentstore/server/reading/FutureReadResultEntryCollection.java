@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -115,7 +114,7 @@ class FutureReadResultEntryCollection implements AutoCloseable {
         }
 
         CancellationException ce = new CancellationException();
-        toCancel.forEach(e -> e.fail(ce));
+        toCancel.stream().filter(e -> !e.getContent().isDone()).forEach(e -> e.fail(ce));
     }
 
     static int entryComparator(FutureReadResultEntry e1, FutureReadResultEntry e2) {
