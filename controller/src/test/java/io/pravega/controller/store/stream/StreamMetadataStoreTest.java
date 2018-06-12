@@ -38,6 +38,7 @@ import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -762,6 +763,64 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(6, activeEpoch.getEpoch());
         assertEquals(4, activeEpoch.getReferenceEpoch());
         // endregion
+    }
+
+    @Test
+    public void scaleWithTxInconsistentScanerios() throws Exception {
+        final String scope = "ScopeScaleWithTx";
+        final String stream = "StreamScaleWithTx";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
+                100, 100, null, executor).get();
+        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), null, executor).get();
+
+        long scaleTs = System.currentTimeMillis();
+        List<Long> scale1SealedSegments = Collections.singletonList(0L);
+
+        // run a scale on segment 1
+        EpochTransitionRecord response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)), scaleTs, false, null, executor).join();
+        ImmutableMap<Long, SimpleEntry<Double, Double>> scale1SegmentsCreated = response.getNewSegmentsWithRange();
+        store.setState(scope, stream, State.SCALING, null, executor).join();
+        store.scaleCreateNewSegments(scope, stream, false, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+                null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        // start second scale
+        response = store.startScale(scope, stream, Collections.singletonList(1L),
+                Arrays.asList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)), scaleTs, false, null, executor).join();
+        assertEquals(1, response.getActiveEpoch());
+
+        HistoryRecord activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
+        store.createCommittingTransactionsRecord(scope, stream, tx1.getEpoch(), Arrays.asList(tx1.getId()), null, executor).join();
+        store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+        store.rollingTxnNewSegmentsCreated(scope, stream, Collections.emptyMap(), tx1.getEpoch(), System.currentTimeMillis(), null, executor).join();
+        store.commitTransaction(scope, stream, tx1.getId(), null, executor).get();
+        store.rollingTxnActiveEpochSealed(scope, stream, Collections.emptyMap(), activeEpoch.getEpoch(), System.currentTimeMillis(), null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        store.setState(scope, stream, State.SCALING, null, executor).join();
+        response = store.startScale(scope, stream, Collections.singletonList(1L),
+                Arrays.asList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)), scaleTs, false, null, executor).join();
+        assertEquals(1, response.getActiveEpoch());
+        AssertExtensions.assertThrows("attempting to create new segments against inconsistent epoch transition record",
+                store.scaleCreateNewSegments(scope, stream, false, null, executor),
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+
+        // verify that state is reset to active
+        State state = store.getState(scope, stream, true, null, executor).join();
+        assertEquals(State.ACTIVE, state);
     }
 
     @Test

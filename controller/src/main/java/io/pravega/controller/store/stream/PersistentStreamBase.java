@@ -572,7 +572,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                                         final SegmentRecord latestSegment = TableHelper.getLatestSegmentRecord(segmentIndex.getData(),
                                                 segmentTable.getData());
-                                        if (latestSegment.getCreationEpoch() < newEpoch) {
+                                        final HistoryRecord activeEpoch = TableHelper.getActiveEpoch(historyIndex.getData(),
+                                                historyTable.getData());
+
+                                        if (latestSegment.getCreationEpoch() < newEpoch && activeEpoch.getEpoch() == epochTransition.getActiveEpoch()) {
                                             log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}",
                                                     scope, name, epochTransition.getSegmentsToSeal());
 
