@@ -561,7 +561,7 @@ public abstract class StreamMetadataStoreTest {
         // now call first step of scaling -- createNewSegments. this should throw exception
         AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
                 store.scaleCreateNewSegments(scope, stream, false, null, executor),
-                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         // verify that state is reset to ACTIVE
         assertEquals(State.ACTIVE, store.getState(scope, stream, true, null, executor).join());
         // verify that epoch transition is cleaned up
