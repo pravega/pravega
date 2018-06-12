@@ -583,16 +583,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                     historyIndex.getData(), historyTable.getData(), segmentIndex, segmentTable,
                                                     epochTransition);
                                         } else {
-                                            return isEpochTransitionConsistent(historyIndex, historyTable, segmentIndex,
+                                            return discardInconsistentEpochTransition(historyIndex, historyTable, segmentIndex,
                                                     segmentTable, epochTransition);
                                         }
                                     })))));
                 });
     }
 
-    private CompletableFuture<Void> isEpochTransitionConsistent(Data<T> historyIndex, Data<T> historyTable,
-                                                              Data<T> segmentIndex, Data<T> segmentTable,
-                                                              EpochTransitionRecord epochTransition) {
+    private CompletableFuture<Void> discardInconsistentEpochTransition(Data<T> historyIndex, Data<T> historyTable,
+                                                                       Data<T> segmentIndex, Data<T> segmentTable,
+                                                                       EpochTransitionRecord epochTransition) {
         // verify that epoch transition is consistent with segments in the table.
         if (TableHelper.isEpochTransitionConsistent(epochTransition, historyIndex.getData(), historyTable.getData(),
                 segmentIndex.getData(), segmentTable.getData())) {
@@ -605,7 +605,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     .thenAccept(v -> {
                         log.warn("Scale epoch transition record is inconsistent with data in the table. {}",
                                 epochTransition.getNewEpoch());
-                        throw new IllegalArgumentException("Epoch transition record is inconsistent.");
+                        throw new IllegalStateException("Epoch transition record is inconsistent.");
                     });
         }
     }
@@ -667,7 +667,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     .thenApply(v -> {
                         log.warn("Scale epoch transition record is inconsistent with data in the table. {}",
                                 epochTransition.getNewEpoch());
-                        throw new IllegalArgumentException("Epoch transition record is inconsistent.");
+                        throw new IllegalStateException("Epoch transition record is inconsistent.");
                     });
         }
     }

@@ -558,7 +558,7 @@ public abstract class StreamMetadataStoreTest {
                 epochTransitionRecord.getSegmentsToSeal().contains(1L));
         // now that start scale succeeded, we should set the state to scaling.
         store.setState(scope, stream, State.SCALING, null, executor).join();
-        // now call first step of scaling -- createNewSegments.. this should throw exception
+        // now call first step of scaling -- createNewSegments. this should throw exception
         AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
                 store.scaleCreateNewSegments(scope, stream, false, null, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
@@ -721,7 +721,7 @@ public abstract class StreamMetadataStoreTest {
 
         // region verify migrate request for manual scale
 
-        // now start manual scale against previously submitted scale request that was on old epoch from before rolling txn..
+        // now start manual scale against previously submitted scale request that was on old epoch from before rolling txn.
         // verify that it gets migrated to latest duplicate epoch
         store.setState(scope, stream, State.SCALING, null, executor).join();
         response2 = store.startScale(scope, stream, scale2SealedSegments,
@@ -766,7 +766,7 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
-    public void scaleWithTxInconsistentScanerios() throws Exception {
+    public void scaleWithTxnForInconsistentScanerios() throws Exception {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
@@ -816,7 +816,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, response.getActiveEpoch());
         AssertExtensions.assertThrows("attempting to create new segments against inconsistent epoch transition record",
                 store.scaleCreateNewSegments(scope, stream, false, null, executor),
-                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
         // verify that state is reset to active
         State state = store.getState(scope, stream, true, null, executor).join();

@@ -289,7 +289,7 @@ public class ScaleRequestHandlerTest {
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
 
-        // 5. commit on old epoch.. this should roll over
+        // 5. commit on old epoch. this should roll over
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
@@ -354,7 +354,7 @@ public class ScaleRequestHandlerTest {
         streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
         System.currentTimeMillis(), false, null, executor).join();
 
-        // 5. commit on old epoch.. this should roll over.
+        // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
@@ -362,7 +362,7 @@ public class ScaleRequestHandlerTest {
         // 6. run scale. this should fail in scaleCreateNewSegments with IllegalArgumentException with epochTransitionConsistent
         AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                false, System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+                false, System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
@@ -407,22 +407,24 @@ public class ScaleRequestHandlerTest {
         State state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
-        // 4. just submit a new scale. dont let it run. this should create an epoch transition. state should still be active
+        // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
         streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
         System.currentTimeMillis(), false, null, executor).join();
 
-        // 5. commit on old epoch.. this should roll over.
+        // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
-        // 6. run scale. this should fail in scaleCreateNewSegments with IllegalArgumentException with epochTransitionConsistent
+        // 6. run scale against old record but with manual scale flag set to true. This should be migrated to new epoch and processed.
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 true, System.currentTimeMillis())).join();
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
+        HistoryRecord epoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        assertEquals(4, epoch.getEpoch());
     }
 
     @Test
