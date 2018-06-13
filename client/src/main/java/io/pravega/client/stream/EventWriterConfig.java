@@ -36,10 +36,13 @@ public class EventWriterConfig implements Serializable {
      * of the lease renewal period. The 1,000 is hardcoded and has been chosen arbitrarily
      * to be a large enough value.
      *
-     * The maximum allowed lease time by default is 30s, which gives a maximum execution
-     * time of 30,000s (roughly 8 hours). The maximum allowed lease time is a configuration
-     * parameter of the controller and can be changed accordingly. Note that being a controller-
-     * wide parameter, it affects all transactions.
+     * The maximum allowed lease time by default is 120s, see:
+     *
+     * controller/src/main/resources/reference.conf
+     *
+     * The maximum allowed lease time is a configuration parameter of the controller
+     * and can be changed accordingly. Note that being a controller-wide parameter,
+     * it affects all transactions.
      */
     private final long transactionTimeoutTime;
 
