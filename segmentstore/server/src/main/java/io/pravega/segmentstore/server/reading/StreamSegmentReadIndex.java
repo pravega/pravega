@@ -459,7 +459,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         List<FutureReadResultEntry> pendingReads = pendingMerge.seal();
-        triggerFutureReads(pendingReads);
+        if (pendingReads.size() > 0) {
+            log.debug("{}: triggerFutureReads for Pending Merge (Count = {}, MergeOffset = {}, MergeLength = {}).",
+                    this.traceObjectId, pendingReads.size(), pendingMerge.getMergeOffset(), sourceIndex.getSegmentLength());
+            triggerFutureReads(pendingReads);
+        }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
     }
