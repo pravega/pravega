@@ -239,7 +239,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     })
                     .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
         }
-
     }
 
     /**
