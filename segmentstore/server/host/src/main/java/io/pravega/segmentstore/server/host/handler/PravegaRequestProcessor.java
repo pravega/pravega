@@ -174,7 +174,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
                     handleReadResult(readSegment, readResult);
                     //DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), readResult.getConsumedLength());
-
                     readStreamSegment.reportSuccessEvent(timer.getElapsed());
                 })
                 .exceptionally(ex -> handleException(readSegment.getOffset(), segment, "Read segment", ex));
@@ -210,6 +209,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             // We managed to collect some data. Send it.
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
+            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
             connection.send(reply);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
@@ -239,7 +239,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
         }
 
-        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), result.getConsumedLength());
     }
 
     /**
