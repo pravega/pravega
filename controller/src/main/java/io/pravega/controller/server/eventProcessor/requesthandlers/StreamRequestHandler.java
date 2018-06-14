@@ -26,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
-public class StreamRequestHandler extends RequestProcessorBase<ControllerEvent> {
+public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEvent> {
     private final AutoScaleTask autoScaleTask;
     private final ScaleOperationTask scaleOperationTask;
     private final UpdateStreamTask updateStreamTask;
@@ -60,7 +60,7 @@ public class StreamRequestHandler extends RequestProcessorBase<ControllerEvent> 
 
     @Override
     String getProcessorName() {
-        return this.getClass().getName();
+        return this.getClass().getSimpleName();
     }
 
     @Override

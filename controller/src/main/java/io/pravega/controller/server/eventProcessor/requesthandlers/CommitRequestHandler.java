@@ -42,7 +42,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
  * Request handler for processing commit events in commit-stream.
  */
 @Slf4j
-public class CommitRequestHandler extends RequestProcessorBase<CommitEvent> implements StreamTask<CommitEvent> {
+public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ScheduledExecutorService executor;
@@ -73,7 +73,7 @@ public class CommitRequestHandler extends RequestProcessorBase<CommitEvent> impl
 
     @Override
     String getProcessorName() {
-        return this.getClass().getName();
+        return this.getClass().getSimpleName();
     }
 
     @Override

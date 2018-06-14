@@ -44,6 +44,7 @@ import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1308,7 +1309,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             throw new CompletionException(e);
                         }
                     } else {
-                        return String.valueOf(data.getData());
+                        return new String(data.getData());
                     }
                 });
     }
