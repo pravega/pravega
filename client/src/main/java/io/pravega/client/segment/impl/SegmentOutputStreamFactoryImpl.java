@@ -43,7 +43,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
         try {
             result.getConnection();
-        } catch (RetriesExhaustedException | SegmentSealedException e) {
+        } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;
