@@ -10,7 +10,6 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Utf8;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
