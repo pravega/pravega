@@ -153,6 +153,7 @@ public class StreamMetadataTasksTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                streamStorePartialMock,
                 executor);
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);

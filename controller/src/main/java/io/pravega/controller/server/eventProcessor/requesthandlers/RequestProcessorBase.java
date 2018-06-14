@@ -145,7 +145,7 @@ public abstract class RequestProcessorBase<T extends ControllerEvent> extends Se
                         // This is done to guarantee fairness. If another processor has requested for processing
                         // on this stream, we will back off and postpone the work for later.
                         retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture,
-                                StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Wait for "));
+                                StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Postpone so other processor can work. "));
                     }
                 });
 

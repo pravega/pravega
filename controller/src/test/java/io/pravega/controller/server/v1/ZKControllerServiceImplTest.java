@@ -101,6 +101,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
+                streamStore,
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
