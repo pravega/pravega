@@ -577,8 +577,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createWaitingRequestNodeIfAbsent(byte[] waitingRequestProcessor) {
-        return store.createZNodeIfNotExist(committingTxnsPath, waitingRequestProcessor)
-                .thenApply(x -> cache.invalidateCache(committingTxnsPath));
+        return store.createZNodeIfNotExist(waitingRequestProcessorPath, waitingRequestProcessor)
+                .thenApply(x -> cache.invalidateCache(waitingRequestProcessorPath));
     }
 
     @Override
