@@ -309,6 +309,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
+            if (!state.setupConnection.isReleased()) {
+                // connection is not yet established.
+                state.failConnection(new NoSuchSegmentException(noSuchSegment.getSegment()));
+            }
             log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
                     noSuchSegment.getSegment(), writerId);
             invokeResendCallBack(noSuchSegment);
@@ -419,7 +423,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
                 connection = Futures.getThrowingException(getConnection());
-            } catch (SegmentSealedException e) {
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
                 // Add the event to inflight and indicate to the caller that the segment is sealed.
                 state.addToInflight(event);
                 return;
