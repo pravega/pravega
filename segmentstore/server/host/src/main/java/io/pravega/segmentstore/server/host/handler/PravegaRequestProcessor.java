@@ -169,10 +169,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
+        log.info("read size {}", readSize);
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
                     handleReadResult(readSegment, readResult);
+                    log.info("delta for segment read bytes: {}", readResult.getConsumedLength());
+                    log.info("segment name:  {}", readSegment.getSegment());
+                    log.info("metric name from segment: {}", nameFromSegment(SEGMENT_READ_BYTES, segment));
                     //DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), readResult.getConsumedLength());
                     readStreamSegment.reportSuccessEvent(timer.getElapsed());
                 })
@@ -208,9 +212,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!cachedEntries.isEmpty() || endOfSegment) {
             // We managed to collect some data. Send it.
             ByteBuffer data = copyData(cachedEntries);
+            log.info("byte buffer data size from cached entries {}", data.array().length);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
-            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
             connection.send(reply);
+            log.info("reply length size from cached entries {}", reply.getData().array().length);
+            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -224,7 +230,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
                         ByteBuffer data = copyData(Collections.singletonList(contents));
-                        connection.send(new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data));
+                        log.info("byte buffer data size from non cached entries {}", data.array().length);
+                        SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
+                        connection.send(reply);
+                        log.info("reply length size from non cached entries {}", reply.getData().array().length);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
