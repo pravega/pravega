@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -941,4 +942,36 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final String scope, final String stream, final int epoch,
                                                                          final OperationContext context, final ScheduledExecutorService executor);
+
+    /**
+     * TODO: shivesh
+     * @param scope
+     * @param stream
+     * @param processorName
+     * @param context
+     * @param executor
+     * @return
+     */
+    CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * TODO: shivesh
+     * @param scope
+     * @param stream
+     * @param context
+     * @param executor
+     * @return
+     */
+    CompletableFuture<String> getWaitingRequest(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * TODO shivesh
+     * @param scope
+     * @param stream
+     * @param processorName
+     * @param context
+     * @param executor
+     * @return
+     */
+    CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 }

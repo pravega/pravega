@@ -57,6 +57,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String RETENTION_PATH = STREAM_PATH + "/retention";
     private static final String SEALED_SEGMENTS_PATH = STREAM_PATH + "/sealedSegments";
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
+    private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
@@ -72,6 +73,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String retentionPath;
     private final String epochTransitionPath;
     private final String committingTxnsPath;
+    private final String waitingRequestProcessorPath;
     private final String sealedSegmentsPath;
     private final String activeTxRoot;
     private final String completedTxPath;
@@ -101,6 +103,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
         completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
+        waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
@@ -570,6 +573,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> deleteCommittingTxnRecord() {
         return store.deletePath(committingTxnsPath, false);
+    }
+
+    @Override
+    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(byte[] waitingRequestProcessor) {
+        return store.createZNodeIfNotExist(committingTxnsPath, waitingRequestProcessor)
+                .thenApply(x -> cache.invalidateCache(committingTxnsPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getWaitingRequestNode() {
+        return cache.getCachedData(waitingRequestProcessorPath);
+    }
+
+    @Override
+    CompletableFuture<Void> deleteWaitingRequestNode() {
+        return store.deletePath(waitingRequestProcessorPath, false);
     }
 
     // endregion

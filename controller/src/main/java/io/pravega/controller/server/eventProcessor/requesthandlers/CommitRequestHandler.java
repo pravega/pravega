@@ -14,8 +14,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -44,8 +42,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
  * Request handler for processing commit events in commit-stream.
  */
 @Slf4j
-public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> {
-    private final StreamMetadataStore streamMetadataStore;
+public class CommitRequestHandler extends RequestProcessorBase<CommitEvent> implements StreamTask<CommitEvent> {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ScheduledExecutorService executor;
@@ -64,15 +61,24 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                 final ScheduledExecutorService executor,
                                 final BlockingQueue<CommitEvent> queue) {
-        super(executor);
+        super(streamMetadataStore, executor);
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
-        this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.executor = executor;
         this.processedEvents = queue;
+    }
+
+    @Override
+    String getProcessorName() {
+        return this.getClass().getName();
+    }
+
+    @Override
+    public CompletableFuture<Void> processCommitTxnRequest(CommitEvent event) {
+        return withCompletion(this, event, event.getScope(), event.getStream(), OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     /**
@@ -83,7 +89,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
      * @return Completable future which indicates completion of processing of commit event.
      */
     @Override
-    public CompletableFuture<Void> processEvent(CommitEvent event) {
+    public CompletableFuture<Void> execute(CommitEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
@@ -99,17 +105,10 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                         // for operation not allowed, we will report the event
                         if (cause instanceof StoreException.OperationNotAllowedException) {
                             log.debug("Cannot commit transaction on epoch {} on stream {}/{}. Postponing", epoch, scope, stream);
-
-                            // post the event back and fail the processing.
-                            // Note: If we crash before posting the event, the checkpoint would not have moved ahead and
-                            // original event would be reprocessed.
-                            Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
-                                    .runAsync(() -> streamTransactionMetadataTasks.writeCommitEvent(event), executor)
-                                    .thenAccept(v -> future.completeExceptionally(cause));
                         } else {
                             log.error("Exception while attempting to commit transaction on epoch {} on stream {}/{}", epoch, scope, stream, e);
-                            future.completeExceptionally(cause);
                         }
+                        future.completeExceptionally(cause);
                     } else {
                         log.debug("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
                         if (processedEvents != null) {
@@ -348,5 +347,10 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         list.add(streamMetadataStore.getEpoch(scope, stream, epoch, context, executor));
         list.add(streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor));
         return Futures.allOfWithResults(list);
+    }
+
+    @Override
+    public CompletableFuture<Void> writeBack(CommitEvent event) {
+        return streamTransactionMetadataTasks.writeCommitEvent(event);
     }
 }

@@ -445,6 +445,26 @@ interface Stream {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch);
 
     /**
+     * TODO: shivesh
+     * @param processorName
+     * @return
+     */
+    CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName);
+
+    /**
+     * TODO: shivesh
+     * @return
+     */
+    CompletableFuture<String> getWaitingRequest();
+
+    /**
+     * TODO: shivesh
+     * @param processorName
+     * @return
+     */
+    CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
+
+    /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */

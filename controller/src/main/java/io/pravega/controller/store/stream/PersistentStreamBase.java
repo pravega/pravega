@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Utf8;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -1292,6 +1293,39 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 v -> ActiveTxnRecord.parse(v.getValue().getData()))));
     }
 
+    @Override
+    public CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName) {
+        return createWaitingRequestNodeIfAbsent(processorName.getBytes());
+    }
+
+    @Override
+    public CompletableFuture<String> getWaitingRequest() {
+        return getWaitingRequestNode()
+                .handle((data, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
+                            return null;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        return String.valueOf(data.getData());
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName) {
+        return getWaitingRequest()
+            .thenCompose(waitingRequest -> {
+                if (waitingRequest != null && waitingRequest.equals(processorName)) {
+                    return deleteWaitingRequestNode();
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
+            });
+    }
+
     private CompletableFuture<Void> checkState(Predicate<State> predicate) {
         return getState(true)
                 .thenAccept(currState -> {
@@ -1478,4 +1512,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Data<T>> getCommittingTxnRecord();
 
     abstract CompletableFuture<Void> deleteCommittingTxnRecord();
+
+    abstract CompletableFuture<Void> createWaitingRequestNodeIfAbsent(byte[] data);
+
+    abstract CompletableFuture<Data<T>> getWaitingRequestNode();
+
+    abstract CompletableFuture<Void> deleteWaitingRequestNode();
 }
