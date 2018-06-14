@@ -44,7 +44,6 @@ import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1299,7 +1298,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<String> getWaitingRequest() {
+    public CompletableFuture<String> getWaitingRequestProcessor() {
         return getWaitingRequestNode()
                 .handle((data, e) -> {
                     if (e != null) {
@@ -1316,7 +1315,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName) {
-        return getWaitingRequest()
+        return getWaitingRequestProcessor()
             .thenCompose(waitingRequest -> {
                 if (waitingRequest != null && waitingRequest.equals(processorName)) {
                     return deleteWaitingRequestNode();

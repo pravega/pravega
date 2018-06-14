@@ -72,7 +72,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     }
 
     @Override
-    String getProcessorName() {
+    public String getProcessorName() {
         return this.getClass().getSimpleName();
     }
 

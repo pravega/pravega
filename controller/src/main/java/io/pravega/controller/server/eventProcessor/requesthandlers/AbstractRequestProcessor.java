@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
@@ -120,12 +121,18 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task, T event, String scope, String stream,
                                                                                  Predicate<Throwable> writeBackPredicate) {
+        Preconditions.checkNotNull(task);
+        Preconditions.checkNotNull(event);
+        Preconditions.checkNotNull(scope);
+        Preconditions.checkNotNull(stream);
+        Preconditions.checkNotNull(writeBackPredicate);
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        suppressException(streamMetadataStore.getWaitingRequest(scope, stream, context, executor), null, "Exception while trying to fetch waiting request. Logged and ignored.")
-                .thenAccept(waitingRequest -> {
-                    if (waitingRequest == null || waitingRequest.equals(getProcessorName())) {
+        suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
+                "Exception while trying to fetch waiting request. Logged and ignored.")
+                .thenAccept(waitingRequestProcessor -> {
+                    if (waitingRequestProcessor == null || waitingRequestProcessor.equals(getProcessorName())) {
                         withRetries(() -> task.execute(event), executor)
                                 .whenComplete((r, ex) -> {
                                     if (ex != null && writeBackPredicate.test(ex)) {
@@ -142,11 +149,12 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                     }
                                 });
                     } else {
-                        log.debug("Found another processing requested by a different processor. Will postpone the event.");
+                        log.debug("Found another processing requested by a different processor {}. Will postpone the event {}.", waitingRequestProcessor, event);
                         // This is done to guarantee fairness. If another processor has requested for processing
                         // on this stream, we will back off and postpone the work for later.
                         retryIndefinitelyThenComplete(() -> task.writeBack(event), resultFuture,
-                                StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Postpone so other processor can work. "));
+                                StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Postponed "
+                                        + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 });
 

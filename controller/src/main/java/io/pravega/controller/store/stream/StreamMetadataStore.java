@@ -966,7 +966,7 @@ public interface StreamMetadataStore {
      * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
      * such request.
      */
-    CompletableFuture<String> getWaitingRequest(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
 
     /**
      * Delete existing waiting request processor if the name of the existing matches suppied processor name.

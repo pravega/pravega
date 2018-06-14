@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.Exceptions;
@@ -12,7 +21,6 @@ import org.junit.Test;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
@@ -22,7 +30,7 @@ import static org.junit.Assert.assertEquals;
 public abstract class RequestProcessorTest {
 
     @Data
-    public class TestEvent1 implements ControllerEvent {
+    public static class TestEvent1 implements ControllerEvent {
         private final String scope;
         private final String stream;
         private final Supplier<CompletableFuture<Void>> toExecute;
@@ -39,7 +47,7 @@ public abstract class RequestProcessorTest {
     }
 
     @Data
-    public class TestEvent2 implements ControllerEvent {
+    public static class TestEvent2 implements ControllerEvent {
         private final String scope;
         private final String stream;
         private final Supplier<CompletableFuture<Void>> toExecute;
@@ -55,7 +63,7 @@ public abstract class RequestProcessorTest {
         }
     }
 
-    public class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements StreamTask<TestEvent1> {
+    public static class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements StreamTask<TestEvent1> {
         private final BlockingQueue<TestEvent1> queue;
         public TestRequestProcessor1(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent1> queue) {
             super(streamMetadataStore, executor);
@@ -83,7 +91,7 @@ public abstract class RequestProcessorTest {
         }
     }
 
-    public class TestRequestProcessor2 extends AbstractRequestProcessor<TestEvent2> implements StreamTask<TestEvent2> {
+    public static class TestRequestProcessor2 extends AbstractRequestProcessor<TestEvent2> implements StreamTask<TestEvent2> {
         private final BlockingQueue<TestEvent2> queue;
         public TestRequestProcessor2(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent2> queue) {
             super(streamMetadataStore, executor);
@@ -112,6 +120,7 @@ public abstract class RequestProcessorTest {
     }
 
     abstract StreamMetadataStore getStore();
+
     abstract ScheduledExecutorService getExecutor();
 
     @Test(timeout = 30000)
@@ -146,7 +155,7 @@ public abstract class RequestProcessorTest {
         AssertExtensions.assertThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.
-        String waitingProcessor = getStore().getWaitingRequest(scope, stream, null, getExecutor()).join();
+        String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
         TestEvent2 taken2 = requestProcessor2.queue.take();
         assertEquals(taken2, event21);
@@ -171,7 +180,7 @@ public abstract class RequestProcessorTest {
         AssertExtensions.assertThrows("This should fail without even starting", requestProcessor1.process(event12),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        waitingProcessor = getStore().getWaitingRequest(scope, stream, null, getExecutor()).join();
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
         taken1 = requestProcessor1.queue.take();
         assertEquals(taken1, event12);
@@ -181,7 +190,7 @@ public abstract class RequestProcessorTest {
         processing22.join();
 
         // 8. verify that wait processor name is cleaned up.
-        waitingProcessor = getStore().getWaitingRequest(scope, stream, null, getExecutor()).join();
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
         assertEquals(null, waitingProcessor);
     }
 

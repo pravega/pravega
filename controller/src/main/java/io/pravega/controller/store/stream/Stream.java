@@ -459,7 +459,7 @@ interface Stream {
      * @return CompletableFuture which has the name of the processor that had requested for a wait, or null if there was no
      * such request.
      */
-    CompletableFuture<String> getWaitingRequest();
+    CompletableFuture<String> getWaitingRequestProcessor();
 
     /**
      * Delete existing waiting request processor if the name of the existing matches suppied processor name.
