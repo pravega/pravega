@@ -13,7 +13,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.AttributeValueReference;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -412,11 +414,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 previousValue = this.baseAttributeValues.get(u.getAttributeId());
             }
 
+            // Handle updates by reference.
+            boolean byRef = u instanceof AttributeUpdateByReference;
+            long newValue = byRef ? getAttributeValue((AttributeUpdateByReference) u) : u.getValue();
+
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
-                    if (hasValue && u.getValue() <= previousValue) {
+                    if (hasValue && newValue <= previousValue) {
                         throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Expected greater than '%s'.", previousValue));
                     }
@@ -441,7 +447,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case Accumulate:
                     if (hasValue) {
-                        u.setValue(previousValue + u.getValue());
+                        newValue += previousValue;
+                        u.setValue(newValue);
                     }
 
                     break;
@@ -450,7 +457,44 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 default:
                     throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
+
+            // For updates by reference, we need to set the actual value.
+            if (byRef) {
+                u.setValue(newValue);
+            }
         }
+    }
+
+    /**
+     * Evaluates an update-by-reference.
+     *
+     * @param updateByRef The AttributeUpdateByReference to evaluate.
+     * @return The value.
+     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
+     */
+    private long getAttributeValue(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        long result;
+        AttributeValueReference ref = updateByRef.getReference();
+        if (ref instanceof AttributeValueReference.SegmentLength) {
+            // Segment Length.
+            result = getLength();
+        } else if (ref instanceof AttributeValueReference.Attribute) {
+            // Attribute reference. First pick a value from this UpdateTransaction, then fail back to base attributes.
+            UUID attributeId = ((AttributeValueReference.Attribute) ref).getAttributeId();
+            if (this.attributeUpdates.containsKey(attributeId)) {
+                result = this.attributeUpdates.get(attributeId);
+            } else if (this.baseAttributeValues.containsKey(attributeId)) {
+                result = this.baseAttributeValues.get(attributeId);
+            } else {
+                throw new BadAttributeUpdateException(this.name, updateByRef, true,
+                        String.format("AttributeValueReference refers to an Attribute that is not set (%s).", attributeId));
+            }
+        } else {
+            throw new IllegalArgumentException("Unsupported AttributeValueReference: " + ref.getClass().getSimpleName());
+        }
+
+        // Finally, transform the result.
+        return ref.getTransformation().apply(result);
     }
 
     //endregion
