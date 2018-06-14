@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
@@ -45,7 +46,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -239,8 +239,9 @@ public class EndToEndTruncationTest {
         assertThrows(RuntimeException.class, () -> writer.writeEvent("test"));
     }
 
-    @Test//(timeout = 30000)
-    public void testWriteDuringTruncationAndDeletion2() throws Exception {
+    @Test(timeout = 50000)
+    public void testWriteDuringScaleAndTruncation() throws Exception {
+        Stream stream = new StreamImpl("test", "test");
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
                                                         .streamName("test")
@@ -262,38 +263,37 @@ public class EndToEndTruncationTest {
         // routing key "0" translates to key 0.8. This write happens to segment 1.
         writer.writeEvent("0", "truncationTest1").get();
 
-        // scale down to one segment.
-        Stream stream = new StreamImpl("test", "test");
-        Map<Double, Double> map = new HashMap<>();
-        map.put(0.0, 1.0);
-        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get());
-
-        //scale back to 2 segments.
-        map = new HashMap<>();
-        map.put(0.0, 0.5);
-        map.put(0.5, 1.0);
+        //Peform scaling operations on the stream.
+        ImmutableMap<Double, Double> singleSegmentKeyRange = ImmutableMap.of(0.0, 1.0);
+        ImmutableMap<Double, Double> twoSegmentKeyRange = ImmutableMap.of(0.0, 0.5, 0.5, 1.0);
+        // scale down to 1 segment.
+        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L),
+                singleSegmentKeyRange, executor).getFuture().get());
+        // scale up to 2 segments.
         assertTrue("Stream Scale up", controller.scaleStream(stream,
-                Lists.newArrayList(computeSegmentId(2, 1)), map, executor).getFuture().get());
-
-        //scale down to 1 segments.
-        map = new HashMap<>();
-        map.put(0.0, 1.0);
+                Lists.newArrayList(computeSegmentId(2, 1)), twoSegmentKeyRange, executor).getFuture().get());
+        // scale down to 1 segment.
         assertTrue("Stream Scale down", controller.scaleStream(stream,
-                Lists.newArrayList(computeSegmentId(3, 2), computeSegmentId(4, 2)), map, executor).getFuture().get());
-
+                Lists.newArrayList(computeSegmentId(3, 2), computeSegmentId(4, 2)), singleSegmentKeyRange, executor).getFuture().get());
+        // scale up to 2 segments.
+        assertTrue("Stream Scale up", controller.scaleStream(stream,
+                Lists.newArrayList(computeSegmentId(5, 3)), twoSegmentKeyRange, executor).getFuture().get());
+        //truncateStream.
         Map<Long, Long> streamCutPositions = new HashMap<>();
         streamCutPositions.put(computeSegmentId(3, 2), 0L);
         streamCutPositions.put(computeSegmentId(4, 2), 0L);
         assertTrue("Truncate stream", controller.truncateStream("test", "test", streamCutPositions).get());
 
-        writer.writeEvent("0", "truncationTest3").get();
+        //write an event.
+        writer.writeEvent("0", "truncationTest3");
+        writer.flush();
 
+        //Read the event back.
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                   .stream("test/test").build());
-
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -301,19 +301,8 @@ public class EndToEndTruncationTest {
         EventRead<String> event = reader.readNextEvent(10000);
         assertNotNull(event);
         assertEquals("truncationTest3", event.getEvent());
-
-        //Seal and Delete stream.
-        assertTrue(controller.sealStream("test", "test").get());
-        assertTrue(controller.deleteStream("test", "test").get());
-
-        //write by an existing writer to a deleted stream should complete exceptionally.
-        assertThrows("Should throw NoSuchSegmentException",
-                writer.writeEvent("2", "write to deleted stream"),
-                e -> NoSuchSegmentException.class.isAssignableFrom(e.getClass()));
-
-        //subsequent writes will throw an exception to the application.
-        assertThrows(RuntimeException.class, () -> writer.writeEvent("test"));
     }
+
     /**
      * This test checks the basic operation of truncation with offsets. The test first writes two events on a Stream
      * (1 segment) and then truncates the Stream after the first event. We verify that a new reader first gets a

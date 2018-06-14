@@ -424,7 +424,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // list.
                 connection = Futures.getThrowingException(getConnection());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
-                // Add the event to inflight and indicate to the caller that the segment is sealed.
+                // Add the event to inflight, this will be resent to the succesor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
             }
