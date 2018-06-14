@@ -44,9 +44,12 @@ class FutureReadResultEntryCollection {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    List<FutureReadResultEntry> close() {
+    /**
+     * Closes this instance of the FutureReadResultEntryCollection class.
+     *
+     * @return A List containing all currently registered FutureReadResultEntries.
+     */
+    public List<FutureReadResultEntry> close() {
         List<FutureReadResultEntry> result;
         synchronized (this.reads) {
             if (this.closed) {
@@ -60,9 +63,6 @@ class FutureReadResultEntryCollection {
 
         return result;
     }
-    //endregion
-
-    //region Operations
 
     /**
      * Adds a new Result Entry.
