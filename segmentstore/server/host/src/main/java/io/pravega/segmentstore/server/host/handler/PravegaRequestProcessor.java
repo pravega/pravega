@@ -557,22 +557,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private void recordStatForTransaction(SegmentProperties prop, String parentSegmentName) {
+    private void recordStatForTransaction(SegmentProperties sourceInfo, String targetSegmentName) {
         try {
-            if (prop != null &&
-                    prop.getAttributes().containsKey(Attributes.CREATION_TIME) &&
-                            prop.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
-                long creationTime = prop.getAttributes().get(Attributes.CREATION_TIME);
-                int numOfEvents = prop.getAttributes().get(Attributes.EVENT_COUNT).intValue();
-                long len = prop.getLength();
+            if (sourceInfo != null &&
+                    sourceInfo.getAttributes().containsKey(Attributes.CREATION_TIME) &&
+                            sourceInfo.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
+                long creationTime = sourceInfo.getAttributes().get(Attributes.CREATION_TIME);
+                int numOfEvents = sourceInfo.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                long len = sourceInfo.getLength();
 
                 if (statsRecorder != null) {
-                    statsRecorder.merge(parentSegmentName, len, numOfEvents, creationTime);
+                    statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
                 }
             }
         } catch (Exception ex) {
             // gobble up any errors from stat recording so we do not affect rest of the flow.
-            log.error("exception while computing stats while merging txn {}", prop.getName(), ex);
+            log.error("exception while computing stats while merging txn {}", sourceInfo.getName(), ex);
         }
     }
 }
