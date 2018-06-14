@@ -295,9 +295,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 //Update the parent segment metrics, once the transaction is merged
                 //TODO: https://github.com/pravega/pravega/issues/2570
                 if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    log.info("delta for segment write bytes {}", append.getDataLength());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    log.info("delta for segment write events {}", append.getEventCount());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
             }
