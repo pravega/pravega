@@ -43,14 +43,10 @@ import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -67,15 +63,10 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -374,36 +365,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void getTransactionInfo(GetTransactionInfo request) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
-
-        if (!verifyToken(request.getSegment(), request.getRequestId(), request.getDelegationToken(), READ, "Get Transaction Info")) {
-            return;
-        }
-
-        segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
-                .thenAccept(properties -> {
-                    if (properties != null) {
-                        TransactionInfo result = new TransactionInfo(request.getRequestId(), request.getSegment(),
-                                request.getTxid(), transactionName, !properties.isDeleted(), properties.isSealed(),
-                                properties.getLastModified().getTime(), properties.getLength());
-                        log.trace("Read transaction segment info: {}", result);
-                        connection.send(result);
-                    } else {
-                        log.trace("getTransactionInfo could not find segment {}", transactionName);
-                        connection.send(new TransactionInfo(request.getRequestId(), request.getSegment(), request.getTxid(),
-                                transactionName, false, true, 0, 0));
-                    }
-                })
-                .exceptionally(e -> handleException(request.getRequestId(), transactionName, "Get transaction info", e));
-    }
-
-    @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
-                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
        if (!verifyToken(createStreamsSegment.getSegment(), createStreamsSegment.getRequestId(),
@@ -474,72 +442,29 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void createTransaction(CreateTransaction createTransaction) {
+    public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
+        long requestId = mergeSegments.getRequestId();
+        log.debug("Merging Segments {} ", mergeSegments);
 
-        if (!verifyToken(createStreamSegment.getName(), createTransaction.getRequestId(),
-                createTransaction.getDelegationToken(), READ_UPDATE, "Create Transaction")) {
-           return;
-        }
-
-        Collection<AttributeUpdate> attributes = Collections.singleton(
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
-        log.debug("Creating transaction {} ", createTransaction);
-
-        long requestId = createTransaction.getRequestId();
-        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(createTransaction.getSegment(), createTransaction.getTxid());
-        segmentStore.createStreamSegment(txnName, attributes, TIMEOUT)
-                .thenAccept(txName -> connection.send(new TransactionCreated(requestId, createTransaction.getSegment(), createTransaction.getTxid())))
-                .exceptionally(e -> handleException(requestId, createTransaction.getSegment(), "Create transaction", e));
-    }
-
-    @Override
-    public void commitTransaction(CommitTransaction commitTx) {
-        long requestId = commitTx.getRequestId();
-        log.debug("Committing transaction {} ", commitTx);
-
-        if (!verifyToken(commitTx.getSegment(), commitTx.getRequestId(), commitTx.getDelegationToken(), READ_UPDATE,
-                "Commit Transaction")) {
+        if (!verifyToken(mergeSegments.getSource(), mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), READ_UPDATE,
+                "Merge Segments")) {
             return;
         }
 
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        segmentStore.mergeStreamSegment(commitTx.getSegment(), transactionName, TIMEOUT)
+        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
                     .thenAccept(txnProp -> {
-                        recordStatForTransaction(txnProp, commitTx.getSegment());
-                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                        recordStatForTransaction(txnProp, mergeSegments.getTarget());
+                        connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info("Stream segment is already merged '{}'.", transactionName);
-                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                            log.info("Stream segment is already merged '{}'.", mergeSegments.getSource());
+                            connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
                             return null;
                         } else {
-                            return handleException(requestId, transactionName, "Commit transaction", e);
+                            return handleException(requestId, mergeSegments.getSource(), "Merge Segments", e);
                         }
                     });
-    }
-
-    @Override
-    public void abortTransaction(AbortTransaction abortTx) {
-        long requestId = abortTx.getRequestId();
-
-        if (!verifyToken(abortTx.getSegment(), abortTx.getRequestId(), abortTx.getDelegationToken(), READ_UPDATE,
-                "Abort Transaction")) {
-            return;
-        }
-
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(abortTx.getSegment(), abortTx.getTxid());
-        log.debug("Aborting transaction {} ", abortTx);
-        segmentStore.deleteStreamSegment(transactionName, TIMEOUT)
-                .thenRun(() -> connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid())))
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                        connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid()));
-                        return null;
-                    } else {
-                        return handleException(requestId, transactionName, "Abort transaction", e);
-                    }
-                });
     }
 
     @Override

@@ -143,8 +143,8 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
                 connectionFactory,
                 new StreamSegmentsWithPredecessors(
-                        ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)), ""));
+                        ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0L),
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
@@ -178,12 +178,12 @@ public class ReaderGroupStateManagerTest {
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        Segment initialSegmentA = new Segment(scope, stream, 0);
-        Segment initialSegmentB = new Segment(scope, stream, 1);
-        Segment successor = new Segment(scope, stream, 2);
+        Segment initialSegmentA = new Segment(scope, stream, 0L);
+        Segment initialSegmentB = new Segment(scope, stream, 1L);
+        Segment successor = new Segment(scope, stream, 2L);
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
                 connectionFactory, new StreamSegmentsWithPredecessors(
-                        Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1)), ""));
+                        Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0L, 1L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -639,8 +639,8 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
                 connectionFactory,
                 new StreamSegmentsWithPredecessors(
-                        ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0)), ""));
+                        ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0L),
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,

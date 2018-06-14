@@ -84,7 +84,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTxn();
@@ -148,7 +147,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         Transaction<String> transaction = producer.beginTxn();
         transaction.writeEvent(routingKey, event);
@@ -179,7 +177,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
 
         Transaction<String> transaction = producer.beginTxn();

@@ -1264,6 +1264,16 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     int newCount = this.mergeTransactionCount.decrementAndGet();
                     assert newCount >= 0 : "Negative value for mergeTransactionCount";
 
+                    // Since the operation is already reconciled, the StorageLength of this Segment must be at least
+                    // the last offset of the operation. We are about to invoke ReadIndex.completeMerge(), which requires
+                    // that this value be set to at least the last offset of the merged Segment, so we need to ensure it's
+                    // set now. This will also be set at the end of reconciliation, but we cannot wait until then to invoke
+                    // the callbacks.
+                    long minStorageLength = processedOperation.getLastStreamSegmentOffset();
+                    if (this.metadata.getStorageLength() < minStorageLength) {
+                        this.metadata.setStorageLength(minStorageLength);
+                    }
+
                     updateMetadataForTransactionPostMerger(transactionMeta, processedOperation.getStreamSegmentId());
                     return new FlushResult().withMergedBytes(op.getLength());
                 }, this.executor);

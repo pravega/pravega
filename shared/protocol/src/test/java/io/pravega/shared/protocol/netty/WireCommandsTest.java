@@ -30,6 +30,7 @@ public class WireCommandsTest {
 
     private final UUID uuid = UUID.randomUUID();
     private final String testString1 = "testString1";
+    private final String testString2 = "testString2";
     private final ByteBuffer buffer = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5 });
     private final ByteBuf buf = Unpooled.wrappedBuffer(buffer);
     private final byte b = -1;
@@ -177,16 +178,6 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionInfo() throws IOException {
-        testCommand(new WireCommands.TransactionInfo(l - 1, testString1, uuid, testString1, false, true, l, l + 1));
-    }
-
-    @Test
     public void testCreateSegment() throws IOException {
         testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
     }
@@ -197,33 +188,13 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid, ""));
+    public void testMergeSegments() throws IOException {
+        testCommand(new WireCommands.MergeSegments(l, testString1, testString2, ""));
     }
 
     @Test
-    public void testTransactionCreated() throws IOException {
-        testCommand(new WireCommands.TransactionCreated(l, testString1, uuid));
-    }
-
-    @Test
-    public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionCommitted() throws IOException {
-        testCommand(new WireCommands.TransactionCommitted(l, testString1, uuid));
-    }
-
-    @Test
-    public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionAborted() throws IOException {
-        testCommand(new WireCommands.TransactionAborted(l, testString1, uuid));
+    public void testSegmentsMerged() throws IOException {
+        testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2));
     }
 
     @Test
@@ -291,11 +262,6 @@ public class WireCommandsTest {
         testCommand(new WireCommands.NoSuchSegment(l, testString1));
     }
 
-    @Test
-    public void testNoSuchTransaction() throws IOException {
-        testCommand(new WireCommands.NoSuchTransaction(l, testString1));
-    }
-    
     @Test
     public void testInvalidEventNumber() throws IOException {
         testCommand(new WireCommands.InvalidEventNumber(uuid, i));

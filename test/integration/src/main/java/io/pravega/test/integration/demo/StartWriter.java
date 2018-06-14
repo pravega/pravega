@@ -34,7 +34,6 @@ public class StartWriter {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(),
                                                                            EventWriterConfig.builder()
                                                                                             .transactionTimeoutTime(60000)
-                                                                                            .transactionTimeoutScaleGracePeriod(60000)
                                                                                             .build());
         Transaction<String> transaction = writer.beginTxn();
 

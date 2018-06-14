@@ -12,7 +12,6 @@ package io.pravega.shared.controller.event;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Data
@@ -22,7 +21,6 @@ public class CommitEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
     private final int epoch;
-    private final UUID txid;
 
     @Override
     public String getKey() {

@@ -144,7 +144,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         keyRanges.put(0.5, 1.0);
 
         Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
-                Collections.singletonList(0),
+                Collections.singletonList(0L),
                 keyRanges,
                 EXECUTOR_SERVICE).getFuture().get();
         assertTrue(status);
@@ -293,7 +293,7 @@ public class AutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
                     new JavaSerializer<>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).transactionTimeoutScaleGracePeriod(29000).build());
+                    EventWriterConfig.builder().transactionTimeoutTime(25000).build());
 
             while (!exit.get()) {
                 try {
