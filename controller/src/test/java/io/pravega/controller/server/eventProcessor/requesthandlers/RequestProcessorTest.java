@@ -142,10 +142,10 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         });
 
-        // 1. start test event1 processing on processor 1.. dont let this complete.
+        // 1. start test event1 processing on processor 1. Don't let this complete.
         CompletableFuture<Void> processing11 = requestProcessor1.process(event11);
 
-        // 2. start test event2 processing on processor 2.. make this fail with OperationNotAllowed and verify that it gets postponed.
+        // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
         AssertExtensions.assertThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.

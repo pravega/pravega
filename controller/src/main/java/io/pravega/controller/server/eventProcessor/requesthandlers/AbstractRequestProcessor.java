@@ -137,7 +137,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                     } else {
                                         // Processing was done for this event, whether it succeeded or failed, we should remove
                                         // the waiting request if it matches the current processor.
-                                        // If we dont delete it then some other processor will never be able to do the work.
+                                        // If we don't delete it then some other processor will never be able to do the work.
                                         // So we need to retry indefinitely until deleted.
                                         retryIndefinitelyThenComplete(() -> streamMetadataStore.deleteWaitingRequestConditionally(scope,
                                                 stream, getProcessorName(), context, executor), resultFuture, ex);
