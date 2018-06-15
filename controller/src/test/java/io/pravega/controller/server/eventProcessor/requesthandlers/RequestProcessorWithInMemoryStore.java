@@ -11,11 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import org.junit.After;
 import org.junit.Before;
-
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class RequestProcessorWithInMemoryStore extends RequestProcessorTest {
     private StreamMetadataStore store;
