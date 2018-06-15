@@ -129,6 +129,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                streamMetadataStore,
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);

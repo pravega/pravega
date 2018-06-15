@@ -112,6 +112,7 @@ public class ControllerServiceWithZKStreamTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));

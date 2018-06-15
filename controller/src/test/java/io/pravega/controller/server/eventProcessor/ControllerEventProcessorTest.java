@@ -19,7 +19,10 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -33,7 +36,10 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -46,6 +52,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,6 +60,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -184,6 +194,60 @@ public class ControllerEventProcessorTest {
         }
     }
 
+    @Test(timeout = 30000)
+    public void testCommitAndStreamProcessorFairness() {
+        List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
+        int epoch = txnDataList1.get(0).getEpoch();
+        streamStore.createCommittingTransactionsRecord(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
+
+        EventStreamWriterMock<ControllerEvent> requestEventWriter = new EventStreamWriterMock<>();
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                null, null, null, null, streamStore, executor);
+
+        // set some processor name so that the processing gets postponed
+        streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        streamStore.deleteWaitingRequestConditionally(SCOPE, STREAM, "test1", null, executor).join();
+        assertEquals("test", streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
+
+        // now remove the barrier but change the state so that processing can not happen.
+        streamStore.deleteWaitingRequestConditionally(SCOPE, STREAM, "test", null, executor).join();
+        assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
+        streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
+
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
+
+        streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        // verify that we are able to process if the waiting processor name is same as ours.
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
+
+        // verify that waiting processor is cleaned up.
+        assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
+
+        // now set the state to COMMITTING_TXN and try the same with scaling
+        streamStore.setState(SCOPE, STREAM, State.COMMITTING_TXN, null, executor).join();
+
+        // verify that event that does not try to use `processor.withCompletion` runs without contention
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+
+        // now same event's processing in face of a barrier should get postponed
+        streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, commitEventProcessor.getProcessorName(), null, executor).join();
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+
+        AssertExtensions.assertThrows("Operation should be disallowed", streamRequestHandler.processEvent(
+                new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
+    }
+
     private List<VersionedTransactionData> createAndCommitTransactions(int count) {
         List<VersionedTransactionData> retVal = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
@@ -202,7 +266,7 @@ public class ControllerEventProcessorTest {
     }
 
     @Test(timeout = 10000)
-    public void testAbortEventProcessor() {
+    public void testAbortEventcProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
                 null, executor).join();
@@ -219,6 +283,6 @@ public class ControllerEventProcessorTest {
 
     private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
-        Assert.assertEquals(expectedStatus, txnStatus);
+        assertEquals(expectedStatus, txnStatus);
     }
 }
