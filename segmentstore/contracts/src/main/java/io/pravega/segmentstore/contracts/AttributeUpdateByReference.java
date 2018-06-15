@@ -11,6 +11,7 @@ package io.pravega.segmentstore.contracts;
 
 import com.google.common.base.Preconditions;
 import java.util.UUID;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
@@ -19,36 +20,78 @@ import lombok.Getter;
  */
 @NotThreadSafe
 public class AttributeUpdateByReference extends AttributeUpdate {
-    private boolean valueSet;
+    private boolean valueSet; // This is needed since Value is non-nullable.
+    /**
+     * The AttributeIdReference to evaluate.
+     */
+    @Getter
+    private final AttributeIdReference idReference;
+
     /**
      * The AttributeValueReference to evaluate.
      */
     @Getter
-    private final AttributeValueReference reference;
+    private final AttributeValueReference valueReference;
 
     /**
      * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
      *
-     * @param attributeId A UUID representing the ID of the attribute to update.
-     * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
-     * @param reference   The AttributeValueReference to evaluate.
+     * @param attributeId    The AttributeId to update.
+     * @param updateType     The UpdateType. All update types except ReplaceIfEquals work with this method.
+     * @param valueReference The AttributeValueReference to evaluate.
      */
-    public AttributeUpdateByReference(UUID attributeId, AttributeUpdateType updateType, AttributeValueReference reference) {
+    public AttributeUpdateByReference(@Nonnull UUID attributeId, @Nonnull AttributeUpdateType updateType, @Nonnull AttributeValueReference valueReference) {
         super(attributeId, updateType, Attributes.NULL_ATTRIBUTE_VALUE);
-        this.reference = Preconditions.checkNotNull(reference, "reference");
+        this.idReference = null;
+        this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
+    }
+
+    /**
+     * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
+     *
+     * @param idReference    The AttributeIdReference to evaluate.
+     * @param updateType     The UpdateType. All update types except ReplaceIfEquals work with this method.
+     * @param valueReference The AttributeValueReference to evaluate.
+     */
+    public AttributeUpdateByReference(@Nonnull AttributeIdReference idReference, @Nonnull AttributeUpdateType updateType, @Nonnull AttributeValueReference valueReference) {
+        super(null, updateType, Attributes.NULL_ATTRIBUTE_VALUE);
+        this.idReference = Preconditions.checkNotNull(idReference, "idReference");
+        this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
     }
 
     /**
      * Creates a new instance of the AttributeUpdateByReference class.
      *
-     * @param attributeId     A UUID representing the ID of the attribute to update.
+     * @param attributeId     The AttributeId to update.
      * @param updateType      The UpdateType. All update types except ReplaceIfEquals work with this method.
-     * @param reference       The AttributeValueReference to evaluate.
+     * @param valueReference  The AttributeValueReference to evaluate.
      * @param comparisonValue The value to compare against.
      */
-    public AttributeUpdateByReference(UUID attributeId, AttributeUpdateType updateType, AttributeValueReference reference, long comparisonValue) {
+    public AttributeUpdateByReference(@Nonnull UUID attributeId, @Nonnull AttributeUpdateType updateType, @Nonnull AttributeValueReference valueReference, long comparisonValue) {
         super(attributeId, updateType, Attributes.NULL_ATTRIBUTE_VALUE, comparisonValue);
-        this.reference = Preconditions.checkNotNull(reference, "reference");
+        this.idReference = null;
+        this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
+    }
+
+    /**
+     * Creates a new instance of the AttributeUpdateByReference class.
+     *
+     * @param idReference     The AttributeIdReference to evaluate.
+     * @param updateType      The UpdateType. All update types except ReplaceIfEquals work with this method.
+     * @param valueReference  The AttributeValueReference to evaluate.
+     * @param comparisonValue The value to compare against.
+     */
+    public AttributeUpdateByReference(@Nonnull AttributeIdReference idReference, @Nonnull AttributeUpdateType updateType, @Nonnull AttributeValueReference valueReference, long comparisonValue) {
+        super(null, updateType, Attributes.NULL_ATTRIBUTE_VALUE, comparisonValue);
+        this.idReference = Preconditions.checkNotNull(idReference, "idReference");
+        this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
+    }
+
+    @Override
+    public UUID getAttributeId() {
+        UUID id = super.getAttributeId();
+        Preconditions.checkState(id != null, "id not set");
+        return id;
     }
 
     @Override

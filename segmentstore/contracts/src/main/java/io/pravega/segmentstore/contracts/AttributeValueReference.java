@@ -16,7 +16,7 @@ import javax.annotation.Nonnull;
 import lombok.Getter;
 
 /**
- * Represents a Value for an Attribute that can be inferred by referring to some other element.
+ * Represents a Value for an Attribute that can be inferred based on the value of some other element.
  */
 public abstract class AttributeValueReference {
     private static final Function<Long, Long> IDENTITY = v -> v;

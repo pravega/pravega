@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeIdReference;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -403,7 +404,18 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         for (AttributeUpdate u : attributeUpdates) {
-            AttributeUpdateType updateType = u.getUpdateType();
+            // Process by-reference updates, if needed.
+            boolean byRef = u instanceof AttributeUpdateByReference;
+            long newValue;
+            if (byRef) {
+                AttributeUpdateByReference ur = (AttributeUpdateByReference) u;
+                ur.setAttributeId(getAttributeId(ur));
+                newValue = getAttributeValue(ur);
+            } else {
+                newValue = u.getValue();
+            }
+
+            // Get the current value, if any.
             boolean hasValue = false;
             long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
             if (this.attributeUpdates.containsKey(u.getAttributeId())) {
@@ -414,11 +426,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 previousValue = this.baseAttributeValues.get(u.getAttributeId());
             }
 
-            // Handle updates by reference.
-            boolean byRef = u instanceof AttributeUpdateByReference;
-            long newValue = byRef ? getAttributeValue((AttributeUpdateByReference) u) : u.getValue();
-
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
+            AttributeUpdateType updateType = u.getUpdateType();
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
@@ -466,7 +475,36 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Evaluates an update-by-reference.
+     * Evaluates the AttributeId of an update-by-reference.
+     *
+     * @param updateByRef The AttributeUpdateByReference to evaluate.
+     * @return The value.
+     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
+     */
+    private UUID getAttributeId(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        AttributeIdReference ref = updateByRef.getIdReference();
+        if (ref == null) {
+            // The exact ID was passed in. No need to evaluate anything else.
+            return updateByRef.getAttributeId();
+        }
+
+        UUID refAttributeId = ref.getReferenceAttributeId();
+        long refValue;
+        if (this.attributeUpdates.containsKey(refAttributeId)) {
+            refValue = this.attributeUpdates.get(refAttributeId);
+        } else if (this.baseAttributeValues.containsKey(refAttributeId)) {
+            refValue = this.baseAttributeValues.get(refAttributeId);
+        } else {
+            throw new BadAttributeUpdateException(this.name, updateByRef, true,
+                    String.format("%s refers to an Attribute that is not set (%s).", AttributeIdReference.class.getSimpleName(), refAttributeId));
+        }
+
+        // Finally, transform the result.
+        return ref.getTransformation().apply(refValue);
+    }
+
+    /**
+     * Evaluates the AttributeValue of an update-by-reference.
      *
      * @param updateByRef The AttributeUpdateByReference to evaluate.
      * @return The value.
@@ -474,7 +512,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      */
     private long getAttributeValue(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
         long result;
-        AttributeValueReference ref = updateByRef.getReference();
+        AttributeValueReference ref = updateByRef.getValueReference();
         if (ref instanceof AttributeValueReference.SegmentLength) {
             // Segment Length.
             result = getLength();
@@ -487,7 +525,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 result = this.baseAttributeValues.get(attributeId);
             } else {
                 throw new BadAttributeUpdateException(this.name, updateByRef, true,
-                        String.format("AttributeValueReference refers to an Attribute that is not set (%s).", attributeId));
+                        String.format("%s refers to an Attribute that is not set (%s).", AttributeValueReference.class.getSimpleName(), attributeId));
             }
         } else {
             throw new IllegalArgumentException("Unsupported AttributeValueReference: " + ref.getClass().getSimpleName());
