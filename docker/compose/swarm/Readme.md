@@ -9,4 +9,4 @@
 #
 # Docker Swarm
 
-See https://github.com/pravega/pravega/blob/master/documentation/src/docs/deployment/docker-swarm.md.
+See docker-swarm.md.
