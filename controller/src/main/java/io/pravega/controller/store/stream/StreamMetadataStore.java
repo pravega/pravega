@@ -943,7 +943,6 @@ public interface StreamMetadataStore {
                                                                          final OperationContext context, final ScheduledExecutorService executor);
 
     /**
-     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
      * If a node already exists, this attempt is ignored.
      *

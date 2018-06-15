@@ -16,6 +16,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
 import org.junit.Test;
 
@@ -27,7 +28,12 @@ import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 
-public abstract class RequestProcessorTest {
+public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
+
+    @Override
+    public int getThreadPoolSize() {
+        return 2;
+    }
 
     @Data
     public static class TestEvent1 implements ControllerEvent {
@@ -70,11 +76,6 @@ public abstract class RequestProcessorTest {
             this.queue = queue;
         }
 
-        @Override
-        String getProcessorName() {
-            return this.getClass().getSimpleName();
-        }
-
         public CompletableFuture<Void> testProcess(TestEvent1 event) {
             return withCompletion(this, event, event.scope, event.stream, OPERATION_NOT_ALLOWED_PREDICATE);
         }
@@ -98,11 +99,6 @@ public abstract class RequestProcessorTest {
             this.queue = queue;
         }
 
-        @Override
-        String getProcessorName() {
-            return this.getClass().getSimpleName();
-        }
-
         public CompletableFuture<Void> testProcess(TestEvent2 event) {
             return withCompletion(this, event, event.scope, event.stream, OPERATION_NOT_ALLOWED_PREDICATE);
         }
@@ -121,15 +117,13 @@ public abstract class RequestProcessorTest {
 
     abstract StreamMetadataStore getStore();
 
-    abstract ScheduledExecutorService getExecutor();
-
     @Test(timeout = 30000)
     public void testRequestProcessor() throws InterruptedException {
         BlockingQueue<TestEvent1> queue1 = new LinkedBlockingQueue<>();
-        TestRequestProcessor1 requestProcessor1 = new TestRequestProcessor1(getStore(), getExecutor(), queue1);
+        TestRequestProcessor1 requestProcessor1 = new TestRequestProcessor1(getStore(), executorService(), queue1);
 
         BlockingQueue<TestEvent2> queue2 = new LinkedBlockingQueue<>();
-        TestRequestProcessor2 requestProcessor2 = new TestRequestProcessor2(getStore(), getExecutor(), queue2);
+        TestRequestProcessor2 requestProcessor2 = new TestRequestProcessor2(getStore(), executorService(), queue2);
 
         String stream = "test";
         String scope = "test";
@@ -155,7 +149,7 @@ public abstract class RequestProcessorTest {
         AssertExtensions.assertThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.
-        String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
+        String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
         TestEvent2 taken2 = requestProcessor2.queue.take();
         assertEquals(taken2, event21);
@@ -180,7 +174,7 @@ public abstract class RequestProcessorTest {
         AssertExtensions.assertThrows("This should fail without even starting", requestProcessor1.process(event12),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
         taken1 = requestProcessor1.queue.take();
         assertEquals(taken1, event12);
@@ -190,7 +184,7 @@ public abstract class RequestProcessorTest {
         processing22.join();
 
         // 8. verify that wait processor name is cleaned up.
-        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, getExecutor()).join();
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(null, waitingProcessor);
     }
 

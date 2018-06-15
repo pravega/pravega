@@ -19,26 +19,14 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class RequestProcessorWithInMemoryStore extends RequestProcessorTest {
     private StreamMetadataStore store;
-    private ScheduledExecutorService executorService;
 
     @Before
     public void setUp() {
-        executorService = Executors.newScheduledThreadPool(2);
-        store = StreamStoreFactory.createInMemoryStore(executorService);
-    }
-
-    @After
-    public void tearDown() {
-        executorService.shutdown();
+        store = StreamStoreFactory.createInMemoryStore(executorService());
     }
 
     @Override
     StreamMetadataStore getStore() {
         return store;
-    }
-
-    @Override
-    ScheduledExecutorService getExecutor() {
-        return executorService;
     }
 }

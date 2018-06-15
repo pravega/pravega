@@ -61,10 +61,13 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     public AbstractRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
         super(executor);
+        Preconditions.checkNotNull(streamMetadataStore);
         this.streamMetadataStore = streamMetadataStore;
     }
 
-    abstract String getProcessorName();
+    public String getProcessorName() {
+        return this.getClass().getSimpleName();
+    }
 
     @Override
     public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
@@ -73,50 +76,42 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     @Override
     public CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processAutoScaleRequest(AutoScaleEvent autoScaleEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     @Override
     public CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "Request Unsupported"));
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 
     protected <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task, T event, String scope, String stream,
@@ -162,10 +157,10 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     }
 
     private <R> CompletableFuture<R> suppressException(CompletableFuture<R> future, R returnOnException, String message) {
-        return future.exceptionally(e -> {
+        return Futures.exceptionallyExpecting(future, e -> {
             log.debug(message, e);
-            return returnOnException;
-        });
+            return true;
+        }, returnOnException);
     }
 
     private CompletableFuture<Void> retryIndefinitelyThenComplete(Supplier<CompletableFuture<Void>> futureSupplier, CompletableFuture<Void> toComplete,

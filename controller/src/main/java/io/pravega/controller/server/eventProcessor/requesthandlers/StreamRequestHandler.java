@@ -59,11 +59,6 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     }
 
     @Override
-    String getProcessorName() {
-        return this.getClass().getSimpleName();
-    }
-
-    @Override
     public CompletableFuture<Void> processAutoScaleRequest(AutoScaleEvent autoScaleEvent) {
         return autoScaleTask.execute(autoScaleEvent);
     }

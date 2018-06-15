@@ -25,35 +25,27 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class RequestProcessorWithZkStore extends RequestProcessorTest {
     private StreamMetadataStore store;
-    private ScheduledExecutorService executorService;
     private CuratorFramework client;
     private TestingServer zkServer;
 
     @Before
     public void setUp() throws Exception {
-        executorService = Executors.newScheduledThreadPool(2);
         zkServer = new TestingServerStarter().start();
         client = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
             new ExponentialBackoffRetry(200, 10, 5000));
         client.start();
 
-    store = StreamStoreFactory.createZKStore(client, executorService);
+    store = StreamStoreFactory.createZKStore(client, executorService());
     }
 
     @After
     public void tearDown() throws IOException {
         client.close();
         zkServer.close();
-        executorService.shutdown();
     }
 
     @Override
     StreamMetadataStore getStore() {
         return store;
-    }
-
-    @Override
-    ScheduledExecutorService getExecutor() {
-        return executorService;
     }
 }
