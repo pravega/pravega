@@ -1529,11 +1529,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Append continuously to an existing segment in order to trigger truncations (these are necessary for forced evictions).
         val appendFuture = localContainer.appendRandomly(appendSegment, false, () -> !successfulMap.isDone());
-        //Futures.exceptionListener(appendFuture, successfulMap::completeExceptionally);
-        Futures.exceptionListener(appendFuture, ex -> {
-            System.err.println("AppendEx: " + ex);
-            successfulMap.completeExceptionally(ex);
-        });
+        Futures.exceptionListener(appendFuture, successfulMap::completeExceptionally);
 
         // Repeatedly try to get info on 'segment1' (activate it), until we succeed or time out.
         TimeoutTimer remaining = new TimeoutTimer(TIMEOUT);
@@ -1544,7 +1540,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
                         .thenAccept(successfulMap::complete)
                         .exceptionally(ex -> {
-                            System.err.println("EXCaught: " + ex);
                             if (!(Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException)) {
                                 // Some other error.
                                 successfulMap.completeExceptionally(ex);

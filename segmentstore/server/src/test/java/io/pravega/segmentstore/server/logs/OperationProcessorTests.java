@@ -46,6 +46,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -374,7 +375,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
@@ -547,7 +547,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         if (successfulOps.size() > 0) {
             // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
             // We check periodically until the last item has been written.
-            await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10);
+            TestUtils.await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10, TIMEOUT.toMillis());
         }
 
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
