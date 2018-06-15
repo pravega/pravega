@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.reading;
+package io.pravega.segmentstore.server;
 
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;

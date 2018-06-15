@@ -110,7 +110,7 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout) {
-            return this.attributeIndex.delete(segmentMetadata, timeout);
+            return this.attributeIndex.delete(segmentMetadata.getName(), timeout);
         }
 
         @Override

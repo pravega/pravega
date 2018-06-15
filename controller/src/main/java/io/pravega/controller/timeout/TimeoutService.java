@@ -60,11 +60,9 @@ public interface TimeoutService extends Service {
      * @param version                Version of transaction data node in the underlying store.
      * @param lease                  Amount of time for which to keep the transaction in open state.
      * @param maxExecutionTimeExpiry Timestamp beyond which transaction lease cannot be increased.
-     * @param scaleGracePeriod       Maximum amount of time by which transaction lease can be increased
-     *                               once a scale operation starts on the transaction stream.
      */
     void addTxn(final String scope, final String stream, final UUID txnId, final int version,
-                final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod);
+                final long lease, final long maxExecutionTimeExpiry);
 
     /**
      * Remove information about the specified transaction.
@@ -108,11 +106,4 @@ public interface TimeoutService extends Service {
      * @return maximum allowed lease value.
      */
     long getMaxLeaseValue();
-
-    /**
-     * Returns the maximum allowed scale grace period.
-     *
-     * @return maximum allowed scale grace period.
-     */
-    long getMaxScaleGracePeriod();
 }

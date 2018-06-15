@@ -96,7 +96,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+        log.info("truncateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -172,6 +172,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void getSegmentsBetween(Controller.StreamCutRange request, StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
+        log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
+        String scope = request.getStreamInfo().getScope();
+        String stream = request.getStreamInfo().getStream();
+        authenticateExecuteAndProcessResults(v -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
+                () -> controllerService.getSegmentsBetweenStreamCuts(request)
+                        .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
+                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
+                                        .collect(Collectors.toList()), getCurrentDelegationToken())),
+                responseObserver);
+    }
+
+    @Override
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
         log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
@@ -199,7 +212,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentNumber());
+                request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.getURI(request),
@@ -210,12 +223,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void isSegmentValid(SegmentId request,
                                StreamObserver<SegmentValidityResponse> responseObserver) {
         log.info("isSegmentValid called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentNumber());
+                request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getSegmentNumber())
+                        request.getSegmentId())
                                        .thenApply(bRes -> SegmentValidityResponse.newBuilder().setResponse(bRes).build()),
                 responseObserver);
     }
@@ -228,8 +241,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getLease(),
-                        request.getScaleGracePeriod())
+                        request.getLease())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(getCurrentDelegationToken())
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))

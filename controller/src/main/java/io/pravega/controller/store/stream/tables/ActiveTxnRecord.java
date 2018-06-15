@@ -30,7 +30,6 @@ public class ActiveTxnRecord {
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
-    private final long scaleGracePeriod;
     private final TxnStatus txnStatus;
 
     public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {

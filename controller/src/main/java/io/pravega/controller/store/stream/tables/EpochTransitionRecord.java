@@ -13,13 +13,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.tables.serializers.EpochTransitionRecordSerializer;
-
-import java.io.IOException;
-import java.util.AbstractMap;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
+
+import java.io.IOException;
+import java.util.AbstractMap;
 
 /**
  * Transient record that is created while epoch transition takes place and captures the transition. This record is deleted
@@ -36,21 +36,21 @@ public class EpochTransitionRecord {
      */
     final int activeEpoch;
     /**
-     * New last epoch to being created at the end of the request.
-     */
-    final int newEpoch;
-    /**
      * Time when this epoch creation request was started.
      */
     final long time;
     /**
      * Segments to be sealed.
      */
-    final ImmutableSet<Integer> segmentsToSeal;
+    final ImmutableSet<Long> segmentsToSeal;
     /**
      * Key ranges for new segments to be created.
      */
-    ImmutableMap<Integer, AbstractMap.SimpleEntry<Double, Double>> newSegmentsWithRange;
+    ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegmentsWithRange;
+
+    public int getNewEpoch() {
+        return activeEpoch + 1;
+    }
 
     public static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
