@@ -209,11 +209,9 @@ public class ReusableFutureLatch<T> {
      * @return True if the latch is set to release state.
      */
     public boolean isReleased() {
-        boolean state;
         synchronized (lock) {
-            state = released;
+            return released;
         }
-        return state;
     }
 
 
