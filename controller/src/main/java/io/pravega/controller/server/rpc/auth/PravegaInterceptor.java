@@ -52,13 +52,13 @@ public class PravegaInterceptor implements ServerInterceptor {
         headers.keys().stream()
                .filter(key -> !key.endsWith(Metadata.BINARY_HEADER_SUFFIX))
                .forEach(key -> {
-            try {
-                paramMap.put(key,
-                        headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
-            } catch (IllegalArgumentException e) {
-                log.info("Error while marshalling some of the headers" + e);
-            }
-        });
+                   try {
+                       paramMap.put(key,
+                               headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
+                   } catch (IllegalArgumentException e) {
+                       log.warn("Error while marshalling some of the headers {}", e.toString());
+                   }
+               });
         String method = paramMap.get("method");
         Context context = Context.current();
         if (!Strings.isNullOrEmpty(method)) {
