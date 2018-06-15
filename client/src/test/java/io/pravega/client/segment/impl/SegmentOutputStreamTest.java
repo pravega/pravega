@@ -248,7 +248,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-
+        
         output.reconnect();
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
@@ -258,7 +258,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         AssertExtensions.assertBlocks(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
                                       () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
         output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
-
+        
         Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
         Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
         Append append3 = new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null);
@@ -271,7 +271,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
-
+        
         verifyNoMoreInteractions(connection);
     }
 
@@ -349,7 +349,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
-
+        
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(new PendingEvent(null, data, acked2));
         order.verify(connection).send(new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(data), null));
@@ -476,11 +476,11 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 return null;
             }
         }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
-
-        AssertExtensions.assertBlocks(() -> {
+        
+        AssertExtensions.assertBlocks(() -> {            
             output.write(new PendingEvent(null, data, acked));
             output.write(new PendingEvent(null, data, acked2));
-        }, () -> {
+        }, () -> {            
             cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
         });
         inOrder.verify(connection).send(append);
@@ -492,7 +492,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         inOrder.verifyNoMoreInteractions();
     }
 
-
+    
     /**
      * Verifies that if a exception is encountered while flushing data inside of close, the
      * connection is reestablished and the data is retransmitted before close returns.
@@ -512,7 +512,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
-
+        
         //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
         CompletableFuture<Void> acked = new CompletableFuture<>();
         Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
@@ -530,14 +530,14 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
+        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any()); 
         //Queue up event.
         output.write(new PendingEvent(null, data, acked));
         inOrder.verify(connection).send(append);
         //Verify behavior
         AssertExtensions.assertBlocks(() -> {
             output.close();
-        }, () -> {
+        }, () -> {            
             cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0));
         });
@@ -696,7 +696,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         output.write(new PendingEvent(null, data, ack));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
-
+        
         Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new WireCommands.KeepAlive());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -728,7 +728,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-
+        
         output.reconnect();
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
@@ -747,7 +747,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 return null;
             }
         }).when(connection).sendAsync(Mockito.any(), Mockito.any());
-
+        
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -755,14 +755,14 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 return null;
             }
         }).when(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
-
+        
         cf.getProcessor(uri).connectionDropped();
         AssertExtensions.assertBlocks(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
                            () -> {
                                cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
                            });
         output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
-
+        
         Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
         Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
         Append append3 = new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null);
@@ -778,7 +778,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
-
+        
         verifyNoMoreInteractions(connection);
     }
 
@@ -826,7 +826,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
     }
-
+    
     @Test(timeout = 10000)
     public void testNoSuchSegment() throws Exception {
         UUID cid = UUID.randomUUID();
