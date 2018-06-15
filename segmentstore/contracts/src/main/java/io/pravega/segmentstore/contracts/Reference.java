@@ -14,47 +14,49 @@ import java.util.UUID;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Represents a Value for an Attribute that can be inferred based on the value of some other element.
+ * Represents a Reference that can be used to evaluate a value, as a function of another element's value.
+ *
+ * @param <T> Return type.
  */
-public abstract class AttributeValueReference {
-    private static final Function<Long, Long> IDENTITY = v -> v;
+@RequiredArgsConstructor
+public abstract class Reference<T> {
     /**
-     * A Function that, given the reference value, returns the desired value to be set for this Attribute.
+     * A Function that, given the reference value of another Attribute, returns the desired Attribute Id.
      */
     @Getter
-    private final Function<Long, Long> transformation;
-
-    private AttributeValueReference(@Nonnull Function<Long, Long> transformation) {
-        this.transformation = Preconditions.checkNotNull(transformation, "transformation");
-    }
+    private final Function<Long, T> transformation;
 
     /**
-     * Represents a Value for an Attribute that will be evaluated based on the current Length of the Segment it is applied to.
+     * A Reference to the current Segment's length.
+     *
+     * @param <T>
      */
-    public static class SegmentLength extends AttributeValueReference {
+    public static class SegmentLength<T> extends Reference<T> {
+
         /**
-         * Creates a new instance of the SegmentLength class, with no transformation.
+         * Creates a new instance of the Reference.SegmentLength class.
          */
         public SegmentLength() {
-            super(IDENTITY);
+            super(null);
         }
 
         /**
-         * Creates a new instance of the SegmentLength class.
+         * Creates a new instance of the Reference.SegmentLength class.
          *
          * @param transformation A Function that, given the reference value, returns the desired value to be set for this Attribute.
          */
-        public SegmentLength(@Nonnull Function<Long, Long> transformation) {
+        public SegmentLength(Function<Long, T> transformation) {
             super(transformation);
         }
     }
 
     /**
-     * Represents a Value for an Attribute that will be evaluated based on the value of another Attribute.
+     * A Reference to the current value of an Attribute on the current Segment.
      */
-    public static class Attribute extends AttributeValueReference {
+    public static class Attribute<T> extends Reference<T> {
         /**
          * The Attribute Id to fetch the value of.
          */
@@ -62,21 +64,21 @@ public abstract class AttributeValueReference {
         private final UUID attributeId;
 
         /**
-         * Creates a new instance of the AttributeValueReference.Attribute class, with no value transformation.
+         * Creates a new instance of the Reference.Attribute class, with no value transformation.
          *
          * @param attributeId The Attribute Id to fetch the value of.
          */
         public Attribute(@Nonnull UUID attributeId) {
-            this(attributeId, IDENTITY);
+            this(attributeId, null);
         }
 
         /**
-         * Creates a new instance of the AttributeValueReference.Attribute class.
+         * Creates a new instance of the Reference.Attribute class.
          *
          * @param attributeId    The Attribute Id to fetch the value of.
          * @param transformation A Function that, given the reference value, returns the desired value to be set for this Attribute.
          */
-        public Attribute(@Nonnull UUID attributeId, @Nonnull Function<Long, Long> transformation) {
+        public Attribute(@Nonnull UUID attributeId, Function<Long, T> transformation) {
             super(transformation);
             this.attributeId = Preconditions.checkNotNull(attributeId, "attributeId");
         }

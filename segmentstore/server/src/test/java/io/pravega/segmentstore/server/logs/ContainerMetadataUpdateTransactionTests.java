@@ -10,14 +10,13 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.segmentstore.contracts.AttributeIdReference;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.AttributeValueReference;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.Reference;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -374,15 +373,15 @@ public class ContainerMetadataUpdateTransactionTests {
                 new AttributeUpdateByReference(
                         attributeSegmentLength,
                         AttributeUpdateType.None,
-                        new AttributeValueReference.SegmentLength(v -> v + 1)), // SegmentLength + 1
+                        new Reference.SegmentLength<>(v -> v + 1)), // SegmentLength + 1
                 new AttributeUpdateByReference(
                         attributeAccumulate,
                         AttributeUpdateType.Accumulate,
-                        new AttributeValueReference.Attribute(referenceAttributeId, v -> v + 2)), // PrevValue + Reference + 2
+                        new Reference.Attribute<>(referenceAttributeId, v -> v + 2)), // PrevValue + Reference + 2
                 new AttributeUpdateByReference(
                         attributeReplaceIfEquals,
                         AttributeUpdateType.ReplaceIfEquals,
-                        new AttributeValueReference.Attribute(referenceAttributeId, v -> v + 3), initialAttributeValue)); // Reference + 3
+                        new Reference.Attribute<>(referenceAttributeId, v -> v + 3), initialAttributeValue)); // Reference + 3
 
         Map<UUID, Long> expectedValues = ImmutableMap.of(
                 referenceAttributeId, initialAttributeValue,
@@ -402,15 +401,15 @@ public class ContainerMetadataUpdateTransactionTests {
                 new AttributeUpdateByReference(
                         attributeSegmentLength,
                         AttributeUpdateType.Replace,
-                        new AttributeValueReference.SegmentLength(v -> v + 10)), // SegmentLength + 10
+                        new Reference.SegmentLength<>(v -> v + 10)), // SegmentLength + 10
                 new AttributeUpdateByReference(
                         attributeAccumulate,
                         AttributeUpdateType.Accumulate,
-                        new AttributeValueReference.Attribute(attributeSegmentLength, v -> v + 20)), // PrevValue + Attr[SegmentLength] + 20
+                        new Reference.Attribute<>(attributeSegmentLength, v -> v + 20)), // PrevValue + Attr[SegmentLength] + 20
                 new AttributeUpdateByReference(
                         attributeReplaceIfEquals,
                         AttributeUpdateType.ReplaceIfEquals,
-                        new AttributeValueReference.Attribute(attributeSegmentLength, v -> v + 30), expectedValues.get(attributeReplaceIfEquals))); // Attr[SegmentLength] + 30
+                        new Reference.Attribute<>(attributeSegmentLength, v -> v + 30), expectedValues.get(attributeReplaceIfEquals))); // Attr[SegmentLength] + 30
 
         expectedValues = ImmutableMap.of(
                 referenceAttributeId, initialAttributeValue,
@@ -430,18 +429,24 @@ public class ContainerMetadataUpdateTransactionTests {
         // while another is not.
         attributeUpdates = Arrays.asList(
                 new AttributeUpdateByReference(
-                        new AttributeIdReference(referenceAttributeId, value -> new UUID(value, Long.MIN_VALUE)),
-                        AttributeUpdateType.Replace,
-                        new AttributeValueReference.SegmentLength(v -> v + 10)), // SegmentLength + 10
+                        new Reference.Attribute<>(referenceAttributeId, value -> new UUID(value, Long.MIN_VALUE)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 10)), // SegmentLength + 10
                 new AttributeUpdateByReference(
-                        new AttributeIdReference(attributeSegmentLength, length -> new UUID(Long.MAX_VALUE, length)),
-                        AttributeUpdateType.Replace,
-                        new AttributeValueReference.SegmentLength(v -> v + 20))); // SegmentLength + 20
+                        new Reference.Attribute<>(attributeSegmentLength, length -> new UUID(Long.MAX_VALUE, length)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 20)), // SegmentLength + 20
+                new AttributeUpdateByReference(
+                        new Reference.SegmentLength<>(length -> new UUID(Long.MIN_VALUE, length)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 30))); // SegmentLength + 20
 
+        val segmentLength = txn.getStreamSegmentMetadata(SEGMENT_ID).getLength();
         expectedValues = ImmutableMap.<UUID, Long>builder()
                 .putAll(expectedValues)
-                .put(new UUID(expectedValues.get(referenceAttributeId), Long.MIN_VALUE), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 10)
+                .put(new UUID(expectedValues.get(referenceAttributeId), Long.MIN_VALUE), segmentLength + 10)
                 .put(new UUID(Long.MAX_VALUE, expectedValues.get(attributeSegmentLength)), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 20)
+                .put(new UUID(Long.MIN_VALUE, segmentLength), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 30)
                 .build();
 
         op = createOperation.apply(attributeUpdates);
