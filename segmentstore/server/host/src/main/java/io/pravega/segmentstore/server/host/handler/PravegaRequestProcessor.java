@@ -173,7 +173,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
                     handleReadResult(readSegment, readResult);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), readResult.getConsumedLength());
                     readStreamSegment.reportSuccessEvent(timer.getElapsed());
                 })
                 .exceptionally(ex -> handleException(readSegment.getOffset(), segment, "Read segment", ex));
@@ -210,6 +209,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
+            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -223,7 +223,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
                         ByteBuffer data = copyData(Collections.singletonList(contents));
-                        connection.send(new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data));
+                        SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
+                        connection.send(reply);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
