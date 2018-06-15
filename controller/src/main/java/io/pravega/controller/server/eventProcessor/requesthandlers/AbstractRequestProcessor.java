@@ -158,7 +158,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     private <R> CompletableFuture<R> suppressException(CompletableFuture<R> future, R returnOnException, String message) {
         return Futures.exceptionallyExpecting(future, e -> {
-            log.debug(message, e);
+            log.warn(message, e);
             return true;
         }, returnOnException);
     }
