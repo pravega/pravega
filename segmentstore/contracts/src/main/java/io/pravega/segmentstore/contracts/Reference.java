@@ -30,19 +30,22 @@ public abstract class Reference<T> {
     private final Function<Long, T> transformation;
 
     /**
+     * Identity function that returns its argument.
+     *
+     * @param value The value to return.
+     * @param <T>   Type of the value.
+     * @return The value.
+     */
+    public static <T> T identity(T value) {
+        return value;
+    }
+
+    /**
      * A Reference to the current Segment's length.
      *
      * @param <T>
      */
     public static class SegmentLength<T> extends Reference<T> {
-
-        /**
-         * Creates a new instance of the Reference.SegmentLength class.
-         */
-        public SegmentLength() {
-            super(null);
-        }
-
         /**
          * Creates a new instance of the Reference.SegmentLength class.
          *
@@ -50,6 +53,11 @@ public abstract class Reference<T> {
          */
         public SegmentLength(Function<Long, T> transformation) {
             super(transformation);
+        }
+
+        @Override
+        public String toString() {
+            return "SegmentLength" + (super.getTransformation() == null ? "" : "+Transformation");
         }
     }
 
@@ -64,15 +72,6 @@ public abstract class Reference<T> {
         private final UUID attributeId;
 
         /**
-         * Creates a new instance of the Reference.Attribute class, with no value transformation.
-         *
-         * @param attributeId The Attribute Id to fetch the value of.
-         */
-        public Attribute(@Nonnull UUID attributeId) {
-            this(attributeId, null);
-        }
-
-        /**
          * Creates a new instance of the Reference.Attribute class.
          *
          * @param attributeId    The Attribute Id to fetch the value of.
@@ -81,6 +80,11 @@ public abstract class Reference<T> {
         public Attribute(@Nonnull UUID attributeId, Function<Long, T> transformation) {
             super(transformation);
             this.attributeId = Preconditions.checkNotNull(attributeId, "attributeId");
+        }
+
+        @Override
+        public String toString() {
+            return "Attribute[" + this.attributeId + "]" + (super.getTransformation() == null ? "" : "+Transformation");
         }
     }
 }

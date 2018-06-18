@@ -115,5 +115,13 @@ public class AttributeUpdateByReference extends AttributeUpdate {
     public int hashCode() {
         return super.hashCode();
     }
+
+    @Override
+    public String toString() {
+        return String.format("AttributeId = %s, Value = %s, UpdateType = %s",
+                super.getAttributeId() == null ? "(by-ref)" : super.getAttributeId(),
+                this.valueSet ? super.getValue() : "(by-ref)",
+                super.getUpdateType());
+    }
 }
 
