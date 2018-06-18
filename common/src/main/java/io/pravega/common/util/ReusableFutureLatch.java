@@ -202,7 +202,7 @@ public class ReusableFutureLatch<T> {
             }
         }
     }
-
+    
     @Override
     public String toString() {
         synchronized (lock) {
