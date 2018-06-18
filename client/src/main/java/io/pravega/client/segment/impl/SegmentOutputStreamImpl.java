@@ -309,10 +309,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            if (!state.setupConnection.isReleased()) {
-                // connection is not yet established.
-                state.failConnection(new NoSuchSegmentException(noSuchSegment.getSegment()));
-            }
+            state.failConnection(new NoSuchSegmentException(noSuchSegment.getSegment()));
             log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
                     noSuchSegment.getSegment(), writerId);
             invokeResendCallBack(noSuchSegment);
@@ -535,8 +532,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              throw Lombok.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {
-                             if (Exceptions.unwrap(t) instanceof SegmentSealedException) {
+                             Throwable exception = Exceptions.unwrap(t);
+                             if (exception instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
+                                 return null;
+                             }
+                             if (exception instanceof NoSuchSegmentException) {
+                                 log.info("Ending reconnect attempts on writer {} to {} because segment is truncated", writerId, segmentName);
                                  return null;
                              }
                              throw Lombok.sneakyThrow(t);

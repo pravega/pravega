@@ -203,18 +203,6 @@ public class ReusableFutureLatch<T> {
         }
     }
 
-    /**
-     * Returns whether or not release has been called.
-     *
-     * @return True if the latch is set to release state.
-     */
-    public boolean isReleased() {
-        synchronized (lock) {
-            return released;
-        }
-    }
-
-
     @Override
     public String toString() {
         synchronized (lock) {

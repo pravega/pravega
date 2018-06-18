@@ -31,7 +31,6 @@ public class ReusableFutureLatchTests {
         assertFalse(str1.isDone());
         assertFalse(str2.isDone());
         latch.release("Done");
-        assertTrue(latch.isReleased());
         assertTrue(str1.isDone());
         assertTrue(str2.isDone());
         assertEquals("Done", str1.get());
@@ -53,12 +52,10 @@ public class ReusableFutureLatchTests {
         }, str2);
         assertFalse(str1.isDone());
         assertFalse(str2.isDone());
-        assertFalse(latch.isReleased());
         
         latch.release("Done");
         assertTrue(str1.isDone());
         assertTrue(str2.isDone());
-        assertTrue(latch.isReleased());
         assertEquals("Done", str1.get());
         assertEquals("Done", str2.get());
         assertTrue(ran1.get());
@@ -104,15 +101,12 @@ public class ReusableFutureLatchTests {
         CompletableFuture<String> str2 = new CompletableFuture<>();
         latch.register(str1);
         latch.release("1");
-        assertTrue(latch.isReleased());
         latch.reset();
-        assertFalse(latch.isReleased());
         latch.register(str2);
         assertTrue(str1.isDone());
         assertEquals("1", str1.get());
         assertFalse(str2.isDone());
         latch.release("Done");
-        assertTrue(latch.isReleased());
         assertTrue(str2.isDone());
         assertEquals("Done", str2.get());
     }
