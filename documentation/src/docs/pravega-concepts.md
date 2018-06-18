@@ -18,9 +18,7 @@ Pravega concepts.
 ## Streams
 
 Pravega organizes data into Streams.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  A Pravega Stream is
-similar to but more flexible than a "topic" in popular message-oriented middleware such as
-[RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/) in a way that MOM systems mainly focus on message "delivery", whereas Pravega targets how these 
-messages (or events) are consistently and efficiently "stored" for short term (low latency) and long term (high throughput) consumption.
+similar to but more flexible than a "topic" in popular message-oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/). 
 
 Pravega Streams are based on an append-only log data structure. By using
 append-only logs, Pravega can rapidly ingest data into durable storage,
