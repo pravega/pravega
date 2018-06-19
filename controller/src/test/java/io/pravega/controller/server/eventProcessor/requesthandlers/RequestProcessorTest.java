@@ -32,7 +32,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
     @Override
     public int getThreadPoolSize() {
-        return 5;
+        return 2;
     }
 
     @Data
