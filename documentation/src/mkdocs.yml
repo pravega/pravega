@@ -70,3 +70,5 @@ extra:
     version: 0.1
 
 google_analytics: ['UA-1508605-1', 'pravega.io']
+
+pravega_samples_verion: v0.1.1
