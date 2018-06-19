@@ -127,10 +127,13 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
         String stream = "test";
         String scope = "test";
+        CompletableFuture<Void> started1 = new CompletableFuture<>();
+        CompletableFuture<Void> started2 = new CompletableFuture<>();
         CompletableFuture<Void> waitForIt1 = new CompletableFuture<>();
         CompletableFuture<Void> waitForIt2 = new CompletableFuture<>();
 
         TestEvent1 event11 = new TestEvent1(scope, stream, () -> {
+            started1.complete(null);
             waitForIt1.join();
             return CompletableFuture.completedFuture(null);
         });
@@ -138,12 +141,15 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
         TestEvent2 event21 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Failing processing")));
         TestEvent2 event22 = new TestEvent2(scope, stream, () -> {
+            started2.complete(null);
             waitForIt2.join();
             return CompletableFuture.completedFuture(null);
         });
 
         // 1. start test event1 processing on processor 1. Don't let this complete.
         CompletableFuture<Void> processing11 = requestProcessor1.process(event11);
+        // wait to ensure it is started.
+        started1.join();
 
         // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
         AssertExtensions.assertThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
@@ -168,7 +174,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
         // 5. now try processing event on processor 2. this should start successfully.
         CompletableFuture<Void> processing22 = requestProcessor2.process(event22);
-
+        started2.join();
         // 6. try to start a new processing on processor 1 while processing on `2` is ongoing. This should fail but should not be able
         // to change the processor name.
         AssertExtensions.assertThrows("This should fail without even starting", requestProcessor1.process(event12),
