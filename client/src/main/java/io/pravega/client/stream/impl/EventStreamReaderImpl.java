@@ -30,6 +30,7 @@ import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -81,6 +82,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Override
     public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+        long traceId = LoggerHelpers.traceEnter(log, "readNextEvent", timeout);
+        try {
+            return readNextEventInternal(timeout);
+        } finally {
+            LoggerHelpers.traceLeave(log, "readNextEvent", traceId, timeout);
+        }
+    }
+
+    private EventRead<Type> readNextEventInternal(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
             long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
@@ -101,6 +111,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     segment = segmentReader.getSegmentId();
                     offset = segmentReader.getOffset();
                     try {
+                        log.trace("Reading from {}. WaitTime = {}ms", segmentReader.getSegmentId(), waitTime);
                         buffer = segmentReader.read(waitTime);
                     } catch (EndOfSegmentException e) {
                         boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
