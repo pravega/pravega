@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.client.stream.impl;
 
 import java.nio.ByteBuffer;
@@ -26,18 +35,16 @@ public class ByteSerializerTest {
         ByteBuffer buff = ByteBuffer.wrap(new byte[] { 1, 2, 3 });
         ByteBuffer serialized = serializer.serialize(buff);
         assertEquals(buff, serializer.deserialize(serialized));
-        
+
         serialized.position(serialized.position()+1);
         assertEquals(2, serialized.remaining());
         assertEquals(3, buff.remaining());
-        
+
         ByteBuffer subBuffer = serializer.serialize(serialized);
         assertEquals(2, serializer.deserialize(subBuffer).capacity());
-       
-        
+
         ByteBuffer empty = ByteBuffer.allocate(0);
         serialized = serializer.serialize(empty);
         assertEquals(empty, serializer.deserialize(serialized));
     }
-    
 }
