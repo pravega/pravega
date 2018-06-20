@@ -18,7 +18,7 @@ Java Client Library to access Pravega functionality.
 
 Instructions for running the sample applications can be found in the [Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/${variable.pravega_samples_version}/pravega-client-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see Pravega Concepts)
 before continuing reading this page.
