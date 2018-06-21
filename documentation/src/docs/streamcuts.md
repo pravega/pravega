@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 # Working with Pravega: StreamCuts
 
 This section describes `StreamCut`s and how they can be used with streaming clients and batch clients.
-Pre-requisites: You should be familiar with [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/).
+Pre-requisites: You should be familiar with [Pravega Concepts](pravega-concepts.md).
 
 ## Definition
 
@@ -90,3 +90,6 @@ the user can consume all the events in parallel without adhering to time orderin
 
 It must be noted that passing ```StreamCut.UNBOUNDED``` to startStreamCut and endStreamCut will result in using the
 current head of stream and the current tail of the stream, respectively.
+
+
+We have provided a simple yet illustrative example of using StreamCut [here.](https://github.com/pravega/pravega-samples/tree/{{variable.pravega_samples_verion}}/pravega-client-examples/src/main/java/io/pravega/example/streamcuts)

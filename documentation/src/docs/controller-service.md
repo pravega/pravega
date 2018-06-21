@@ -54,9 +54,9 @@ various operations performed in the cluster, mainly divided into two
 categories: 1) stream management 2) cluster management.
 
 The controller service, referred to simply as controller henceforth, is
-responsible for providing the abstraction of a [stream](http://pravega.io/docs/latest/pravega-concepts/#streams), which is the
+responsible for providing the abstraction of a [stream](pravega-concepts.md#streams), which is the
 main abstraction that Pravega exposes to applications. A stream
-comprises one or more [segments](http://pravega.io/docs/latest/pravega-concepts/#http://pravega.io/docs/latest/pravega-concepts/#stream-segments). Each segment is an append-only data
+comprises one or more [segments](pravega-concepts.md#stream-segments). Each segment is an append-only data
 structure that stores a sequence of bytes. A segment on its own is
 agnostic to presence of other segments and is not aware of its logical
 relationship with its peer segments. The segment store, which owns and
@@ -68,7 +68,7 @@ orchestrates all lifecycle operations on a stream while ensuring that
 the abstraction stays consistent.
 
 The controller plays a central role in the lifecycle of a stream:
-creation, modification, [scaling](http://pravega.io/docs/latest/pravega-concepts/#autoscaling-the-number-of-stream-segments-can-vary-over-time), and deletion. It does these by
+creation, modification, [scaling](pravega-concepts.md#autoscalingthenumber-of-stream-segments-can-vary-over-time), and deletion. It does these by
 maintaining metadata per stream and performs requisite operations on
 segments as and when necessary. For example, as part of stream’s
 lifecycle, new segments can be created and existing segments sealed. The
@@ -125,7 +125,7 @@ have two policies that users can define, namely [Scaling Policy](https://github.
 Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments. 
 Retention policy describes a policy about how much data to retain within a stream. 
 
-3. [Transaction](http://pravega.io/docs/latest/pravega-concepts/#transactions) Management  
+3. [Transaction](pravega-concepts.md#transactions) Management  
 Implementing transactions requires the manipulation of segments. With
 each transaction, Pravega creates a set of transaction segments, which
 are later merged onto the stream segments upon commit or discarded upon
@@ -897,4 +897,4 @@ Resources<a name="resources"></a>
 ---------
 - [Pravega](http://pravega.io/)
 - [Code](https://github.com/pravega/pravega/tree/master/controller)
-- [Other Documents](http://pravega.io/docs/latest/)
+- [Other Documents](.)
