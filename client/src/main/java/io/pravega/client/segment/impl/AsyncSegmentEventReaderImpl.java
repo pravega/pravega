@@ -23,55 +23,37 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
-import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OFFSET_REACHED;
 
 @Slf4j
 @ToString
 public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
-    static final int DEFAULT_READ_LENGTH = 64 * 1024;
-    static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
+    static final int DEFAULT_READ_LENGTH = 2 * 1024 * 1024;
 
     private final AsyncSegmentInputStream asyncInput;
     private final int readLength;
 
-    @GuardedBy("$lock")
-    private long cursorOffset;
-    @GuardedBy("$lock")
-    private long endOffset;
-    @GuardedBy("$lock")
+    @GuardedBy("lock")
+    private CompletableFuture<ByteBuffer> outstandingPromise = CompletableFuture.completedFuture(null);
+    @GuardedBy("lock")
     private final ReadState readState;
-    @GuardedBy("$lock")
+    @GuardedBy("lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
-    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
-        this(asyncInput, startOffset, UNBOUNDED_END_OFFSET, DEFAULT_READ_LENGTH);
+    private final Object lock = new Object();
+
+    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput) {
+        this(asyncInput, DEFAULT_READ_LENGTH);
     }
 
-    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int readLength) {
-        Preconditions.checkArgument(startOffset >= 0);
+    AsyncSegmentEventReaderImpl(AsyncSegmentInputStream asyncInput, int readLength) {
         Preconditions.checkNotNull(asyncInput);
-        Preconditions.checkNotNull(endOffset, "endOffset");
-        Preconditions.checkArgument(endOffset > startOffset + WireCommands.TYPE_PLUS_LENGTH_SIZE,
-                "Invalid end offset.");
         this.asyncInput = asyncInput;
-        this.cursorOffset = startOffset;
-        this.endOffset = endOffset;
-
-        /*
-         * The logic for determining the read length and buffer size are as follows.
-         * If we are reading a single event, then we set the read length to be the size
-         * of the event plus the header.
-         *
-         * If this input stream is going to read many events of different sizes, then
-         * we set the read length to be equal to the max write size and the buffer
-         * size to be twice that. We do it so that we can have at least two events
-         * buffered for next event reads.
-         */
-        this.readLength = Math.min(DEFAULT_READ_LENGTH, readLength);
-
+        this.readLength = readLength;
         this.readState = new ReadState();
     }
 
@@ -81,10 +63,11 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     }
 
     @Override
-    @Synchronized
+    @Synchronized("lock")
     public void close() {
         log.trace("Closing {}", this);
-        readState.cancel();
+        outstandingPromise.cancel(false);
+        readState.clear();
         asyncInput.close();
     }
 
@@ -96,73 +79,33 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     // region Cursor
 
     @Override
-    @Synchronized
-    public void setOffset(long offset) {
-        log.trace("SetOffset {}", offset);
-        Preconditions.checkArgument(offset >= 0);
-        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        if (offset != this.cursorOffset) {
-            readState.cancel();
-            this.cursorOffset = offset;
+    public CompletableFuture<ByteBuffer> readAsync(long offset) {
+        CompletableFuture<ByteBuffer> promise;
+        synchronized (lock) {
+            // reset the promise
+            if (!this.outstandingPromise.isDone()) {
+                this.outstandingPromise.cancel(false);
+            }
+            assert outstandingRequest == null || outstandingRequest.isDone();
+            this.outstandingPromise = promise = new CompletableFuture<>();
+            promise.whenComplete(this::readCompleted);
+
+            // reset the read state
+            readState.reset(offset);
+
+            // kick off or continue processing the request
+            issueRequestIfNeeded();
         }
-    }
-
-    @Override
-    @Synchronized
-    public long getOffset() {
-        return cursorOffset;
-    }
-
-    @Override
-    @Synchronized
-    public void setEndOffset(long offset) {
-        log.trace("SetEndOffset {}", offset);
-        Preconditions.checkArgument(offset >= 0);
-        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        this.endOffset = offset;
-    }
-
-    @Override
-    @Synchronized
-    public long getEndOffset() {
-        return endOffset;
-    }
-
-    @Override
-    @Synchronized
-    public CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException {
-
-        // prepare a promise
-        if (cursorOffset >= this.endOffset) {
-            log.debug("All events up to the configured end offset:{} have been read", endOffset);
-            throw new EndOfSegmentException(END_OFFSET_REACHED);
-        }
-        CompletableFuture<ByteBuffer> promise = readState.reset(cursorOffset);
-        promise.whenComplete(this::readCompleted);
-
-        // kick off or continue processing the request
-        issueRequestIfNeeded();
-
         return promise;
     }
 
-    @Synchronized
     private void readCompleted(ByteBuffer result, Throwable th) {
-        if (th != null) {
-            // an event could not be read; don't update the cursor position.
-            log.trace("Failed to read an event @ " + cursorOffset, th);
-
-            // cancel any outstanding request now to ensure that handleRequest doesn't affect the read state
-            if (outstandingRequest != null && !outstandingRequest.isDone()) {
-                log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
-                outstandingRequest.cancel(false);
-                outstandingRequest = null;
+        if (th instanceof CancellationException) {
+            // received read cancellation signal
+            synchronized (lock) {
+                // cancel any outstanding request now to ensure that handleRequest doesn't affect the read state
+                cancelRequest();
             }
-        }
-        if (result != null) {
-            // an event was read successfully; update the cursor position.
-            cursorOffset = readState.offset;
-            log.trace("Read an event @ {}", cursorOffset);
         }
     }
 
@@ -171,9 +114,9 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         return readState;
     }
 
+    @VisibleForTesting
     static class ReadState {
         private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
-        private CompletableFuture<ByteBuffer> outstandingPromise = CompletableFuture.completedFuture(null);
         private ByteBuffer resultBuffer;
         private long offset;
 
@@ -188,15 +131,11 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
          * Resets the read state in preparation for a new read.
          * @param offset the offset to prepare for.
          */
-        public CompletableFuture<ByteBuffer> reset(long offset) {
-            if (!this.outstandingPromise.isDone()) {
-                this.outstandingPromise.cancel(false);
-            }
-            this.outstandingPromise = new CompletableFuture<>();
+        @GuardedBy("AsyncSegmentEventReaderImpl.lock")
+        public void reset(long offset) {
             this.headerReadingBuffer.clear();
             this.resultBuffer = null;
             this.offset = offset;
-            return this.outstandingPromise;
         }
 
         /**
@@ -204,9 +143,10 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
          * Note that the {@code segmentRead} is progressively consumed by successive event reads.
          *
          * @param segmentRead a read response.
+         * @return buffer if the read has completed.
          */
-        public void update(SegmentRead segmentRead) {
-            checkState(!isSuccessful());
+        @GuardedBy("AsyncSegmentEventReaderImpl.lock")
+        public ByteBuffer update(SegmentRead segmentRead) {
             verifyIsAtCorrectOffset(segmentRead);
 
             if (resultBuffer == null) {
@@ -239,16 +179,14 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
 
                 if (!resultBuffer.hasRemaining()) {
                     // result is ready
-                    resultBuffer.flip();
-                    complete();
+                    ByteBuffer buf = resultBuffer;
+                    buf.flip();
+                    clear();
+                    return buf;
                 }
             }
 
-            if (!isDone() && segmentRead.isEndOfSegment()) {
-                // unable to fulfill due to end-of-segment
-                assert segmentRead.getData().remaining() == 0;
-                endOfSegment();
-            }
+            return null;
         }
 
         private void verifyIsAtCorrectOffset(SegmentRead segmentRead) {
@@ -256,38 +194,16 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
                     segmentRead.getOffset() + segmentRead.getData().position(), offset);
         }
 
+        @GuardedBy("AsyncSegmentEventReaderImpl.lock")
         public boolean isAtCorrectOffset(SegmentRead segmentRead) {
             long offsetRead = segmentRead.getOffset() + segmentRead.getData().position();
             long expectedOffset = offset;
             return offsetRead == expectedOffset;
         }
 
-        public boolean isSuccessful() {
-            return Futures.isSuccessful(outstandingPromise);
-        }
-
-        public boolean isDone() {
-            return outstandingPromise.isDone();
-        }
-
-        public void completeExceptionally(Throwable th) {
+        @GuardedBy("AsyncSegmentEventReaderImpl.lock")
+        public void clear() {
             resultBuffer = null;
-            outstandingPromise.completeExceptionally(th);
-        }
-
-        public void cancel() {
-            resultBuffer = null;
-            outstandingPromise.cancel(false);
-        }
-
-        private void complete() {
-            ByteBuffer buf = resultBuffer;
-            resultBuffer = null;
-            outstandingPromise.complete(buf);
-        }
-
-        private void endOfSegment() {
-            completeExceptionally(new EndOfSegmentException());
         }
     }
 
@@ -295,69 +211,83 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
 
     // region Request Processing
 
-    @Synchronized
+    @GuardedBy("lock")
+    private void cancelRequest() {
+        if (outstandingRequest != null) {
+            log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
+            outstandingRequest.cancel(false);
+            outstandingRequest = null;
+        }
+    }
+
+    @GuardedBy("lock")
     private void issueRequestIfNeeded() {
         if (outstandingRequest != null
                 && Futures.isSuccessful(outstandingRequest)
                 && readState.isAtCorrectOffset(outstandingRequest.join())) {
             handleRequest(outstandingRequest.join(), null);
         } else {
-            issueRequest(cursorOffset);
+            issueRequest(readState.getOffset());
         }
     }
 
-    @Synchronized
+    @GuardedBy("lock")
     private void issueRequest(long offset) {
         assert outstandingRequest == null || outstandingRequest.isDone();
-        int updatedReadLength = computeReadLength(offset, readLength);
         log.trace("Issuing request for offset:{}", offset);
 
-        outstandingRequest = asyncInput.read(offset, updatedReadLength);
+        outstandingRequest = asyncInput.read(offset, readLength);
         outstandingRequest.whenComplete(this::handleRequest);
-    }
-
-    /**
-     * Compute the read length based on the current fetch offset and the configured end offset.
-     */
-    private int computeReadLength(long currentFetchOffset, int currentReadLength) {
-        Preconditions.checkState(currentFetchOffset < endOffset,
-                "Current offset up to which events are fetched should be less than the configured end offset");
-        if (UNBOUNDED_END_OFFSET == endOffset) { //endOffset is UNBOUNDED_END_OFFSET if the endOffset is not set.
-            return currentReadLength;
-        }
-        long numberOfBytesRemaining = endOffset - currentFetchOffset;
-        return Math.toIntExact(Math.min(currentReadLength, numberOfBytesRemaining));
     }
 
     /**
      * Process an available {@link SegmentRead} or exception.
      */
-    @Synchronized
     private void handleRequest(SegmentRead segmentRead, Throwable th) {
+        CompletableFuture<ByteBuffer> promise;
+        ByteBuffer buffer = null;
+        synchronized (lock) {
+            promise = this.outstandingPromise;
+            checkState(!Futures.isSuccessful(promise));
+
+            if (th != null) {
+                th = Exceptions.unwrap(th);
+                log.warn("Read request failed for segment " + getSegmentId() + " @ " + readState.getOffset(), th);
+            } else {
+                // update the read state
+                checkNotNull(segmentRead);
+                try {
+                    buffer = readState.update(segmentRead);
+                } catch (Exception e) {
+                    // invalid state
+                    th = e;
+                }
+
+                if (buffer == null && segmentRead.isEndOfSegment()) {
+                    // unable to fulfill due to end-of-segment
+                    assert segmentRead.getData().remaining() == 0;
+                    th = new EndOfSegmentException();
+                }
+            }
+
+            // clear the read state on error (as an optimization)
+            if (th != null) {
+                readState.clear();
+            }
+
+            // issue a subsequent request if the promise is still incomplete
+            if (buffer == null && th == null) {
+                assert segmentRead.getData().remaining() == 0;
+                issueRequest(readState.getOffset());
+            }
+        }
+
+        // complete the promise outside the lock (if necessary)
         if (th != null) {
-            outstandingRequest = null;
-            th = Exceptions.unwrap(th);
-            readState.completeExceptionally(th);
-            return;
+            promise.completeExceptionally(th);
+        } else if (buffer != null) {
+            promise.complete(buffer);
         }
-        assert Futures.isSuccessful(outstandingRequest);
-
-        // consume the SegmentRead, which may drive the state to completion
-        try {
-            readState.update(segmentRead);
-        } catch (Exception e) {
-            readState.completeExceptionally(e);
-        }
-
-        // issue a subsequent request if the read is still incomplete
-        if (!readState.isDone()) {
-            assert segmentRead.getData().remaining() == 0;
-            issueRequest(readState.getOffset());
-        } else {
-            log.trace("Keeping request:{} at offset:{} for subsequent read", segmentRead.getRequestId(),
-                    segmentRead.getOffset() + segmentRead.getData().position());
-        }
-        assert readState.isDone() || outstandingRequest != null;
     }
 
     // endregion

@@ -54,6 +54,7 @@ import org.mockito.stubbing.Answer;
 import static com.google.common.base.Preconditions.checkState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,7 +65,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class EventStreamReaderTest {
@@ -87,7 +87,7 @@ public class EventStreamReaderTest {
         // assign a segment and then read an event to ensure that a reader is acquired and closed
         AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
         context.acquire(S0);
-        doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr0).readAsync();
+        doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
         reader.readNextEvent(0);
 
         // verify close
@@ -111,8 +111,8 @@ public class EventStreamReaderTest {
         final CompletableFuture<ByteBuffer> r2 = new CompletableFuture<>();
         final CompletableFuture<ByteBuffer> r3 = CompletableFuture.completedFuture(value(2));
 
-        doAnswer(readResult(r1)).doAnswer(readResult(r2)).doAnswer(readResult(eos())).when(sr0).readAsync();
-        doAnswer(readResult(r3)).doAnswer(readResult(eos())).when(sr1).readAsync();
+        doAnswer(readResult(r1)).doAnswer(readResult(r2)).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
+        doAnswer(readResult(r3)).doAnswer(readResult(eos())).when(sr1).readAsync(anyLong());
 
         // async value
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -145,11 +145,11 @@ public class EventStreamReaderTest {
         context.acquire(S0, S1);
 
         // observable position should advance on calls to readNextEvent (not the underlying async reader)
-        doAnswer(readResult(value(0))).doAnswer(readResult(eos())).when(sr0).readAsync();
-        doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync();
+        doAnswer(readResult(value(0))).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
+        doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync(anyLong());
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
         assertEquals(new EventPointerImpl(S0, 0, INT_EVENT_LENGTH), eventRead.getEventPointer().asImpl());
-        assumeTrue("assume that the async reader position was advanced", sr1.getOffset() == INT_EVENT_LENGTH);
+        assumeTrue("assume that a completed read is in the queue", reader.getQueue().size() == 2);
         assertEquals(ImmutableMap.of(S0, (long) INT_EVENT_LENGTH, S1, 0L), eventRead.getPosition().asImpl().getOwnedSegmentsWithOffsets());
     }
 
@@ -161,8 +161,8 @@ public class EventStreamReaderTest {
         AsyncSegmentEventReader sr1 = context.registerSegmentReader(S1);
         context.acquire(range(S0_PTR_A), range(S1_PTR_B));
 
-        doAnswer(readResult(value(1))).doThrow(eos(ErrorType.END_OFFSET_REACHED)).when(sr0).readAsync();
-        doAnswer(readResult(value(2))).doAnswer(readResult(eos())).when(sr1).readAsync();
+        doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
+        doAnswer(readResult(value(2))).doAnswer(readResult(eos())).when(sr1).readAsync(anyLong());
 
         // verify that readNextEvent respects configured start/end offset
         EventRead<byte[]> eventRead;
@@ -173,8 +173,12 @@ public class EventStreamReaderTest {
 
         // verify that readNextEvent moves to the next segment
         eventRead = reader.readNextEvent(0);
+        verify(context.groupState).handleEndOfSegment(S1, false);
         assertEquals(S1_PTR_B, eventRead.getEventPointer());
         assertEquals(value(2), ByteBuffer.wrap(eventRead.getEvent()));
+
+        eventRead = reader.readNextEvent(0);
+        assertNull(eventRead.getEvent());
     }
 
     @Test
@@ -191,24 +195,23 @@ public class EventStreamReaderTest {
         doReturn(segmentInfo1).when(metadataClient1).getSegmentInfo();
         AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
         AsyncSegmentEventReader sr1 = context.registerSegmentReader(S1);
-        doAnswer(readResult(new SegmentTruncatedException())).when(sr0).readAsync();
-        doAnswer(readResult(new SegmentTruncatedException())).doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync();
+        doAnswer(readResult(new SegmentTruncatedException())).when(sr0).readAsync(anyLong());
+        doAnswer(readResult(new SegmentTruncatedException())).doAnswer(readResult(value(1))).doAnswer(readResult(eos())).when(sr1).readAsync(anyLong());
         context.acquire(S0, S1);
 
         // observe the first TruncatedDataException
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
-        verify(sr0, times(1)).readAsync();
+        verify(sr0).readAsync(0L);
         verify(context.groupState).handleEndOfSegment(S0, true);
         verify(sr0).close();
 
         // observe the second TruncatedDataException
-        assumeTrue(sr1.getOffset() == 0L);
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
-        verify(sr1).setOffset(segmentInfo1.getStartingOffset());
-        verify(sr1, times(2)).readAsync();
+        verify(sr1).readAsync(0L);
 
         // observe a value at the revised offset
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
+        verify(sr1).readAsync(segmentInfo1.getStartingOffset());
         assertEquals(S1_PTR_B, eventRead.getEventPointer());
         assertEquals(value(1), ByteBuffer.wrap(eventRead.getEvent()));
     }
@@ -222,7 +225,7 @@ public class EventStreamReaderTest {
         AsyncSegmentEventReader sr0 = context.registerSegmentReader(S0);
         context.acquire(S0_RANGE_A);
         final CompletableFuture<ByteBuffer> r1 = new CompletableFuture<>();
-        doAnswer(readResult(r1)).when(sr0).readAsync();
+        doAnswer(readResult(r1)).when(sr0).readAsync(anyLong());
 
         // read to drive acquisition
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -231,11 +234,10 @@ public class EventStreamReaderTest {
         // verify the acquired reader state
         verify(context.groupState).acquireNewSegmentsIfNeeded(anyLong());
         assertEquals(1, reader.getReaders().size());
-        verify(sr0).setOffset(S0_RANGE_A.getStartOffset());
-        verify(sr0).setEndOffset(S0_RANGE_A.getEndOffset());
-        verify(sr0).readAsync();
+        verify(sr0).readAsync(S0_RANGE_A.getStartOffset());
         EventStreamReaderImpl.ReaderState readerState = reader.getReaders().get(0);
         assertEquals(S0_RANGE_A.getStartOffset(), readerState.getReadOffset());
+        assertEquals(S0_RANGE_A.getEndOffset(), readerState.getEndOffset());
         assertFalse(readerState.outstandingRead.isDone());
     }
 
@@ -248,7 +250,7 @@ public class EventStreamReaderTest {
 
         // schedule an async read to a segment
         final CompletableFuture<ByteBuffer> r1 = new CompletableFuture<>();
-        doAnswer(readResult(r1)).doAnswer(readResult(eos())).when(sr0).readAsync();
+        doAnswer(readResult(r1)).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
         assertTrue("expected a timeout", isTimeout(reader.readNextEvent(0)));
 
         // use a checkpoint to schedule a release
@@ -274,34 +276,28 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = context.createEventStreamReader();
         AsyncSegmentEventReader sr0;
 
-        // verify reader initialization
-        sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(value(1))).when(sr0).readAsync();
-        reader.fetchEvent(S0_PTR_A);
-        verify(sr0).setOffset(S0_PTR_A.getEventStartOffset());
-        verify(sr0).setEndOffset(S0_PTR_A.getEventStartOffset() + S0_PTR_A.getEventLength());
-
         // verify value
         sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(value(1))).when(sr0).readAsync();
+        doAnswer(readResult(value(1))).when(sr0).readAsync(anyLong());
         assertEquals(value(1), ByteBuffer.wrap(reader.fetchEvent(S0_PTR_A)));
+        verify(sr0).readAsync(S0_PTR_A.getEventStartOffset());
         verify(sr0).close();
 
         // verify exception handling
         sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(eos())).when(sr0).readAsync();
+        doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
         AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(new NoSuchSegmentException(S0.getScopedName()))).when(sr0).readAsync();
+        doAnswer(readResult(new NoSuchSegmentException(S0.getScopedName()))).when(sr0).readAsync(anyLong());
         AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(new SegmentTruncatedException(S0.getScopedName()))).when(sr0).readAsync();
+        doAnswer(readResult(new SegmentTruncatedException(S0.getScopedName()))).when(sr0).readAsync(anyLong());
         AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
         sr0 = context.registerSegmentReader(S0);
-        doAnswer(readResult(new IOException("expected"))).when(sr0).readAsync();
+        doAnswer(readResult(new IOException("expected"))).when(sr0).readAsync(anyLong());
         AssertExtensions.assertThrows(IOException.class, () -> reader.fetchEvent(S0_PTR_A));
         verify(sr0).close();
     }
@@ -315,14 +311,14 @@ public class EventStreamReaderTest {
 
         // enqueue an async read to ensure that S1 was acquired
         CompletableFuture<ByteBuffer> r1 = new CompletableFuture<>();
-        doAnswer(readResult(r1)).doAnswer(readResult(eos())).when(sr0).readAsync();
+        doAnswer(readResult(r1)).doAnswer(readResult(eos())).when(sr0).readAsync(anyLong());
         assertTrue(isTimeout(reader.readNextEvent(0)));
-        verify(sr0).readAsync();
+        verify(sr0).readAsync(0L);
 
         // schedule a checkpoint and then complete the future to enqueue a value
         String checkpointName = context.checkpoint(null);
         r1.complete(value(1));
-        assumeTrue("assume that the segment reader position was advanced", sr0.getOffset() > 0);
+        assumeTrue("assume that the results were queued", reader.getQueue().size() == 1);
 
         // complete the checkpoint (which should leave the value unprocessed)
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -379,21 +375,11 @@ public class EventStreamReaderTest {
     }
 
     /**
-     * Produce a mock response for {@code readAsync} that simulates the correct handling of the offset for a given future event.
+     * Produce a mock response for {@code readAsync} that returns the given future event.
      * @param future a future event.
      */
     private static Answer readResult(final CompletableFuture<ByteBuffer> future) {
-        return i -> {
-            AsyncSegmentEventReader mock = (AsyncSegmentEventReader) i.getMock();
-            final long offset = mock.getOffset();
-            future.whenComplete((buf, th) -> {
-                if (th == null) {
-                    final long newOffset = offset + WireCommands.TYPE_PLUS_LENGTH_SIZE + buf.remaining();
-                    doReturn(newOffset).when(mock).getOffset();
-                }
-            });
-            return future;
-        };
+        return i -> future;
     }
 
     private static SegmentRange range(EventPointer eventPointer) {
@@ -432,7 +418,7 @@ public class EventStreamReaderTest {
 
         /**
          * Registers a mock segment event reader for the given segment.
-         * The mock reader simulates {@code offset}, {@code endOffset} and {@code close}.
+         * The mock reader simulates {@code close}.
          *
          * @param segment the segment to be associated with the reader.
          * @return the mock reader.
@@ -440,16 +426,6 @@ public class EventStreamReaderTest {
         public AsyncSegmentEventReader registerSegmentReader(Segment segment) {
             AsyncSegmentEventReader reader = mock(AsyncSegmentEventReader.class);
             doReturn(segment).when(reader).getSegmentId();
-            doReturn(0L).when(reader).getOffset();
-            doAnswer(i -> {
-                doReturn(i.getArgument(0)).when(reader).getOffset();
-                return null;
-            }).when(reader).setOffset(anyLong());
-            doReturn(Long.MAX_VALUE).when(reader).getEndOffset();
-            doAnswer(i -> {
-                doReturn(i.getArgument(0)).when(reader).getEndOffset();
-                return null;
-            }).when(reader).setEndOffset(anyLong());
             doAnswer(i -> {
                 doReturn(true).when(reader).isClosed();
                 return null;

@@ -74,15 +74,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return readOffset;
     }
 
-    @Override
-    public void setEndOffset(long offset) {
-        this.endOffset = offset;
-    }
-
-    @Override
-    public long getEndOffset() {
-        return endOffset;
-    }
 
     @Override
     @Synchronized
@@ -115,13 +106,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException {
+    public CompletableFuture<ByteBuffer> readAsync(long offset) {
+        setOffset(offset);
         CompletableFuture<ByteBuffer> promise = new CompletableFuture<>();
         try {
             promise.complete(read(Long.MAX_VALUE));
-        } catch (SegmentTruncatedException e) {
+        } catch (EndOfSegmentException | SegmentTruncatedException e) {
             promise.completeExceptionally(e);
         }
+
         return promise;
     }
 

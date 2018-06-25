@@ -28,8 +28,6 @@ import static io.pravega.client.segment.impl.AsyncSegmentEventReaderImpl.DEFAULT
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 public class AsyncSegmentEventReaderImplTest {
 
@@ -104,9 +102,9 @@ public class AsyncSegmentEventReaderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
         @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork);
 
-        CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
+        CompletableFuture<ByteBuffer> readFuture = reader.readAsync(0L);
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         assertTrue(readFuture.isDone());
@@ -120,10 +118,10 @@ public class AsyncSegmentEventReaderImplTest {
 
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 4);
         @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork);
 
         // progressively read a sequence of buffers that add up to a single event
-        CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
+        CompletableFuture<ByteBuffer> readFuture = reader.readAsync(0L);
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         assertFalse(readFuture.isDone());
@@ -151,12 +149,12 @@ public class AsyncSegmentEventReaderImplTest {
 
         // read the events and verify that the network is read once
         for (int i = 0; i < numEntries; i++) {
-            CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
+            CompletableFuture<ByteBuffer> readFuture = reader.readAsync(eventOffset(data, i));
             assertTrue(readFuture.isDone());
             assertEquals(ByteBuffer.wrap(data), readFuture.join());
             assertEquals(0, fakeNetwork.readIndex.get());
         }
-        final CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
+        final CompletableFuture<ByteBuffer> readFuture = reader.readAsync(eventOffset(data, numEntries));
         assertTrue(readFuture.isDone());
         AssertExtensions.assertThrows(EndOfSegmentException.class, readFuture::join);
         assertEquals(0, fakeNetwork.readIndex.get());
@@ -168,26 +166,24 @@ public class AsyncSegmentEventReaderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 3);
         @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork);
 
         // verify that the reader resets its internal state following an exception
 
         // step 1: mutate the state with partial reads followed by an exception
-        final CompletableFuture<ByteBuffer> readFuture1 = reader.readAsync();
-        assertEquals(0, reader.getReadState().getOffset());
+        final CompletableFuture<ByteBuffer> readFuture1 = reader.readAsync(0L);
+        assertEquals(0L, reader.getReadState().getOffset());
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
-        assertEquals(2, reader.getReadState().getOffset());
+        assertEquals(2L, reader.getReadState().getOffset());
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
         AssertExtensions.assertThrows(ConnectionFailedException.class, readFuture1::join);
-        assertEquals(0, reader.getOffset());
 
         // step 2: re-read and verify that the internal state was correctly reset
-        final CompletableFuture<ByteBuffer> readFuture2 = reader.readAsync();
-        assertEquals(0, reader.getReadState().getOffset());
+        final CompletableFuture<ByteBuffer> readFuture2 = reader.readAsync(0L);
+        assertEquals(0L, reader.getReadState().getOffset());
         fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         assertTrue(readFuture2.isDone());
         assertEquals(ByteBuffer.wrap(data), readFuture2.join());
-        assertEquals(eventOffset(data, 1), reader.getOffset());
     }
 
     @Test
@@ -200,14 +196,12 @@ public class AsyncSegmentEventReaderImplTest {
         CompletableFuture<ByteBuffer> readFuture;
 
         // read at truncated offset
-        reader.setOffset(0L);
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(0L);
         fakeNetwork.completeExceptionally(0, new SegmentTruncatedException());
         AssertExtensions.assertThrows(SegmentTruncatedException.class, readFuture::join);
 
         // read at available offset
-        reader.setOffset(eventOffset(data, 1));
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(eventOffset(data, 1));
         fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), eventOffset(data, 1), false, false, wireData.slice()));
         assertTrue(readFuture.isDone());
         assertEquals(ByteBuffer.wrap(data), readFuture.join());
@@ -226,41 +220,14 @@ public class AsyncSegmentEventReaderImplTest {
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, wireData.slice()));
 
         // read the event
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(0L);
         assertTrue(readFuture.isDone());
         assertEquals(ByteBuffer.wrap(data), readFuture.join());
 
         // read again, expecting end-of-segment
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(eventOffset(data, 1));
         assertTrue(readFuture.isDone());
         AssertExtensions.assertThrows(EndOfSegmentException.class, readFuture::join);
-    }
-
-    @Test
-    public void testSetOffset() throws Exception {
-        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        ByteBuffer wireData = createEventFromData(data, 1);
-        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 2);
-        @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
-
-        // initiate a read from the starting offset
-        CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
-        assertFalse(readFuture.isDone());
-
-        // seek to a specific offset and verify that the prior read was cancelled
-        long offset = eventOffset(data, 1);
-        reader.setOffset(offset);
-        assertTrue(readFuture.isCancelled());
-        assertTrue(fakeNetwork.readResults.get(0).isCancelled());
-
-        // read from the seeked offset
-        readFuture = reader.readAsync();
-        assertFalse(readFuture.isDone());
-        fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), offset, false, false, wireData.slice()));
-        assertTrue(readFuture.isDone());
-        assertEquals(ByteBuffer.wrap(data), readFuture.join());
-        assertEquals(reader.getOffset(), eventOffset(data, 2));
     }
 
     @Test
@@ -269,62 +236,23 @@ public class AsyncSegmentEventReaderImplTest {
         ByteBuffer wireData = createEventFromData(data, 1);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 3);
         @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0);
+        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork);
 
         // verify user cancellation
-        CompletableFuture<ByteBuffer> readFuture = reader.readAsync();
+        CompletableFuture<ByteBuffer> readFuture = reader.readAsync(0L);
         assertFalse(readFuture.isDone());
         readFuture.cancel(true);
         assertTrue(fakeNetwork.readResults.get(0).isCancelled());
 
         // verify cancellation of outstanding read (if any) when readAsync is called
-        CompletableFuture<ByteBuffer> otherReadFuture = reader.readAsync();
+        CompletableFuture<ByteBuffer> otherReadFuture = reader.readAsync(0L);
         assertFalse(otherReadFuture.isDone());
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(0L);
         assertTrue(otherReadFuture.isCancelled());
         assertFalse(readFuture.isDone());
         fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         assertTrue(readFuture.isDone());
         assertEquals(ByteBuffer.wrap(data), readFuture.join());
-    }
-
-    @Test
-    public void testReadWithEndOffset() throws Exception {
-        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        ByteBuffer wireData = createEventFromData(data, 3);
-        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
-        fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, true, true, wireData.slice()));
-
-        // construct the reader with a range that will provide one event
-        @Cleanup
-        AsyncSegmentEventReaderImpl reader = new AsyncSegmentEventReaderImpl(fakeNetwork, 0, eventOffset(data, 1), DEFAULT_READ_LENGTH);
-        CompletableFuture<ByteBuffer> readFuture;
-
-        // read the first event and then read past the end offset
-        readFuture = reader.readAsync();
-        assertTrue(readFuture.isDone());
-        assertEquals(ByteBuffer.wrap(data), readFuture.join());
-        try {
-            reader.readAsync();
-            fail("expected end-of-segment");
-        } catch (EndOfSegmentException e) {
-            assertEquals(EndOfSegmentException.ErrorType.END_OFFSET_REACHED, e.getErrorType());
-        }
-
-        // update the end offset
-        assumeTrue(reader.getOffset() == eventOffset(data, 1));
-        reader.setEndOffset(eventOffset(data, 2));
-
-        // read the second event and then read past the (revised) end offset
-        readFuture = reader.readAsync();
-        assertTrue(readFuture.isDone());
-        assertEquals(ByteBuffer.wrap(data), readFuture.join());
-        try {
-            reader.readAsync();
-            fail("expected end-of-segment");
-        } catch (EndOfSegmentException e) {
-            assertEquals(EndOfSegmentException.ErrorType.END_OFFSET_REACHED, e.getErrorType());
-        }
     }
 
     @Test
@@ -340,14 +268,14 @@ public class AsyncSegmentEventReaderImplTest {
         wireData = createEventFromData(data, 1);
         wireData.putInt(0, WireCommandType.EVENT.getCode() + 1);
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(0L);
         AssertExtensions.assertThrows(InvalidMessageException.class, readFuture::join);
 
         // invalid length
         wireData = createEventFromData(data, 1);
         wireData.putInt(Integer.BYTES, WireCommands.MAX_WIRECOMMAND_SIZE + 1);
         fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
-        readFuture = reader.readAsync();
+        readFuture = reader.readAsync(0L);
         AssertExtensions.assertThrows(InvalidMessageException.class, readFuture::join);
     }
 }

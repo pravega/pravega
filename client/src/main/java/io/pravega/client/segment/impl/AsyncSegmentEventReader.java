@@ -23,47 +23,14 @@ public interface AsyncSegmentEventReader {
     Segment getSegmentId();
 
     /**
-     * Sets the offset for reading from the segment and cancels any outstanding read.
-     *
-     * @param offset The offset to set.
-     */
-    void setOffset(long offset);
-
-    /**
-     * Gets the current offset.
-     *
-     * @return The current offset.
-     */
-    long getOffset();
-
-    /**
-     * Sets the end offset for reading from the segment (exclusive).
-     *
-     * @param offset The offset to use.
-     */
-    void setEndOffset(long offset);
-
-    /**
-     * Gets the end offset.
-     *
-     * @return The end offset.
-     */
-    long getEndOffset();
-
-    /**
      * Reads the next event from the segment.
      *
-     * The offset is advanced iff the future completes successfully.  If called while a read is outstanding,
-     * cancels that read and re-reads the same data.
+     * If called while a read is outstanding, the corresponding future is cancelled.
      *
-     * NOTE: a thread-safe implementation of {@link AsyncSegmentEventReader} may acquire a lock that is taken
-     * upon calls to {@code readAsync}, and may re-acquire the lock upon completion of the future.  To avoid
-     * a deadlock, be careful about acquiring locks in the completion handler of the returned future.
-     *
+     * @param offset the offset to read the next event from.
      * @return a future containing the event data.
-     * @throws EndOfSegmentException if the configured end offset was reached.
      */
-    CompletableFuture<ByteBuffer> readAsync() throws EndOfSegmentException;
+    CompletableFuture<ByteBuffer> readAsync(long offset);
 
     /**
      * Closes this reader. No further methods may be called after close.

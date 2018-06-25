@@ -43,6 +43,7 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -53,9 +54,10 @@ import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
+
+    static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
 
     private final Serializer<Type> deserializer;
     private final AsyncSegmentEventReaderFactory readerFactory;
@@ -131,12 +133,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                         } finally {
                             // schedule the next read if the reader is still open.
                             if (!segmentReader.isClosed()) {
-                                try {
-                                    segmentReader.readNext(readCompletionQueue);
-                                } catch (EndOfSegmentException e) {
+                                if (!segmentReader.hasNext()) {
                                     // the configured end offset was reached; note that the buffer still contains a valid event
-                                    assert e.getErrorType().equals(ErrorType.END_OFFSET_REACHED);
                                     handleEndOfSegment(segmentReader, false);
+                                } else {
+                                    segmentReader.readNext(readCompletionQueue);
                                 }
                             }
                         }
@@ -230,15 +231,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 AsyncSegmentEventReader r = readerFactory.createEventReaderForSegment(
                         newSegment.getKey(),
                         AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
-                r.setOffset(newSegment.getValue());
-                r.setEndOffset(groupState.getEndOffsetForSegment(newSegment.getKey()));
-                ReaderState reader = new ReaderState(r);
-                readers.add(reader);
-                try {
-                    reader.readNext(readCompletionQueue);
-                } catch (EndOfSegmentException e) {
-                    throw new IllegalStateException("acquired a reader where end >= start", e);
+                long startOffset = newSegment.getValue();
+                long endOffset = groupState.getEndOffsetForSegment(newSegment.getKey());
+                if (endOffset <= startOffset) {
+                    throw new IllegalStateException("acquired a reader where end <= start");
                 }
+                ReaderState reader = new ReaderState(r, startOffset, endOffset);
+                readers.add(reader);
+                reader.readNext(readCompletionQueue);
             }
         }
     }
@@ -308,13 +308,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         @Cleanup
         AsyncSegmentEventReader reader = readerFactory.createEventReaderForSegment(
                 pointer.asImpl().getSegment(),
-                AsyncSegmentEventReaderFactory.DEFAULT_BUFFER_SIZE);
-        reader.setOffset(pointer.asImpl().getEventStartOffset());
-        reader.setEndOffset(pointer.asImpl().getEventStartOffset() + pointer.asImpl().getEventLength());
+                pointer.asImpl().getEventLength());
 
         // Read event
         try {
-            ByteBuffer buffer = reader.readAsync().join();
+            ByteBuffer buffer = reader.readAsync(pointer.asImpl().getEventStartOffset()).join();
             Type result = deserializer.deserialize(buffer);
             return result;
         } catch (Exception e) {
@@ -351,11 +349,13 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         final AsyncSegmentEventReader reader;
         @VisibleForTesting
         CompletableFuture<ByteBuffer> outstandingRead = CompletableFuture.completedFuture(null);
+        private final long endOffset;
         private long readOffset;
 
-        public ReaderState(AsyncSegmentEventReader reader) {
+        public ReaderState(AsyncSegmentEventReader reader, long readOffset, long endOffset) {
             this.reader = reader;
-            this.readOffset = reader.getOffset();
+            this.readOffset = readOffset;
+            this.endOffset = endOffset;
         }
 
         public Segment getSegmentId() {
@@ -377,32 +377,46 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
          * @param offset the offset.
          */
         public void setReadOffset(long offset) {
-            reader.setOffset(offset);
             readOffset = offset;
         }
 
         /**
+         * Gets the end offset (exclusive) for this reader.
+         */
+        long getEndOffset() {
+            return endOffset;
+        }
+
+        /**
          * Takes the read event and updates the read offset accordingly.
+         *
+         * @throws CompletionException if the outstanding read completed exceptionally
          */
         public ByteBuffer takeEvent() {
             assert outstandingRead.isDone();
             ByteBuffer buffer = outstandingRead.getNow(null);
-            readOffset = reader.getOffset();
+            int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+            readOffset += length;
             return buffer;
+        }
+
+        /**
+         * Indicates whether to read more events (or the configured end offset has been reached).
+         */
+        public boolean hasNext() {
+            return endOffset == UNBOUNDED_END_OFFSET || readOffset < endOffset;
         }
 
         /**
          * Reads the next event.
          *
          * @param queue the queue for completed reads.
-         * @throws EndOfSegmentException if the configured end-of-segment has been reached.
          */
-        public void readNext(final Queue<ReaderState> queue) throws EndOfSegmentException {
+        public void readNext(final Queue<ReaderState> queue) {
             assert outstandingRead.isDone();
-            assert readOffset == reader.getOffset();
-            outstandingRead = reader.readAsync();
+            outstandingRead = reader.readAsync(readOffset);
             outstandingRead.whenComplete((buf, th) -> {
-                // note: don't enqueue cancelled reads since the reader is closing.
+                // note: don't enqueue cancelled reads since the reader is closing anyway.
                 if (!(th instanceof CancellationException)) {
                     queue.add(this);
                 }

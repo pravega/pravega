@@ -36,6 +36,6 @@ public class AsyncSegmentEventReaderFactoryImpl implements AsyncSegmentEventRead
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new AsyncSegmentEventReaderImpl(result, 0, AsyncSegmentEventReaderImpl.UNBOUNDED_END_OFFSET, bufferSize);
+        return new AsyncSegmentEventReaderImpl(result, bufferSize);
     }
 }
