@@ -25,6 +25,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -103,7 +104,6 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         if (th instanceof CancellationException) {
             // received read cancellation signal
             synchronized (lock) {
-                // cancel any outstanding request now to ensure that handleRequest doesn't affect the read state
                 cancelRequest();
             }
         }
@@ -115,7 +115,7 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     }
 
     @VisibleForTesting
-    static class ReadState {
+    class ReadState {
         private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
         private ByteBuffer resultBuffer;
         private long offset;
@@ -212,6 +212,27 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
     // region Request Processing
 
     @GuardedBy("lock")
+    private void issueRequestIfNeeded() {
+        RequestConsumer consumer = new RequestConsumer(outstandingPromise);
+        if (outstandingRequest != null
+                && Futures.isSuccessful(outstandingRequest)
+                && readState.isAtCorrectOffset(outstandingRequest.join())) {
+            consumer.accept(outstandingRequest.join(), null);
+        } else {
+            issueRequest(readState.getOffset(), consumer);
+        }
+    }
+
+    @GuardedBy("lock")
+    private void issueRequest(long offset, RequestConsumer consumer) {
+        assert outstandingRequest == null || outstandingRequest.isDone();
+        log.trace("Issuing request for offset:{}", offset);
+
+        outstandingRequest = asyncInput.read(offset, readLength);
+        outstandingRequest.whenComplete(consumer);
+    }
+
+    @GuardedBy("lock")
     private void cancelRequest() {
         if (outstandingRequest != null) {
             log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
@@ -220,73 +241,64 @@ public class AsyncSegmentEventReaderImpl implements AsyncSegmentEventReader {
         }
     }
 
-    @GuardedBy("lock")
-    private void issueRequestIfNeeded() {
-        if (outstandingRequest != null
-                && Futures.isSuccessful(outstandingRequest)
-                && readState.isAtCorrectOffset(outstandingRequest.join())) {
-            handleRequest(outstandingRequest.join(), null);
-        } else {
-            issueRequest(readState.getOffset());
+    private class RequestConsumer implements BiConsumer<SegmentRead, Throwable> {
+        private final CompletableFuture<ByteBuffer> promise;
+
+        public RequestConsumer(CompletableFuture<ByteBuffer> promise) {
+            this.promise = promise;
         }
-    }
 
-    @GuardedBy("lock")
-    private void issueRequest(long offset) {
-        assert outstandingRequest == null || outstandingRequest.isDone();
-        log.trace("Issuing request for offset:{}", offset);
+        /**
+         * Process an available {@link SegmentRead} or exception.
+         */
+        @Override
+        public void accept(SegmentRead segmentRead, Throwable th) {
+            ByteBuffer buffer = null;
+            synchronized (lock) {
+                if (promise.isDone()) {
+                    // the promise for which this request was issued is already done.
+                    // note that readState may already be reset to a subsequent read.
+                    log.debug("Discarded a segment read for segment " + getSegmentId());
+                    return;
+                }
 
-        outstandingRequest = asyncInput.read(offset, readLength);
-        outstandingRequest.whenComplete(this::handleRequest);
-    }
-
-    /**
-     * Process an available {@link SegmentRead} or exception.
-     */
-    private void handleRequest(SegmentRead segmentRead, Throwable th) {
-        CompletableFuture<ByteBuffer> promise;
-        ByteBuffer buffer = null;
-        synchronized (lock) {
-            promise = this.outstandingPromise;
-            checkState(!Futures.isSuccessful(promise));
-
-            if (th != null) {
-                th = Exceptions.unwrap(th);
-                log.warn("Read request failed for segment " + getSegmentId() + " @ " + readState.getOffset(), th);
-            } else {
                 // update the read state
-                checkNotNull(segmentRead);
-                try {
-                    buffer = readState.update(segmentRead);
-                } catch (Exception e) {
-                    // invalid state
-                    th = e;
+                if (th != null) {
+                    th = Exceptions.unwrap(th);
+                    log.warn("Read request failed for segment " + getSegmentId() + " @ " + readState.getOffset(), th);
+                } else {
+                    checkNotNull(segmentRead);
+                    try {
+                        buffer = readState.update(segmentRead);
+                    } catch (Exception e) {
+                        // invalid state
+                        th = e;
+                    }
+
+                    if (buffer == null && segmentRead.isEndOfSegment()) {
+                        // unable to fulfill due to end-of-segment
+                        assert segmentRead.getData().remaining() == 0;
+                        th = new EndOfSegmentException();
+                    }
+                }
+                if (th != null) {
+                    // clear the read state on error (to eagerly release any buffers)
+                    readState.clear();
                 }
 
-                if (buffer == null && segmentRead.isEndOfSegment()) {
-                    // unable to fulfill due to end-of-segment
+                // issue a subsequent request if the promise is still incomplete
+                if (buffer == null && th == null) {
                     assert segmentRead.getData().remaining() == 0;
-                    th = new EndOfSegmentException();
+                    issueRequest(readState.getOffset(), this);
                 }
             }
 
-            // clear the read state on error (as an optimization)
+            // complete the promise outside the lock (if necessary)
             if (th != null) {
-                readState.clear();
+                promise.completeExceptionally(th);
+            } else if (buffer != null) {
+                promise.complete(buffer);
             }
-
-            // issue a subsequent request if the promise is still incomplete
-            if (buffer == null && th == null) {
-                assert segmentRead.getData().remaining() == 0;
-                issueRequest(readState.getOffset());
-            }
-        }
-
-        // complete the promise outside the lock (if necessary)
-        if (th != null) {
-            promise.completeExceptionally(th);
-        } else if (buffer != null) {
-            promise.complete(buffer);
         }
     }
 
