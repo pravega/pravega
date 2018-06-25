@@ -24,7 +24,7 @@ public interface Credentials extends Serializable {
      * Pravega client prefixes all the parameters with this before sending it over grpc.
      * This will ensure that rest of the grpc parameters are not sent to the handlers.
      */
-    String AUTH_HANDLER_PREFIX = "PRAVEG_AUTH_";
+    String AUTH_HANDLER_PREFIX = "pravega_auth_";
 
     /**
      * Returns the authentication type.
