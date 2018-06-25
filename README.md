@@ -71,9 +71,9 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://codecommunity.slack.com/#pravega) if you need any help.
+Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.
 Open an issue if you found a bug on [Github
-Issues](https://github.com/pravega/pravega/issues)
+Issues](https://github.com/pravega/pravega/issues).
 
 ## Documentation
 
@@ -85,7 +85,7 @@ The Pravega documentation of is hosted on the website:
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
 [Here](documentation/src/docs/contributing.md) we describe how to contribute to Pravega!
-You can see the roadmap document [here](documentation/src/docs/roadmap.md)
+You can see the roadmap document [here](documentation/src/docs/roadmap.md).
 
 ## About
 

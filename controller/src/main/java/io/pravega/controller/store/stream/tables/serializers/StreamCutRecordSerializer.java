@@ -34,13 +34,13 @@ public class StreamCutRecordSerializer
             throws IOException {
         streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
                 .recordingSize(revisionDataInput.readLong())
-                .streamCut(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong));
+                .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong));
     }
 
     private void write00(StreamCutRecord streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeLong(streamCutRecord.getRecordingTime());
         revisionDataOutput.writeLong(streamCutRecord.getRecordingSize());
-        revisionDataOutput.writeMap(streamCutRecord.getStreamCut(), DataOutput::writeInt, DataOutput::writeLong);
+        revisionDataOutput.writeMap(streamCutRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
     }
 
     @Override

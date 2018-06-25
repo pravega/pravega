@@ -101,6 +101,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
+                streamStore,
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
@@ -142,15 +143,15 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void createTransactionSuccessTest() {
         int segmentsCount = 4;
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
-        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000, 10000);
+        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000);
         assertEquals(segmentsCount, response.getActiveSegmentsCount());
     }
 
     @Test
     public void transactionTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
-        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000).getTxnId();
-        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000).getTxnId();
+        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000).getTxnId();
+        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000).getTxnId();
 
         // Abort first txn.
         Controller.TxnStatus status = closeTransaction(SCOPE1, STREAM1, txnId1, true);
@@ -181,13 +182,12 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         return resultObserver.get();
     }
 
-    private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease,
-                                                           final long scaleGracePeriod) {
+    private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease) {
         Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
         Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(lease)
-                .setScaleGracePeriod(scaleGracePeriod).build();
+                .build();
         ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);
         Controller.CreateTxnResponse response = resultObserver.get();

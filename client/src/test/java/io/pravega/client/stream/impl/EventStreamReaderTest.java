@@ -486,7 +486,7 @@ public class EventStreamReaderTest {
         }
 
         private Segment segment(SegmentRange s) {
-            return new Segment(s.getScope(), s.getStreamName(), s.getSegmentNumber());
+            return new Segment(s.getScope(), s.getStreamName(), s.getSegmentId());
         }
 
         /**

@@ -32,11 +32,11 @@ public class SealedSegmentsRecordSerializer
 
     private void read00(RevisionDataInput revisionDataInput,
                         SealedSegmentsRecord.SealedSegmentsRecordBuilder sealedSegmentsRecordBuilder) throws IOException {
-        sealedSegmentsRecordBuilder.sealedSegmentsSizeMap(revisionDataInput.readMap(DataInput::readInt, DataInput::readLong));
+        sealedSegmentsRecordBuilder.sealedSegmentsSizeMap(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong));
     }
 
     private void write00(SealedSegmentsRecord sealedSegmentsRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-        revisionDataOutput.writeMap(sealedSegmentsRecord.getSealedSegmentsSizeMap(), DataOutput::writeInt, DataOutput::writeLong);
+        revisionDataOutput.writeMap(sealedSegmentsRecord.getSealedSegmentsSizeMap(), DataOutput::writeLong, DataOutput::writeLong);
     }
 
     @Override

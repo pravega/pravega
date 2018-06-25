@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -74,6 +75,7 @@ public class DataFrameInputStream extends InputStream {
     }
 
     @Override
+    @SneakyThrows(DurableDataLogException.class)
     public int read() throws IOException {
         while (!this.closed) {
             int r = this.currentEntry.getData().read();
@@ -92,6 +94,7 @@ public class DataFrameInputStream extends InputStream {
     }
 
     @Override
+    @SneakyThrows(DurableDataLogException.class)
     public int read(byte[] buffer, int index, int length) throws IOException {
         Preconditions.checkNotNull(buffer, "buffer");
         if (index < 0 || length < 0 | index + length > buffer.length) {
@@ -130,8 +133,9 @@ public class DataFrameInputStream extends InputStream {
      * @return True if a new record can be read, false if we reached the end of the DataFrameInputStream and can no longer
      * read.
      * @throws IOException If an IO Exception occurred.
+     * @throws DurableDataLogException If a non-IO Exception has occurred, usually thrown by the underlying DurableDataLog.
      */
-    boolean beginRecord() throws IOException {
+    boolean beginRecord() throws IOException, DurableDataLogException {
         try {
             if (this.currentEntry != null && !this.prefetchedEntry) {
                 endRecord();
@@ -153,8 +157,9 @@ public class DataFrameInputStream extends InputStream {
      *
      * @return A RecordInfo containing metadata about the record that just ended, such as addressing information.
      * @throws IOException If an IO Exception occurred.
+     * @throws DurableDataLogException If a non-IO Exception has occurred, usually thrown by the underlying DurableDataLog.
      */
-    DataFrameRecord.RecordInfo endRecord() throws IOException {
+    DataFrameRecord.RecordInfo endRecord() throws IOException, DurableDataLogException {
         DataFrameRecord.RecordInfo r = this.currentRecordBuilder.build();
         while (this.currentEntry != null) {
             if (this.currentEntry.isLastRecordEntry()) {
@@ -181,7 +186,7 @@ public class DataFrameInputStream extends InputStream {
         this.prefetchedEntry = false;
     }
 
-    private void fetchNextEntry() throws IOException {
+    private void fetchNextEntry() throws IOException, DurableDataLogException {
         Exceptions.checkNotClosed(this.closed, this);
         if (this.prefetchedEntry) {
             assert this.currentEntry != null : "prefetchEntry==true, but currentEntry==null";
@@ -190,12 +195,7 @@ public class DataFrameInputStream extends InputStream {
         }
 
         while (!this.closed) {
-            DataFrame.DataFrameEntry nextEntry;
-            try {
-                nextEntry = getNextFrameEntry();
-            } catch (DurableDataLogException ex) {
-                throw new IOException(ex);
-            }
+            DataFrame.DataFrameEntry nextEntry = getNextFrameEntry();
 
             if (nextEntry == null) {
                 // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the

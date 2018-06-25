@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Join the Pravega Community
 
-[Slack Channel](https://projectpravega.slack.com/)
+[Slack Channel](https://pravega-io.slack.com/)
 
 ### User Groups
 pravega-users@googlegroups.com

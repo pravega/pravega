@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.segmentstore.server.CacheManager;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;

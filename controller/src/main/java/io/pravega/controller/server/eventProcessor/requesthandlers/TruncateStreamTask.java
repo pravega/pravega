@@ -61,7 +61,11 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
                 .thenCompose(property -> {
                     if (!property.isUpdating()) {
-                        throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                        // if the state is TRUNCATING but the truncation record is not updating, we should reset the state to ACTIVE.
+                        return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
+                                .thenRun(() -> {
+                                    throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                                });
                     } else {
                         return processTruncate(scope, stream, property, context,
                                 this.streamMetadataTasks.retrieveDelegationToken());
@@ -81,7 +85,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                  .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete, String delegationToken) {
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {
         log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
@@ -89,7 +93,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut, String delegationToken) {
+    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Long, Long> streamCut, String delegationToken) {
         log.debug("{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()

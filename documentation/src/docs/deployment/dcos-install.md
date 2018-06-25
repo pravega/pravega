@@ -9,6 +9,8 @@ You may obtain a copy of the License at
 -->
 # Deploying on DC/OS
 
+Prerequisities: DC/OS cli needs to be installed. To install the cli, follow the instructions here: https://docs.mesosphere.com/1.8/usage/cli/install/
+
 Pravega can be run on DC/OS by leveraging Marathon.  
 PravegaGroup.json defines the docker hub image locations and necessary application configration to start a simple Pravega cluster.
 
