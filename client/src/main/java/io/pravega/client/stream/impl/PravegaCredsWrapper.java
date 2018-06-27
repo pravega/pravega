@@ -34,10 +34,7 @@ public class PravegaCredsWrapper extends com.google.auth.Credentials {
 
         Map<String, List<String>> retVal = metadata.entrySet().stream().collect(
                 Collectors.toMap(entry -> Credentials.AUTH_HANDLER_PREFIX + entry.getKey(),
-                        e -> {
-                            List<String> list = Collections.singletonList(e.getValue());
-                            return list;
-                        }));
+                        e -> Collections.singletonList(e.getValue())));
         retVal.put(Credentials.AUTH_HANDLER_PREFIX + "method", Collections.singletonList(creds.getAuthenticationType()));
         return retVal;
     }

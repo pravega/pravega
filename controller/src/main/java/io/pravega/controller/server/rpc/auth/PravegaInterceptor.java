@@ -56,7 +56,6 @@ public class PravegaInterceptor implements ServerInterceptor {
                    try {
                        paramMap.put(key.substring(Credentials.AUTH_HANDLER_PREFIX.length()),
                                headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
-                       log.warn(key + " " + headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
                    } catch (IllegalArgumentException e) {
                        log.warn("Error while marshalling some of the headers {}", e.toString());
                    }
