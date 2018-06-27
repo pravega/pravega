@@ -60,6 +60,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> epochTransition;
     @GuardedBy("lock")
     private Data<Integer> committingTxnRecord;
+    @GuardedBy("lock")
+    private Data<Integer> waitingRequestNode;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -867,6 +869,38 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> deleteCommittingTxnRecord() {
         synchronized (lock) {
             this.committingTxnRecord = null;
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(byte[] data) {
+        synchronized (lock) {
+            if (waitingRequestNode == null) {
+                waitingRequestNode = new Data<>(data, 0);
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getWaitingRequestNode() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.waitingRequestNode == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "waiting request node not found"));
+            } else {
+                result.complete(copy(waitingRequestNode));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> deleteWaitingRequestNode() {
+        synchronized (lock) {
+            this.waitingRequestNode = null;
         }
         return CompletableFuture.completedFuture(null);
     }

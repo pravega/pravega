@@ -18,6 +18,7 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
@@ -47,7 +48,9 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -132,6 +135,34 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
         verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
     }
+
+    @Test(timeout = 10000)
+    public void testConnectAndFailedSetupAppendDueToTruncation() throws Exception {
+        AtomicBoolean callbackInvoked = new AtomicBoolean();
+        Consumer<Segment> resendToSuccessorsCallback = segment -> {
+            callbackInvoked.set(true);
+        };
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        @Cleanup
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, resendToSuccessorsCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT));
+        CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
+        assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
+        assertTrue(callbackInvoked.get());
+    }
+
 
     @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {

@@ -690,6 +690,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, stream, context).getTransactionsInEpoch(epoch), executor);
     }
 
+    @Override
+    public CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName,
+                                                                OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).createWaitingRequestIfAbsent(processorName), executor);
+    }
+
+    @Override
+    public CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).getWaitingRequestProcessor(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName,
+                                                                     OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
+    }
+
     protected Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
