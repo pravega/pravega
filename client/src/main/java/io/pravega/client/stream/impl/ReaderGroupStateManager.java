@@ -39,8 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -419,6 +419,15 @@ public class ReaderGroupStateManager {
         });
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
+        }
+    }
+
+    public String refreshDelegationToken(Segment segmentId) {
+        synchronized (this) {
+            if (this.latestDelegationToken == null ) {
+                this.latestDelegationToken = getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
+            }
+            return this.latestDelegationToken;
         }
     }
 }
