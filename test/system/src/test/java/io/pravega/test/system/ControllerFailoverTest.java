@@ -131,13 +131,12 @@ public class ControllerFailoverTest {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
-        List<Integer> segmentsToSeal = Collections.singletonList(0);
+        List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 0.25);
         newRangesToCreate.put(0.25, 0.5);
         long lease = 29000;
         long maxExecutionTime = 60000;
-        long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
@@ -155,7 +154,7 @@ public class ControllerFailoverTest {
         long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
         TxnSegments txnSegments = controller1.createTransaction(
-                stream1, lease, scaleGracePeriod).join();
+                stream1, lease).join();
         log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.

@@ -150,6 +150,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                       */
                      synchronized (writeSealLock) {
                          Segment toSeal = sealedSegmentQueue.poll();
+                         log.info("Sealing segment {} ", toSeal);
                          while (toSeal != null) {
                              resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
                              /* In the case of segments merging Flush ensures there can't be anything left
@@ -158,6 +159,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                               */
                              flushInternal();
                              toSeal = sealedSegmentQueue.poll();
+                             log.info("Sealing another segment {} ", toSeal);
                          }
                      }
                      return null;
@@ -294,8 +296,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     @Override
     public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime(),
-                                                                                      config.getTransactionTimeoutScaleGracePeriod()),
+        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
                                                          RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();

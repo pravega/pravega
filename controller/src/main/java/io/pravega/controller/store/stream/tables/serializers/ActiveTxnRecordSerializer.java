@@ -34,7 +34,6 @@ public class ActiveTxnRecordSerializer
         activeTxnRecordBuilder.txCreationTimestamp(revisionDataInput.readLong())
                 .leaseExpiryTime(revisionDataInput.readLong())
                 .maxExecutionExpiryTime(revisionDataInput.readLong())
-                .scaleGracePeriod(revisionDataInput.readLong())
                 .txnStatus(TxnStatus.values()[revisionDataInput.readCompactInt()]);
     }
 
@@ -42,7 +41,6 @@ public class ActiveTxnRecordSerializer
         revisionDataOutput.writeLong(activeTxnRecord.getTxCreationTimestamp());
         revisionDataOutput.writeLong(activeTxnRecord.getLeaseExpiryTime());
         revisionDataOutput.writeLong(activeTxnRecord.getMaxExecutionExpiryTime());
-        revisionDataOutput.writeLong(activeTxnRecord.getScaleGracePeriod());
         revisionDataOutput.writeCompactInt(activeTxnRecord.getTxnStatus().ordinal());
     }
 

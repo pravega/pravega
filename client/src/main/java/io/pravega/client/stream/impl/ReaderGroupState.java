@@ -71,7 +71,7 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail;
     @GuardedBy("$lock")
-    private final Map<Segment, Set<Integer>> futureSegments;
+    private final Map<Segment, Set<Long>> futureSegments;
     @GuardedBy("$lock")
     private final Map<String, Map<Segment, Long>> assignedSegments;
     @GuardedBy("$lock")
@@ -340,7 +340,7 @@ public class ReaderGroupState implements Revisioned {
         private final ReaderGroupConfig config;
         private final CheckpointState checkpointState;
         private final Map<String, Long> distanceToTail;
-        private final Map<Segment, Set<Integer>> futureSegments;
+        private final Map<Segment, Set<Long>> futureSegments;
         private final Map<String, Map<Segment, Long>> assignedSegments;
         private final Map<Segment, Long> unassignedSegments;
         private final Map<Segment, Long> endSegments;
@@ -351,7 +351,7 @@ public class ReaderGroupState implements Revisioned {
                 checkpointState = state.checkpointState.copy();
                 distanceToTail = new HashMap<>(state.distanceToTail);
                 futureSegments = new HashMap<>();
-                for (Entry<Segment, Set<Integer>> entry : state.futureSegments.entrySet()) {
+                for (Entry<Segment, Set<Long>> entry : state.futureSegments.entrySet()) {
                     futureSegments.put(entry.getKey(), new HashSet<>(entry.getValue()));
                 }
                 assignedSegments = new HashMap<>();
@@ -398,7 +398,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
                 builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
-                                                                 in -> in.readCollection(RevisionDataInput::readInt, HashSet::new)));
+                                                                 in -> in.readCollection(RevisionDataInput::readLong, HashSet::new)));
                 builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
                                                                    in -> in.readMap(segmentDeserializer, longDeserializer)));
                 builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
@@ -413,7 +413,7 @@ public class ReaderGroupState implements Revisioned {
                 revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
                 revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
                 revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
-                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeInt));
+                                            (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeLong));
                 revisionDataOutput.writeMap(object.assignedSegments, stringSerializer,
                                             (out, obj) -> out.writeMap(obj, segmentSerializer, longSerializer));
                 revisionDataOutput.writeMap(object.unassignedSegments, segmentSerializer, longSerializer);
@@ -519,7 +519,7 @@ public class ReaderGroupState implements Revisioned {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
                     Long offset;
-                    if (ownedSegments == null) {
+                    if (ownedSegments == null || ownedSegments.isEmpty()) {
                         offset = entry.getValue();
                     } else {
                         offset = ownedSegments.get(segment);
@@ -744,7 +744,7 @@ public class ReaderGroupState implements Revisioned {
 
         private final String readerId;
         private final Segment segmentCompleted;
-        private final Map<Segment, List<Integer>> successorsMappedToTheirPredecessors; //Immutable
+        private final Map<Segment, List<Long>> successorsMappedToTheirPredecessors; //Immutable
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -757,18 +757,18 @@ public class ReaderGroupState implements Revisioned {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }
-            for (Entry<Segment, List<Integer>> entry : successorsMappedToTheirPredecessors.entrySet()) {
+            for (Entry<Segment, List<Long>> entry : successorsMappedToTheirPredecessors.entrySet()) {
                 if (!state.futureSegments.containsKey(entry.getKey())) {
-                    Set<Integer> requiredToComplete = new HashSet<>(entry.getValue());
+                    Set<Long> requiredToComplete = new HashSet<>(entry.getValue());
                     state.futureSegments.put(entry.getKey(), requiredToComplete);
                 }
             }
-            for (Set<Integer> requiredToComplete : state.futureSegments.values()) {
-                requiredToComplete.remove(segmentCompleted.getSegmentNumber());
+            for (Set<Long> requiredToComplete : state.futureSegments.values()) {
+                requiredToComplete.remove(segmentCompleted.getSegmentId());
             }
             val iter = state.futureSegments.entrySet().iterator();
             while (iter.hasNext()) {
-                Entry<Segment, Set<Integer>> entry = iter.next();
+                Entry<Segment, Set<Long>> entry = iter.next();
                 if (entry.getValue().isEmpty()) {
                     state.unassignedSegments.put(entry.getKey(), 0L);
                     iter.remove();
@@ -801,7 +801,7 @@ public class ReaderGroupState implements Revisioned {
                 builder.readerId(in.readUTF());
                 builder.segmentCompleted(Segment.fromScopedName(in.readUTF()));
                 builder.successorsMappedToTheirPredecessors(in.readMap(i -> Segment.fromScopedName(i.readUTF()),
-                                                                       i -> i.readCollection(RevisionDataInput::readInt, ArrayList::new)));
+                                                                       i -> i.readCollection(RevisionDataInput::readLong, ArrayList::new)));
             }
 
             private void write00(SegmentCompleted object, RevisionDataOutput out) throws IOException {
@@ -809,7 +809,7 @@ public class ReaderGroupState implements Revisioned {
                 out.writeUTF(object.segmentCompleted.getScopedName());
                 out.writeMap(object.successorsMappedToTheirPredecessors,
                              (o, segment) -> o.writeUTF(segment.getScopedName()),
-                             (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeInt));
+                             (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeLong));
             }
         }
     }

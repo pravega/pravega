@@ -85,14 +85,14 @@ public class ScaleTest {
             map.put(0.0, 0.5);
             map.put(0.5, 1.0);
 
-            if (!controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get()) {
+            if (!controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get()) {
                 log.error("Scale stream: splitting segment into two failed, exiting");
                 return;
             }
 
             // Test 2: scale stream: merge two segments into one
             log.info("Scaling stream {}/{}, merging two segments into one", scope, streamName);
-            CompletableFuture<Boolean> scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1, 2),
+            CompletableFuture<Boolean> scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1L, 2L),
                     Collections.singletonMap(0.0, 1.0), executor).getFuture();
 
             if (!scaleResponseFuture.get()) {
@@ -101,7 +101,7 @@ public class ScaleTest {
             }
 
             // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-            CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 29000);
+            CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000);
             TxnSegments transaction = txnFuture.get();
             if (transaction == null) {
                 log.error("Create transaction failed, exiting");
@@ -110,7 +110,7 @@ public class ScaleTest {
 
             log.info("Scaling stream {}/{}, splitting one segment into two, while transaction is ongoing",
                     scope, streamName);
-            scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map, executor).getFuture();
+            scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3L), map, executor).getFuture();
             CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("Failed: scale with ongoing transaction.", e);
