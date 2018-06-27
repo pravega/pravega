@@ -116,6 +116,8 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String certFile;
     private String keyFile;
     private String passwdFile;
+    private String keyStoreJKS;
+    private String keyStoreJKSPassword;
 
     public static final class InProcPravegaClusterBuilder {
         public InProcPravegaCluster build() {
@@ -139,7 +141,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    startRestServer, userName, passwd, certFile, keyFile, passwdFile, keyStoreJKS, keyStoreJKSPassword);
         }
     }
 
@@ -336,8 +338,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .host("0.0.0.0")
                 .port(this.restServerPort)
                 .tlsEnabled(this.enableTls)
-                .keyFilePath("../config/bookie.keystore.jks")
-                .keyFilePasswordPath("../config/bookie.keystore.jks.passwd")
+                .keyFilePath(this.keyStoreJKS)
+                .keyFilePasswordPath(this.keyStoreJKSPassword)
                 .build();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()

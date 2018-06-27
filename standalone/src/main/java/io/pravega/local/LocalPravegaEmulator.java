@@ -29,11 +29,14 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String userName;
     private String passwdFile;
     private String keyFile;
+    private String keyStoreJKS;
+    private String keyStoreJKSPassword;
 
     @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
 
     public static final class LocalPravegaEmulatorBuilder {
+
         public LocalPravegaEmulator build() {
             this.inProcPravegaCluster = InProcPravegaCluster
                     .builder()
@@ -56,11 +59,13 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwdFile(passwdFile)
                     .userName(userName)
                     .passwd(passwd)
+                    .keyStoreJKS(keyStoreJKS)
+                    .keyStoreJKSPassword(keyStoreJKSPassword)
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableAuth, enableTls,
-                    certFile, passwd, userName, passwdFile, keyFile, inProcPravegaCluster);
+                    certFile, passwd, userName, passwdFile, keyFile, keyStoreJKS, keyStoreJKSPassword, inProcPravegaCluster);
         }
     }
 
@@ -82,6 +87,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableTls(conf.isEnableTls())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
+                    .keyStoreJKS(conf.getKeyStoreJKS())
+                    .keyStoreJKSPassword(conf.getKeyStoreJKSPassword())
                     .passwdFile(conf.getPasswdFile())
                     .userName(conf.getUserName())
                     .passwd(conf.getPasswd())
