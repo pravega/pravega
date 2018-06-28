@@ -416,8 +416,6 @@ public class ReaderGroupStateManager {
     }
 
     public String refreshDelegationToken(Segment segmentId) {
-        synchronized (this) {
             return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
-        }
     }
 }
