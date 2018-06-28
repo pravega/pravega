@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -81,9 +80,6 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer acquireTimer;
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
-    @Getter
-    @GuardedBy("this")
-    private String latestDelegationToken;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -162,9 +158,6 @@ public class ReaderGroupStateManager {
         final Map<Segment, List<Long>> segmentToPredecessor;
         if (fetchSuccesors) {
             val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
-            synchronized (this) {
-                latestDelegationToken = successors.getDelegationToken();
-            }
             segmentToPredecessor = successors.getSegmentToPredecessor();
         } else {
             segmentToPredecessor = Collections.emptyMap();
@@ -424,10 +417,7 @@ public class ReaderGroupStateManager {
 
     public String refreshDelegationToken(Segment segmentId) {
         synchronized (this) {
-            if (this.latestDelegationToken == null ) {
-                this.latestDelegationToken = getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
-            }
-            return this.latestDelegationToken;
+            return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
         }
     }
 }
