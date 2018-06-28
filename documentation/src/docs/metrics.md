@@ -441,12 +441,12 @@ controller.truncated_size.$scope.$stream.Gauge
 ```
 
 - General Metrics.
-````
+```
 cache_size_bytes
 cache_gen
 thread_pool_queue_size
 thread_pool_active_threads
-````
+```
 # 6. Useful links
 * [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

@@ -48,7 +48,7 @@ The external APIs to manage ReaderGroups could be added to the StreamManager obj
     ReaderGroup getReaderGroup(String name, Stream stream);
     void deleteReaderGroup(ReaderGroup group);
 ```
-When a ReaderGroup is created, it creates a StateSynchronizer() shared by the readers. To join a ReaderGroup readers would just specify it in their configuration:
+When a ReaderGroup is created, it creates a [StateSynchronizer](state-synchronizer-design.md) shared by the readers. To join a ReaderGroup readers would just specify it in their configuration:
 ```
     ReaderConfig cc = new ReaderConfig(props);
     Reader<T> reader = a_stream.createReader("my_reader_id", "my_reader_group", cc);
