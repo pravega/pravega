@@ -213,7 +213,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private void issueRequestIfNeeded() {
         //compute read length based on current offset up to which the events are read.
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable(), readLength);
-        if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && buffer.capacityAvailable() >= updatedReadLength && outstandingRequest == null) {
+        if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && outstandingRequest == null) {
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
