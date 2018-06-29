@@ -20,6 +20,7 @@ import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /**
  * The segments that within a stream at a particular point in time.
@@ -28,15 +29,19 @@ import lombok.EqualsAndHashCode;
 public class StreamSegments {
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
     private final NavigableMap<Double, Segment> segments;
+    @Getter
+    private final String delegationToken;
 
     /**
      * Creates a new instance of the StreamSegments class.
      *
      * @param segments Segments of a stream, keyed by the largest key in their key range.
      *                 i.e. If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
+     * @param delegationToken Delegation token to access the segments in the segmentstore
      */
-    public StreamSegments(NavigableMap<Double, Segment> segments) {
+    public StreamSegments(NavigableMap<Double, Segment> segments, String delegationToken) {
         this.segments = Collections.unmodifiableNavigableMap(segments);
+        this.delegationToken = delegationToken;
         verifySegments();
     }
 
@@ -64,9 +69,9 @@ public class StreamSegments {
     
     public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
         NavigableMap<Double, Segment> result = new TreeMap<>();
-        Map<Integer, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
+        Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
-            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentNumber());
+            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentId());
             if (replacements == null || replacements.isEmpty()) {
                 result.put(exitingSegment.getKey(), exitingSegment.getValue());
             } else {
@@ -75,6 +80,11 @@ public class StreamSegments {
                 }
             }
         }
-        return new StreamSegments(result);
+        return new StreamSegments(result, delegationToken);
+    }
+    
+    @Override
+    public String toString() {
+        return "StreamSegments:" + segments.toString();
     }
 }

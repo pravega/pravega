@@ -29,6 +29,7 @@ public class CheckpointStateTest {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("foo", ImmutableSet.of(), Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("foo"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
     
     @Test
@@ -44,6 +45,9 @@ public class CheckpointStateTest {
         Map<Segment, Long> completedCheckpoint = state.getPositionsForCompletedCheckpoint("foo");
         assertNotNull(completedCheckpoint);
         assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L), completedCheckpoint);
+        state.clearCheckpointsBefore("foo");
+        assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L),
+                state.getPositionsForLatestCompletedCheckpoint().get());
     }
 
     @Test
@@ -56,9 +60,31 @@ public class CheckpointStateTest {
         state.readerCheckpointed("foo", "a", Collections.emptyMap());
         assertEquals(null, state.getCheckpointForReader("a"));
         assertEquals("foo", state.getCheckpointForReader("b"));
-        state.clearCheckpointsThrough("foo");
+        state.clearCheckpointsBefore("foo");
         assertEquals(null, state.getCheckpointForReader("a"));
-        assertEquals(null, state.getCheckpointForReader("b"));
+        assertEquals("foo", state.getCheckpointForReader("b"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
+    }
+    
+    @Test
+    public void testCheckpointsCleared() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("2", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        state.beginNewCheckpoint("3", ImmutableSet.of("a", "b"), Collections.emptyMap());
+        assertEquals("1", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        assertEquals(null, state.getCheckpointForReader("c"));
+        state.readerCheckpointed("1", "a", Collections.emptyMap());
+        assertEquals("2", state.getCheckpointForReader("a"));
+        assertEquals("1", state.getCheckpointForReader("b"));
+        state.clearCheckpointsBefore("2");
+        assertEquals("2", state.getCheckpointForReader("a"));
+        assertEquals("2", state.getCheckpointForReader("b"));
+        state.clearCheckpointsBefore("3");
+        assertEquals("3", state.getCheckpointForReader("a"));
+        assertEquals("3", state.getCheckpointForReader("b"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
 
     private Segment getSegment(String name) {

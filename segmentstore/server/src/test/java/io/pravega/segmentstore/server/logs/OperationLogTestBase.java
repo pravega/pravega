@@ -27,7 +27,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.InMemoryStateStore;
 import io.pravega.segmentstore.server.containers.StreamSegmentMapper;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
@@ -37,9 +37,9 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -53,8 +53,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.Cleanup;
@@ -72,7 +72,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 10;
+        return 3;
     }
 
     //region Creating Segments
@@ -101,7 +101,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata,
                                                      OperationLog durableLog, Storage storage) {
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, ForkJoinPool.commonPool());
+                storage, executorService());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
@@ -129,7 +129,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
-                UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
+                UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId);
                 transactionMetadata.setLength(0);
                 transactionMetadata.setStorageLength(0);
             }
@@ -145,14 +145,15 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                                                              ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, ForkJoinPool.commonPool());
+                storage, executorService());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 long transactionId = mapper
-                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), null, Duration.ZERO)
-                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
+                        .createNewStreamSegment(transactionName, null, Duration.ZERO)
+                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(transactionName, Duration.ZERO)).join();
                 result.put(transactionId, streamSegmentId);
             }
         }
@@ -210,11 +211,11 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
         // Merge Transactions.
         if (mergeTransactions) {
-            // Key = TransactionId, Value = Parent Id.
+            // Key = Source Segment Id, Value = Target Segment Id.
             transactionIds.entrySet().forEach(mapping -> {
                 result.add(new StreamSegmentSealOperation(mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
-                result.add(new MergeTransactionOperation(mapping.getValue(), mapping.getKey()));
+                result.add(new MergeSegmentOperation(mapping.getValue(), mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
             addProbe(result);
@@ -315,12 +316,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return ex instanceof DataCorruptionException
                 || ex instanceof IllegalContainerStateException
                 || ex instanceof ObjectClosedException
+                || ex instanceof CancellationException
                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 
     /**
      * Given a list of LogOperations, calculates the final lengths of the StreamSegments that are encountered, by inspecting
-     * every StreamSegmentAppendOperation and MergeTransactionOperation. All other types of Log Operations are ignored.
+     * every StreamSegmentAppendOperation and MergeSegmentOperation. All other types of Log Operations are ignored.
      */
     private AbstractMap<Long, Integer> getExpectedLengths(Collection<OperationWithCompletion> operations) {
         HashMap<Long, Integer> result = new HashMap<>();
@@ -336,13 +338,13 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 result.put(
                         appendOperation.getStreamSegmentId(),
                         result.getOrDefault(appendOperation.getStreamSegmentId(), 0) + appendOperation.getData().length);
-            } else if (o.operation instanceof MergeTransactionOperation) {
-                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
+            } else if (o.operation instanceof MergeSegmentOperation) {
+                MergeSegmentOperation mergeOperation = (MergeSegmentOperation) o.operation;
 
                 result.put(
                         mergeOperation.getStreamSegmentId(),
-                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) + result.getOrDefault(mergeOperation.getTransactionSegmentId(), 0));
-                result.remove(mergeOperation.getTransactionSegmentId());
+                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) + result.getOrDefault(mergeOperation.getSourceSegmentId(), 0));
+                result.remove(mergeOperation.getSourceSegmentId());
             }
         }
 
@@ -351,7 +353,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
     /**
      * Given a list of Log Operations, generates an InputStream for each encountered StreamSegment that contains the final
-     * contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and MergeTransactionOperation.
+     * contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and MergeSegmentOperation.
      */
     private AbstractMap<Long, InputStream> getExpectedContents(Collection<OperationWithCompletion> operations) {
         HashMap<Long, List<ByteArrayInputStream>> partialContents = new HashMap<>();
@@ -371,17 +373,17 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 }
 
                 segmentContents.add(new ByteArrayInputStream(appendOperation.getData()));
-            } else if (o.operation instanceof MergeTransactionOperation) {
-                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
+            } else if (o.operation instanceof MergeSegmentOperation) {
+                MergeSegmentOperation mergeOperation = (MergeSegmentOperation) o.operation;
                 List<ByteArrayInputStream> targetSegmentContents = partialContents.get(mergeOperation.getStreamSegmentId());
                 if (targetSegmentContents == null) {
                     targetSegmentContents = new ArrayList<>();
                     partialContents.put(mergeOperation.getStreamSegmentId(), targetSegmentContents);
                 }
 
-                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(mergeOperation.getTransactionSegmentId());
+                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(mergeOperation.getSourceSegmentId());
                 targetSegmentContents.addAll(sourceSegmentContents);
-                partialContents.remove(mergeOperation.getTransactionSegmentId());
+                partialContents.remove(mergeOperation.getSourceSegmentId());
             }
         }
 
@@ -399,20 +401,14 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     //region FailedStreamSegmentAppendOperation
 
     static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
-        private final boolean failAtBeginning;
 
-        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
+        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base) {
             super(base.getStreamSegmentId(), base.getData(), base.getAttributeUpdates());
-            this.failAtBeginning = failAtBeginning;
         }
 
         @Override
-        protected void serializeContent(DataOutputStream target) throws IOException {
-            if (!this.failAtBeginning) {
-                super.serializeContent(target);
-            }
-
-            throw new IOException("intentional failure");
+        public long getStreamSegmentId() {
+            throw new IntentionalException("intentional failure");
         }
     }
 

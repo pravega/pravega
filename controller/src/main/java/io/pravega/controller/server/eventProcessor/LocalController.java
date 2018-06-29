@@ -14,40 +14,48 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.NotImplementedException;
+
+import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
 
     private ControllerService controller;
+    private final String tokenSigningKey;
+    private final boolean authorizationEnabled;
 
-    public LocalController(ControllerService controller) {
+    public LocalController(ControllerService controller, boolean authorizationEnabled, String tokenSigningKey) {
         this.controller = controller;
+        this.tokenSigningKey = tokenSigningKey;
+        this.authorizationEnabled = authorizationEnabled;
     }
 
     @Override
@@ -130,10 +138,13 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
-        throw new NotImplementedException("truncation using StreamCut object not supported in local controller");
+        final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
+                                                               .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
+                                                                       Map.Entry::getValue));
+        return truncateStream(scope, stream, segmentToOffsetMap);
     }
 
-    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
         return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
@@ -190,7 +201,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                                    final Map<Double, Double> newKeyRanges,
                                                    final ScheduledExecutorService executor) {
         CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
@@ -217,7 +228,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> startScale(final Stream stream,
-                                                  final List<Integer> sealedSegments,
+                                                  final List<Long> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         return startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .thenApply(x -> {
@@ -253,7 +264,7 @@ public class LocalController implements Controller {
                 });
     }
 
-    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Long> sealedSegments,
                                                                 final Map<Double, Double> newKeyRanges) {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
@@ -277,13 +288,13 @@ public class LocalController implements Controller {
         for (SegmentRange r : ranges) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        return new StreamSegments(rangeMap);
+        return new StreamSegments(rangeMap, retrieveDelegationToken());
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease, scaleGracePeriod)
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease)
                 .thenApply(pair -> new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey()));
     }
 
@@ -329,30 +340,67 @@ public class LocalController implements Controller {
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
                 .thenApply(x -> {
-                    Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
+                    Map<SegmentWithRange, List<Long>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
-                    return new StreamSegmentsWithPredecessors(map);
+                    return new StreamSegmentsWithPredecessors(map, retrieveDelegationToken());
                 });
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        throw new NotImplementedException("getSuccessors");
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
+        return getSegments(from, StreamCut.UNBOUNDED);
+    }
+
+    @Override
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Stream stream = fromStreamCut.asImpl().getStream();
+        return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
+                getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)))
+                .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
+                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.segmentId()))
+                                .collect(Collectors.toList()), retrieveDelegationToken()))
+                .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
+                response.getDelegationToken()));
     }
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
-                    segment.getSegmentNumber())).thenApply(ModelHelper::encode);
+                    segment.getSegmentId())).thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
-        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     @Override
     public void close() {
+    }
+
+    public String retrieveDelegationToken() {
+        if (authorizationEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return StringUtils.EMPTY;
+        }
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        String retVal = "";
+        if (authorizationEnabled) {
+            retVal = PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        }
+        return CompletableFuture.completedFuture(retVal);
+    }
+
+    private Map<Long, Long> getStreamCutMap(StreamCut streamCut) {
+        if (streamCut.equals(StreamCut.UNBOUNDED)) {
+            return Collections.emptyMap();
+        }
+        return streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 }

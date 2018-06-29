@@ -21,6 +21,15 @@ public interface Container extends Service, AutoCloseable {
      */
     int getId();
 
+    /**
+     * Gets a value indicating whether the Container is in an Offline state. When in such a state, even if state() == Service.State.RUNNING,
+     * all operations invoked on it will fail with ContainerOfflineException.
+     *
+     * @return True if the Container is Offline, false if Online.
+     */
+    boolean isOffline();
+
+
     @Override
     void close();
 }

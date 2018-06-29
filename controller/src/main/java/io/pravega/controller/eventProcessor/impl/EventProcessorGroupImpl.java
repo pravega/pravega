@@ -10,6 +10,7 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.stream.Stream;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -23,7 +24,6 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.Sequence;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
@@ -33,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,21 +92,20 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         }
 
         // Continue creating reader group if adding reader group to checkpoint store succeeds.
-
         readerGroup = createIfNotExists(
                 actorSystem.readerGroupManager,
                 eventProcessorConfig.getConfig().getReaderGroupName(),
-                ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
-                Collections.singleton(eventProcessorConfig.getConfig().getStreamName()));
+                ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                 .stream(Stream.of(actorSystem.getScope(), eventProcessorConfig.getConfig().getStreamName())).build());
 
         createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount() - eventProcessorMap.values().size());
     }
 
     private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
                                           final String groupName,
-                                          final ReaderGroupConfig groupConfig,
-                                          final Set<String> streamNanes) {
-        return readerGroupManager.createReaderGroup(groupName, groupConfig, streamNanes);
+                                          final ReaderGroupConfig groupConfig) {
+        readerGroupManager.createReaderGroup(groupName, groupConfig);
+        return readerGroupManager.getReaderGroup(groupName);
     }
 
     private List<String> createEventProcessors(final int count) throws CheckpointStoreException {
@@ -187,7 +185,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 } catch (CheckpointStoreException e) {
                     log.warn("Error removing reader group " + this.objectId, e);
                 }
-
+                readerGroup.close();
                 log.info("Shutdown of {} complete", this.toString());
             } finally {
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);

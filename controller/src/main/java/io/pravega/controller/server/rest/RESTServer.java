@@ -9,26 +9,25 @@
  */
 package io.pravega.controller.server.rest;
 
+import com.google.common.util.concurrent.AbstractIdleService;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import io.pravega.controller.server.ControllerService;
-
+import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.ws.rs.core.UriBuilder;
-
-import com.google.common.util.concurrent.AbstractIdleService;
+import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Netty REST server implementation.
@@ -42,7 +41,7 @@ public class RESTServer extends AbstractIdleService {
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(ControllerService controllerService, RESTServerConfig restServerConfig) {
+    public RESTServer(LocalController localController, ControllerService controllerService, PravegaAuthManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
@@ -50,7 +49,7 @@ public class RESTServer extends AbstractIdleService {
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
-        resourceObjs.add(new StreamMetadataResourceImpl(controllerService));
+        resourceObjs.add(new StreamMetadataResourceImpl(localController, controllerService, pravegaAuthManager, connectionFactory));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
         this.resourceConfig = ResourceConfig.forApplication(controllerApplication);

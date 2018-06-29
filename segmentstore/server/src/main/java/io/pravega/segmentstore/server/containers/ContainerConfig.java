@@ -28,25 +28,32 @@ public class ContainerConfig {
             5 * MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("maxActiveSegmentCount", 10000);
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("maxConcurrentSegmentEvictionCount", 250);
+    public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("maxCachedExtendedAttributeCount", 4096);
     private static final String COMPONENT_CODE = "containers";
 
     /**
      * The amount of time after which Segments are eligible for eviction from the metadata.
      */
     @Getter
-    private Duration segmentMetadataExpiration;
+    private final Duration segmentMetadataExpiration;
 
     /**
      * The maximum number of segments that can be active at any given time in a container.
      */
     @Getter
-    private int maxActiveSegmentCount;
+    private final int maxActiveSegmentCount;
 
     /**
      * The maximum number of segments to evict at once.
      */
     @Getter
-    private int maxConcurrentSegmentEvictionCount;
+    private final int maxConcurrentSegmentEvictionCount;
+
+    /**
+     * The maximum number of cached Extended Attributes that are allowed.
+     */
+    @Getter
+    private final int maxCachedExtendedAttributeCount;
 
     //endregion
 
@@ -73,6 +80,11 @@ public class ContainerConfig {
         this.maxConcurrentSegmentEvictionCount = properties.getInt(MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
         if (this.maxConcurrentSegmentEvictionCount <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CONCURRENT_SEGMENT_EVICTION_COUNT));
+        }
+
+        this.maxCachedExtendedAttributeCount = properties.getInt(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
+        if (this.maxCachedExtendedAttributeCount <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT));
         }
     }
 

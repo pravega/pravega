@@ -9,30 +9,35 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.util.Config;
-import io.pravega.shared.controller.event.AbortEvent;
-import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
+import io.pravega.controller.util.Config;
+import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -83,6 +88,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
+    private final boolean authorizationEnabled;
+    private final String tokenSigningKey;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -98,13 +105,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -115,7 +126,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory, boolean authorizationEnabled, String tokenSigningKey) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -123,6 +134,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
+        this.authorizationEnabled = authorizationEnabled;
+        this.tokenSigningKey = tokenSigningKey;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -131,9 +144,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory) {
+                                          final ConnectionFactory connectionFactory,
+                                          boolean authorizationEnabled,
+                                          String tokenSigningKey) {
         this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory);
+                TimeoutServiceConfig.defaultConfig(), connectionFactory, authorizationEnabled, tokenSigningKey);
     }
 
     protected void setReady() {
@@ -196,7 +211,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope              stream scope.
      * @param stream             stream name.
      * @param lease              Time for which transaction shall remain open with sending any heartbeat.
-     * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
      * @return transaction id.
@@ -204,11 +218,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
                                                                                       final String stream,
                                                                                       final long lease,
-                                                                                      final long scaleGracePeriod,
                                                                                       final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, scaleGracePeriod, context);
+            return createTxnBody(scope, stream, lease, context);
         }, executor);
     }
 
@@ -297,84 +310,110 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope               scope name.
      * @param stream              stream name.
      * @param lease               txn lease.
-     * @param scaleGracePeriod    amount of time for which txn may remain open after scale operation is initiated.
      * @param ctx                 context.
      * @return                    identifier of the created txn.
      */
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
-                                                                                   final long scaleGracePeriod,
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
-        CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
+        CompletableFuture<Void> validate = validate(lease);
         long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
-        UUID txnId = UUID.randomUUID();
-        TxnResource resource = new TxnResource(scope, stream, txnId);
+        // 1. get latest epoch from history
+        // 2. generateNewTransactionId.. this step can throw WriteConflictException
+        // 3. txn id = 32 bit epoch + 96 bit counter
+        // 4. if while creating txn epoch no longer exists, then we will get DataNotFoundException.
+        // 5. Retry if we get WriteConflict or DataNotFoundException, from step 1.
+        // Note: this is a low probability for either exceptions:
+        // - WriteConflict, if multiple controllers are trying to get new range at the same time then we can get write conflict
+        // - DataNotFoundException because it will only happen in rare case
+        // when we generate the transactionid against latest epoch (if there is ongoing scale then this is new epoch)
+        // and then epoch node is deleted as scale starts and completes.
+        return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
+                streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
+                .thenCompose(txnId -> {
+                    CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId);
 
+                    // Step 3. Create txn node in the store.
+                    CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
+                            ctx, maxExecutionPeriod, txnId, addIndex);
+
+                    // Step 4. Notify segment stores about new txn.
+                    CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                            streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
+
+                    CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
+                            notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+                            // Method notifyTxnCreation ensures that notification completes
+                            // even in the presence of n/w or segment store failures.
+                            log.trace("Txn={}, notified segments stores", txnId));
+
+                    // Step 5. Start tracking txn in timeout service
+                    return notify.whenCompleteAsync((result, ex) -> {
+                        addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
+                    }, executor).thenApplyAsync(v -> {
+                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                            long generalizedSegmentId = TableHelper.generalizedSegmentId(x.segmentId(), txnId);
+                            return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                        }).collect(Collectors.toList());
+
+                        return new ImmutablePair<>(txnFuture.join(), segments);
+                    }, executor);
+                }), e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
+        }, 5, executor));
+    }
+
+    private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId, CompletableFuture<VersionedTransactionData> txnFuture) {
+        int version = 0;
+        long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
+        if (!txnFuture.isCompletedExceptionally()) {
+            version = txnFuture.join().getVersion();
+            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+        }
+        timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime);
+        log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
+    }
+
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease,
+                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         CompletableFuture<Void> addIndex) {
+        return addIndex.thenComposeAsync(ignore ->
+                                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
+                                        ctx, executor), executor).whenComplete((v, e) -> {
+                            if (e != null) {
+                                log.debug("Txn={}, failed creating txn in store", txnId);
+                            } else {
+                                log.debug("Txn={}, created in store", txnId);
+                            }
+                        });
+    }
+
+    private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId) {
+        TxnResource resource = new TxnResource(scope, stream, txnId);
         // Step 2. Add txn to host-transaction index.
-        CompletableFuture<Void> addIndex = validate.thenComposeAsync(ignore ->
-                streamMetadataStore.addTxnToIndex(hostId, resource, 0), executor).whenComplete((v, e) -> {
+        return streamMetadataStore.addTxnToIndex(hostId, resource, 0)
+                .whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
                         log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
                     }
                 });
-
-        // Step 3. Create txn node in the store.
-        CompletableFuture<VersionedTransactionData> txnFuture = addIndex.thenComposeAsync(ignore ->
-                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
-                        scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
-                    if (e != null) {
-                        log.debug("Txn={}, failed creating txn in store", txnId);
-                    } else {
-                        log.debug("Txn={}, created in store", txnId);
-                    }
-                });
-
-        // Step 4. Notify segment stores about new txn.
-        CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
-
-        CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
-                // Method notifyTxnCreation ensures that notification completes
-                // even in the presence of n/w or segment store failures.
-                log.debug("Txn={}, notified segments stores", txnId));
-
-        // Step 5. Start tracking txn in timeout service
-        return notify.whenCompleteAsync((result, ex) -> {
-            int version = 0;
-            long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
-            if (!txnFuture.isCompletedExceptionally()) {
-                version = txnFuture.join().getVersion();
-                executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
-            }
-            timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
-            log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
-        }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
     }
 
     @SuppressWarnings("ReturnCount")
-    private CompletableFuture<Void> validate(long lease, long scaleGracePeriod) {
+    private CompletableFuture<Void> validate(long lease) {
         if (lease < Config.MIN_LEASE_VALUE) {
             return Futures.failedFuture(new IllegalArgumentException("lease should be greater than minimum lease"));
         }
-        if (scaleGracePeriod <= 0) {
-            return Futures.failedFuture(
-                    new IllegalArgumentException("scaleGracePeriod should be a positive number"));
-        }
-        // If scaleGracePeriod is larger than maxScaleGracePeriod return error
-        if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
-            return Futures.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
-                    + timeoutService.getMaxScaleGracePeriod()));
-        }
         // If lease value is too large return error
-        if (lease > scaleGracePeriod || lease > timeoutService.getMaxLeaseValue()) {
+        if (lease > timeoutService.getMaxLeaseValue()) {
             return Futures.failedFuture(new IllegalArgumentException("lease value too large, max value is "
-                    + Math.min(scaleGracePeriod, timeoutService.getMaxLeaseValue())));
+                    + timeoutService.getMaxLeaseValue()));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -433,7 +472,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
         return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
             // Step 1. Sanity check for lease value.
-            if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
+            if (lease > timeoutService.getMaxLeaseValue()) {
                 return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));
             } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
                 return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
@@ -465,7 +504,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return pingTxn.thenApplyAsync(data -> {
                         int version = data.getVersion();
                         long expiryTime = data.getMaxExecutionExpiryTime();
-                        long scaleGracePeriod = data.getScaleGracePeriod();
                         // Even if timeout service has an active/executing timeout task for this txn, it is bound
                         // to fail, since version of txn node has changed because of the above store.pingTxn call.
                         // Hence explicitly add a new timeout task.
@@ -474,7 +512,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             log.debug("Txn={}, extending lease in timeout service", txnId);
                             timeoutService.pingTxn(scope, stream, txnId, version, lease);
                         } else {
-                            timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
+                            timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime);
                         }
                         return createStatus(Status.OK);
                     }, executor);
@@ -580,7 +618,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
@@ -615,18 +653,18 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final int segmentNumber, final UUID txnId) {
+                                                      final long segmentId, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
-                segmentNumber,
+                segmentId,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory), executor);
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -641,6 +679,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final String stream,
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+    }
+
+    public String retrieveDelegationToken() {
+        if (authorizationEnabled) {
+            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+        } else {
+            return "";
+        }
     }
 
     @Override

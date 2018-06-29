@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -16,11 +17,7 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.Futures;
-import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
+import io.pravega.common.hash.RandomFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +27,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A class that determines to which segment an event associated with a routing key will go. This is
@@ -45,7 +46,7 @@ public class SegmentSelector {
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
     @GuardedBy("$lock")
-    private final Random random = new Random();
+    private final Random random = RandomFactory.create();
     @GuardedBy("$lock")
     private StreamSegments currentSegments;
     @GuardedBy("$lock")
@@ -82,9 +83,20 @@ public class SegmentSelector {
     public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
             segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
-                controller.getSuccessors(sealedSegment), RuntimeException::new);
-        return updateSegmentsUponSealed(currentSegments.withReplacementRange(successors), sealedSegment,
-                segmentSealedCallback);
+                controller.getSuccessors(sealedSegment), t -> {
+                    log.error("Error while fetching successors for segment: {}", sealedSegment, t);
+                    return null;
+                });
+
+        if (successors == null) {
+            // Stream is deleted, complete all pending writes exceptionally.
+            log.error("Stream is deleted, all pending writes will be completed exceptionally");
+            removeAllWriters().forEach(event -> event.getAckFuture()
+                    .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
+            return Collections.emptyList();
+        } else {
+            return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
+        }
     }
 
     /**
@@ -95,6 +107,7 @@ public class SegmentSelector {
      *         re-sent.
      */
     public List<PendingEvent> refreshSegmentEventWriters(Consumer<Segment> segmentSealedCallBack) {
+        log.info("Refreshing segments for stream {}", stream);
         return updateSegments(Futures.getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new),
                 segmentSealedCallBack);
@@ -104,13 +117,14 @@ public class SegmentSelector {
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
             segmentSealedCallBack) {
         currentSegments = newSteamSegments;
-        createMissingWriters(segmentSealedCallBack);
+        createMissingWriters(segmentSealedCallBack, newSteamSegments.getDelegationToken());
         List<PendingEvent> toResend = new ArrayList<>();
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
             Entry<Segment, SegmentOutputStream> entry = iter.next();
             if (!currentSegments.getSegments().contains(entry.getKey())) {
                 SegmentOutputStream writer = entry.getValue();
+                log.info("Closing writer {} on segment {} during segment refresh", writer, entry.getKey());
                 iter.remove();
                 try {
                     writer.close();
@@ -124,20 +138,31 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    private List<PendingEvent> updateSegmentsUponSealed(StreamSegments newStreamSegments, Segment sealedSegment,
+    private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
-        currentSegments = newStreamSegments;
-        createMissingWriters(segmentSealedCallback);
-        log.trace("Fetch unacked events for segment :{}", sealedSegment);
-        List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
-        writers.remove(sealedSegment); //remove this sealed segment writer.
-        return toResend;
+        currentSegments = currentSegments.withReplacementRange(successors);
+        createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
+        log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
+        return writers.remove(sealedSegment).getUnackedEventsOnSeal();
     }
 
-    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
+    @Synchronized
+    private List<PendingEvent> removeAllWriters() {
+        //get all pending events.
+        List<PendingEvent> pendingEvents = new ArrayList<>();
+        writers.values().forEach(out -> {
+            pendingEvents.addAll(out.getUnackedEventsOnSeal());
+        });
+        // remove all writers.
+        writers.clear();
+        return pendingEvents;
+    }
+
+    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config);
+                log.debug("Creating writer for segment {}", segment);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config, delegationToken);
                 writers.put(segment, out);
             }
         }

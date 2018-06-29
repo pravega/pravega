@@ -9,14 +9,12 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.util.HashMap;
 import java.util.UUID;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -24,6 +22,8 @@ import org.junit.Test;
  * Unit tests for the SegmentState class.
  */
 public class SegmentStateTests {
+    private static final UUID CORE_ATTRIBUTE = Attributes.EVENT_COUNT;
+
     /**
      * Tests the serialization/deserialization of the class.
      */
@@ -32,24 +32,24 @@ public class SegmentStateTests {
         final int maxAttributeCount = 10;
         for (int attributeCount = 0; attributeCount < maxAttributeCount; attributeCount++) {
             SegmentState original = create(attributeCount);
-            EnhancedByteArrayOutputStream innerStream = new EnhancedByteArrayOutputStream();
-            DataOutputStream stream = new DataOutputStream(innerStream);
-            original.serialize(stream);
-            stream.flush();
+            val s = SegmentState.SERIALIZER.serialize(original);
 
-            ByteArraySegment serialization = innerStream.getData();
-            SegmentState deserialized = SegmentState.deserialize(new DataInputStream(serialization.getReader()));
+            SegmentState deserialized = SegmentState.SERIALIZER.deserialize(s);
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
             Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());
-            AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
+            val expectedAttributes = Attributes.getCoreNonNullAttributes(original.getAttributes());
+            AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
         }
     }
 
     private SegmentState create(int attributeCount) {
         HashMap<UUID, Long> attributes = new HashMap<>();
-        for (int i = 0; i < attributeCount; i++) {
-            attributes.put(UUID.randomUUID(), (long) i);
+
+        // One Core Attribute, and the rest are all Extended Attributes.
+        attributes.put(CORE_ATTRIBUTE, (long) attributes.size());
+        while (attributes.size() < attributeCount) {
+            attributes.put(UUID.randomUUID(), (long) attributes.size());
         }
 
         return new SegmentState(attributeCount, StreamSegmentInformation

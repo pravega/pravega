@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
@@ -101,8 +102,9 @@ public final class ServiceStarter {
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, statsRecorder);
+        TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
+                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");
@@ -142,9 +144,9 @@ public final class ServiceStarter {
         builder.withDataLogFactory(setup -> {
             switch (this.serviceConfig.getDataLogTypeImplementation()) {
                 case BOOKKEEPER:
-                    return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor());
+                    return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getCoreExecutor());
                 case INMEMORY:
-                    return new InMemoryDurableDataLogFactory(setup.getExecutor());
+                    return new InMemoryDurableDataLogFactory(setup.getCoreExecutor());
                 default:
                     throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getDataLogTypeImplementation());
             }
@@ -160,15 +162,15 @@ public final class ServiceStarter {
             switch (this.serviceConfig.getStorageImplementation()) {
                 case HDFS:
                     HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                    return new HDFSStorageFactory(hdfsConfig, setup.getStorageExecutor());
                 case FILESYSTEM:
                     FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                    return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                    return new FileSystemStorageFactory(fsConfig, setup.getStorageExecutor());
                 case EXTENDEDS3:
                     ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getStorageExecutor());
                 case INMEMORY:
-                    return new InMemoryStorageFactory(setup.getExecutor());
+                    return new InMemoryStorageFactory(setup.getStorageExecutor());
                 default:
                     throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getStorageImplementation());
             }
@@ -181,7 +183,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
-                        setup.getExecutor()));
+                        setup.getCoreExecutor()));
     }
 
     private CuratorFramework createZKClient() {
@@ -225,6 +227,12 @@ public final class ServiceStarter {
 
         try {
             serviceStarter.get().start();
+        } catch (Throwable e) {
+            log.error("Could not start the Service, Aborting.", e);
+            System.exit(1);
+        }
+
+        try {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 log.info("Caught interrupt signal...");
                 serviceStarter.get().shutdown();
@@ -235,6 +243,7 @@ public final class ServiceStarter {
             log.info("Caught interrupt signal...");
         } finally {
             serviceStarter.get().shutdown();
+            System.exit(0);
         }
     }
 

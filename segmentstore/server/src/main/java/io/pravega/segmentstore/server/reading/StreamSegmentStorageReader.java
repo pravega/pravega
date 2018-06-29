@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import java.io.ByteArrayInputStream;
@@ -21,7 +22,6 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Helps read Segment data directly from Storage.
@@ -45,7 +45,35 @@ public final class StreamSegmentStorageReader {
         Preconditions.checkNotNull(segmentInfo, "segmentInfo");
         Preconditions.checkNotNull(storage, "storage");
         String traceId = String.format("Read[%s]", segmentInfo.getName());
-        return new StreamSegmentReadResult(startOffset, maxReadLength, new SegmentReader(segmentInfo, readBlockSize, storage), traceId);
+        return new StreamSegmentReadResult(startOffset, maxReadLength, new SegmentReader(segmentInfo, null, readBlockSize, storage), traceId);
+    }
+
+    /**
+     * Reads a range of bytes from a Segment in Storage.
+     *
+     * @param handle        A SegmentHandle pointing to the Segment to read from.
+     * @param startOffset   The first offset within the Segment to read from.
+     * @param maxReadLength The maximum number of bytes to read.
+     * @param readBlockSize The maximum number of bytes to read at once (the returned StreamSegmentReadResult will be
+     *                      broken down into Entries smaller than or equal to this size).
+     * @param storage       A ReadOnlyStorage to execute the reads against.
+     * @return A StreamSegmentReadResult that can be used to process the data. This will be made up of ReadResultEntries
+     * of the following types: Storage, Truncated or EndOfSegment.
+     */
+    public static StreamSegmentReadResult read(SegmentHandle handle, long startOffset, int maxReadLength, int readBlockSize, ReadOnlyStorage storage) {
+        Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
+        Exceptions.checkArgument(maxReadLength >= 0, "maxReadLength", "maxReadLength must be a non-negative number.");
+        Preconditions.checkNotNull(handle, "handle");
+        Preconditions.checkNotNull(storage, "storage");
+        String traceId = String.format("Read[%s]", handle.getSegmentName());
+
+        // Build a SegmentInfo using the information we are given. If startOffset or length are incorrect, the underlying
+        // ReadOnlyStorage will throw appropriate exceptions at the caller.
+        StreamSegmentInformation segmentInfo = StreamSegmentInformation.builder().name(handle.getSegmentName())
+                .startOffset(startOffset)
+                .length(startOffset + maxReadLength)
+                .build();
+        return new StreamSegmentReadResult(startOffset, maxReadLength, new SegmentReader(segmentInfo, handle, readBlockSize, storage), traceId);
     }
 
     //region SegmentReader
@@ -53,12 +81,18 @@ public final class StreamSegmentStorageReader {
     /**
      * Helper class responsible with constructing the individual StreamSegmentReadResult entries.
      */
-    @RequiredArgsConstructor
     private static class SegmentReader implements StreamSegmentReadResult.NextEntrySupplier {
         private final SegmentProperties segmentInfo;
         private final int readBlockSize;
         private final ReadOnlyStorage storage;
-        private final AtomicReference<SegmentHandle> handle = new AtomicReference<>();
+        private final AtomicReference<SegmentHandle> handle;
+
+        SegmentReader(SegmentProperties segmentInfo, SegmentHandle handle, int readBlockSize, ReadOnlyStorage storage) {
+            this.segmentInfo = segmentInfo;
+            this.readBlockSize = readBlockSize;
+            this.storage = storage;
+            this.handle = new AtomicReference<>(handle);
+        }
 
         @Override
         public CompletableReadResultEntry apply(Long readOffset, Integer readLength) {

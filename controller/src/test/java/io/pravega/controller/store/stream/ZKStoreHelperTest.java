@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -24,8 +26,8 @@ import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,20 +40,20 @@ public class ZKStoreHelperTest {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private ZKStoreHelper zkStoreHelper;
 
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryNTimes(0, 0));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 100, 100, new RetryNTimes(0, 0));
         cli.start();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
 
     @After
     public void tearDown() throws IOException {
-        executor.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executor);
         cli.close();
         zkServer.close();
     }
@@ -82,5 +84,20 @@ public class ZKStoreHelperTest {
         zkServer.stop();
         AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
+    }
+
+    @Test
+    public void testEphemeralNode() {
+        CuratorFramework cli2 = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryNTimes(0, 0));
+        cli2.start();
+        ZKStoreHelper zkStoreHelper2 = new ZKStoreHelper(cli2, executor);
+
+        Assert.assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
+        Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral").join());
+        zkStoreHelper2.getClient().close();
+        // let session get expired.
+        // now read the data again. Verify that node no longer exists
+        AssertExtensions.assertThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral"), 1000, executor),
+                e -> e instanceof StoreException.DataNotFoundException);
     }
 }

@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -26,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -119,7 +120,7 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(long streamSegmentId, long offset, byte[] data) {
+    public void append(long streamSegmentId, long offset, byte[] data) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
 
@@ -130,7 +131,7 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId) {
+    public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: beginMerge (TargetId = {}, Offset = {}, SourceId = {}).", this.traceObjectId, targetStreamSegmentId, offset, sourceStreamSegmentId);
 
@@ -143,12 +144,19 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+    public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: completeMerge (TargetId = {}, SourceId = {}.", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
 
+        SegmentMetadata sourceMetadata;
+        synchronized (this.lock) {
+            sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceStreamSegmentId);
+        }
+
+        Preconditions.checkState(sourceMetadata != null, "No Metadata found for Segment Id %s.", sourceStreamSegmentId);
+
         StreamSegmentReadIndex targetIndex = getOrCreateIndex(targetStreamSegmentId);
-        targetIndex.completeMerge(sourceStreamSegmentId);
+        targetIndex.completeMerge(sourceMetadata);
         synchronized (this.lock) {
             // Do not clear the Cache after merger - we are reusing the cache entries from the source index in the target one.
             closeIndex(sourceStreamSegmentId, false);
@@ -156,7 +164,7 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
+    public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: read (StreamSegmentId = {}, Offset = {}, MaxLength = {}).", this.traceObjectId, streamSegmentId, offset, maxLength);
 
@@ -166,7 +174,7 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public InputStream readDirect(long streamSegmentId, long offset, int length) {
+    public InputStream readDirect(long streamSegmentId, long offset, int length) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: readDirect (StreamSegmentId = {}, Offset = {}, Length = {}).", this.traceObjectId, streamSegmentId, offset, length);
 
@@ -226,18 +234,17 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public void cleanup(Iterator<Long> segmentIds) {
+    public void cleanup(Collection<Long> segmentIds) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         List<Long> removed = new ArrayList<>();
         List<Long> notRemoved = new ArrayList<>();
         synchronized (this.lock) {
             if (segmentIds == null) {
-                segmentIds = new ArrayList<>(this.readIndices.keySet()).iterator();
+                segmentIds = new ArrayList<>(this.readIndices.keySet());
             }
 
-            while (segmentIds.hasNext()) {
-                long streamSegmentId = segmentIds.next();
+            for (long streamSegmentId : segmentIds) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 boolean wasRemoved = false;
                 if (segmentMetadata == null || segmentMetadata.isDeleted() || !segmentMetadata.isActive()) {
@@ -314,6 +321,11 @@ public class ContainerReadIndex implements ReadIndex {
         log.info("{} Exit RecoveryMode.", this.traceObjectId);
     }
 
+    @Override
+    public double getCacheUtilization() {
+        return this.cacheManager.getCacheUtilization();
+    }
+
     //endregion
 
     //region Helpers
@@ -341,7 +353,7 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param streamSegmentId    The Id of the StreamSegment whose ReadIndex to get.
      */
-    private StreamSegmentReadIndex getOrCreateIndex(long streamSegmentId) {
+    private StreamSegmentReadIndex getOrCreateIndex(long streamSegmentId) throws StreamSegmentNotExistsException {
         StreamSegmentReadIndex index;
         synchronized (this.lock) {
             // Try to see if we have the index already in memory.
@@ -350,9 +362,10 @@ public class ContainerReadIndex implements ReadIndex {
                 // We don't have it, create one.
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId",
-                        "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
-                Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId",
-                        "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
+                        "StreamSegmentId %s does not exist in the metadata.", streamSegmentId);
+                if (segmentMetadata.isDeleted()) {
+                    throw new StreamSegmentNotExistsException(segmentMetadata.getName());
+                }
 
                 index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor, isRecoveryMode());
                 this.cacheManager.register(index);

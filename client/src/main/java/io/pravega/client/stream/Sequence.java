@@ -9,8 +9,9 @@
  */
 package io.pravega.client.stream;
 
+import java.io.ObjectStreamException;
 import java.io.Serializable;
-
+import java.util.UUID;
 import lombok.Data;
 
 /**
@@ -21,6 +22,7 @@ import lombok.Data;
 public class Sequence implements Comparable<Sequence>, Serializable {
     public static final Sequence MAX_VALUE = new Sequence(Long.MAX_VALUE, Long.MAX_VALUE);
     public static final Sequence MIN_VALUE = new Sequence(Long.MIN_VALUE, Long.MIN_VALUE);
+    private static final long serialVersionUID = 1L;
     private final long highOrder;
     private final long lowOrder;
     
@@ -31,5 +33,18 @@ public class Sequence implements Comparable<Sequence>, Serializable {
             return Long.compare(lowOrder, o.lowOrder);
         }
         return result;
+    }
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(new UUID(highOrder, lowOrder));
+    }
+    
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private final UUID value;
+        Object readResolve() throws ObjectStreamException {
+            return new Sequence(value.getMostSignificantBits(), value.getLeastSignificantBits());
+        }
     }
 }

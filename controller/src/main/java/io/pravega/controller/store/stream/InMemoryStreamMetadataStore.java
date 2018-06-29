@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.lang.AtomicInt96;
+import io.pravega.common.lang.Int96;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.index.InMemoryHostIndex;
@@ -55,6 +57,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicReference<BucketOwnershipListener> ownershipListenerRef;
 
     private final ConcurrentMap<Integer, BucketChangeListener> listeners;
+    private final AtomicInt96 counter;
 
     private final Executor executor;
 
@@ -63,6 +66,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
         this.ownershipListenerRef = new AtomicReference<>();
+        this.counter = new AtomicInt96();
     }
 
     @Override
@@ -73,6 +77,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         } else {
             return new InMemoryStream(scope, name);
         }
+    }
+
+    @Override
+    CompletableFuture<Int96> getNextCounter() {
+        return CompletableFuture.completedFuture(counter.incrementAndGet());
     }
 
     @Override
@@ -189,7 +198,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy,
+                                                                   OperationContext context, Executor executor) {
+        Preconditions.checkNotNull(retentionPolicy);
         int bucket = getBucket(scope, stream);
         List<String> list;
         if (bucketedStreams.containsKey(bucket)) {

@@ -18,13 +18,15 @@ import io.pravega.client.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
+import java.net.InetAddress;
+
 public class StartWriter {
 
     public static void main(String[] args) throws Exception {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                                                                "localhost",
-                                                                StartLocalService.PORT);
+                                                                InetAddress.getLocalHost().getHostAddress(),
+                                                                StartLocalService.SERVICE_PORT);
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
         MockClientFactory clientFactory = streamManager.getClientFactory();
@@ -32,7 +34,6 @@ public class StartWriter {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(),
                                                                            EventWriterConfig.builder()
                                                                                             .transactionTimeoutTime(60000)
-                                                                                            .transactionTimeoutScaleGracePeriod(60000)
                                                                                             .build());
         Transaction<String> transaction = writer.beginTxn();
 

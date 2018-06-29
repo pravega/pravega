@@ -32,18 +32,18 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback,
-                                                                EventWriterConfig config) {
+                                                                EventWriterConfig config, String delegationToken) {
         return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), controller, cf,
-                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config));
+                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken) {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf,
-                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config));
+                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
         try {
             result.getConnection();
-        } catch (RetriesExhaustedException | SegmentSealedException e) {
+        } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;

@@ -14,7 +14,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import java.nio.ByteBuffer;
 
 /**
- * Defines a InputStream for a single segment. 
+ * Defines a InputStream for a single segment.
  * Once created the offset must be provided by calling setOffset.
  * The next read will proceed from this offset. Subsequent reads will read from where the previous
  * one left off. (Parallel calls to read data will be serialized)
@@ -38,9 +38,7 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return The current offset.
      */
     public abstract long getOffset();
-    
 
-    
     /**
      * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent
      * blocking. If there is no event after timeout null will be returned. EndOfSegmentException indicates the
@@ -49,8 +47,9 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
+     * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    public default ByteBuffer read() throws EndOfSegmentException {
+    public default ByteBuffer read() throws EndOfSegmentException, SegmentTruncatedException {
         return read(Long.MAX_VALUE);
     }
     
@@ -67,8 +66,9 @@ public interface SegmentInputStream extends AutoCloseable {
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
      * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
+     * @throws SegmentTruncatedException If the segment has been truncated beyond the current offset and the data cannot be read.
      */
-    public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException;
+    public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException, SegmentTruncatedException;
     
     /**
      * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.

@@ -10,21 +10,20 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.client.stream.RetentionPolicy;
-
-import java.util.Arrays;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,6 +31,7 @@ import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ModelHelperTest {
 
@@ -39,7 +39,7 @@ public class ModelHelperTest {
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
-    private static Segment createSegmentId(String streamName, int number) {
+    private static Segment createSegmentId(String streamName, long number) {
         return new Segment("scope", streamName, number);
     }
 
@@ -62,7 +62,7 @@ public class ModelHelperTest {
         SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamInfo().getStream());
         assertEquals("scope", segmentID.getStreamInfo().getScope());
-        assertEquals(2, segmentID.getSegmentNumber());
+        assertEquals(2, segmentID.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -72,10 +72,10 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2)));
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1", 2L)));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
-        assertEquals(2, segment.getSegmentNumber());
+        assertEquals(2L, segment.getSegmentId());
     }
 
     @Test(expected = NullPointerException.class)
@@ -186,10 +186,10 @@ public class ModelHelperTest {
     public void createSuccessorResponse() {
         Controller.SegmentRange segmentRange = createSegmentRange(0.1, 0.5);
 
-        Map<Controller.SegmentRange, List<Integer>> inputMap = new HashMap<>(1);
-        inputMap.put(segmentRange, Arrays.asList(1));
+        Map<Controller.SegmentRange, List<Long>> inputMap = new HashMap<>(1);
+        inputMap.put(segmentRange, Arrays.asList(1L));
 
-        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap);
+        Controller.SuccessorResponse successorResponse = ModelHelper.createSuccessorResponse(inputMap).build();
         Assert.assertEquals(1, successorResponse.getSegmentsCount());
         final SegmentId resultSegmentID = successorResponse.getSegments(0).getSegment().getSegmentId();
         assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
@@ -197,10 +197,34 @@ public class ModelHelperTest {
     }
 
     @Test
+    public void testStreamCutRequestAndResponse() {
+        List<SegmentId> segments = Collections.singletonList(SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
+                setScope("testScope").setStream("testStream")).build());
+        AssertExtensions.assertThrows("invalid scope and stream", () -> ModelHelper.createStreamCutRangeResponse("scope",
+                "stream", segments, ""), e -> e instanceof IllegalArgumentException);
+
+        Controller.StreamCutRangeResponse response = ModelHelper.createStreamCutRangeResponse("testScope", "testStream", segments, "");
+        Assert.assertEquals(1, response.getSegmentsCount());
+        final SegmentId resultSegmentID = response.getSegments(0);
+        assertEquals("testScope", resultSegmentID.getStreamInfo().getScope());
+        assertEquals("testStream", resultSegmentID.getStreamInfo().getStream());
+        assertEquals(0L, resultSegmentID.getSegmentId());
+    }
+
+    @Test
+    public void testStreamCutRange() {
+        Map<Long, Long> from = Collections.singletonMap(0L, 0L);
+        Map<Long, Long> to = Collections.singletonMap(1L, 0L);
+        Controller.StreamCutRange response = ModelHelper.decode("scope", "stream", from, to);
+        assertTrue(response.getFromMap().containsKey(0L));
+        assertTrue(response.getToMap().containsKey(1L));
+    }
+
+    @Test
     public void encodeSegmentRange() {
         Controller.SegmentRange range = createSegmentRange(0.1, 0.5);
         SegmentWithRange result = ModelHelper.encode(range);
-        assertEquals(0, result.getSegment().getSegmentNumber());
+        assertEquals(0, result.getSegment().getSegmentId());
         assertEquals("testScope", result.getSegment().getScope());
         assertEquals("testStream", result.getSegment().getStreamName());
 
@@ -228,7 +252,7 @@ public class ModelHelperTest {
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {
         SegmentId.Builder segment = SegmentId.newBuilder().setStreamInfo(Controller.StreamInfo.newBuilder().
-                setScope("testScope").setStream("testStream")).setSegmentNumber(0);
+                setScope("testScope").setStream("testStream")).setSegmentId(0);
         return Controller.SegmentRange.newBuilder().setSegmentId(segment)
                 .setMinKey(minKey).setMaxKey(maxKey).build();
     }

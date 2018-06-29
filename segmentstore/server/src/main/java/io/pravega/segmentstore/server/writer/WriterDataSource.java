@@ -9,11 +9,15 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -36,6 +40,38 @@ interface WriterDataSource {
     CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout);
 
     /**
+     * Instructs the Data Source to durably persist the given Attributes, which have been collected for recently flushed
+     * appends.
+     *
+     * @param streamSegmentId The Id of the StreamSegment to persist for.
+     * @param attributes      The Attributes to persist (Key=AttributeId, Value=Attribute Value).
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, this Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout);
+
+    /**
+     * Instructs the DataSource to seal and compact the Attribute Index for the given Segment.
+     *
+     * @param streamSegmentId The Id of the StreamSegment to seal Attributes for.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, the Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout);
+
+    /**
+     * Instructs the DataSource to delete the Attribute Index for the given Segment.
+     *
+     * @param segmentMetadata The metadata for the Segment to delete attributes for.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation
+     * failed, the Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout);
+
+    /**
      * Reads a number of entries from the Data Source.
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
@@ -51,8 +87,9 @@ interface WriterDataSource {
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
+     * @throws StreamSegmentNotExistsException If targetStreamSegmentId is mapped to a Segment that is marked as Deleted.
      */
-    void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
+    void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) throws StreamSegmentNotExistsException;
 
     /**
      * Gets an InputStream representing uncommitted data in a Segment.
@@ -78,13 +115,6 @@ interface WriterDataSource {
      * @param operationSequenceNumber The Sequence number to query.
      */
     long getClosestValidTruncationPoint(long operationSequenceNumber);
-
-    /**
-     * Marks the StreamSegment as deleted in the Container Metadata.
-     *
-     * @param streamSegmentName The name of the StreamSegment to delete.
-     */
-    void deleteStreamSegment(String streamSegmentName);
 
     /**
      * Gets the StreamSegmentMetadata mapped to the given StreamSegment Id.

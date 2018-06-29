@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -97,9 +98,31 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     }
 
     @Override
-    public DurableDataLog createDurableDataLog(int containerId) {
+    public DurableDataLog createDurableDataLog(int logId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
-        return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    /**
+     * Creates a new DebugLogWrapper that can be used for debugging purposes. This should not be used for regular operations.
+     *
+     * @param logId Id of the Log to create a wrapper for.
+     * @return A new instance of the DebugLogWrapper class.
+     */
+    public DebugLogWrapper createDebugLogWrapper(int logId) {
+        Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
+        return new DebugLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    /**
+     * Gets a pointer to the BookKeeper client used by this BookKeeperLogFactory. This should only be used for testing or
+     * admin tool purposes only. It should not be used for regular operations.
+     *
+     * @return The BookKeeper client.
+     */
+    @VisibleForTesting
+    public BookKeeper getBookKeeperClient() {
+        return this.bookKeeper.get();
     }
 
     //endregion
@@ -107,14 +130,23 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Initialization
 
     private BookKeeper startBookKeeperClient() throws Exception {
-        // AddEntryTimeout is in Seconds, not Millis.
-        int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        // These two are in Seconds, not Millis.
+        int writeTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
+        int readTimeout = (int) Math.ceil(this.config.getBkReadTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
                 .setClientTcpNoDelay(true)
-                .setAddEntryTimeout(entryTimeout)
+                .setAddEntryTimeout(writeTimeout)
+                .setReadEntryTimeout(readTimeout)
+                .setGetBookieInfoTimeout(readTimeout)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis());
+
+        if (this.config.isTLSEnabled()) {
+            config = (ClientConfiguration) config.setTLSProvider("OpenSSL");
+            config = config.setTLSTrustStore(this.config.getTlsTrustStore());
+        }
+
         if (this.config.getBkLedgerPath().isEmpty()) {
             config.setZkLedgersRootPath("/" + this.namespace + "/bookkeeper/ledgers");
         } else {

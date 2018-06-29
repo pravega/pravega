@@ -10,6 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -19,7 +20,8 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
@@ -30,7 +32,6 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -47,9 +48,9 @@ import lombok.SneakyThrows;
 class ClientReader implements StoreReader, AutoCloseable {
     //region Members
     private static final ReaderConfig READER_CONFIG = ReaderConfig.builder().build();
-    private static final ReaderGroupConfig READER_GROUP_CONFIG = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+    private static final int MAX_READ_ATTEMPTS = 4;
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
-            .withExpBackoff(1, 10, 4)
+            .withExpBackoff(1, 10, MAX_READ_ATTEMPTS)
             .retryingOn(ReinitializationRequiredException.class)
             .throwingOn(Exception.class);
     private final URI controllerUri;
@@ -150,8 +151,14 @@ class ClientReader implements StoreReader, AutoCloseable {
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
             this.readerId = UUID.randomUUID().toString().replace("-", "");
-            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, ClientReader.this.controllerUri)) {
-                readerGroupManager.createReaderGroup(this.readerGroup, READER_GROUP_CONFIG, Collections.singleton(streamName));
+            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
+                    ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
+                            .trustStore("../../config/cert.pem")
+                            .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                            .validateHostName(false).build())) {
+                readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
+                                                                                        .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
+                                                                                        .build());
             }
 
             this.closed = false;
@@ -190,15 +197,25 @@ class ClientReader implements StoreReader, AutoCloseable {
 
         @SneakyThrows
         private void readNextItem(Consumer<ReadItem> eventHandler) {
-            EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(ClientReader.this.testConfig.getTimeout().toMillis()));
-            if (readResult.getEvent() == null) {
-                // We are done.
-                close();
-                return;
+            int readAttempts = MAX_READ_ATTEMPTS;
+            long timeoutMillis = ClientReader.this.testConfig.getTimeout().toMillis();
+            while (readAttempts-- > 0) {
+                EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(timeoutMillis));
+                if (readResult.getEvent() == null && readAttempts > 0) {
+                    // EventStreamReader.readNextEvent() will return null if we get no new events within the given timeout.
+                    // Retry the read up to the maximum allowed number of times before giving up.
+                    Thread.sleep(timeoutMillis / MAX_READ_ATTEMPTS);
+                } else if (readResult.getEvent() == null) {
+                    // We are done.
+                    close();
+                    return;
+                } else {
+                    StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
+                    eventHandler.accept(readItem);
+                    return;
+                }
             }
 
-            StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
-            eventHandler.accept(readItem);
         }
 
         private StreamReadItem toReadItem(byte[] data, EventPointer address) {

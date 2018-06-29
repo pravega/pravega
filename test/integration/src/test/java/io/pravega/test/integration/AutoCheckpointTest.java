@@ -16,7 +16,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Sequence;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
@@ -26,7 +26,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestUtils;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -57,12 +56,12 @@ public class AutoCheckpointTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(10000)
+                                                         .stream(Stream.of(scope, streamName))
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         populateEvents(streamName, testString, clientFactory, serializer);
 
@@ -108,12 +107,12 @@ public class AutoCheckpointTest {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
-                                                         .startingPosition(Sequence.MIN_VALUE)
                                                          .automaticCheckpointIntervalMillis(1000)
+                                                         .stream(Stream.of(scope, streamName))
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
-        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
         populateEvents(streamName, testString, clientFactory, serializer);
         AtomicLong fakeClock = new AtomicLong(0);

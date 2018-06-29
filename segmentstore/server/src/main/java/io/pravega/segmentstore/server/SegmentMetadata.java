@@ -18,19 +18,9 @@ import java.util.HashMap;
  */
 public interface SegmentMetadata extends SegmentProperties {
     /**
-     * Defines an attribute value that denotes a missing value.
-     */
-    Long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
-
-    /**
      * Gets a value indicating the id of this StreamSegment.
      */
     long getId();
-
-    /**
-     * Gets a value indicating the id of this StreamSegment's parent.
-     */
-    long getParentId();
 
     /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
@@ -76,14 +66,5 @@ public interface SegmentMetadata extends SegmentProperties {
      */
     default SegmentProperties getSnapshot() {
         return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
-    }
-
-    /**
-     * Determines whether the Segment represented by this SegmentMetadata is a Transaction.
-     *
-     * @return True if Transaction, False otherwise.
-     */
-    default boolean isTransaction() {
-        return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 }

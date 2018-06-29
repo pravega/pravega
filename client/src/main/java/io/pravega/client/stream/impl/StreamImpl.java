@@ -9,17 +9,16 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.stream.Stream;
 import com.google.common.base.Preconditions;
-
+import java.io.ObjectStreamException;
+import java.io.Serializable;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
-/**
- * An implementation of a stream for the special case where the stream is only ever composed of one segment.
- */
 @Data
-public class StreamImpl implements Stream {
+public class StreamImpl implements StreamInternal, Serializable {
 
+    private static final long serialVersionUID = 1L;
     private final String scope;
     private final String streamName;
 
@@ -35,15 +34,18 @@ public class StreamImpl implements Stream {
         this.scope = scope;
         this.streamName = streamName;
     }
-
-    @Override
-    public String getScopedName() {
-        StringBuffer sb = new StringBuffer();
-        if (scope != null) {
-            sb.append(scope);
-            sb.append('/');
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(getScopedName());
+    }
+    
+    @Data
+    @AllArgsConstructor
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String value;
+        Object readResolve() throws ObjectStreamException {
+            return StreamInternal.fromScopedName(value);
         }
-        sb.append(streamName);
-        return sb.toString();
     }
 }
