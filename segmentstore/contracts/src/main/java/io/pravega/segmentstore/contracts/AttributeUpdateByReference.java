@@ -60,6 +60,20 @@ public class AttributeUpdateByReference extends AttributeUpdate {
     }
 
     /**
+     * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
+     *
+     * @param idReference The Reference to evaluate in order to determine AttributeId.
+     * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
+     * @param value       The AttributeValue to set..
+     */
+    public AttributeUpdateByReference(@Nonnull Reference<UUID> idReference, @Nonnull AttributeUpdateType updateType, long value) {
+        super(null, updateType, value);
+        this.idReference = Preconditions.checkNotNull(idReference, "idReference");
+        this.valueReference = null;
+        this.valueSet = true;
+    }
+
+    /**
      * Creates a new instance of the AttributeUpdateByReference class.
      *
      * @param attributeId     The AttributeId to update.
@@ -70,20 +84,6 @@ public class AttributeUpdateByReference extends AttributeUpdate {
     public AttributeUpdateByReference(@Nonnull UUID attributeId, @Nonnull AttributeUpdateType updateType, @Nonnull Reference<Long> valueReference, long comparisonValue) {
         super(attributeId, updateType, Attributes.NULL_ATTRIBUTE_VALUE, comparisonValue);
         this.idReference = null;
-        this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
-    }
-
-    /**
-     * Creates a new instance of the AttributeUpdateByReference class.
-     *
-     * @param idReference     The Reference to evaluate in order to determine AttributeId.
-     * @param updateType      The UpdateType. All update types except ReplaceIfEquals work with this method.
-     * @param valueReference The Reference to evaluate in order to determine Attribute Value.
-     * @param comparisonValue The value to compare against.
-     */
-    public AttributeUpdateByReference(@Nonnull Reference<UUID> idReference, @Nonnull AttributeUpdateType updateType, @Nonnull Reference<Long> valueReference, long comparisonValue) {
-        super(null, updateType, Attributes.NULL_ATTRIBUTE_VALUE, comparisonValue);
-        this.idReference = Preconditions.checkNotNull(idReference, "idReference");
         this.valueReference = Preconditions.checkNotNull(valueReference, "valueReference");
     }
 

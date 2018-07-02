@@ -498,6 +498,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
      */
     private long getAttributeValue(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        Reference<Long> ref = updateByRef.getValueReference();
+        if (ref == null) {
+            // The exact value was passed in. No need to evaluate anything else.
+            return updateByRef.getValue();
+        }
+
         return getReferenceValue(updateByRef.getValueReference(), updateByRef);
     }
 
