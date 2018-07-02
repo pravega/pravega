@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CircularBuffer;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
@@ -111,15 +112,16 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        log.trace("Read called at offset {}", offset);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         long originalOffset = offset;
+        long traceId = LoggerHelpers.traceEnter(log, "read", getSegmentId(), originalOffset, timeout);
         boolean success = false;
         try {
             ByteBuffer result = readEventData(timeout);
             success = true;
             return result;
         } finally {
+            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout);
             if (!success) {
                 outstandingRequest = null;
                 offset = originalOffset;
@@ -214,6 +216,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         //compute read length based on current offset up to which the events are read.
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable(), readLength);
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && buffer.capacityAvailable() >= updatedReadLength && outstandingRequest == null) {
+            log.trace("Issuing read request for segment {} of {} bytes", getSegmentId(), updatedReadLength);
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
@@ -261,7 +264,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public boolean canReadWithoutBlocking() {
         boolean result = receivedEndOfSegment || buffer.dataAvailable() > 0 || (outstandingRequest != null && Futures.isSuccessful(outstandingRequest));
-        log.trace("canReadWithoutBlocking {}", result);
+        log.trace("canReadWithoutBlocking {} on segment {} status is {}", result, getSegmentId(), this);
         return result;
     }
 
