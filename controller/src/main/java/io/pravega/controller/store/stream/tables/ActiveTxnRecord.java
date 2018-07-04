@@ -9,44 +9,40 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-
-import io.pravega.common.util.BitConverter;
+import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.tables.serializers.ActiveTxnRecordSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 
 @Data
+@Builder
+@AllArgsConstructor
+@Slf4j
 public class ActiveTxnRecord {
-    private static final int ACTIVE_TXN_RECORD_SIZE = 4 * Long.BYTES + Integer.BYTES;
+    public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
+
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
-    private final long scaleGracePeriod;
     private final TxnStatus txnStatus;
 
-    public static ActiveTxnRecord parse(final byte[] bytes) {
-        final int longSize = Long.BYTES;
+    public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
 
-        final long txCreationTimestamp = BitConverter.readLong(bytes, 0);
-
-        final long leaseExpiryTime = BitConverter.readLong(bytes, longSize);
-
-        final long maxExecutionExpiryTime = BitConverter.readLong(bytes, 2 * longSize);
-
-        final long scaleGracePeriod = BitConverter.readLong(bytes, 3 * longSize);
-
-        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, 4 * longSize)];
-
-        return new ActiveTxnRecord(txCreationTimestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, status);
     }
 
-    public byte[] toByteArray() {
-        byte[] b = new byte[ACTIVE_TXN_RECORD_SIZE];
-        BitConverter.writeLong(b, 0, txCreationTimestamp);
-        BitConverter.writeLong(b, Long.BYTES, leaseExpiryTime);
-        BitConverter.writeLong(b, 2 * Long.BYTES, maxExecutionExpiryTime);
-        BitConverter.writeLong(b, 3 * Long.BYTES, scaleGracePeriod);
-        BitConverter.writeInt(b, 4 * Long.BYTES, txnStatus.ordinal());
+    @SneakyThrows(IOException.class)
+    public static ActiveTxnRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
+    }
 
-        return b;
+    @SneakyThrows(IOException.class)
+    public byte[] toByteArray() {
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

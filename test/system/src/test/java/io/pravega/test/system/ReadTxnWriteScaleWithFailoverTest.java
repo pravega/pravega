@@ -42,7 +42,9 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
@@ -53,6 +55,10 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_READERS = 5;
     private static final int NUM_WRITERS = 5;
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(32 * 60);
+
     private final String scope = "testReadTxnWriteScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -130,14 +136,13 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
-        executorService.shutdownNow();
-        controllerExecutorService.shutdownNow();
+        ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 30 * 60 * 1000)
+    @Test
     public void readTxnWriteScaleWithFailoverTest() throws Exception {
         try {
             createWriters(clientFactory, NUM_WRITERS, scope, stream);
@@ -164,7 +169,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             keyRanges.put(0.8, 1.0);
 
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, stream),
-                    Collections.singletonList(0),
+                    Collections.singletonList(0L),
                     keyRanges,
                     executorService).getFuture();
             Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));

@@ -15,6 +15,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -28,11 +31,14 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -60,6 +66,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, AppendData> appendData;
     @GuardedBy("lock")
+    private final HashMap<Long, Map<UUID, Long>> attributeData;
+    @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
     @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
@@ -79,6 +87,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
+    private ErrorInjector<Exception> persistAttributesErrorInjector;
+    @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
     @GuardedBy("lock")
     private Runnable onGetAppendData;
@@ -97,6 +107,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.executor = executor;
         this.config = config;
         this.appendData = new HashMap<>();
+        this.attributeData = new HashMap<>();
         this.log = new SequencedItemList<>();
         this.lastAddedCheckpoint = new AtomicLong(0);
         this.waitFullyAcked = null;
@@ -230,6 +241,64 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
+    public CompletableFuture<Void> persistAttributes(long streamSegmentId, Map<UUID, Long> attributes, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        ErrorInjector<Exception> asyncErrorInjector;
+        synchronized (this.lock) {
+            asyncErrorInjector = this.persistAttributesErrorInjector;
+        }
+
+        return ErrorInjector
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
+                    synchronized (this.lock) {
+                        // We use "null" as an indication that the attribute data is deleted, hence the extra work here.
+                        Map<UUID, Long> segmentAttributes;
+                        if (this.attributeData.containsKey(streamSegmentId)) {
+                            segmentAttributes = this.attributeData.get(streamSegmentId);
+                        } else {
+                            segmentAttributes = new HashMap<>();
+                            this.attributeData.put(streamSegmentId, segmentAttributes);
+                        }
+
+                        if (segmentAttributes == null) {
+                            throw new CompletionException(new StreamSegmentNotExistsException(Long.toString(streamSegmentId)));
+                        }
+                        try {
+                            for (val e : attributes.entrySet()) {
+                                if (e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
+                                    segmentAttributes.remove(e.getKey());
+                                } else {
+                                    segmentAttributes.put(e.getKey(), e.getValue());
+                                }
+                            }
+                        } catch (UnsupportedOperationException ex) {
+                            // This is turned into an UnmodifiableMap, which throws UnsupportedOperationException for modify calls.
+                            throw new CompletionException(new StreamSegmentSealedException("attributes_" + streamSegmentId, ex));
+                        }
+                    }
+                }, this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> sealAttributes(long streamSegmentId, Duration timeout) {
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this.lock) {
+                Map<UUID, Long> segmentAttributes = this.attributeData.computeIfAbsent(streamSegmentId, k -> new HashMap<>());
+                this.attributeData.put(streamSegmentId, Collections.unmodifiableMap(segmentAttributes));
+            }
+        }, this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout) {
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this.lock) {
+                this.attributeData.put(segmentMetadata.getId(), null);
+            }
+        }, this.executor);
+    }
+
+    @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
@@ -334,6 +403,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
     }
 
+    void setPersistAttributesErrorInjector(ErrorInjector<Exception> injector) {
+        synchronized (this.lock) {
+            this.persistAttributesErrorInjector = injector;
+        }
+    }
+
     void setReadSyncErrorInjector(ErrorInjector<Exception> injector) {
         synchronized (this.lock) {
             this.readSyncErrorInjector = injector;
@@ -400,6 +475,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             }
 
             return this.waitFullyAcked;
+        }
+    }
+
+    /**
+     * Gets a copy of all the attributes so far.
+     */
+    Map<UUID, Long> getPersistedAttributes(long segmentId) {
+        synchronized (this.lock) {
+            val m = this.attributeData.get(segmentId);
+            return m == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(m));
         }
     }
 

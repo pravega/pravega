@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -56,7 +57,6 @@ public class SegmentStatsFactory implements AutoCloseable {
 
     @Override
     public void close() {
-        executor.shutdown();
-        maintenanceExecutor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor, maintenanceExecutor);
     }
 }

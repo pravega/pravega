@@ -9,32 +9,38 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-
-import io.pravega.common.util.BitConverter;
+import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.tables.serializers.CompletedTxnRecordSerializer;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 
 @Data
+@Builder
+@AllArgsConstructor
+@Slf4j
 public class CompletedTxnRecord {
-    private static final int COMPLETED_TXN_RECORD_SIZE = Long.BYTES + Integer.BYTES;
+    public static final CompletedTxnRecordSerializer SERIALIZER = new CompletedTxnRecordSerializer();
 
     private final long completeTime;
     private final TxnStatus completionStatus;
 
-    public static CompletedTxnRecord parse(final byte[] bytes) {
-        final long completeTimeStamp = BitConverter.readLong(bytes, 0);
+    public static class CompletedTxnRecordBuilder implements ObjectBuilder<CompletedTxnRecord> {
 
-        final TxnStatus status = TxnStatus.values()[BitConverter.readInt(bytes, Long.BYTES)];
-
-        return new CompletedTxnRecord(completeTimeStamp, status);
     }
 
+    @SneakyThrows(IOException.class)
+    public static CompletedTxnRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
+    }
+
+    @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
-        byte[] b = new byte[COMPLETED_TXN_RECORD_SIZE];
-        BitConverter.writeLong(b, 0, completeTime);
-        BitConverter.writeInt(b, Long.BYTES, completionStatus.ordinal());
-
-        return b;
+        return SERIALIZER.serialize(this).getCopy();
     }
-
 }

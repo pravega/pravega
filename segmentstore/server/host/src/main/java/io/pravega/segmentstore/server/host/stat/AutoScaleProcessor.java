@@ -21,7 +21,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
@@ -117,7 +116,6 @@ public class AutoScaleProcessor {
                         if (configuration.isAuthEnabled()) {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
                                                 .trustStore(configuration.getTlsCertFile())
                                                 .build());
                         } else {
@@ -156,7 +154,7 @@ public class AutoScaleProcessor {
                 log.info("sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -178,7 +176,7 @@ public class AutoScaleProcessor {
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
+                        segment.getSegmentId(), AutoScaleEvent.DOWN, timestamp, 0, silent);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
                         // mute only scale downs

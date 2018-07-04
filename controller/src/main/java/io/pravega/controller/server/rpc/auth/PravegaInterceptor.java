@@ -49,14 +49,16 @@ public class PravegaInterceptor implements ServerInterceptor {
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
 
         Map<String, String> paramMap = new HashMap<>();
-        headers.keys().stream().forEach(key -> {
-            try {
-                paramMap.put(key,
-                        headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
-            } catch (IllegalArgumentException e) {
-                log.warn("Error while marshalling some of the headers", e);
-            }
-        });
+        headers.keys().stream()
+               .filter(key -> !key.endsWith(Metadata.BINARY_HEADER_SUFFIX))
+               .forEach(key -> {
+                   try {
+                       paramMap.put(key,
+                               headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
+                   } catch (IllegalArgumentException e) {
+                       log.warn("Error while marshalling some of the headers {}", e.toString());
+                   }
+               });
         String method = paramMap.get("method");
         Context context = Context.current();
         if (!Strings.isNullOrEmpty(method)) {
@@ -69,6 +71,9 @@ public class PravegaInterceptor implements ServerInterceptor {
                 context = context.withValue(AUTH_CONTEXT_PARAMS, paramMap);
                 context = context.withValue(INTERCEPTOR_OBJECT, this);
             }
+        } else {
+            call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+            return null;
         }
         return Contexts.interceptCall(context, call, headers, next);
     }

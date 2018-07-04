@@ -10,42 +10,32 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.common.concurrent.Futures;
-import org.junit.After;
-import org.junit.Before;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Test;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class CancellableRequestTest {
+public class CancellableRequestTest extends ThreadPooledTestSuite {
 
-    ScheduledExecutorService executor;
-
-    @Before
-    public void setUp() {
-        executor = Executors.newSingleThreadScheduledExecutor();
-    }
-
-    @After
-    public void tearDown() {
-        executor.shutdown();
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
     }
 
     @Test
     public void testTermination() {
         CancellableRequest<Boolean> request = new CancellableRequest<>();
-        request.start(() -> CompletableFuture.completedFuture(null), any -> true, executor);
+        request.start(() -> CompletableFuture.completedFuture(null), any -> true, executorService());
         assertTrue(Futures.await(request.getFuture()));
     }
 
     @Test
-    public void testCancellation() throws InterruptedException {
+    public void testCancellation() {
         CancellableRequest<Boolean> request = new CancellableRequest<>();
-        request.start(() -> CompletableFuture.completedFuture(null), any -> false, executor);
+        request.start(() -> CompletableFuture.completedFuture(null), any -> false, executorService());
         assertFalse(request.getFuture().isDone());
         request.cancel();
         assertTrue(request.getFuture().isDone());

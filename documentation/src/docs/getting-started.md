@@ -26,10 +26,10 @@ Java 8
 
 Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
 If you prefer to build Pravega yourself, you can download the code and run `./gradlew distribution`. More 
-details are shown in the Pravega [README.md](https://github.com/pravega/pravega/blob/master/README.md).
+details are shown in the Pravega [README.md](../../../README.md).
 
 ```
-$ tar xfvz pravega-0.1.0.tgz
+$ tar xfvz pravega-<version>.tgz
 ```
 
 **Run Pravega in standalone mode**
@@ -40,7 +40,7 @@ in Production! More options for [Running Pravega](deployment/deployment.md) are
 covered in the running Pravega guide.           
 
 ```
-$ cd pravega-0.1.0
+$ cd pravega-<version>
 $ bin/pravega-standalone
 ```
 
@@ -57,7 +57,7 @@ Lets download and run the "Hello World" Pravega sample reader and writer apps. P
 dependencies will be pulled from maven central.
 
 Note: The samples can also use a locally compiled version of Pravega. For more information
-about this see the note on maven publishing in the [README.md](https://github.com/pravega/pravega/blob/master/README.md).
+about this see the note on maven publishing in the [README.md](../../../README.md).
 
 **Download the Pravega-Samples git repo**
 
@@ -76,7 +76,7 @@ $ ./gradlew installDist
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
-$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
 $ bin/helloWorldWriter
 ```
 _Example HelloWorldWriter output_
@@ -85,13 +85,13 @@ _Example HelloWorldWriter output_
 Writing message: 'hello world' with routing-key: 'helloRoutingKey' to stream 'examples / helloStream'
 ...
 ```
-See the [readme.md](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md) file in the standalone-examples for more details
+See the [readme.md](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md) file in the standalone-examples for more details
     on running the HelloWorldWriter with different parameters
 
 **Run the sample "HelloWorldReader"**
 
 ```
-$ cd pravega-samples/standalone-examples/build/install/pravega-standalone-examples
+$ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
 $ bin/helloWorldReader
 ```
 
@@ -105,5 +105,5 @@ No more events from examples/helloStream
 ...
 ```
 
-See the readme.md file in the standalone-examples for more details on running the
+See the readme.md file in the pravega-client-examples for more details on running the
     HelloWorldReader application

@@ -12,6 +12,7 @@ package io.pravega.common.hash;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import java.util.Arrays;
 import java.util.UUID;
 
 public class HashHelper {
@@ -61,6 +62,12 @@ public class HashHelper {
 
     public int hashToBucket(String str, int numBuckets) {
         return Hashing.consistentHash(hash.hashUnencodedChars(str), numBuckets);
+    }
+
+    public int hashToBucket(UUID uuid, int numBuckets) {
+        return Hashing.consistentHash(
+                Hashing.combineOrdered(Arrays.asList(hash.hashLong(uuid.getMostSignificantBits()), hash.hashLong(uuid.getLeastSignificantBits()))),
+                numBuckets);
     }
 
     /**

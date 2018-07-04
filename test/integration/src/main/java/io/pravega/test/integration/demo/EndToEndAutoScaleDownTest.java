@@ -84,7 +84,7 @@ public class EndToEndAutoScaleDownTest {
             map.put(0.33, 0.66);
             map.put(0.66, 1.0);
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+            controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
 
             Retry.withExpBackoff(10, 10, 100, 10000)
                     .retryingOn(NotDoneException.class)

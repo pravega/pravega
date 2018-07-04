@@ -21,7 +21,7 @@ import lombok.Getter;
 /**
  * Log Operation that represents an Update to a Segment's Attribute collection.
  */
-public class UpdateAttributesOperation extends MetadataOperation implements SegmentOperation {
+public class UpdateAttributesOperation extends MetadataOperation implements AttributeUpdaterOperation {
     //region Members
 
     @Getter

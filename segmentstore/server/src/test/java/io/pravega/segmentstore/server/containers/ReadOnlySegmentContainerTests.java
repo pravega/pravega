@@ -9,7 +9,9 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.util.AsyncMap;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -69,7 +71,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
                 .thenCompose(v -> context.storage.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT)).join();
         val expectedInfo = StreamSegmentInformation.from(storageInfo)
                 .startOffset(storageInfo.getLength() / 2)
-                .attributes(Collections.singletonMap(UUID.randomUUID(), 100L))
+                .attributes(ImmutableMap.of(UUID.randomUUID(), 100L, Attributes.EVENT_COUNT, 1L))
                 .build();
         context.stateStore.put(SEGMENT_NAME, new SegmentState(1, expectedInfo), TIMEOUT).join();
 
@@ -79,7 +81,8 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected Length.", expectedInfo.getLength(), actual.getLength());
         Assert.assertEquals("Unexpected Sealed status.", expectedInfo.isSealed(), actual.isSealed());
         Assert.assertEquals("Unexpected Start Offset.", expectedInfo.getStartOffset(), actual.getStartOffset());
-        AssertExtensions.assertMapEquals("Unexpected Attributes.", expectedInfo.getAttributes(), actual.getAttributes());
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(expectedInfo.getAttributes());
+        AssertExtensions.assertMapEquals("Unexpected Attributes.", expectedAttributes, actual.getAttributes());
     }
 
     /**
@@ -144,8 +147,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("sealStreamSegment", () -> context.container.sealStreamSegment(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("truncateStreamSegment", () -> context.container.truncateStreamSegment(SEGMENT_NAME, 0, TIMEOUT));
         assertUnsupported("deleteStreamSegment", () -> context.container.deleteStreamSegment(SEGMENT_NAME, TIMEOUT));
-        assertUnsupported("createTransaction", () -> context.container.createTransaction(SEGMENT_NAME, UUID.randomUUID(), null, TIMEOUT));
-        assertUnsupported("mergeTransaction", () -> context.container.mergeTransaction(SEGMENT_NAME, TIMEOUT));
+        assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

@@ -9,20 +9,21 @@
  */
 package io.pravega.controller.task;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
@@ -90,6 +91,7 @@ public class TaskTest {
     private final StreamMetadataTasks streamMetadataTasks;
     private final SegmentHelper segmentHelperMock;
     private final CuratorFramework cli;
+    private ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated;
 
     public TaskTest() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -130,24 +132,26 @@ public class TaskTest {
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments = Collections.singletonList(1);
-        StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
-        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        List<Long> sealedSegments = Collections.singletonList(1L);
+        EpochTransitionRecord response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
+        segmentsCreated = response.getNewSegmentsWithRange();
         streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStore.scaleCreateNewSegments(SCOPE, stream1, null, executor).get();
+        streamStore.scaleCreateNewSegments(SCOPE, stream1, false, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), null, executor).get();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
+        List<Long> sealedSegments1 = Arrays.asList(0L, 1L, 2L);
         response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
-        segmentsCreated = response .getSegmentsCreated();
+        segmentsCreated = response.getNewSegmentsWithRange();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
                 null, executor).get();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         // endregion
     }
 
@@ -157,7 +161,7 @@ public class TaskTest {
         cli.close();
         zkServer.stop();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test
@@ -215,8 +219,8 @@ public class TaskTest {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                 .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final ArrayList<Integer> sealSegments = new ArrayList<>();
-        sealSegments.add(0);
+        final ArrayList<Long> sealSegments = new ArrayList<>();
+        sealSegments.add(0L);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));

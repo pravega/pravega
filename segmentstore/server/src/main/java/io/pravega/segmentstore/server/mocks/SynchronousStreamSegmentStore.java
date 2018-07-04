@@ -16,6 +16,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -54,6 +55,13 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        CompletableFuture<Map<UUID, Long>> result = impl.getAttributes(streamSegmentName, attributeIds, cache, timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         CompletableFuture<ReadResult> result = impl.read(streamSegmentName, offset, maxLength, timeout);
         Futures.await(result);
@@ -76,16 +84,8 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId,
-                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
-        CompletableFuture<String> result = impl.createTransaction(parentStreamSegmentName, transactionId, attributes, timeout);
-        Futures.await(result);
-        return result;
-    }
-
-    @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        CompletableFuture<Void> result = impl.mergeTransaction(transactionName, timeout);
+    public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+        CompletableFuture<Void> result = impl.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, timeout);
         Futures.await(result);
         return result;
     }

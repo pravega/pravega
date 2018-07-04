@@ -40,11 +40,10 @@ public class EpochTransitionRecordSerializer
     private void read00(RevisionDataInput revisionDataInput,
                         EpochTransitionRecord.EpochTransitionRecordBuilder epochTransitionRecordBuilder) throws IOException {
         epochTransitionRecordBuilder.activeEpoch(revisionDataInput.readInt())
-                .newEpoch(revisionDataInput.readInt())
                 .time(revisionDataInput.readLong());
 
-        ArrayList<Integer> ts = revisionDataInput.readCollection(DataInput::readInt, ArrayList::new);
-        Map<Integer, AbstractMap.SimpleEntry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readInt, this::readValue);
+        ArrayList<Long> ts = revisionDataInput.readCollection(DataInput::readLong, ArrayList::new);
+        Map<Long, AbstractMap.SimpleEntry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readLong, this::readValue);
 
         epochTransitionRecordBuilder
                 .segmentsToSeal(ImmutableSet.copyOf(ts))
@@ -61,10 +60,9 @@ public class EpochTransitionRecordSerializer
 
     private void write00(EpochTransitionRecord epochTransitionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeInt(epochTransitionRecord.getActiveEpoch());
-        revisionDataOutput.writeInt(epochTransitionRecord.getNewEpoch());
         revisionDataOutput.writeLong(epochTransitionRecord.getTime());
-        revisionDataOutput.writeCollection(epochTransitionRecord.getSegmentsToSeal(), DataOutput::writeInt);
-        revisionDataOutput.writeMap(epochTransitionRecord.getNewSegmentsWithRange(), DataOutput::writeInt, this::writeValue);
+        revisionDataOutput.writeCollection(epochTransitionRecord.getSegmentsToSeal(), DataOutput::writeLong);
+        revisionDataOutput.writeMap(epochTransitionRecord.getNewSegmentsWithRange(), DataOutput::writeLong, this::writeValue);
     }
 
     private void writeValue(RevisionDataOutput revisionDataOutput, AbstractMap.SimpleEntry<Double, Double> value) throws IOException {
