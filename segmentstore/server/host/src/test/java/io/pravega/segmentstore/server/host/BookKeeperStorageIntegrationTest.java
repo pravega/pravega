@@ -24,18 +24,13 @@ import org.junit.Before;
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
 public class BookKeeperStorageIntegrationTest extends BookKeeperIntegrationTestBase {
-    //region Test Configuration and Setup
-
-    private static final int BOOKIE_COUNT = 1;
-    private BookKeeperRunner bookkeeper = null;
 
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
-        bookkeeper.initialize();
+        super.setUp();
 
         this.configBuilder.include(BookKeeperStorageConfig
                 .builder()
@@ -52,7 +47,7 @@ public class BookKeeperStorageIntegrationTest extends BookKeeperIntegrationTestB
      */
     @After
     public void tearDown() throws Exception {
-        bookkeeper.close();
+        super.tearDown();
     }
 
     //endregion
