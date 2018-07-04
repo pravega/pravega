@@ -11,7 +11,12 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageFactory;
+import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
+import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -54,8 +59,14 @@ public class BookKeeperStorageIntegrationTest extends BookKeeperIntegrationTestB
 
     //region StreamSegmentStoreTestBase Implementation
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
-        return null;
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
+        ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
+        return ServiceBuilder
+                .newInMemoryBuilder(builderConfig)
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withStorageFactory(setup -> new BookKeeperStorageFactory(setup.getConfig(BookKeeperStorageConfig::builder), bookkeeper.getZkClient(), setup.getStorageExecutor()))
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getCoreExecutor()));
+
     }
 
     //endregion
