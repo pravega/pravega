@@ -24,7 +24,7 @@ import lombok.val;
 public class ProcessStarter {
     //region Members
 
-    private final Class target;
+    private final Class<?> target;
     private final ProcessBuilder builder;
     private final HashMap<String, String> systemProps;
     private Object[] args;
@@ -38,7 +38,7 @@ public class ProcessStarter {
      *
      * @param target The Class to start. This class must have a static main() method defined in it.
      */
-    private ProcessStarter(Class target) {
+    private ProcessStarter(Class<?> target) {
         this.target = Preconditions.checkNotNull(target, "target");
         this.builder = new ProcessBuilder().inheritIO();
         this.systemProps = new HashMap<>();
@@ -49,7 +49,7 @@ public class ProcessStarter {
      *
      * @param target The Class to start. This class must have a static main() method defined in it.
      */
-    public static ProcessStarter forClass(Class target) {
+    public static ProcessStarter forClass(Class<?> target) {
         return new ProcessStarter(target);
     }
 

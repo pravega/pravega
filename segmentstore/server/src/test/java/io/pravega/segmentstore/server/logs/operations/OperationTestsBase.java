@@ -10,12 +10,12 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
+import org.junit.Test;
 
 /**
  * Base class for all Log Operation test.
@@ -23,14 +23,14 @@ import java.util.Random;
 @SuppressWarnings("checkstyle:JavadocMethod")
 public abstract class OperationTestsBase<T extends Operation> {
     private static final int MAX_CONFIG_ITERATIONS = 10;
-    private static final OperationFactory OPERATION_FACTORY = new OperationFactory();
+    private static final OperationSerializer OPERATION_SERIALIZER = new OperationSerializer();
 
     /**
      * Tests the ability of an Operation to serialize/deserialize itself.
      */
     @Test
     public void testSerialization() throws Exception {
-        Random random = new Random();
+        Random random = RandomFactory.create();
         T baseOp = createOperation(random);
 
         // Verify we cannot serialize without a valid Sequence Number.
@@ -47,11 +47,11 @@ public abstract class OperationTestsBase<T extends Operation> {
 
         // Serialize.
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        baseOp.serialize(outputStream);
+        OPERATION_SERIALIZER.serialize(outputStream, baseOp);
 
         //Deserialize.
         ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        Operation newOp = OPERATION_FACTORY.deserialize(inputStream);
+        Operation newOp = OPERATION_SERIALIZER.deserialize(inputStream);
 
         // Verify operations are the same.
         OperationComparer.DEFAULT.assertEquals(baseOp, newOp);
@@ -82,7 +82,7 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     private void trySerialize(T op, String message) {
         AssertExtensions.assertThrows(message,
-                () -> op.serialize(new ByteArrayOutputStream()),
+                () -> OPERATION_SERIALIZER.serialize(new ByteArrayOutputStream(), op),
                 ex -> ex instanceof IllegalStateException);
     }
 }

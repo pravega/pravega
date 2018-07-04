@@ -28,7 +28,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.Data;
@@ -70,6 +69,7 @@ public class StateSynchronizerTest {
 
     @Data
     private static class TestUpdate implements Update<TestState>, InitialUpdate<TestState>, Serializable {
+        private static final long serialVersionUID = 1L;
         private final String value;
 
         @Override
@@ -130,9 +130,9 @@ public class StateSynchronizerTest {
     
     private int update(StateSynchronizer<TestState> sync, String string) {
         AtomicInteger count = new AtomicInteger(0);
-        sync.updateState(state -> {
+        sync.updateState((state, updates) -> {
             count.incrementAndGet();
-            return Collections.singletonList(new TestUpdate(string));
+            updates.add(new TestUpdate(string));
         });
         return count.get();
     }

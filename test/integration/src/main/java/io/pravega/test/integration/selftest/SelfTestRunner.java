@@ -65,6 +65,10 @@ public class SelfTestRunner {
 
         // Wait for the test to finish.
         test.awaitFinished().join();
+        if (testConfig.isPauseBeforeExit()) {
+            System.out.println("Services are still running. Press any key to exit ...");
+            System.in.read();
+        }
 
         // Make sure the test is stopped.
         test.stopAsync().awaitTerminated();
@@ -125,14 +129,16 @@ public class SelfTestRunner {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30))
+                                      .with(ServiceConfig.THREAD_POOL_SIZE, 30)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
+                                      .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
+                                      .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 600 * 1000)
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
@@ -204,7 +210,8 @@ public class SelfTestRunner {
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
-                    new Shortcut("reads", TestConfig.READS_ENABLED)));
+                    new Shortcut("reads", TestConfig.READS_ENABLED),
+                    new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);
         }

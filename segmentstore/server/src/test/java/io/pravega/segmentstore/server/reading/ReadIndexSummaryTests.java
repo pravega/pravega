@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.common.hash.RandomFactory;
+import io.pravega.segmentstore.server.CacheManager;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
@@ -34,7 +36,7 @@ public class ReadIndexSummaryTests {
     public void testAddRemove() {
         ReadIndexSummary s = new ReadIndexSummary();
         long totalSize = 0;
-        Random random = new Random();
+        Random random = RandomFactory.create();
         Queue<Integer> addedSizes = new LinkedList<>();
 
         // Add a few.
@@ -124,7 +126,7 @@ public class ReadIndexSummaryTests {
     public void testTouchOne() {
         ReadIndexSummary s = new ReadIndexSummary();
         long totalSize = 0;
-        Random random = new Random();
+        Random random = RandomFactory.create();
         Queue<Integer> addedSizes = new LinkedList<>();
         int maxGeneration = ITEMS_PER_GENERATION - 1;
 

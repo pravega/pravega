@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -20,21 +21,18 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -43,7 +41,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
@@ -56,6 +56,10 @@ public class PravegaTest {
     private final static String STREAM_SCOPE = "testScopeSampleY";
     private final static String READER_GROUP = "ExampleReaderGroupY";
     private final static int NUM_EVENTS = 100;
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(12 * 60);
+
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
@@ -67,10 +71,10 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() throws MarathonException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -80,7 +84,7 @@ public class PravegaTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -89,7 +93,7 @@ public class PravegaTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -98,14 +102,13 @@ public class PravegaTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
-        URI segUri = segUris.get(0);
     }
 
     @BeforeClass
@@ -121,16 +124,20 @@ public class PravegaTest {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
-        Service conService = new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+        Service conService = Utils.createPravegaControllerService(null);
+
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        ControllerImpl controller = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                    .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
+                                    .build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());
@@ -143,14 +150,15 @@ public class PravegaTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    @Test(timeout = 10 * 60 * 1000)
-    public void simpleTest() throws InterruptedException, URISyntaxException {
+    @Test
+    public void simpleTest() throws InterruptedException {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
@@ -164,9 +172,8 @@ public class PravegaTest {
             Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
-                                       Collections.singleton(STREAM_NAME));
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),

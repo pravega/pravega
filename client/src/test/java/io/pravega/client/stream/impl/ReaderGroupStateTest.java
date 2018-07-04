@@ -9,7 +9,14 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableSet;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,11 +26,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-import com.google.common.collect.ImmutableSet;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.state.Revision;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
@@ -43,8 +45,38 @@ public class ReaderGroupStateTest {
     @Before
     public void setup() {
         readerState = new ReaderGroupState("stream", revision, readerConf,
-                getOffsetMap(1L, Arrays.asList("S1", "S2")));
+                getOffsetMap(1L, Arrays.asList("S1", "S2")), Collections.emptyMap());
     }
+    
+
+    @Test
+    public void getRanking() throws Exception {
+        assertTrue(readerState.getOnlineReaders().isEmpty());
+        AddReader addR1 = new ReaderGroupState.AddReader("r1");
+        addR1.applyTo(readerState, revision);
+        assertEquals(1, readerState.getOnlineReaders().size());
+        AddReader addR2 = new ReaderGroupState.AddReader("r2");
+        addR2.applyTo(readerState, revision);
+        assertEquals(2, readerState.getOnlineReaders().size());
+        new ReaderGroupState.AcquireSegment("r1", getSegment("S1")).applyTo(readerState, revision);
+        new ReaderGroupState.UpdateDistanceToTail("r1", 1).applyTo(readerState, revision);
+        assertEquals(Collections.singleton(getSegment("S1")), readerState.getSegments("r1"));
+        assertEquals(0, readerState.getRanking("r1"));
+        assertEquals(1, readerState.getRanking("r2"));
+        new ReaderGroupState.AcquireSegment("r1", getSegment("S2")).applyTo(readerState, revision);
+        assertEquals(2, readerState.getSegments("r1").size());
+        assertEquals(0, readerState.getRanking("r1"));
+        assertEquals(1, readerState.getRanking("r2"));
+        new ReaderGroupState.ReleaseSegment("r1", getSegment("S1"), 1).applyTo(readerState, revision);
+        new ReaderGroupState.ReleaseSegment("r1", getSegment("S2"), 1).applyTo(readerState, revision);
+        new ReaderGroupState.AcquireSegment("r2", getSegment("S1")).applyTo(readerState, revision);
+        new ReaderGroupState.AcquireSegment("r2", getSegment("S2")).applyTo(readerState, revision);
+        new ReaderGroupState.UpdateDistanceToTail("r2", 1).applyTo(readerState, revision);
+        assertEquals(0, readerState.getSegments("r1").size());
+        assertEquals(1, readerState.getRanking("r1"));
+        assertEquals(0, readerState.getRanking("r2"));
+    }
+    
 
     @Test
     public void getPositionsForLastCompletedCheckpointSuccess() throws Exception {

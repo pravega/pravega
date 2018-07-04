@@ -14,8 +14,10 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.server.CachePolicy;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -40,6 +42,12 @@ public class ServiceConfig {
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.INMEMORY);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
+    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public static final Property<String> CERT_FILE = Property.named("certFile", "");
+    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
+    public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -189,6 +197,30 @@ public class ServiceConfig {
     @Getter
     private final boolean readOnlySegmentStore;
 
+    /**
+     * Enables TLS support for the serer.
+     */
+    @Getter
+    private final boolean enableTls;
+
+    /**
+     * Represents the certificate file for the TLS server.
+     */
+    @Getter
+    private final String certFile;
+
+    /**
+     * Represents the private key file for the TLS server.
+     */
+    @Getter
+    private final String keyFile;
+
+    /**
+     * The CachePolicy, as defined in this configuration.
+     */
+    @Getter
+    private final CachePolicy cachePolicy;
+
     //endregion
 
     //region Constructor
@@ -233,6 +265,13 @@ public class ServiceConfig {
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
+        this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.keyFile = properties.get(KEY_FILE);
+        this.certFile = properties.get(CERT_FILE);
+        long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
+        int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
+        int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
     }
 
     /**

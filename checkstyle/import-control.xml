@@ -33,6 +33,7 @@
     <allow pkg="org.glassfish.hk2"/>
     <allow pkg="io.swagger"/>
     <allow pkg="javax.validation"/>
+    <allow pkg="javax.crypto"/>
     <allow pkg="com.fasterxml.jackson"/>
     <allow pkg="mesosphere"/>
     <allow pkg="feign"/>
@@ -41,5 +42,7 @@
     <allow pkg="org.gaul.s3proxy" />
     <allow pkg="org.jclouds" />
     <allow pkg="org.glassfish.grizzly" />
+    <allow pkg="com.spotify" />
+    <allow pkg="io.jsonwebtoken" />
 
 </import-control>

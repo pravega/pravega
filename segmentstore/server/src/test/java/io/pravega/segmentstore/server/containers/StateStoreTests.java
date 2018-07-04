@@ -10,13 +10,13 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
@@ -31,6 +31,7 @@ import org.junit.rules.Timeout;
 public abstract class StateStoreTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int ATTRIBUTE_COUNT = 10;
+    private static final UUID CORE_ATTRIBUTE = Attributes.EVENT_COUNT;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
@@ -65,7 +66,8 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
 
             val deserialized = ss.get(original.getSegmentName(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
-            AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
+            val expectedAttributes = Attributes.getCoreNonNullAttributes(original.getAttributes());
+            AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
         }
 
         // Remove everything and verify it was removed.
@@ -92,10 +94,8 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
         val deserialized = ss.get(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected segment id", state2.getSegmentId(), deserialized.getSegmentId());
         Assert.assertEquals("Unexpected segment name.", state2.getSegmentName(), deserialized.getSegmentName());
-        AssertExtensions.assertMapEquals("Unexpected attributes.", state2.getAttributes(), deserialized.getAttributes());
-        for (Map.Entry<UUID, Long> a : state1.getAttributes().entrySet()) {
-            Assert.assertFalse("Overwritten attribute found in deserialized state.", deserialized.getAttributes().containsKey(a.getKey()));
-        }
+        val expectedAttributes = Attributes.getCoreNonNullAttributes(state2.getAttributes());
+        AssertExtensions.assertMapEquals("Unexpected attributes.", expectedAttributes, deserialized.getAttributes());
     }
 
     //endregion
@@ -104,8 +104,11 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
 
     private SegmentState createState(String segmentName) {
         HashMap<UUID, Long> attributes = new HashMap<>();
-        for (int i = 0; i < ATTRIBUTE_COUNT; i++) {
-            attributes.put(UUID.randomUUID(), (long) i);
+
+        // One Core Attribute, and the rest are all Extended Attributes.
+        attributes.put(CORE_ATTRIBUTE, (long) attributes.size());
+        while (attributes.size() < ATTRIBUTE_COUNT) {
+            attributes.put(UUID.randomUUID(), (long) attributes.size());
         }
 
         return new SegmentState(segmentName.hashCode(), StreamSegmentInformation.builder().name(segmentName).attributes(attributes).build());

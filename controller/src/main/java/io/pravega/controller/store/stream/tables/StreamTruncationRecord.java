@@ -9,29 +9,37 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.controller.store.stream.tables.serializers.StreamTruncationRecordSerializer;
+import lombok.Builder;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.Serializable;
-import java.util.Collections;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Data class for storing information about stream's truncation point.
  */
-@AllArgsConstructor(access = AccessLevel.PACKAGE)
-public class StreamTruncationRecord implements Serializable {
+@Data
+@Slf4j
+public class StreamTruncationRecord  {
+    public static final StreamTruncationRecordSerializer SERIALIZER = new StreamTruncationRecordSerializer();
+
     public static final StreamTruncationRecord EMPTY = new StreamTruncationRecord(ImmutableMap.of(),
-            ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of());
+            ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), false);
 
     /**
      * Stream cut that is applied as part of this truncation.
      */
-    private final ImmutableMap<Integer, Long> streamCut;
+    private final ImmutableMap<Long, Long> streamCut;
 
     /**
      * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
@@ -48,17 +56,32 @@ public class StreamTruncationRecord implements Serializable {
      * applied on it to find segments that are available for consumption.
      * Refer to TableHelper.getActiveSegmentsAt
      */
-    private final ImmutableMap<Integer, Integer> cutEpochMap;
+    private final ImmutableMap<Long, Integer> cutEpochMap;
     /**
      * All segments that have been deleted for this stream so far.
      */
-    private final ImmutableSet<Integer> deletedSegments;
+    private final ImmutableSet<Long> deletedSegments;
     /**
      * Segments to delete as part of this truncation.
      * This is non empty while truncation is ongoing.
      * This is reset to empty once truncation completes by calling mergeDeleted method.
      */
-    private final ImmutableSet<Integer> toDelete;
+    private final ImmutableSet<Long> toDelete;
+
+    private final boolean updating;
+
+    @Builder
+    public StreamTruncationRecord(Map<Long, Long> streamCut,
+                                  Map<Long, Integer> cutEpochMap,
+                                  Set<Long> deletedSegments,
+                                  Set<Long> toDelete,
+                                  boolean updating) {
+        this.streamCut = ImmutableMap.copyOf(streamCut);
+        this.cutEpochMap = ImmutableMap.copyOf(cutEpochMap);
+        this.deletedSegments = ImmutableSet.copyOf(deletedSegments);
+        this.toDelete = ImmutableSet.copyOf(toDelete);
+        this.updating = updating;
+    }
 
     int getTruncationEpochLow() {
         return cutEpochMap.values().stream().min(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
@@ -68,25 +91,47 @@ public class StreamTruncationRecord implements Serializable {
         return cutEpochMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
 
-    public ImmutableMap<Integer, Long> getStreamCut() {
+    public ImmutableMap<Long, Long> getStreamCut() {
         return streamCut;
     }
 
-    public ImmutableMap<Integer, Integer> getCutEpochMap() {
+    public ImmutableMap<Long, Integer> getCutEpochMap() {
         return cutEpochMap;
     }
 
-    public ImmutableSet<Integer> getDeletedSegments() {
+    public ImmutableSet<Long> getDeletedSegments() {
         return deletedSegments;
     }
 
-    public Set<Integer> getToDelete() {
-        return Collections.unmodifiableSet(toDelete);
+    public ImmutableSet<Long> getToDelete() {
+        return toDelete;
     }
 
-    public StreamTruncationRecord mergeDeleted() {
-        Set<Integer> deleted = new HashSet<>(deletedSegments);
-        deleted.addAll(toDelete);
-        return new StreamTruncationRecord(streamCut, cutEpochMap, ImmutableSet.copyOf(deleted), ImmutableSet.of());
+    public static StreamTruncationRecord complete(StreamTruncationRecord toComplete) {
+        Preconditions.checkState(toComplete.updating);
+        Set<Long> deleted = new HashSet<>(toComplete.deletedSegments);
+        deleted.addAll(toComplete.toDelete);
+
+        return StreamTruncationRecord.builder()
+                .updating(false)
+                .cutEpochMap(toComplete.cutEpochMap)
+                .streamCut(toComplete.streamCut)
+                .deletedSegments(deleted)
+                .toDelete(ImmutableSet.of())
+                .build();
+    }
+
+    public static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
+
+    }
+
+    @SneakyThrows(IOException.class)
+    public static StreamTruncationRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
+    }
+
+    @SneakyThrows(IOException.class)
+    public byte[] toByteArray() {
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

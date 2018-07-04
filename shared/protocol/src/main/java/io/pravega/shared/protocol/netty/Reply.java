@@ -13,5 +13,11 @@ package io.pravega.shared.protocol.netty;
  * A response going from the server to the client resulting from a previous message from the client to the server.
  */
 public interface Reply {
+    long getRequestId();
+
     void process(ReplyProcessor cp);
+
+    default boolean isFailure() {
+        return false;
+    }
 }

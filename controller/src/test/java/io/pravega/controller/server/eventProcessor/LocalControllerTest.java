@@ -11,24 +11,26 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerFailureException;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,26 +44,25 @@ import static org.mockito.Mockito.when;
  * Unit tests for LocalController.
  */
 @Slf4j
-public class LocalControllerTest {
+public class LocalControllerTest extends ThreadPooledTestSuite {
 
     //Ensure each test completes within 10 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    boolean authEnabled = false;
 
     private ControllerService mockControllerService;
     private LocalController testController;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService);
-        this.executor = Executors.newSingleThreadScheduledExecutor();
-    }
-
-    @After
-    public void tearDown() {
-        this.executor.shutdown();
+        this.testController = new LocalController(this.mockControllerService, authEnabled, "secret");
     }
 
     @Test
@@ -288,13 +289,13 @@ public class LocalControllerTest {
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.STARTED).build()));
         Assert.assertTrue(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>(), executor).getFuture().join());
+                new ArrayList<>(), new HashMap<>(), executorService()).getFuture().join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED).build()));
         Assert.assertFalse(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>(), executor).getFuture().join());
+                new ArrayList<>(), new HashMap<>(), executorService()).getFuture().join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
@@ -311,5 +312,14 @@ public class LocalControllerTest {
                 () -> this.testController.startScale(new StreamImpl("scope", "stream"),
                         new ArrayList<>(), new HashMap<>()).join(),
                 ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetSegmentsBetween() throws ExecutionException, InterruptedException {
+        List<Segment> list = new ArrayList<>();
+        when(this.mockControllerService.getSegmentsBetweenStreamCuts(any())).thenReturn(
+                CompletableFuture.completedFuture(list));
+        Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
+                new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
     }
 }

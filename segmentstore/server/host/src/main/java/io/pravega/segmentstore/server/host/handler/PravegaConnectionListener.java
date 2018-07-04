@@ -27,17 +27,19 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import java.security.cert.CertificateException;
+import java.io.File;
 import javax.net.ssl.SSLException;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -52,6 +54,9 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final String host;
     private final int port;
     private final StreamSegmentStore store;
+    private final DelegationTokenVerifier tokenVerifier;
+    private final String certFile;
+    private final String keyFile;
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -70,26 +75,35 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "0.0.0.0", port, streamSegmentStore, null);
+        this(ssl, "localhost", port, streamSegmentStore, null, new PassingTokenVerifier(), null, null);
     }
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
-     *
      * @param ssl                Whether to use SSL.
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
      * @param statsRecorder      (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier      The object to verify delegation token.
+     * @param certFile           Path to the certificate file to be used for TLS.
+     * @param keyFile            PAth to be key file to be used for TLS.
      */
     public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
-                                     SegmentStatsRecorder statsRecorder) {
+                                     SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier, String certFile, String keyFile) {
         this.ssl = ssl;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.statsRecorder = statsRecorder;
+        this.certFile = certFile;
+        this.keyFile = keyFile;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
+        if (tokenVerifier != null) {
+            this.tokenVerifier = tokenVerifier;
+        } else {
+            this.tokenVerifier = new PassingTokenVerifier();
+        }
     }
 
     //endregion
@@ -99,9 +113,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                SelfSignedCertificate ssc = new SelfSignedCertificate();
-                sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
-            } catch (CertificateException | SSLException e) {
+                sslCtx = SslContextBuilder.forServer(new File(this.certFile), new File(this.keyFile)).build();
+            } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
         } else {
@@ -127,7 +140,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc()));
+                     SslHandler handler = sslCtx.newHandler(ch.alloc());
+                     p.addLast(handler);
                  }
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
@@ -139,8 +153,9 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsRecorder),
-                         statsRecorder));
+                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier),
+                         statsRecorder,
+                         tokenVerifier));
              }
          });
 

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -71,6 +72,25 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
             createSegment(segmentName, s);
             Assert.assertTrue("Expected the segment to exist.", s.exists(segmentName, null).join());
+        }
+    }
+
+    /**
+     * Tests the delete() method.
+     */
+    @Test
+    public void testDelete() {
+        String segmentName = "foo_open";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            createSegment(segmentName, s);
+
+            //Delete the segment.
+            s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
+            Assert.assertFalse("Expected the segment to not exist.", s.exists(segmentName, null).join());
+            assertThrows("getStreamSegmentInfo() did not throw for deleted StreamSegment.",
+                    () -> s.getStreamSegmentInfo(segmentName, null).join(),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
 
@@ -461,7 +481,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     }
 
     protected SegmentHandle createInexistentSegmentHandle(Storage s, boolean readOnly) {
-        Random rnd = new Random();
+        Random rnd = RandomFactory.create();
         String segmentName = "Inexistent_" + MathHelpers.abs(rnd.nextInt());
         createSegment(segmentName, s);
         return (readOnly ? s.openRead(segmentName) : s.openWrite(segmentName))

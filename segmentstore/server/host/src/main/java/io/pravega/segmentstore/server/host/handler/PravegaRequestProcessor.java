@@ -11,9 +11,11 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthHandler;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -30,6 +32,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -38,14 +42,10 @@ import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -62,15 +62,10 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -89,6 +84,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
@@ -125,6 +122,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final StreamSegmentStore segmentStore;
     private final ServerConnection connection;
     private final SegmentStatsRecorder statsRecorder;
+    private final DelegationTokenVerifier tokenVerifier;
 
     //endregion
 
@@ -138,7 +136,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
-        this(segmentStore, connection, null);
+        this(segmentStore, connection, null, new PassingTokenVerifier());
     }
 
     /**
@@ -147,10 +145,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
      * @param statsRecorder (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier  Verifier class that verifies delegation token.
      */
-    PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder) {
+    PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
+        this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
         this.statsRecorder = statsRecorder;
     }
 
@@ -162,16 +162,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void readSegment(ReadSegment readSegment) {
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
+
+        if (!verifyToken(segment, readSegment.getOffset(), readSegment.getDelegationToken(), READ, "Read Segment")) {
+            return;
+        }
+
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
                     handleReadResult(readSegment, readResult);
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), readResult.getConsumedLength());
                     readStreamSegment.reportSuccessEvent(timer.getElapsed());
                 })
                 .exceptionally(ex -> handleException(readSegment.getOffset(), segment, "Read segment", ex));
+    }
+
+    private boolean verifyToken(String segment, long requestId, String delegationToken, AuthHandler.Permissions read, String operation) {
+        if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
+            log.warn("Delegation token verification failed");
+            handleException(requestId, segment,
+                    "Read Segment", new AuthenticationException("Token verification failed"));
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -195,6 +209,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
+            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -208,7 +223,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
                         ByteBuffer data = copyData(Collections.singletonList(contents));
-                        connection.send(new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data));
+                        SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
+                        connection.send(reply);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -270,6 +287,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         UUID attributeId = updateSegmentAttribute.getAttributeId();
         long newValue = updateSegmentAttribute.getNewValue();
         long expectedValue = updateSegmentAttribute.getExpectedValue();
+
+        if (!verifyToken(segmentName, updateSegmentAttribute.getRequestId(), updateSegmentAttribute.getDelegationToken(),
+                READ, "Update Segment Attribute")) {
+            return;
+        }
+
         long trace = LoggerHelpers.traceEnter(log, "updateSegmentAttribute", updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
         segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
@@ -294,6 +317,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long requestId = getSegmentAttribute.getRequestId();
         String segmentName = getSegmentAttribute.getSegmentName();
         UUID attributeId = getSegmentAttribute.getAttributeId();
+
+        if (!verifyToken(segmentName, getSegmentAttribute.getRequestId(), getSegmentAttribute.getDelegationToken(),
+                READ, "Get StreamSegment Attribute" )) {
+            return;
+        }
+
         long trace = LoggerHelpers.traceEnter(log, "getSegmentAttribute", getSegmentAttribute);
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
                 .thenAccept(properties -> {
@@ -315,6 +344,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamSegmentInfo) {
         String segmentName = getStreamSegmentInfo.getSegmentName();
+
+        if (!verifyToken(segmentName, getStreamSegmentInfo.getRequestId(), getStreamSegmentInfo.getDelegationToken(),
+                READ, "Get Stream Segment Info")) {
+            return;
+        }
+
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
                 .thenAccept(properties -> {
                     if (properties != null) {
@@ -332,33 +367,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void getTransactionInfo(GetTransactionInfo request) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
-        segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
-                .thenAccept(properties -> {
-                    if (properties != null) {
-                        TransactionInfo result = new TransactionInfo(request.getRequestId(), request.getSegment(),
-                                request.getTxid(), transactionName, !properties.isDeleted(), properties.isSealed(),
-                                properties.getLastModified().getTime(), properties.getLength());
-                        log.trace("Read transaction segment info: {}", result);
-                        connection.send(result);
-                    } else {
-                        log.trace("getTransactionInfo could not find segment {}", transactionName);
-                        connection.send(new TransactionInfo(request.getRequestId(), request.getSegment(), request.getTxid(),
-                                transactionName, false, true, 0, 0));
-                    }
-                })
-                .exceptionally(e -> handleException(request.getRequestId(), transactionName, "Get transaction info", e));
-    }
-
-    @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
-                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
+       if (!verifyToken(createStreamsSegment.getSegment(), createStreamsSegment.getRequestId(),
+               createStreamsSegment.getDelegationToken(), READ_UPDATE, "Create Segment")) {
+            return;
+       }
+       log.debug("Creating stream segment {}", createStreamsSegment);
         segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
                     createStreamSegment.reportSuccessEvent(timer.getElapsed());
@@ -385,6 +407,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         u = Exceptions.unwrap(u);
+
         if (u instanceof StreamSegmentExistsException) {
             log.info("Segment '{}' already exists and cannot perform operation '{}'.", segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment));
@@ -401,13 +424,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof CancellationException) {
             log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
             connection.close();
+        } else if (u instanceof AuthenticationException) {
+            log.warn("Authentication error during '{}'.", operation);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
+            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", operation, u);
             connection.send(new OperationUnsupported(requestId, operation));
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
-            log.warn("Bad offset when performing '{}'; Expected Offset {}, Given {}.", operation, badOffset.getExpectedOffset(), badOffset.getGivenOffset());
-            connection.send(new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset()));
+            connection.send(new SegmentIsTruncated(requestId, segment,  badOffset.getExpectedOffset()));
         } else {
             log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
@@ -418,72 +444,47 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void createTransaction(CreateTransaction createTransaction) {
-        Collection<AttributeUpdate> attributes = Collections.singleton(
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
-        log.debug("Creating transaction {} ", createTransaction);
+    public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
+        long requestId = mergeSegments.getRequestId();
+        log.debug("Merging Segments {} ", mergeSegments);
 
-        long requestId = createTransaction.getRequestId();
-        segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), attributes, TIMEOUT)
-                .thenAccept(txName -> connection.send(new TransactionCreated(requestId, createTransaction.getSegment(), createTransaction.getTxid())))
-                .exceptionally(e -> handleException(requestId, createTransaction.getSegment(), "Create transaction", e));
-    }
+        if (!verifyToken(mergeSegments.getSource(), mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), READ_UPDATE,
+                "Merge Segments")) {
+            return;
+        }
 
-    @Override
-    public void commitTransaction(CommitTransaction commitTx) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        long requestId = commitTx.getRequestId();
-        log.debug("Committing transaction {} ", commitTx);
-
-        // Seal and Merge can execute concurrently, as long as they are invoked in the correct order (first Seal, then Merge).
-        // If Seal fails for whatever reason (except already sealed), then Merge will also fail because the txn is not sealed,
-        // but invoking them in parallel does provide benefits in terms of reduced latency.
-        val seal = segmentStore
-                .sealStreamSegment(transactionName, TIMEOUT)
-                .exceptionally(this::ignoreSegmentSealed)
-                .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
+        // TODO: change SegmentStore to auto-seal before merging (https://github.com/pravega/pravega/issues/2558)
+        segmentStore.sealStreamSegment(mergeSegments.getSource(), TIMEOUT)
+                    .exceptionally(this::ignoreSegmentSealed)
+                    .thenCompose(v -> recordStatForTransaction(mergeSegments.getSource(), mergeSegments.getTarget())
                         .exceptionally(e -> {
                             // gobble up any errors from stat recording so we do not affect rest of the flow.
-                            log.error("exception while computing stats while merging txn {}", e);
+                            log.error("exception while computing stats while merging txn {}", mergeSegments, e);
                             return null;
-                        }));
-        val merge = segmentStore
-                .mergeTransaction(transactionName, TIMEOUT)
-                .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())));
-
-        CompletableFuture.allOf(seal, merge)
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                        log.info("Stream segment is already merged '{}'.", transactionName);
-                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
-                        return null;
-                    } else {
-                        return handleException(requestId, transactionName, "Commit transaction", e);
-                    }
-                });
-    }
-
-    @Override
-    public void abortTransaction(AbortTransaction abortTx) {
-        long requestId = abortTx.getRequestId();
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(abortTx.getSegment(), abortTx.getTxid());
-        log.debug("Aborting transaction {} ", abortTx);
-        segmentStore.deleteStreamSegment(transactionName, TIMEOUT)
-                .thenRun(() -> connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid())))
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                        connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid()));
-                        return null;
-                    } else {
-                        return handleException(requestId, transactionName, "Abort transaction", e);
-                    }
-                });
+                        }))
+                    .thenCompose(v -> segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT))
+                    .thenAccept(v -> connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource())))
+                    .exceptionally(e -> {
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
+                            log.info("Stream segment is already merged '{}'.", mergeSegments.getSource());
+                            connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
+                            return null;
+                        } else {
+                            return handleException(requestId, mergeSegments.getSource(), "Merge Segments", e);
+                        }
+                    });
     }
 
     @Override
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         log.debug("Sealing segment {} ", sealSegment);
+
+        if (!verifyToken(segment, sealSegment.getRequestId(), sealSegment.getDelegationToken(), READ_UPDATE,
+                "Seal Segment")) {
+            return;
+        }
+
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
@@ -502,6 +503,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void truncateSegment(TruncateSegment truncateSegment) {
         String segment = truncateSegment.getSegment();
+
+        if (!verifyToken(segment, truncateSegment.getRequestId(), truncateSegment.getDelegationToken(),
+                READ_UPDATE, "Truncate Segment")) {
+            return;
+        }
+
         long offset = truncateSegment.getTruncationOffset();
         log.debug("Truncating segment {} at offset {} ", segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
@@ -513,6 +520,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void deleteSegment(DeleteSegment deleteSegment) {
         String segment = deleteSegment.getSegment();
         log.debug("Deleting segment {} ", deleteSegment);
+
+        if (!verifyToken(segment, deleteSegment.getRequestId(), deleteSegment.getDelegationToken(), READ_UPDATE,
+                "Delete Segment")) {
+            return;
+        }
+
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
@@ -525,6 +538,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy) {
+
+        if (!verifyToken(updateSegmentPolicy.getSegment(), updateSegmentPolicy.getRequestId(),
+                updateSegmentPolicy.getDelegationToken(), READ, "Update Segment Policy")) {
+            return;
+        }
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
@@ -546,7 +565,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private CompletableFuture<Void> recordStatForTransaction(String transactionName, String parentSegmentName) {
+    private CompletableFuture<Void> recordStatForTransaction(String transactionName, String targetSegmentName) {
         return segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
                 .thenAccept(prop -> {
                     if (prop != null &&
@@ -557,7 +576,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         long len = prop.getLength();
 
                         if (statsRecorder != null) {
-                            statsRecorder.merge(parentSegmentName, len, numOfEvents, creationTime);
+                            statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
                         }
                     }
                 });

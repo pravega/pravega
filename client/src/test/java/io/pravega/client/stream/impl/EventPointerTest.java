@@ -11,15 +11,11 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class EventPointerTest {
 
@@ -28,54 +24,31 @@ public class EventPointerTest {
      * creates an impl instance with some arbitrary values,
      * serializes the pointer, deserializes it, and asserts
      * that the values obtained are the expected ones.
+     * @throws IOException 
+     * @throws ClassNotFoundException 
      */
     @Test
-    public void testEventPointerImpl() {
+    public void testEventPointerImpl() throws IOException, ClassNotFoundException {
         String scope = "testScope";
         String stream = "testStream";
         int segmentId = 1;
         Segment segment = new Segment(scope, stream, segmentId);
         EventPointer pointer = new EventPointerImpl(segment, 10L, 10);
-        ByteArrayOutputStream bos = null;
+        EventPointer pointerRead = EventPointer.fromBytes(pointer.toBytes());
+        assertEquals(pointer, pointerRead);
 
-        // Serialize pointer
-        try {
-            bos = new ByteArrayOutputStream();
-            ObjectOutputStream out = new ObjectOutputStream(bos);
-            out.writeObject(pointer);
-            out.close();
-        } catch (IOException e) {
-            fail("Failed to serialize pointer object" + e.getMessage());
-        }
+        StringBuilder name = new StringBuilder();
+        name.append(scope);
+        name.append("/");
+        name.append(stream);
+        assertEquals(name.toString(), pointerRead.asImpl().getSegment().getScopedStreamName());
 
-        // Deserialize pointer
-        pointer = null;
-        try {
-            ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-            ObjectInputStream in = new ObjectInputStream(bis);
-            pointer = (EventPointer) in.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            fail("Failed to deserialize object" + e.getMessage());
-        }
+        name.append("/");
+        name.append(segmentId);
+        name.append(".#epoch.0");
+        assertEquals(name.toString(), pointerRead.asImpl().getSegment().getScopedName());
 
-        // Verifies that we have been able to deserialize successfully
-        if (pointer == null) {
-            fail("Failed to deserialize object");
-        } else {
-            StringBuilder name = new StringBuilder();
-            name.append(scope);
-            name.append("/");
-            name.append(stream);
-            assertTrue("Scoped stream name: " + pointer.asImpl().getSegment().getScopedStreamName(),
-                        pointer.asImpl().getSegment().getScopedStreamName().equals(name.toString()));
-
-            name.append("/");
-            name.append(segmentId);
-            assertTrue("Scoped name: " + pointer.asImpl().getSegment().getScopedName(),
-                        pointer.asImpl().getSegment().getScopedName().equals(name.toString()));
-
-            assertTrue(pointer.asImpl().getEventStartOffset() == 10L);
-            assertTrue(pointer.asImpl().getEventLength() == 10);
-        }
+        assertTrue(pointerRead.asImpl().getEventStartOffset() == 10L);
+        assertTrue(pointerRead.asImpl().getEventLength() == 10);
     }
 }

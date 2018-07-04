@@ -9,18 +9,28 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.controller.util.Config;
+import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -29,20 +39,8 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +48,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -70,7 +71,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
-            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
             @Cleanup
             ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
@@ -86,7 +87,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder);
+                    statsRecorder, null, null, null);
             server.startListening();
 
             controllerWrapper.awaitRunning();
@@ -99,7 +100,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
-                                                              .transactionTimeoutScaleGracePeriod(30000)
                                                               .build();
             EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(), writerConfig);
 
@@ -115,8 +115,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
-
+            controller.startScale(stream, Collections.singletonList(0L), map).get();
             Transaction<String> txn2 = test.beginTxn();
 
             txn2.writeEvent("2");
@@ -128,8 +127,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().startingTime(0).build(),
-                    Collections.singleton("test"));
+            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
 
             final EventStreamReader<String> reader = clientFactory.createReader("1",
                     "readergrp",
@@ -149,7 +147,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     .throwingOn(RuntimeException.class)
                     .runAsync(() -> controller.getCurrentSegments("test", "test")
                             .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().size() > 3) {
+                                if (streamSegments.getSegments().stream().anyMatch(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()) > 5)) {
                                     System.err.println("Success");
                                     log.info("Success");
                                     System.exit(0);

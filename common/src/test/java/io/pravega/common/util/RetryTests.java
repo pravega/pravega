@@ -50,10 +50,12 @@ public class RetryTests {
     long duration;
 
     private static class RetryableException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
 
     }
 
     private static class NonretryableException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
 
     }
 
@@ -233,7 +235,6 @@ public class RetryTests {
         try {
             Retry.withExpBackoff(10, 10, 10)
                     .retryWhen(e -> i.getAndIncrement() != 1)
-                    .throwingOn(RuntimeException.class)
                     .run(() -> {
                         throw new Exception("test");
                     });

@@ -12,16 +12,17 @@ package io.pravega.client.state.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.ToString;
+import org.apache.commons.lang3.SerializationException;
 
 @EqualsAndHashCode
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-@ToString
 public class RevisionImpl implements Revision, Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -44,4 +45,36 @@ public class RevisionImpl implements Revision, Serializable {
         return this;
     }
 
+    @Override
+    public String toString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(segment.getScopedName());
+        sb.append(":");
+        sb.append(offsetInSegment);
+        sb.append(":");
+        sb.append(eventAtOffset);
+        return sb.toString();
+    }
+
+    public static Revision fromString(String scopedName) {
+        String[] tokens = scopedName.split(":");
+        if (tokens.length == 3) {
+            return new RevisionImpl(Segment.fromScopedName(tokens[0]), Long.parseLong(tokens[1]), Integer.parseInt(tokens[2]));
+        } else {
+            throw new SerializationException("Not a valid segment name: " + scopedName);
+        }
+    }
+
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(toString());
+    }
+    
+    @Data
+    private static class SerializedForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return Revision.fromString(value);
+        }
+    }
 }

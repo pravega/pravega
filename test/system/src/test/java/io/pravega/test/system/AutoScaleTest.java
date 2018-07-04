@@ -25,11 +25,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -46,18 +43,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
-    private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
-    private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";
+    private static final String SCALE_UP_STREAM_NAME = "testScaleUp";
+    private static final String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
+    private static final String SCALE_DOWN_STREAM_NAME = "testScaleDown";
 
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 1);
     private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
@@ -70,11 +68,15 @@ public class AutoScaleTest extends AbstractScaleTests {
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
 
+    //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10 * 60);
+
     @Environment
     public static void setup() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -84,7 +86,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -93,7 +95,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -102,7 +104,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -120,7 +122,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+    public void createStream() throws InterruptedException, ExecutionException {
 
         //create a scope
         Controller controller = getController();
@@ -142,7 +144,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         keyRanges.put(0.5, 1.0);
 
         Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
-                Collections.singletonList(0),
+                Collections.singletonList(0L),
                 keyRanges,
                 EXECUTOR_SERVICE).getFuture().get();
         assertTrue(status);
@@ -151,8 +153,8 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
-    @Test (timeout = 300000) // 5 minutes
-    public void scaleTests() throws URISyntaxException, InterruptedException {
+    @Test
+    public void scaleTests() {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
@@ -173,8 +175,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTest() {
 
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
@@ -213,7 +214,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest() {
 
         final ControllerImpl controller = getController();
 
@@ -245,8 +246,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException,
-            URISyntaxException {
+    private CompletableFuture<Void> scaleUpTxnTest() {
 
         ControllerImpl controller = getController();
 
@@ -293,7 +293,7 @@ public class AutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
                     new JavaSerializer<>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).transactionTimeoutScaleGracePeriod(29000).build());
+                    EventWriterConfig.builder().transactionTimeoutTime(25000).build());
 
             while (!exit.get()) {
                 try {

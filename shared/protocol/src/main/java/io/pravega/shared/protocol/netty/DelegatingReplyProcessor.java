@@ -40,12 +40,6 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction) {
-        getNextReplyProcessor().noSuchTransaction(noSuchTransaction);
-    }
-    
-
-    @Override
     public void invalidEventNumber(InvalidEventNumber invalidEventNumber) {
         getNextReplyProcessor().invalidEventNumber(invalidEventNumber);
     }
@@ -84,11 +78,6 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
         getNextReplyProcessor().streamSegmentInfo(streamInfo);
     }
-    
-    @Override
-    public void transactionInfo(WireCommands.TransactionInfo transactionInfo) {
-        getNextReplyProcessor().transactionInfo(transactionInfo);
-    }
 
     @Override
     public void segmentCreated(WireCommands.SegmentCreated streamsSegmentCreated) {
@@ -96,18 +85,8 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
-        getNextReplyProcessor().transactionCreated(transactionCreated);
-    }
-
-    @Override
-    public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-        getNextReplyProcessor().transactionCommitted(transactionCommitted);
-    }
-    
-    @Override
-    public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
-        getNextReplyProcessor().transactionAborted(transactionAborted);
+    public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
+        getNextReplyProcessor().segmentsMerged(segmentsMerged);
     }
 
     @Override

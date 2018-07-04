@@ -10,36 +10,33 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +53,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
@@ -144,12 +143,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+    public CompletableFuture<Boolean> startScale(Stream stream, List<Long> sealedSegments, Map<Double, Double> newKeyRanges) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CancellableRequest<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
+    public CancellableRequest<Boolean> scaleStream(Stream stream, List<Long> sealedSegments, Map<Double, Double> newKeyRanges,
                                                    ScheduledExecutorService executor) {
         throw new UnsupportedOperationException();
     }
@@ -207,8 +206,13 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         };
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -241,8 +245,13 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         };
-        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name);
+        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -259,7 +268,7 @@ public class MockController implements Controller {
         for (int i = 0; i < segmentsInStream.size(); i++) {
             segments.put((i + 1) * increment, new Segment(stream.getScope(), stream.getStreamName(), i));
         }
-        return new StreamSegments(segments);
+        return new StreamSegments(segments, "");
     }
 
     @Override
@@ -286,12 +295,12 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCommitted(TransactionCommitted transactionCommitted) {
+            public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
                 result.complete(null);
             }
 
             @Override
-            public void transactionAborted(TransactionAborted transactionAborted) {
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
                 result.completeExceptionally(new TxnFailedException("Transaction already aborted."));
             }
 
@@ -299,8 +308,14 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         };
-        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new WireCommands.MergeSegments(idGenerator.get(), segment.getScopedName(),
+                StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), ""), replyProcessor, result);
         return result;
     }
 
@@ -328,12 +343,12 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.completeExceptionally(new RuntimeException("Transaction already committed."));
+            public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
+                result.completeExceptionally(new TxnFailedException("Transaction already committed."));
             }
 
             @Override
-            public void transactionAborted(TransactionAborted transactionAborted) {
+            public void segmentDeleted(WireCommands.SegmentDeleted transactionAborted) {
                 result.complete(null);
             }
 
@@ -341,8 +356,14 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         };
-        sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        sendRequestOverNewConnection(new DeleteSegment(idGenerator.get(), transactionName, ""), replyProcessor, result);
         return result;
     }
 
@@ -352,7 +373,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         StreamSegments currentSegments = getCurrentSegments(stream);
@@ -377,7 +398,7 @@ public class MockController implements Controller {
             }
 
             @Override
-            public void transactionCreated(TransactionCreated transactionCreated) {
+            public void segmentCreated(WireCommands.SegmentCreated transactionCreated) {
                 result.complete(null);
             }
 
@@ -385,8 +406,15 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         };
-        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), segment.getScopedName(), txId), replyProcessor, result);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId);
+        sendRequestOverNewConnection(new CreateSegment(idGenerator.get(), transactionName, WireCommands.CreateSegment.NO_SCALE,
+                0, ""), replyProcessor, result);
         return result;
     }
 
@@ -402,16 +430,30 @@ public class MockController implements Controller {
     
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-        return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap()));
+        final Stream segmentStream = Stream.of(segment.getScopedStreamName());
+        final CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
+        if (!createdStreams.containsKey(segmentStream)) {
+            result.completeExceptionally(new RuntimeException("Stream is deleted"));
+        } else {
+            result.complete(new StreamSegmentsWithPredecessors(Collections.emptyMap(), ""));
+        }
+        return result;
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        StreamConfiguration configuration = createdStreams.get(from.getStream());
+    public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
+        StreamConfiguration configuration = createdStreams.get(from.asImpl().getStream());
         if (configuration.getScalingPolicy().getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }
-        return CompletableFuture.completedFuture(Collections.emptySet());
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(Collections.emptySet(), ""));
+    }
+
+    @Override
+    public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
+        Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.asImpl().getPositions().keySet())
+                                                               .addAll(toStreamCut.asImpl().getPositions().keySet()).build();
+        return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, ""));
     }
 
     @Override
@@ -439,6 +481,11 @@ public class MockController implements Controller {
 
     @Override
     public void close() {
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        return CompletableFuture.completedFuture("");
     }
 }
 

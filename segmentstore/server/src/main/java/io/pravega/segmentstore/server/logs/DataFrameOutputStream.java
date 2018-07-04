@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.SimpleMovingAverage;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -23,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * An OutputStream that abstracts writing to Data Frames. Allows writing arbitrary bytes, and seamlessly transitions
  * from one Data Frame to another if the previous Data Frame was full.
+ *
+ * Data written with this class can be read back using DataFrameInputStream.
  */
 @NotThreadSafe
 class DataFrameOutputStream extends OutputStream {
@@ -80,7 +83,7 @@ class DataFrameOutputStream extends OutputStream {
         }
 
         if (totalBytesWritten == 0) {
-            throw new IOException("Unable to make progress in serializing to DataFrame.");
+            throw new SerializationException("Unable to make progress in serializing to DataFrame.");
         }
     }
 
@@ -160,7 +163,7 @@ class DataFrameOutputStream extends OutputStream {
     void startNewRecord() throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
 
-        // If there is any data in the current frame, seal it and ship it. And create a new one with StartMagic = Last.EndMagic.
+        // If there is any data in the current frame, seal it and ship it.
         if (this.currentFrame == null) {
             // No active frame, create a new one.
             createNewFrame();
@@ -215,13 +218,13 @@ class DataFrameOutputStream extends OutputStream {
     private void createNewFrame() {
         Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
-        this.currentFrame = DataFrame.wrap(this.bufferFactory.next());
+        this.currentFrame = new DataFrame(this.bufferFactory.next());
         this.hasDataInCurrentFrame = false;
     }
 
-    private void startNewRecordInCurrentFrame(boolean firstRecordEntry) throws IOException {
+    private void startNewRecordInCurrentFrame(boolean firstRecordEntry) throws SerializationException {
         if (!this.currentFrame.startNewEntry(firstRecordEntry)) {
-            throw new IOException("Unable to start a new record.");
+            throw new SerializationException("Unable to start a new record.");
         }
 
         this.hasDataInCurrentFrame = true;

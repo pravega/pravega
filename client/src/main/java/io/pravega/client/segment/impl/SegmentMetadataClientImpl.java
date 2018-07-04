@@ -9,9 +9,8 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.batch.SegmentInfo;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
@@ -19,18 +18,16 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.FailingReplyProcessor;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
+import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
+import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,232 +50,110 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object lock = new Object();
     @GuardedBy("lock")
-    private CompletableFuture<ClientConnection> connection = null;
-    @GuardedBy("lock")
-    private final Map<Long, CompletableFuture<StreamSegmentInfo>> infoRequests = new HashMap<>();
-    @GuardedBy("lock")
-    private final Map<Long, CompletableFuture<WireCommands.SegmentAttribute>> getAttributeRequests = new HashMap<>();
-    @GuardedBy("lock")
-    private final Map<Long, CompletableFuture<SegmentAttributeUpdated>> setAttributeRequests = new HashMap<>();
-    @GuardedBy("lock")
-    private final Map<Long, CompletableFuture<SegmentTruncated>> truncateSegmentRequests = new HashMap<>();
+    private RawClient client = null;
+    private final String delegationToken;
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
-    private final ResponseProcessor responseProcessor = new ResponseProcessor();
     
-    private final class ResponseProcessor extends FailingReplyProcessor {
-        
-        @Override
-        public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
-            log.debug("Received stream segment info {}", streamInfo);
-            CompletableFuture<StreamSegmentInfo> future;
-            synchronized (lock) {
-                future = infoRequests.remove(streamInfo.getRequestId());
-            }
-            if (future != null) {
-                future.complete(streamInfo);
-            }
-        }        
-
-        @Override
-        public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            log.debug("Received stream segment attribute {}", segmentAttribute);
-            CompletableFuture<WireCommands.SegmentAttribute> future;
-            synchronized (lock) {
-                future = getAttributeRequests.remove(segmentAttribute.getRequestId());
-            }
-            if (future != null) {
-                future.complete(segmentAttribute);
-            }
+    private void closeConnection(Reply badReply) {
+        log.info("Closing connection as a result of receiving: {}", badReply);
+        RawClient c;
+        synchronized (lock) {
+            c = client;
+            client = null;
         }
-        
-        @Override
-        public void segmentAttributeUpdated(SegmentAttributeUpdated segmentAttributeUpdated) {
-            log.debug("Received stream segment attribute update result {}", segmentAttributeUpdated);
-            CompletableFuture<SegmentAttributeUpdated> future;
-            synchronized (lock) {
-                future = setAttributeRequests.remove(segmentAttributeUpdated.getRequestId());
+        if (c != null) {
+            try {
+                c.close();
+            } catch (Exception e) {
+                log.warn("Exception tearing down connection: ", e);
             }
-            if (future != null) {
-                future.complete(segmentAttributeUpdated);
-            }
-        }
-        
-        @Override
-        public void segmentTruncated(SegmentTruncated segmentTruncated) {
-            log.debug("Received stream segment truncate result {}", segmentTruncated);
-            CompletableFuture<SegmentTruncated> future;
-            synchronized (lock) {
-                future = truncateSegmentRequests.remove(segmentTruncated.getRequestId());
-            }
-            if (future != null) {
-                future.complete(segmentTruncated);
-            }
-        }
-        
-        @Override
-        public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
-            log.debug("Received segment is truncated {}", segmentIsTruncated);
-            CompletableFuture<SegmentTruncated> future;
-            synchronized (lock) {
-                future = truncateSegmentRequests.remove(segmentIsTruncated.getRequestId());
-            }
-            if (future == null) {
-                closeConnection(new SegmentTruncatedException(segmentIsTruncated.getSegment()));
-            } else {
-                future.complete(new SegmentTruncated(segmentIsTruncated.getRequestId(), segmentIsTruncated.getSegment()));
-            }
-        }
-        
-        @Override
-        public void connectionDropped() {
-            closeConnection(new ConnectionFailedException());
-        }
-
-        @Override
-        public void wrongHost(WireCommands.WrongHost wrongHost) {
-            closeConnection(new ConnectionFailedException(wrongHost.toString()));
-        }
-
-        @Override
-        public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            closeConnection(new NoSuchSegmentException(noSuchSegment.toString()));
-        }
-
-        @Override
-        public void processingFailure(Exception error) {
-            log.warn("Processing failure: ", error);
-            closeConnection(error);
         }
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
-        CompletableFuture<ClientConnection> c;
+        RawClient c;
         synchronized (lock) {
-            c = connection;
-            connection = null;
+            c = client;
+            client = null;
         }
-        if (c != null && Futures.isSuccessful(c)) {
+        if (c != null) {
             try {
-                c.getNow(null).close();
+                c.close();
             } catch (Exception e) {
                 log.warn("Exception tearing down connection: ", e);
             }
         }
-        failAllInflight(exceptionToInflightRequests);
     }
     
-    private void failAllInflight(Throwable e) {
-        log.info("SegmentMetadata connection failed due to a {}.", e.getMessage());
-        List<CompletableFuture<?>> requests;
+    RawClient getConnection() {
         synchronized (lock) {
-            requests = new ArrayList<>(infoRequests.values());
-            requests.addAll(getAttributeRequests.values());
-            requests.addAll(setAttributeRequests.values());
-            requests.addAll(truncateSegmentRequests.values());
-            infoRequests.clear();
-            getAttributeRequests.clear();
-            setAttributeRequests.clear();
-            truncateSegmentRequests.clear();
-        }
-        for (CompletableFuture<?> request : requests) {
-            request.completeExceptionally(e);
-        }
-    }
-    
-    CompletableFuture<ClientConnection> getConnection() {
-        synchronized (lock) {
-            //Optimistic check
-            if (connection != null) {
-                return connection;
+            if (client == null || client.isClosed()) {
+                client = new RawClient(controller, connectionFactory, segmentId);
             }
+            return client;
         }
-        return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
-            log.info("Connecting to {}", uri);
-            synchronized (lock) {
-                if (connection == null) {
-                    connection = connectionFactory.establishConnection(uri, responseProcessor);
-                }
-                return connection; 
-            } 
-        });
     }
-    
-    private CompletableFuture<WireCommands.StreamSegmentInfo> getStreamSegmentInfo() {
-        CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
-        long requestId = requestIdGenerator.get();
-        synchronized (lock) {
-            infoRequests.put(requestId, result);
-        }
-        getConnection().thenAccept(c -> {
-            log.debug("Getting segment info for segment: {}", segmentId);
-            send(c, new WireCommands.GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
-        }).exceptionally(e -> {
-            closeConnection(e);
-            return null;
-        });
-        return result;
-    }
-    
+
+    @SuppressWarnings("unchecked")
     @SneakyThrows(ConnectionFailedException.class)
-    private void send(ClientConnection c, WireCommand cmd) {
-        c.send(cmd);
-    }
-    
-    private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId) {
-        CompletableFuture<WireCommands.SegmentAttribute> result = new CompletableFuture<>();
-        long requestId = requestIdGenerator.get();
-        synchronized (lock) {
-            getAttributeRequests.put(requestId, result);
+    private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
+        if (klass.isAssignableFrom(reply.getClass())) {
+            return (T) reply;
         }
-        getConnection().thenAccept(c -> {
-            log.debug("Getting segment attribute: {}", attributeId);
-            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId));
-        }).exceptionally(e -> {
-            closeConnection(e);
-            return null;
-        });
-        return result;
-    }
-    
-    private CompletableFuture<WireCommands.SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected, long value) {
-        CompletableFuture<WireCommands.SegmentAttributeUpdated> result = new CompletableFuture<>();
-        long requestId = requestIdGenerator.get();
-        synchronized (lock) {
-            setAttributeRequests.put(requestId, result);
+        closeConnection(reply);
+        if (reply instanceof WireCommands.NoSuchSegment) {
+            throw new NoSuchSegmentException(reply.toString());
+        } else if (reply instanceof WrongHost) {
+            throw new ConnectionFailedException(reply.toString());
+        } else {
+            throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
+                    + klass.getName());
         }
-        getConnection().thenAccept(c -> {
-            log.trace("Updating segment attribute: {}", attributeId);
-            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, value, expected));
-        }).exceptionally(e -> {
-            closeConnection(e);
-            return null;
-        });
-        return result;
     }
-    
-    private CompletableFuture<WireCommands.SegmentTruncated> truncateSegmentAsync(Segment segment, long offset) {
-        CompletableFuture<WireCommands.SegmentTruncated> result = new CompletableFuture<>();
+
+    private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo(String delegationToken) {
         long requestId = requestIdGenerator.get();
-        synchronized (lock) {
-            truncateSegmentRequests.put(requestId, result);
-        }
-        getConnection().thenAccept(c -> {
-            log.trace("Truncating segment: {}", segment);
-            send(c, new WireCommands.TruncateSegment(requestId, segment.getScopedName(), offset));
-        }).exceptionally(e -> {
-            closeConnection(e);
-            return null;
-        });
-        return result;
+        log.debug("Getting segment info for segment: {}", segmentId);
+        RawClient connection = getConnection();
+        return connection.sendRequest(requestId, new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken))
+                         .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
+    private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId, String delegationToken) {
+        long requestId = requestIdGenerator.get();
+        log.debug("Getting segment attribute: {}", attributeId);
+        RawClient connection = getConnection();
+        return connection.sendRequest(requestId,
+                                      new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, delegationToken))
+                         .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
+    }
+
+    private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected,
+                                                                                        long value, String delegationToken) {
+        long requestId = requestIdGenerator.get();
+        log.trace("Updating segment attribute: {}", attributeId);
+        RawClient connection = getConnection();
+        return connection.sendRequest(requestId,
+                                      new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
+                                                                 value, expected, delegationToken))
+                         .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
+    }
+
+    private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset, String delegationToken) {
+        long requestId = requestIdGenerator.get();
+        log.trace("Truncating segment: {}", segment);
+        RawClient connection = getConnection();
+        return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
+                         .thenApply(r -> transformReply(r, SegmentTruncated.class));
+    }
+
     @Override
     public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).getWriteOffset();
     }
 
@@ -287,7 +162,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getPropertyAsync(attribute.getValue()),
+                                   .runAsync(() -> getPropertyAsync(attribute.getValue(), delegationToken),
                                              connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).getValue();
     }
@@ -297,7 +172,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue),
+                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue, delegationToken),
                                              connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).isSuccess();
     }
@@ -314,16 +189,17 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public SegmentInfo getSegmentInfo() {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
-        StreamSegmentInfo info = future.join();
-        return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(), info.getLastModified());
+                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
+        StreamSegmentInfo info = Futures.getThrowingException(future);
+        return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
+                               info.getLastModified());
     }
 
     @Override
     public void truncateSegment(Segment segment, long offset) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> truncateSegmentAsync(segment, offset),
+                                   .runAsync(() -> truncateSegmentAsync(segment, offset, delegationToken),
                                              connectionFactory.getInternalExecutor());
         future.join();
     }

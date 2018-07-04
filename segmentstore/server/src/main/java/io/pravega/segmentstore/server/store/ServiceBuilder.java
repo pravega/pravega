@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -21,6 +22,9 @@ import io.pravega.segmentstore.server.SegmentContainerManager;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
+import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.ReadOnlySegmentContainerFactory;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
@@ -39,6 +43,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -54,14 +59,17 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilder implements AutoCloseable {
     //region Members
 
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
     private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService coreExecutor;
     private final ScheduledExecutorService storageExecutor;
+    private final CacheManager cacheManager;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
     private final AtomicReference<ReadIndexFactory> readIndexFactory;
+    private final AtomicReference<AttributeIndexFactory> attributeIndexFactory;
     private final AtomicReference<DurableDataLogFactory> dataLogFactory;
     private final AtomicReference<StorageFactory> storageFactory;
     private final AtomicReference<SegmentContainerFactory> containerFactory;
@@ -90,6 +98,7 @@ public class ServiceBuilder implements AutoCloseable {
         this.segmentToContainerMapper = createSegmentToContainerMapper(serviceConfig);
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
+        this.attributeIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
         this.storageFactory = new AtomicReference<>();
         this.containerFactory = new AtomicReference<>();
@@ -110,6 +119,8 @@ public class ServiceBuilder implements AutoCloseable {
         this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "core");
         this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage-io");
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
+
+        this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
     }
 
     //endregion
@@ -123,9 +134,9 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
         closeComponent(this.cacheFactory);
+        this.cacheManager.close();
         this.threadPoolMetrics.close();
-        this.storageExecutor.shutdown();
-        this.coreExecutor.shutdown();
+        ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
     }
 
     //endregion
@@ -214,6 +225,7 @@ public class ServiceBuilder implements AutoCloseable {
      * @throws DurableDataLogException If unable to initialize DurableDataLogFactory.
      */
     public void initialize() throws DurableDataLogException {
+        this.cacheManager.startAsync().awaitRunning();
         getSingleton(this.dataLogFactory, this.dataLogFactoryCreator).initialize();
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
@@ -241,7 +253,13 @@ public class ServiceBuilder implements AutoCloseable {
     protected ReadIndexFactory createReadIndexFactory() {
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.coreExecutor);
+        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.cacheManager, this.coreExecutor);
+    }
+
+    protected AttributeIndexFactory createAttributeIndexFactory() {
+        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
+        AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
+        return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {
@@ -250,11 +268,13 @@ public class ServiceBuilder implements AutoCloseable {
 
     protected SegmentContainerFactory createSegmentContainerFactory() {
         ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory);
+        AttributeIndexFactory attributeIndexFactory = getSingleton(this.attributeIndexFactory, this::createAttributeIndexFactory);
         StorageFactory storageFactory = createStorageFactory();
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
-        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, writerFactory, storageFactory, this.coreExecutor);
+        return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
+                writerFactory, storageFactory, this.coreExecutor);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

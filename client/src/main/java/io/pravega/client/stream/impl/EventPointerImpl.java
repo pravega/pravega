@@ -9,10 +9,19 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventPointer;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
-
+import lombok.SneakyThrows;
 
 /**
  * Implementation of the EventPointer interface. We use
@@ -20,13 +29,13 @@ import lombok.ToString;
  * class to make pointer instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-@ToString
 public class EventPointerImpl extends EventPointerInternal {
-    private static final long serialVersionUID = 1L;
+    private static final EventPointerSerializer SERIALIZER = new EventPointerSerializer();
     private final Segment segment;
     private final long eventStartOffset;
     private final int eventLength;
 
+    @Builder(builderClassName = "EventPointerBuilder")
     EventPointerImpl(Segment segment, long eventStartOffset, int eventLength) {
         this.segment = segment;
         this.eventStartOffset = eventStartOffset;
@@ -51,5 +60,70 @@ public class EventPointerImpl extends EventPointerInternal {
     @Override
     public EventPointerInternal asImpl() {
         return this;
+    }
+    
+    public static EventPointer fromString(String eventPointer) {
+        int i = eventPointer.lastIndexOf(":");
+        Preconditions.checkArgument(i > 0, "Invalid event pointer: %s", eventPointer);
+        String[] offset = eventPointer.substring(i + 1).split("-");
+        Preconditions.checkArgument(offset.length == 2, "Invalid event pointer: %s", eventPointer);
+        return new EventPointerImpl(Segment.fromScopedName(eventPointer.substring(0, i)), Long.parseLong(offset[0]),
+                                    Integer.parseInt(offset[1]));
+    }
+    
+    @Override
+    public String toString() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(segment.getScopedName());
+        sb.append(':');
+        sb.append(eventStartOffset);
+        sb.append('-');
+        sb.append(eventLength);
+        return sb.toString();
+    }
+
+    private static class EventPointerBuilder implements ObjectBuilder<EventPointerImpl> {
+    }
+
+    private static class EventPointerSerializer extends VersionedSerializer.WithBuilder<EventPointerImpl, EventPointerBuilder> {
+
+        @Override
+        protected EventPointerBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, EventPointerBuilder builder) throws IOException {
+            builder.segment(Segment.fromScopedName(revisionDataInput.readUTF()));
+            builder.eventStartOffset(revisionDataInput.readCompactLong());
+            builder.eventLength(revisionDataInput.readCompactInt());
+        }
+
+        private void write00(EventPointerImpl pointer, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(pointer.getSegment().getScopedName());
+            revisionDataOutput.writeCompactLong(pointer.eventStartOffset);
+            revisionDataOutput.writeCompactInt(pointer.getEventLength());
+        }
+    }
+    
+    @Override
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+    
+    @SneakyThrows(IOException.class)
+    public static EventPointerInternal fromBytes(ByteBuffer data) {
+        return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
 }

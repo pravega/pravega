@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -284,6 +285,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public boolean isOffline() {
+            return false;
+        }
+
+        @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 Futures.await(Services.stopAsync(this, executorService()));
@@ -341,6 +347,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+            return null;
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
             return null;
         }
@@ -356,12 +367,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
-            return null;
-        }
-
-        @Override
-        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+        public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
             return null;
         }
 

@@ -21,6 +21,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
+import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -129,12 +130,11 @@ class BookKeeperLog implements DurableDataLog {
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
-    private Retry.RetryAndThrowBase<Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
+    private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
         int initialDelay = writeTimeout / maxWriteAttempts;
         int maxDelay = writeTimeout * maxWriteAttempts;
         return Retry.withExpBackoff(initialDelay, 2, maxWriteAttempts, maxDelay)
-                    .retryWhen(ex -> true) // Retry for every exception.
-                    .throwingOn(Exception.class);
+                    .retryWhen(ex -> true); // Retry for every exception.
     }
 
     private void handleWriteProcessorFailures(Throwable exception) {
@@ -199,12 +199,14 @@ class BookKeeperLog implements DurableDataLog {
      * @param timeout Timeout for the operation.
      * @throws DataLogWriterNotPrimaryException If we were fenced-out during this process.
      * @throws DataLogNotAvailableException     If BookKeeper or ZooKeeper are not available.
+     * @throws DataLogDisabledException         If the BookKeeperLog is disabled. No fencing is attempted in this case.
      * @throws DataLogInitializationException   If a general initialization error occurred.
      * @throws DurableDataLogException          If another type of exception occurred.
      */
     @Override
     public void initialize(Duration timeout) throws DurableDataLogException {
         List<Long> ledgersToDelete;
+        LogMetadata newMetadata;
         synchronized (this.lock) {
             Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized.");
             assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
@@ -213,6 +215,10 @@ class BookKeeperLog implements DurableDataLog {
             LogMetadata oldMetadata = loadMetadata();
 
             if (oldMetadata != null) {
+                if (!oldMetadata.isEnabled()) {
+                    throw new DataLogDisabledException("BookKeeperLog is disabled. Cannot initialize.");
+                }
+
                 // Fence out ledgers.
                 val emptyLedgerIds = Ledgers.fenceOut(oldMetadata.getLedgers(), this.bookKeeper, this.config, this.traceObjectId);
 
@@ -225,7 +231,7 @@ class BookKeeperLog implements DurableDataLog {
             log.info("{}: Created Ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update Metadata with new Ledger and persist to ZooKeeper.
-            LogMetadata newMetadata = updateMetadata(oldMetadata, newLedger, true);
+            newMetadata = updateMetadata(oldMetadata, newLedger, true);
             LedgerMetadata ledgerMetadata = newMetadata.getLedger(newLedger.getId());
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
@@ -244,7 +250,41 @@ class BookKeeperLog implements DurableDataLog {
                 log.warn("{}: Unable to delete orphan empty ledger {}.", this.traceObjectId, id, ex);
             }
         });
-        log.info("{}: Initialized.", this.traceObjectId);
+        log.info("{}: Initialized (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, newMetadata.getEpoch(), newMetadata.getUpdateVersion());
+    }
+
+    @Override
+    public void enable() throws DurableDataLogException {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        synchronized (this.lock) {
+            Preconditions.checkState(this.writeLedger == null, "BookKeeperLog is already initialized; cannot re-enable.");
+            assert this.logMetadata == null : "writeLedger == null but logMetadata != null";
+
+            // Load existing metadata. Inexistent metadata means the BookKeeperLog has never been accessed, and therefore
+            // enabled by default.
+            LogMetadata metadata = loadMetadata();
+            Preconditions.checkState(metadata != null && !metadata.isEnabled(), "BookKeeperLog is already enabled.");
+            metadata = metadata.asEnabled();
+            persistMetadata(metadata, false);
+            log.info("{}: Enabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+    }
+
+    @Override
+    public void disable() throws DurableDataLogException {
+        // Get the current metadata, disable it, and then persist it back.
+        synchronized (this.lock) {
+            ensurePreconditions();
+            LogMetadata metadata = getLogMetadata();
+            Preconditions.checkState(metadata.isEnabled(), "BookKeeperLog is already disabled.");
+            metadata = this.logMetadata.asDisabled();
+            persistMetadata(metadata, false);
+            this.logMetadata = metadata;
+            log.info("{}: Disabled (Epoch = {}, UpdateVersion = {}).", this.traceObjectId, metadata.getEpoch(), metadata.getUpdateVersion());
+        }
+
+        // Close this instance of the BookKeeperLog. This ensures the proper cancellation of any ongoing writes.
+        close();
     }
 
     @Override
@@ -314,6 +354,11 @@ class BookKeeperLog implements DurableDataLog {
      * Write Processor main loop. This method is not thread safe and should only be invoked as part of the Write Processor.
      */
     private void processWritesSync() {
+        if (this.closed.get()) {
+            // BookKeeperLog is closed. No point in trying anything else.
+            return;
+        }
+
         if (getWriteLedger().ledger.isClosed()) {
             // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
             // the write processor upon finish, so the writes can be reattempted.
@@ -334,18 +379,42 @@ class BookKeeperLog implements DurableDataLog {
 
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
         val cs = this.writes.removeFinishedWrites();
-        if (cs.contains(WriteQueue.CleanupStatus.WriteFailed)) {
+        if (cs == WriteQueue.CleanupStatus.WriteFailed) {
             // We encountered a failed write. As such, we must close immediately and not process anything else.
             // Closing will automatically cancel all pending writes.
             close();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.WriteFailed);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
             return false;
-        } else if (cs.contains(WriteQueue.CleanupStatus.QueueEmpty)) {
+        } else if (cs == WriteQueue.CleanupStatus.QueueEmpty) {
             // Queue is empty - nothing else to do.
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.QueueEmpty);
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, cs);
             return true;
         }
 
+        // Get the writes to execute from the queue.
+        List<Write> toExecute = getWritesToExecute();
+
+        // Execute the writes, if any.
+        boolean success = true;
+        if (!toExecute.isEmpty()) {
+            success = executeWrites(toExecute);
+
+            if (success) {
+                // After every run where we did write, check if need to trigger a rollover.
+                this.rolloverProcessor.runAsync();
+            }
+        }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size(), success);
+        return success;
+    }
+
+    /**
+     * Collects an ordered list of Writes to execute to BookKeeper.
+     *
+     * @return The list of Writes to execute.
+     */
+    private List<Write> getWritesToExecute() {
         // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
 
@@ -360,7 +429,17 @@ class BookKeeperLog implements DurableDataLog {
             toExecute = this.writes.getWritesToExecute(maxTotalSize);
         }
 
-        // Execute the writes.
+        return toExecute;
+    }
+
+    /**
+     * Executes the given Writes to BookKeeper.
+     *
+     * @param toExecute The Writes to execute.
+     * @return True if all the writes succeeded, false if at least one failed (if a Write failed, all subsequent writes
+     * will be failed as well).
+     */
+    private boolean executeWrites(List<Write> toExecute) {
         log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
@@ -384,14 +463,11 @@ class BookKeeperLog implements DurableDataLog {
                     toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
                 }
 
-                LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, i);
                 return false;
             }
         }
 
-        // After every run where we did write, check if need to trigger a rollover.
-        this.rolloverProcessor.runAsync();
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size());
+        // Success.
         return true;
     }
 
@@ -477,7 +553,6 @@ class BookKeeperLog implements DurableDataLog {
      * @param ctx     Write Context. In our case, the Write we were writing.
      */
     private void addCallback(int rc, LedgerHandle handle, long entryId, Object ctx) {
-        @SuppressWarnings("unchecked")
         Write write = (Write) ctx;
         try {
             assert handle.getId() == write.getWriteLedger().ledger.getId()
@@ -638,7 +713,7 @@ class BookKeeperLog implements DurableDataLog {
         try {
             Stat storingStatIn = new Stat();
             byte[] serializedMetadata = this.zkClient.getData().storingStatIn(storingStatIn).forPath(this.logNodePath);
-            LogMetadata result = LogMetadata.deserialize(serializedMetadata);
+            LogMetadata result = LogMetadata.SERIALIZER.deserialize(serializedMetadata);
             result.withUpdateVersion(storingStatIn.getVersion());
             return result;
         } catch (KeeperException.NoNodeException nne) {
@@ -707,15 +782,14 @@ class BookKeeperLog implements DurableDataLog {
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
+            byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             if (create) {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.create()
                              .creatingParentsIfNeeded()
                              .forPath(this.logNodePath, serializedMetadata);
                 // Set version to 0 as that will match the ZNode's version.
                 metadata.withUpdateVersion(0);
             } else {
-                byte[] serializedMetadata = metadata.serialize();
                 this.zkClient.setData()
                              .withVersion(metadata.getUpdateVersion())
                              .forPath(this.logNodePath, serializedMetadata);

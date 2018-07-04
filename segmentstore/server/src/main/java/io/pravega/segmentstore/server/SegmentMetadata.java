@@ -18,25 +18,9 @@ import java.util.HashMap;
  */
 public interface SegmentMetadata extends SegmentProperties {
     /**
-     * The maximum number of attributes that a single Segment can have at any given time. Due to serialization constraints
-     * there needs to be a hard limit as to how many attributes each segment can have.
-     */
-    int MAXIMUM_ATTRIBUTE_COUNT = 1024;
-
-    /**
-     * Defines an attribute value that denotes a missing value.
-     */
-    long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
-
-    /**
      * Gets a value indicating the id of this StreamSegment.
      */
     long getId();
-
-    /**
-     * Gets a value indicating the id of this StreamSegment's parent.
-     */
-    long getParentId();
 
     /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
@@ -82,14 +66,5 @@ public interface SegmentMetadata extends SegmentProperties {
      */
     default SegmentProperties getSnapshot() {
         return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
-    }
-
-    /**
-     * Determines whether the Segment represented by this SegmentMetadata is a Transaction.
-     *
-     * @return True if Transaction, False otherwise.
-     */
-    default boolean isTransaction() {
-        return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 }

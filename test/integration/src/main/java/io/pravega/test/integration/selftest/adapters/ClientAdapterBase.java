@@ -50,10 +50,8 @@ abstract class ClientAdapterBase extends StoreAdapter {
     static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final long TXN_TIMEOUT = 30 * 1000;
     private static final long TXN_MAX_EXEC_TIME = TXN_TIMEOUT;
-    private static final long TXN_SCALE_GRACE_PERIOD = TXN_TIMEOUT;
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder()
                                                                             .transactionTimeoutTime(TXN_MAX_EXEC_TIME)
-                                                                            .transactionTimeoutScaleGracePeriod(TXN_SCALE_GRACE_PERIOD)
                                                                             .build();
     final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;

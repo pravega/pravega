@@ -9,6 +9,12 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -30,14 +36,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Assert;
@@ -45,11 +49,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 
@@ -306,6 +305,38 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void truncateStreamTests() {
+        CreateScopeStatus createScopeStatus;
+        CreateStreamStatus createStreamStatus;
+
+        final StreamConfiguration configuration1 =
+                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
+                                   .build();
+
+        // Create a test scope.
+        ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
+        createScopeStatus = result1.get();
+        assertEquals("Create Scope", CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        // Create a test stream.
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        createStreamStatus = result2.get();
+        assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+
+        //Truncate the stream
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
+                                                                  .setStreamInfo(StreamInfo.newBuilder()
+                                                                                           .setScope(SCOPE1)
+                                                                                           .setStream(STREAM1)
+                                                                                           .build())
+                .putCut(0, 0).build(), result3);
+        UpdateStreamStatus truncateStreamStatus = result3.get();
+    }
+
+        @Test
     public void sealStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
@@ -359,17 +390,43 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void getSegmentsTest() {
+    public void getSegmentsBetweenTest() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 
-        ResultObserver<SegmentsAtTime> result2 = new ResultObserver<>();
-        this.controllerService.getSegments(GetSegmentsRequest.newBuilder()
-                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
-                        .setTimestamp(0L)
-                        .build(),
+        ResultObserver<Controller.StreamCutRangeResponse> result1 = new ResultObserver<>();
+        Map<Long, Long> from1 = new HashMap<>();
+        Map<Long, Long> to1 = new HashMap<>();
+        to1.put(0L, 0L);
+        to1.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from1).putAllTo(to1).build(),
+                result1);
+        Assert.assertEquals(2, result1.get().getSegmentsCount());
+
+        ResultObserver<Controller.StreamCutRangeResponse> result2 = new ResultObserver<>();
+        Map<Long, Long> from2 = new HashMap<>();
+        Map<Long, Long> to2 = new HashMap<>();
+        from2.put(0L, 0L);
+        from2.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from2).putAllTo(to2).build(),
                 result2);
-        final SegmentsAtTime segmentRanges = result2.get();
-        Assert.assertEquals(2, segmentRanges.getSegmentsCount());
+        Assert.assertEquals(2, result2.get().getSegmentsCount());
+
+        ResultObserver<Controller.StreamCutRangeResponse> result3 = new ResultObserver<>();
+        Map<Long, Long> from3 = new HashMap<>();
+        Map<Long, Long> to3 = new HashMap<>();
+        from3.put(0L, 0L);
+        from3.put(1L, 0L);
+        to3.put(0L, 0L);
+        to3.put(1L, 0L);
+        this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
+                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                .putAllFrom(from3).putAllTo(to3).build(),
+                result3);
+        Assert.assertEquals(2, result3.get().getSegmentsCount());
     }
 
     @Test
@@ -429,9 +486,23 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.getCurrentSegments(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result3);
         final SegmentRanges segmentRanges = result3.get();
         Assert.assertEquals(3, segmentRanges.getSegmentRangesCount());
-        Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(2, segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentNumber());
-        Assert.assertEquals(3, segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentNumber());
+        Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentId());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentId());
+        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentId());
+    }
+
+    @Test
+    public void getSegmentsTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<SegmentsAtTime> result2 = new ResultObserver<>();
+        this.controllerService.getSegments(GetSegmentsRequest.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .setTimestamp(0L)
+                        .build(),
+                result2);
+        final SegmentsAtTime segmentRanges = result2.get();
+        Assert.assertEquals(2, segmentRanges.getSegmentsCount());
     }
 
     @Test
@@ -470,22 +541,11 @@ public abstract class ControllerServiceImplTest {
         CreateTxnRequest request = CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(-1)
-                .setScaleGracePeriod(10000).build();
+                .build();
         ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);
         AssertExtensions.assertThrows("Lease lower bound violated ",
                 resultObserver::get,
-                e -> checkGRPCException(e, IllegalArgumentException.class));
-
-        // Invalid ScaleGracePeriod
-        request = CreateTxnRequest.newBuilder()
-                .setStreamInfo(streamInfo)
-                .setLease(10000)
-                .setScaleGracePeriod(-1).build();
-        ResultObserver<CreateTxnResponse> resultObserver3 = new ResultObserver<>();
-        this.controllerService.createTransaction(request, resultObserver3);
-        AssertExtensions.assertThrows("Lease lower bound violated ",
-                resultObserver3::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
@@ -506,7 +566,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
     }
 
-    private boolean checkGRPCException(Throwable e, Class expectedCause) {
+    private boolean checkGRPCException(Throwable e, Class<? extends Exception> expectedCause) {
         return e instanceof StatusRuntimeException && e.getCause().getClass() == expectedCause;
     }
 

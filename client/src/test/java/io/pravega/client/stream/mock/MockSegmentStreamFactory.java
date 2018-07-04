@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.segment.impl.ConditionalOutputStream;
+import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -22,14 +24,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, SegmentMetadataClientFactory {
+public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, ConditionalOutputStreamFactory, SegmentMetadataClientFactory {
 
     private final Map<Segment, MockSegmentIoStreams> segments = new ConcurrentHashMap<>();
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
                                                                 Consumer<Segment> segmentSealedCallback,
-                                                                EventWriterConfig config) {
+                                                                EventWriterConfig config, String delegationToken) {
         throw new UnsupportedOperationException();
     }
 
@@ -40,7 +42,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
     
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken) {
         return getMockStream(segment);
     }
 
@@ -55,7 +57,17 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
         return getMockStream(segment);
     }
 }

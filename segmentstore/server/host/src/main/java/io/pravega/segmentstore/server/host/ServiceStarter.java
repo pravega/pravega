@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
@@ -104,8 +105,9 @@ public final class ServiceStarter {
         SegmentStatsRecorder statsRecorder = segmentStatsFactory
                 .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, statsRecorder);
+        TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
+                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");
@@ -238,6 +240,12 @@ public final class ServiceStarter {
 
         try {
             serviceStarter.get().start();
+        } catch (Throwable e) {
+            log.error("Could not start the Service, Aborting.", e);
+            System.exit(1);
+        }
+
+        try {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 log.info("Caught interrupt signal...");
                 serviceStarter.get().shutdown();
@@ -248,6 +256,7 @@ public final class ServiceStarter {
             log.info("Caught interrupt signal...");
         } finally {
             serviceStarter.get().shutdown();
+            System.exit(0);
         }
     }
 
