@@ -15,7 +15,6 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -26,7 +25,6 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -253,64 +251,4 @@ public class ReaderGroupNotificationTest {
         assertTrue("Listener invoked", listenerInvoked.get());
     }
 
-    @Test(timeout = 40000)
-    public void testSegmentTruncatedNotifications() throws Exception {
-        final String streamName = "stream2";
-        StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
-                                                        .build();
-        Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
-        @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://localhost"))
-                                                                                    .build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        writer.writeEvent("0", "data1").get();
-
-        // truncate
-
-        @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).build());
-        @Cleanup
-        ReaderGroup readerGroup = groupManager.getReaderGroup("reader");
-        @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint", executor).join();
-        StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
-        Boolean result = controller.truncateStream(SCOPE, streamName, streamCut).get();
-        assertTrue(result);
-        writer.writeEvent("0", "data2").get();
-        assertTrue(controller.sealStream(SCOPE, streamName).get()); // seal stream
-        /*Add segment event listener
-        Listener<EndOfDataNotification> l1 = notification -> {
-            listenerInvoked.set(true);
-            listenerLatch.release();
-        };
-        readerGroup.getSegmentNotifier()
-                           getEndOfDataNotifier(executor).registerListener(l1);*/
-
-        EventRead<String> event1 = reader1.readNextEvent(10000);
-        EventRead<String> event2 = reader1.readNextEvent(10000);
-        EventRead<String> event3 = reader1.readNextEvent(10000);
-        assertNotNull(event1);
-        assertEquals("data1", event1.getEvent());
-        assertNotNull(event2);
-        assertEquals("data2", event2.getEvent());
-        assertNull(event3.getEvent());
-
-       // listenerLatch.await();
-        //assertTrue("Listener invoked", listenerInvoked.get());
-    }
 }
