@@ -24,9 +24,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.Statistics;
 import org.rocksdb.WriteOptions;
 
 /**
@@ -55,6 +57,7 @@ class RocksDBCache implements Cache {
     private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
+    private final Statistics statistics;
 
     //endregion
 
@@ -77,6 +80,7 @@ class RocksDBCache implements Cache {
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
         this.database = new AtomicReference<>();
+        this.statistics = new Statistics();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -121,6 +125,7 @@ class RocksDBCache implements Cache {
 
     @Override
     public void close() {
+        log.info(statistics.toString());
         if (this.closed.compareAndSet(false, true)) {
             RocksDB db = this.database.get();
             if (db != null) {
@@ -218,12 +223,18 @@ class RocksDBCache implements Cache {
     }
 
     private Options createDatabaseOptions() {
+        BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
+                .setBlockSize(32 * 1024);
+
         return new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
+                .setWriteBufferSize(32 * 1024 * 1024)
+                .setTableFormatConfig(tableFormatConfig)
+                .setStatistics(statistics);
     }
 
     private void clear(boolean recreateDirectory) {
