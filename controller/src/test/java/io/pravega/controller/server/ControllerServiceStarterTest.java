@@ -106,7 +106,6 @@ public abstract class ControllerServiceStarterTest {
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
         return ControllerServiceConfigImpl.builder()
@@ -122,6 +121,7 @@ public abstract class ControllerServiceStarterTest {
                                                                   .tlsEnabled(enableAuth)
                                                                   .tlsCertFile("../config/cert.pem")
                                                                   .tlsKeyFile("../config/key.pem")
+                                                                  .userPasswordFile("../config/passwd")
                                                                   .build()))
                 .restServerConfig(Optional.empty())
                 .build();

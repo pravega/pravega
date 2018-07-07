@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.reading;
+package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
@@ -15,8 +15,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.server.CacheUtilizationProvider;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -27,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -154,7 +153,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      *
      * @param client The client to register.
      */
-    void register(Client client) {
+    public void register(Client client) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkNotNull(client, "client");
         synchronized (this.clients) {
@@ -172,7 +171,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      *
      * @param client The client to unregister.
      */
-    void unregister(Client client) {
+    public void unregister(Client client) {
         if (this.closed.get()) {
             // We are done. Nothing to do here.
             return;
@@ -360,7 +359,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     /**
      * Defines a Client that subscribes to the CacheManager.
      */
-    interface Client {
+    public interface Client {
         /**
          * Gets the current Cache Status.
          */
@@ -384,44 +383,37 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     /**
      * Represents the current status of the cache for a particular client.
      */
-    static class CacheStatus {
+    public static class CacheStatus {
+        /**
+         * The oldest generation found in any cache entry.
+         */
+        @Getter
         private final int oldestGeneration;
+        /**
+         * The newest generation found in any cache entry.
+         */
+        @Getter
         private final int newestGeneration;
+        /**
+         * The total size of the cache items in this particular client.
+         */
+        @Getter
         private final long size;
 
         /**
          * Creates a new instance of the CacheStatus class.
          *
-         * @param size The total size of the cache items in this particular client.
+         * @param size             The total size of the cache items in this particular client.
+         * @param oldestGeneration The oldest generation found in any cache entry.
+         * @param newestGeneration The newest generation found in any cache entry.
          */
-        CacheStatus(long size, int oldestGeneration, int newestGeneration) {
+        public CacheStatus(long size, int oldestGeneration, int newestGeneration) {
             Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
             Preconditions.checkArgument(oldestGeneration >= 0, "oldestGeneration must be a non-negative number");
             Preconditions.checkArgument(newestGeneration >= oldestGeneration, "newestGeneration must be larger than or equal to oldestGeneration");
             this.size = size;
             this.oldestGeneration = oldestGeneration;
             this.newestGeneration = newestGeneration;
-        }
-
-        /**
-         * Gets a value indicating the total size of the cache items in this particular client.
-         */
-        long getSize() {
-            return this.size;
-        }
-
-        /**
-         * Gets a value indicating the oldest generation found in any cache entry.
-         */
-        int getOldestGeneration() {
-            return this.oldestGeneration;
-        }
-
-        /**
-         * Gets a value indicating the newest generation found in any cache entry.
-         */
-        int getNewestGeneration() {
-            return this.newestGeneration;
         }
 
         private CacheStatus withUpdatedSize(long sizeDelta) {

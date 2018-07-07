@@ -645,7 +645,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             }
 
-            assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+            if (!checkpointExists) {
+                // Under normal circumstances, there should always be an UpdateTransaction that matches our argument;
+                // however if we had just processed a failure, collectFailureCandidates() may have cleared (and failed)
+                // all of them, so, only in that case, would it be OK not to find one.
+                log.warn("{}: No Metadata UpdateTransaction found for '{}' (Count={}). This is expected after a critical failure or when OperationProcessor is shutting down.",
+                        traceObjectId, this.metadataTransactions.size(), commitArgs);
+
+                // If a failure did happen, then there should be no other entries in metadataTransactions at this point.
+                assert this.metadataTransactions.isEmpty() : "No Metadata UpdateTransaction found for given CommitArgs, "
+                        + "but there are still entries in metadataTransaction.";
+            }
             return toAck;
         }
 

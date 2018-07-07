@@ -8,25 +8,83 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 In Pravega Metrics Framework, we use [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
-# 1. Metrics interfaces and use example
-There are three basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger) and OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger).
+# 1. Metrics interfaces and examples usage
+There are four basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger), OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger) and Dynamic Logger.
 StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
 ## 1.1. Metrics Service Provider — Interface StatsProvider
 The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we have support for CSV reporter and StatsD reporter.
-```
+```java
 public interface StatsProvider {
     void start(MetricsConfig conf);
     void close();
     StatsLogger createStatsLogger(String scope);
+    DynamicLogger createDynamicLogger();
 }
 ```
 * start(): Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service. 
 * close(): Shutdown of Metrics service.
 * createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
+* createDynamicLogger(): Create a dynamic logger.
 
-## 1.2. Example for starting a Metric service
-This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It starts Pravega service and a Metrics service is started as a sub service.
+## 1.2. Metric Logger — interface StatsLogger
+Using this interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
+```java
+public interface StatsLogger {
+    OpStatsLogger createStats(String name);
+    Counter createCounter(String name);
+    Meter createMeter(String name);
+    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
+    StatsLogger createScopeLogger(String scope);
+}
 ```
+* createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics.
+* createCounter(): Register and get a Counter metric.
+* createMeter(): Create and register a Meter metric.
+* registerGauge(): Register a Gauge metric. 
+* createScopeLogger(): Create the stats logger under given scope name.
+
+### 1.3. Metric Sub Logger — OpStatsLogger
+OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each operation.
+```java
+public interface OpStatsLogger {
+    void reportSuccessEvent(Duration duration);
+    void reportFailEvent(Duration duration);
+    void reportSuccessValue(long value);
+    void reportFailValue(long value);
+    OpStatsData toOpStatsData();
+    void clear();
+}
+```
+* reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
+* reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  
+* reportSuccessValue() : Used to track Histogram of a success value.
+* reportFailValue() : Used to track Histogram of a failed value. 
+* toOpStatsData() :  Used to support JMX exports and inner test.
+* clear : Used to clear stats for this operation.
+
+### 1.4 Metric Logger — interface DynamicLogger
+A simple interface that only exposes simple type metrics: Counter/Gauge/Meter.
+```java
+public interface DynamicLogger {
+void incCounterValue(String name, long delta);
+void updateCounterValue(String name, long value);
+void freezeCounter(String name);
+<T extends Number> void reportGaugeValue(String name, T value);
+void freezeGaugeValue(String name);
+void recordMeterEvents(String name, long number);
+}
+```
+* incCounterValue() : Increase Counter with given value
+* updateCounterValue() : Updates the counter with given value
+* freezeCounter() : Notifies that the counter will not be updated
+* reportGaugeValue() : Reports Gauge value
+* freezeGaugeValue() : Notifies that the gauge value will not be updated.
+* recordMeterEvents()  : Record the occurrence of a given number of events in Meter.
+
+
+# 2. Example for starting a Metric service
+This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It starts Pravega SegmentStore service and a Metrics service is started as a sub service.
+```java
 public final class ServiceStarter {
     ...
     private StatsProvider statsProvider;
@@ -34,7 +92,10 @@ public final class ServiceStarter {
     private void start() {
         ...
         log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
+        MetricsConfig config = MetricsConfig.builder()
+                                                    .with(MetricsConfig.METRICS_PREFIX, "metrics-prefix")
+                                                    .build();
+        MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start(); // Here metric service is started as a sub-service
         ...
@@ -51,84 +112,99 @@ public final class ServiceStarter {
 ...
 }
 ```
-## 1.3. Metric Logger — interface StatsLogger
-Using this interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
-```
-public interface StatsLogger {
-    OpStatsLogger createStats(String name);
-    Counter createCounter(String name);
-    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
-}
-```
-* createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics.
-* createCounter(): Register and get a Counter metric.
-* registerGauge(): Register a get Gauge metric. 
 
-### 1.3.1. Metric Sub Logger — OpStatsLogger
-OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each operation.
-```
-public interface OpStatsLogger {
-    void reportSuccessEvent(Duration duration);
-    void reportFailEvent(Duration duration);
-    void reportSuccessValue(long value);
-    void reportFailValue(long value);
-}
-```
-* reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
-* reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  .
-* reportSuccessValue() : Used to track Histogram of a success value.
-* reportFailValue() : Used to track Histogram of a failed value. 
-
-### 1.3.2. Example for Counter and OpStatsLogger(Timer/Histograms)
-This is an example from io.pravega.segmentstore.server.host.PravegaRequestProcessor. In this class, we registered four metrics: Two timers (createSegment/readSegment), one histograms (segmentReadBytes) and one counter (allReadBytes).
-```
+## 2.1. Example for Dynamic Counter and OpStatsLogger(Timer)
+This is an example from io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor. In this class, we registered two metrics: One timer (createStreamSegment), one dynamic counter (segmentReadBytes).
+```java
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
-    …
-    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(""); < === 1, get a statsLogger
-    public static class Metrics {  < === 2, put all your wanted metric in this static class Metrics
-        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
-        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
-        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
-        static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
-    }
-    …
+    
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    
+    private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+    
+    
+    private void handleReadResult(ReadSegment request, ReadResult result) {
+            String segment = request.getSegment();
+            ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
+            ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
+    
+            boolean truncated = nonCachedEntry != null && nonCachedEntry.getType() == Truncated;
+            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
+            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
+    
+            if (!cachedEntries.isEmpty() || endOfSegment) {
+                // We managed to collect some data. Send it.
+                ByteBuffer data = copyData(cachedEntries);
+                SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
+                connection.send(reply);
+                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
+            } else if (truncated) {
+                // We didn't collect any data, instead we determined that the current read offset was truncated.
+                // Determine the current Start Offset and send that back.
+                segmentStore.getStreamSegmentInfo(segment, false, TIMEOUT)
+                        .thenAccept(info ->
+                                connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset())))
+                        .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
+            } else {
+                Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
+                nonCachedEntry.requestContent(TIMEOUT);
+                nonCachedEntry.getContent()
+                        .thenAccept(contents -> {
+                            ByteBuffer data = copyData(Collections.singletonList(contents));
+                            SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
+                            connection.send(reply);
+                            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
+                        })
+                        .exceptionally(e -> {
+                            if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
+                                // The Segment may have been truncated in Storage after we got this entry but before we managed
+                                // to make a read. In that case, send the appropriate error back.
+                                connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, nonCachedEntry.getStreamSegmentOffset()));
+                            } else {
+                                handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e);
+                            }
+                            return null;
+                        })
+                        .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
+            }
+        }
+
+
+    
     @Override
-    public void readSegment(ReadSegment readSegment) {
-        Timer timer = new Timer();  < ===
-        final String segment = readSegment.getSegment();
-        final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
-        CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
-        future.thenApply((ReadResult t) -> {
-            Metrics.READ_STREAM_SEGMENT. reportSuccessEvent(timer.getElapsedNanos()); < === 3, use the metric
-            handleReadResult(readSegment, t);
-            return null;
-        }).exceptionally((Throwable t) -> {
-            Metrics.READ_STREAM_SEGMENT.reportFailEvent(timer.getElapsedNanos()); < ===
-            handleException(segment, "Read segment", t);
-            return null;
-        });
-    }
-    private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
-        int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
-        Metrics.READ_BYTES_STATS.reportSuccessfulValue(totalSize);
-        Metrics.READ_BYTES.add(totalSize);
-        ByteBuffer data = ByteBuffer.allocate(totalSize);
-         ...
-    }
-    @Override
-    public void createSegment(CreateSegment createStreamsSegment) {
-        Timer timer = new Timer();
-        CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
-        future.thenApply((Void v) -> {
-            Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos()); < ===
-            connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
-            return null;
-        }).exceptionally((Throwable e) -> {
-            Metrics.CREATE_STREAM_SEGMENT.reportFailevent(timer.getElapsedNanos()); < ===
-            handleException(createStreamsSegment.getSegment(), "Create segment", e);
-            return null;
-        });
-    }
+        public void createSegment(CreateSegment createStreamsSegment) {
+            Timer timer = new Timer();
+    
+            Collection<AttributeUpdate> attributes = Arrays.asList(
+                    new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
+                    new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue()),
+                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
+            );
+    
+           if (!verifyToken(createStreamsSegment.getSegment(), createStreamsSegment.getRequestId(),
+                   createStreamsSegment.getDelegationToken(), READ_UPDATE, "Create Segment")) {
+                return;
+           }
+           log.debug("Creating stream segment {}", createStreamsSegment);
+            segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
+                    .thenAccept(v -> {
+                        createStreamSegment.reportSuccessEvent(timer.getElapsed()); // Reporting success event for Timer metric createStreamSegment
+                        connection.send(new SegmentCreated(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment()));
+                    })
+                    .whenComplete((res, e) -> {
+                        if (e == null) {
+                            if (statsRecorder != null) {
+                                statsRecorder.createSegment(createStreamsSegment.getSegment(),
+                                        createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate());
+                            }
+                        } else {
+                            createStreamSegment.reportFailEvent(timer.getElapsed()); // Reporting fail event for Timer metric createStreamSegment
+                            handleException(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment(), "Create segment", e);
+                        }
+                    });
+        }
+
     …
 }
 ```
@@ -140,133 +216,231 @@ StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
 ```
 1. Register all the desired metrics through StatsLogger:
 ```
-static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
+static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
 ```
 1. Use these metrics within code at appropriate place where you would like to collect and record the values.
 ```
 Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());
 ```
-Here CREATE_SEGMENT is the name of this metric, we put all the Metric for host in file io.pravega.segmentstore.server.host.PravegaRequestStats, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
+Here CREATE_STREAM_SEGMENT is the name of this metric, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
 
-### 1.3.3 Output example of OpStatsLogger and Counter
+### 2.1.1 Output example of OpStatsLogger 
 An example output of OpStatsLogger CREATE_SEGMENT reported through CSV reporter:
 ```
-$ cat CREATE_SEGMENT.csv 
+$ cat CREATE_STREAM_SEGMENT.csv 
 t,count,max,mean,min,stddev,p50,p75,p95,p98,p99,p999,mean_rate,m1_rate,m5_rate,m15_rate,rate_unit,duration_unit
 1480928806,1,8.973952,8.973952,8.973952,0.000000,8.973952,8.973952,8.973952,8.973952,8.973952,8.973952,0.036761,0.143306,0.187101,0.195605,calls/second,millisecond
 ```
-READ_STREAM_SEGMENT, and READ_BYTES_STATS are similar to above output. 
-An example output of Counter READ_BYTES reported through CSV reporter:
-```
-$ cat ALL_READ_BYTES.csv
-t,count
-1480928806,0
-1480928866,0
-1480928875,1000
-```
 
-### 1.3.4. Example for Gauge metrics
-This is an example from io.pravega.segmentstore.server.host.AppendProcessor. In this class, we registered a Gauge which represent current PendingReadBytes.
-```
-public class AppendProcessor extends DelegatingRequestProcessor {
+
+### 2.2. Example for Dynamic Gauge and OpStatsLogger(Histogram) 
+This is an example from io.pravega.controller.store.stream.AbstractStreamMetadataStore. In this class, we report a Dynamic Gauge which represents the open transactions and  one histogram (CREATE_STREAM).
+```java
+public abstract class AbstractStreamMetadataStore implements StreamMetadataStore  {
     ...
-    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < === 1. get logger from MetricsProvider
-    static AtomicLong pendBytes = new AtomicLong(); < === 2. create an AtomicLong to reference the value that we want to keep in Gauge
-    static { < === 3. use a static statement to execute the register command
-        STATS_LOGGER.registerGauge(PENDING_APPEND_BYTES, pendBytes::get);
-    }
+    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM); // get stats logger from MetricsProvider
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger(); // get dynamic logger from MetricsProvider
+       
     ...
-    private void pauseOrResumeReading() {
-        int bytesWaiting;
-        synchronized (lock) {
-            bytesWaiting = waitingAppends.values()
-                .stream()
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+    @Override
+        public CompletableFuture<CreateStreamResponse> createStream(final String scope,
+                                                       final String name,
+                                                       final StreamConfiguration configuration,
+                                                       final long createTimestamp,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
+            return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
+                    .thenApply(result -> {
+                        if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                            CREATE_STREAM.reportSuccessValue(1); // Report success event for histogram metric CREATE_STREAM
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0); // Report gauge value for Dynamic Gauge metric OPEN_TRANSACTIONS 
+                        }
+    
+                        return result;
+                    });
         }
-        // Registered gauge value
-        pendBytes.set(bytesWaiting); < === 4. once the wanted value(here it is bytesWaiting) updated, update the registered AtomicLong in Gauge
-        ...
-    }
     ...
  }
 ```
-This is similar to above example, but Gauge is a special kind of Metric, it only needs to register, unlike other Metrics which need to register and report, and when Metrics reporter do the report, it calls Gauge.getValue() to get former registered value.  
+
+### 2.3 Example for Dynamic Meter
+This is an example from io.pravega.segmentstore.server.SegmentStoreMetrics. In this class, we report a Dynamic Meter which represents the segments created.
+```java
+public final class SegmentStoreMetrics {
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    
+public void createSegment() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount
+        } 
+ }
+```
  
-# 2. Metric reporter and Configurations
+# 3. Metric reporter and Configurations
 Reporters are the way through which we export all the measurements being made by the metrics. We currently provide StatsD and CSV output. It is not difficult to add new output formats, such as JMX/SLF4J.
 CSV reporter will export each Metric out into one file. 
 StatsD reporter will export Metrics through UDP/TCP to a StatsD server.
 The reporter could be configured through MetricsConfig.
-```
+```java
 public class MetricsConfig extends ComponentConfig {
     //region Members
     public static final String COMPONENT_CODE = "metrics";
-    public final static String ENABLE_STATISTICS = "enableStatistics"; < === enable metric, or will report nothing
-    public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; < === reporter output frequency
-    public final static String METRICS_PREFIX = "metricsPrefix"; 
-    public final static String CSV_ENDPOINT = "csvEndpoint"; < === CSV reporter output dir
-    public final static String STATSD_HOST = "statsDHost"; < === StatsD server host for the reporting
-    public final static String STATSD_PORT = "statsDPort"; < === StatsD server port
-    public final static boolean DEFAULT_ENABLE_STATISTICS = true;
-    public final static int DEFAULT_OUTPUT_FREQUENCY = 60;
-    public final static String DEFAULT_METRICS_PREFIX = "host";
-    public final static String DEFAULT_CSV_ENDPOINT = "/tmp/csv";
-    public final static String DEFAULT_STATSD_HOST = "localhost";
-    public final static int DEFAULT_STATSD_PORT = 8125;
+    public final static String ENABLE_STATISTICS = "enableStatistics"; //enable metric, or will report nothing, default = true,  
+    public final static Property<Long> DYNAMIC_CACHE_SIZE = "dynamicCacheSize"; //dynamic cache size , default = 10000000L
+    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMs"; //dynamic cache evcition duration, default = 30
+    public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; //reporter output frequency, default = 60
+    public final static String METRICS_PREFIX = "metricsPrefix"; //Metrics Prefix, default = "pravega"
+    public final static String CSV_ENDPOINT = "csvEndpoint"; // CSV reporter output dir, default = "/tmp/csv"
+    public final static String STATSD_HOST = "statsDHost"; // StatsD server host for the reporting, default = "localhost"
+    public final static String STATSD_PORT = "statsDPort"; // StatsD server port, default = "8125"
+    public final static Property<String> GRAPHITE_HOST = "graphiteHost"; // Graphite server host for the reporting, default = "localhost"
+    public final static Property<Integer> GRAPHITE_PORT = "graphitePort"; // Graphite server port, default = "2003"
+    public final static Property<String> JMX_DOMAIN = "jmxDomain"; // JMX domain for the reporting, default = "domain"
+    public final static Property<String> GANGLIA_HOST = "gangliaHost"; // Ganglia server host for the reporting, default = "localhost"
+    public final static Property<Integer> GANGLIA_PORT = "gangliaPort"; // Ganglia server port, default = "8649"
+    public final static Property<Boolean> ENABLE_CSV_REPORTER = "enableCSVReporter"; // Enables CSV reporter, default = true
+    public final static Property<Boolean> ENABLE_STATSD_REPORTER = "enableStatsdReporter"; // Enables StatsD reporter, default = true
+    public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = "enableGraphiteReporter"; // Enables Graphite reporter, default = false
+    public final static Property<Boolean> ENABLE_JMX_REPORTER = "enableJMXReporter"; // Enables JMX reporter, default = false
+    public final static Property<Boolean> ENABLE_GANGLIA_REPORTER ="enableGangliaReporter"; // Enables Ganglia reporter, default = false
+    public final static Property<Boolean> ENABLE_CONSOLE_REPORTER = "enableConsoleReporter"; // Enables Console reporter, default = false
     ...
 }
 ```
 
-# 3. Steps to add your own Metrics
+# 4. Steps to add your own Metrics
 * Step 1. When start a segment store/controller service, start a Metrics service as a sub service. Reference above example in ServiceStarter.start()
-```
+```java
         statsProvider = MetricsProvider.getProvider();
         statsProvider.start(metricsConfig);    
 ```
 * Step 2. In the class that need Metrics: get StatsLogger through MetricsProvider; then get Metrics from StatsLogger; at last report it at the right place.
-```
-    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < === 1
-    public static class Metrics { < === 2
-        static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(CREATE_SEGMENT);
-        static final OpStatsLogger READ_STREAM_SEGMENT = STATS_LOGGER.createStats(READ_SEGMENT);
-        static final OpStatsLogger READ_BYTES_STATS = STATS_LOGGER.createStats(SEGMENT_READ_BYTES);
-        static final Counter READ_BYTES = STATS_LOGGER.createCounter(ALL_READ_BYTES);
+```java
+    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < --- 1
+    static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    
+    public static class Metrics { < --- 2
+        //Using Stats Logger
+        static final String CREATE_STREAM = "stream_created"; 
+        static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(CREATE_STREAM);
+        static final String SEGMENT_CREATE_LATENCY = "segment_create_latency_ms";
+        static final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+            
+        //Using Dynamic Logger
+        static final String SEGMENT_READ_BYTES = "segmentstore.segment_read_bytes";  //Dynamic Counter
+        static final String OPEN_TRANSACTIONS = "controller.transactions_opened";    //Dynamic Gauge
+        ...
     }
-    ...
-    Metrics.CREATE_STREAM_SEGMENT.reportFailure(timer.getElapsedNanos()); < === 3
-```
-# 4. Available Metrics and their names
-* Segment Store: Bytes In/Out Rate, Read/Write Latency.
+   
+    //to report success or increment
+    Metrics.CREATE_STREAM.reportSuccessValue(1); < --- 3
+    Metrics.createStreamSegment.reportSuccessEvent(timer.getElapsed());
+    DYNAMIC_LOGGER.incCounterValue(Metrics.SEGMENT_READ_BYTES, 1);
+    DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0);
+    
+    //in case of failure
+    Metrics.CREATE_STREAM.reportFailValue(1);
+    Metrics.createStreamSegment.reportFailEvent(timer.getElapsed());
+    
+    //to freeze
+    DYNAMIC_LOGGER.freezeCounter(Metrics.SEGMENT_READ_BYTES);
+    DYNAMIC_LOGGER.freezeGaugeValue(OPEN_TRANSACTIONS);
+  ```
+# 5. Available Metrics and their names
+
+* Metrics in Segment Store Service
 ````
-DYNAMIC.$scope.$stream.$segment.segment_read_bytes
-DYNAMIC.$scope.$stream.$segment.segment_write_bytes
-host.segment_read_latency_ms
-host.segment_write_latency_ms 
+segmentstore.segment_read_latency_ms
+segmentstore.segment_write_latency_ms 
+segmentstore.segment_create_latency_ms
+
+//Dynamic
+segmentstore.segment_read_bytes.$scope.$stream.$segment.Counter
+segmentstore.segment_write_bytes.$scope.$stream.$segment.Counter
 ````
 
-* Stream Controllers: Stream creation/deletion/sealed, Segment Merging/Splitting Rate, Transactions Open/Commit/Drop/Abort
+* Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
+````
+hdfs.tier2_read_latency_ms
+hdfs.tier2_write_latency_ms
+
+//Dynamic
+hdfs.tire2_read_bytes.Counter
+hdfs.tier2_write_bytes.Counter
+````
+* Cache Metrics
+````
+rocksdb.cache_insert_latency
+rocksdb.cache_get_latency
+````
+
+* Tier-1 DurableDataLog Metrics: Read/Write Latency, Read/Write Rate	
+````
+bookkeeper.bookkeeper_total_write_latency
+bookkeeper.bookkeeper_write_latency
+bookkeeper.bookkeeper_write_bytes
+bookkeeper.bookkeeper_write_queue_size
+bookkeeper.bookkeeper_write_queue_fill
+
+//Dynamic
+bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
+````
+
+* Container-specific metrics
+````
+process_operations_latency.$containerId
+process_operations_batch_size.$containerId
+operation_queue_size.$containerId
+operation_processor_in_flight.$containerId
+operation_queue_wait_time.$containerId
+operation_processor_delay_ms.$containerId
+operation_commit_latency_ms.$containerId
+operation_latency_ms.$containerId
+operation_commit_metadata_txn_count.$containerId
+operation_commit_memory_latency_ms.$containerId
+operation_log_size.$containerId
+
+//Dynamic
+container_append_count.$containerId.Meter
+container_append_offset_count.$containerId.Meter
+container_update_attributes_count.$containerId.Meter
+container_get_attributes_count.$containerId.Meter
+container_read_count.$containerId.Meter
+container_get_info_count.$containerId.Meter
+container_create_segment_count.$containerId.Meter
+container_delete_segment_count.$containerId.Meter
+container_merge_segment_count.$containerId.Meter
+container_seal_count.$containerId.Meter
+container_truncate_count.$containerId.Meter
+active_segments.$containerId.Gauge
+````
+
+* Metrics in Controller 
+
 ````
 controller.stream_created
 controller.stream_sealed
 controller.stream_deleted
-DYNAMIC.$scope.$stream.segments_count
-DYNAMIC.$scope.$stream.segments_splits
-DYNAMIC.$scope.$stream.segments_merges
-DYNAMIC.$scope.$stream.transactions_created
-DYNAMIC.$scope.$stream.transactions_committed
-DYNAMIC.$scope.$stream.transactions_aborted
-DYNAMIC.$scope.$stream.transactions_opened
-````
-* Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
-````
-hdfs.hdfs_read_latency_ms
-hdfs.hdfs_write_latency_ms
-hdfs.hdfs_read_bytes
-hdfs.hdfs_write_bytes
-````
 
-# 5. Useful links
+//Dynamic
+controller.transactions_created.$scope.$stream.Counter
+controller.transactions_committed.$scope.$stream.Counter
+controller.transactions_aborted.$scope.$stream.Counter
+controller.transactions_opened.$scope.$stream.Gauge
+controller.transactions_timedout.$scope.$stream.Counter
+controller.segments_count.$scope.$stream.Gauge
+controller.$scope.$stream.segments_splits.$scope.$stream.Counter
+controller.$scope.$stream.segments_merges.$scope.$stream.Counter
+controller.retention_frequency.$scope.$stream.Meter
+controller.truncated_size..$scope.$stream.Gauge
+````
+* General Metrics
+````
+cache_size_bytes
+cache_gen
+thread_pool_queue_size
+thread_pool_active_threads
+````
+# 6. Useful links
 * [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
 * [etsy_StatsD](https://github.com/etsy/statsd)

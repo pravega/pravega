@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -68,6 +69,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     /**
      * Creates a new instance of ClientFactory class.
+     * Note: Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
@@ -86,6 +88,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     /**
      * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
@@ -118,7 +121,6 @@ public class ClientFactoryImpl implements ClientFactory {
         this.metaFactory = metaFactory;
     }
 
-
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
@@ -142,8 +144,8 @@ public class ClientFactoryImpl implements ClientFactory {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(
                 NameUtils.getStreamForReaderGroup(readerGroup),
-                new JavaSerializer<>(),
-                new JavaSerializer<>(),
+                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
+                new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
@@ -191,6 +193,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public void close() {
+        controller.close();
         connectionFactory.close();
     }
 

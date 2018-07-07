@@ -690,6 +690,17 @@ public abstract class VersionedSerializer<T> {
             return (BaseType) si.serializer.deserializeContents(stream);
         }
 
+        /**
+         * Deserializes data from the given ArrayView and creates a new object with the result.
+         *
+         * @param data The ArrayView to deserialize from.
+         * @return A new instance of TargetType with the deserialized data.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public BaseType deserialize(ArrayView data) throws IOException {
+            return deserialize(data.getReader());
+        }
+        
         @RequiredArgsConstructor
         private static class SerializerInfo {
             final Class<?> type;

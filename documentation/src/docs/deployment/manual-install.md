@@ -28,7 +28,7 @@ for all major operating systems.
 
 Pravega requires **Zookeeper 3.5.1-alpha+**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
 
-This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.1-alpha.tar.gz](http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz).
+This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.1-alpha.tar.gz](https://archive.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz).
 
 For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.1-alpha/zookeeperStarted.html).
 
@@ -36,7 +36,7 @@ For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache
 
 Pravega requires **Bookkeeper 4.4.0+**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.4.0-bin.tar.gz](http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.4.0-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.4.0//bookkeeper-server-4.4.0-bin.tar.gz).
 
 For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/r4.4.0/bookkeeperStarted.html).
 Some specific Pravega instructions are shown below. All sets assuming being run from the `bookkeeper-server-4.4.0` directory.
@@ -68,6 +68,7 @@ The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-a
 bin/zkCli.sh -server $ZK_URL create /pravega
 bin/zkCli.sh -server $ZK_URL create /pravega/bookkeeper
 ```
+Replace `<$ZK_URL>` with the IP address of the Zookeeper nodes
 
 ### Running Bookkeeper
 
@@ -90,7 +91,7 @@ bin/bookkeeper bookie
 
 For non-production systems, you can use the containers provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
-There are two key components to Pravega that need to be run:
+There are two key components of Pravega that need to be run:
 - Controller - Control plane for Pravega. Installation requires at least one controller. Two or more are recommended for HA.
 - Segment Store - Storage node for Pravega. Installation requires at least one segment store.
 
