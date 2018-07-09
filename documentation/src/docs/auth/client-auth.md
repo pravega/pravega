@@ -10,6 +10,8 @@ You may obtain a copy of the License at
 ### grpc client auth interface
 In case more than one plugin exists, a client selects its auth handler by setting a grpc header with a name "method". 
 This is done by implementing [PravegaCredentials](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/Credentials.java) interface.
- This is passed through the [ClientConfig] () object to the 
+ This is passed through the [ClientConfig]() object to the Pravega client.
+ 
+ 
 
 Similar 
