@@ -115,6 +115,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
@@ -422,7 +423,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.warn("Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
+            log.info("Closing connection {} while performing {} on segment {} due to {}.", connection, operation, segment, u.getMessage());
+            connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn("Authentication error during '{}'.", operation);

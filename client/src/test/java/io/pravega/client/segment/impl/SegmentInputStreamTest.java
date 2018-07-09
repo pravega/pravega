@@ -101,6 +101,21 @@ public class SegmentInputStreamTest {
     }
 
     @Test
+    public void testReadEmpty() {
+        byte[] data = new byte[0];
+        ByteBuffer wireData = createEventFromData(data);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 3);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        ByteBuffer read = assertBlocks(() -> stream.read(),
+                () -> fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
+        assertEquals(ByteBuffer.wrap(data), read);
+        read = assertBlocks(() -> stream
+                .read(), () -> fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), wireData.capacity(), false, false, wireData.slice())));
+        assertEquals(ByteBuffer.wrap(data), read);
+    }
+
+    @Test
     public void testSmallerThanNeededRead() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
