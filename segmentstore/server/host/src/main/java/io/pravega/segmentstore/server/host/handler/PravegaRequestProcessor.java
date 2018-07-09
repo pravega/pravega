@@ -176,7 +176,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     handleReadResult(readSegment, readResult);
                     readStreamSegment.reportSuccessEvent(timer.getElapsed());
                 })
-                .exceptionally(ex -> handleReadException(readSegment.getOffset(), segment, ex));
+                .exceptionally(ex -> handleException(readSegment.getOffset(), segment, "Read segment", wrapCancellationException(ex)));
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, AuthHandler.Permissions read, String operation) {
@@ -217,7 +217,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             segmentStore.getStreamSegmentInfo(segment, false, TIMEOUT)
                     .thenAccept(info ->
                             connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset())))
-                    .exceptionally(e -> handleReadException(nonCachedEntry.getStreamSegmentOffset(), segment, e));
+                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", wrapCancellationException(e)));
         } else {
             Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
             nonCachedEntry.requestContent(TIMEOUT);
@@ -234,12 +234,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             // to make a read. In that case, send the appropriate error back.
                             connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, nonCachedEntry.getStreamSegmentOffset()));
                         } else {
-                            handleReadException(nonCachedEntry.getStreamSegmentOffset(), segment, e);
+                            handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", wrapCancellationException(e));
                         }
                         return null;
                     })
-                    .exceptionally(e -> handleReadException(nonCachedEntry.getStreamSegmentOffset(), segment, e));
+                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", wrapCancellationException(e)));
         }
+    }
+
+    /**
+     * Wrap a {@link CancellationException} to {@link ReadCancellationException}
+     */
+    private Throwable wrapCancellationException(Throwable u) {
+        Throwable wrapppedException = null;
+        if (u != null) {
+            wrapppedException = Exceptions.unwrap(u);
+            if (wrapppedException instanceof CancellationException) {
+                wrapppedException = new ReadCancellationException(wrapppedException);
+            }
+        }
+        return wrapppedException;
     }
 
     /**
@@ -400,17 +414,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 });
     }
 
-    private Void handleReadException(long readOffset, String segment, Throwable u) {
-        if (u != null && Exceptions.unwrap(u) instanceof CancellationException) {
-            log.info("Closing connection {} while reading on segment {} due to CancellationException.", connection, segment);
-            connection.send(new SegmentRead(segment, readOffset, true, false, EMPTY_BYTE_BUFFER));
-            connection.close();
-            return null;
-        } else {
-            return handleException(readOffset, segment, "Read segment", u);
-        }
-    }
-
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
@@ -433,8 +436,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn("Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, ""));
+        } else if ( u instanceof ReadCancellationException) {
+            log.info("Closing connection {} while reading segment {} due to CancellationException.", connection, segment);
+            connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
+            connection.close();
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection {} while performing {} on segment {} due to {}.", connection, operation, segment, u.getMessage());
+            log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn("Authentication error during '{}'.", operation);
@@ -605,5 +612,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         return null;
+    }
+
+    /**
+     * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
+     */
+    private class ReadCancellationException extends IllegalStateException {
+        ReadCancellationException(Throwable wrapppedException) {
+            super("CancellationException during operation Read segment", wrapppedException);
+        }
     }
 }

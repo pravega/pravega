@@ -183,7 +183,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testReadSegmentEmpty() {
+    public void testReadSegmentWithCancellationException() {
         // Set up PravegaRequestProcessor instance to execute read segment request against
         String streamSegmentName = "testReadSegment";
         int readLength = 1000;
