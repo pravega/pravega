@@ -49,9 +49,13 @@ class RocksDBCache implements Cache {
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
     /**
-     * This parameter
+     * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
      */
     private static final int MAX_WRITE_BUFFER_NUMBER = 4;
+
+    /**
+     * Minimum number of in-memory write buffers (memtables) to be merged before flushing to storage.
+     */
     private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
 
     @Getter
