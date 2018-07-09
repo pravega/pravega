@@ -237,8 +237,8 @@ class RocksDBCache implements Cache {
 
     private Options createDatabaseOptions() {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
-                .setBlockCacheSize(readCacheSizeMB * 1024 * 1024)
-                .setBlockSize(cacheBlockSizeKB * 1024)
+                .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
+                .setBlockSize(cacheBlockSizeKB * 1024L)
                 .setCacheIndexAndFilterBlocks(true);
 
         return new Options()
@@ -247,7 +247,7 @@ class RocksDBCache implements Cache {
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
-                .setWriteBufferSize(writeBufferSizeMB * 1024 * 1024)
+                .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig);
