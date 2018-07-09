@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
+import com.codahale.metrics.Metric;
 import io.pravega.common.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
@@ -110,7 +111,7 @@ public class MetricsProviderTest {
             value.set(i);
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
             assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
-            assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge").getValue());
+            assertEquals(i, getGauge("pravega.dynamicGauge.Gauge"));
         }
         dynamicLogger.freezeGaugeValue("dynamicGauge");
         assertEquals(null, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge"));
@@ -184,5 +185,15 @@ public class MetricsProviderTest {
 
         counter.add(1L);
         assertEquals(1L, counter.get());
+    }
+
+    private Object getGauge(String metricsName) {
+        Metric metric = MetricsProvider.getMetric(metricsName);
+        if (metric == null) {
+            log.info("No metric reported");
+            return 0;
+        }
+        com.codahale.metrics.Gauge gauge = (com.codahale.metrics.Gauge) metric;
+        return gauge.getValue();
     }
 }
