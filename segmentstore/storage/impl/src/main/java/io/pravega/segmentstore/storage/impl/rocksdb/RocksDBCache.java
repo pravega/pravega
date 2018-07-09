@@ -48,6 +48,12 @@ class RocksDBCache implements Cache {
      */
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
+    /**
+     * This parameter
+     */
+    private static final int MAX_WRITE_BUFFER_NUMBER = 4;
+    private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
+
     @Getter
     private final String id;
     private final Options databaseOptions;
@@ -57,6 +63,9 @@ class RocksDBCache implements Cache {
     private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
+    private final Integer writeBufferSizeMB;
+    private final Integer readCacheSizeMB;
+    private final Integer cacheBlockSizeKB;
     private final Statistics statistics;
 
     //endregion
@@ -80,8 +89,12 @@ class RocksDBCache implements Cache {
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
         this.database = new AtomicReference<>();
-        this.statistics = new Statistics();
+        // The total write buffer space is divided into the number of buffers.
+        this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
+        this.readCacheSizeMB = config.getReadCacheSizeMB();
+        this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
         try {
+            this.statistics = new Statistics();
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
@@ -139,6 +152,10 @@ class RocksDBCache implements Cache {
 
             if (this.databaseOptions != null) {
                 this.databaseOptions.close();
+            }
+
+            if (this.statistics != null) {
+                this.statistics.close();
             }
 
             clear(false);
@@ -224,7 +241,8 @@ class RocksDBCache implements Cache {
 
     private Options createDatabaseOptions() {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
-                .setBlockSize(32 * 1024);
+                .setBlockCacheSize(readCacheSizeMB * 1024 * 1024)
+                .setBlockSize(cacheBlockSizeKB * 1024);
 
         return new Options()
                 .setCreateIfMissing(true)
@@ -232,7 +250,9 @@ class RocksDBCache implements Cache {
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
-                .setWriteBufferSize(32 * 1024 * 1024)
+                .setWriteBufferSize(writeBufferSizeMB * 1024 * 1024)
+                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setStatistics(statistics);
     }

@@ -22,6 +22,9 @@ public class RocksDBConfig {
     //region Config Names
 
     public static final Property<String> DATABASE_DIR = Property.named("dbDir", "/tmp/pravega/cache");
+    public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
+    public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 64);
+    public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 4);
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion
@@ -34,6 +37,29 @@ public class RocksDBConfig {
     @Getter
     private final String databaseDir;
 
+    /**
+     * RocksDB allows to buffer writes in-memory (memtables) to improve write performance, thus executing an async flush
+     * process of writes to disk. This parameter bounds the maximum amount of memory devoted to absorb writes.
+     */
+    @Getter
+    private final Integer writeBufferSizeMB;
+
+    /**
+     * RocksDB caches (uncompressed) data blocks in memory to serve read requests with high performance in case of a
+     * cache hit. This parameter bounds the maximum amount of memory devoted to cache uncompressed data blocks.
+     */
+    @Getter
+    private final Integer readCacheSizeMB;
+
+    /**
+     * RocksDB stores data in memory related to internal indexes (e.g., it may range between 5% to 30% of the total
+     * memory consumption depending on the configuration and data at hand). The size of the internal indexes in RocksDB
+     * mainly depend on the size of cached data blocks (cacheBlockSizeKB). If you increase cacheBlockSizeKB, the number
+     * of blocks will decrease, so the index size will also reduce linearly (but increasing read amplification).
+     */
+    @Getter
+    private final Integer cacheBlockSizeKB;
+
     //endregion
 
     //region Constructor
@@ -45,6 +71,9 @@ public class RocksDBConfig {
      */
     private RocksDBConfig(TypedProperties properties) throws ConfigurationException {
         this.databaseDir = properties.get(DATABASE_DIR);
+        this.writeBufferSizeMB = properties.getInt(WRITE_BUFFER_SIZE_MB);
+        this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
+        this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
     }
 
     /**
