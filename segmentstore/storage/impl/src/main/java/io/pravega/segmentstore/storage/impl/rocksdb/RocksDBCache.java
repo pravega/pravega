@@ -28,7 +28,6 @@ import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
-import org.rocksdb.Statistics;
 import org.rocksdb.WriteOptions;
 
 /**
@@ -70,7 +69,6 @@ class RocksDBCache implements Cache {
     private final Integer writeBufferSizeMB;
     private final Integer readCacheSizeMB;
     private final Integer cacheBlockSizeKB;
-    private final Statistics statistics;
 
     //endregion
 
@@ -98,7 +96,6 @@ class RocksDBCache implements Cache {
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
         try {
-            this.statistics = new Statistics();
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
@@ -142,7 +139,6 @@ class RocksDBCache implements Cache {
 
     @Override
     public void close() {
-        log.info(statistics.toString());
         if (this.closed.compareAndSet(false, true)) {
             RocksDB db = this.database.get();
             if (db != null) {
@@ -156,10 +152,6 @@ class RocksDBCache implements Cache {
 
             if (this.databaseOptions != null) {
                 this.databaseOptions.close();
-            }
-
-            if (this.statistics != null) {
-                this.statistics.close();
             }
 
             clear(false);
@@ -257,8 +249,7 @@ class RocksDBCache implements Cache {
                 .setWriteBufferSize(writeBufferSizeMB * 1024 * 1024)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
-                .setTableFormatConfig(tableFormatConfig)
-                .setStatistics(statistics);
+                .setTableFormatConfig(tableFormatConfig);
     }
 
     private void clear(boolean recreateDirectory) {
