@@ -439,7 +439,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if ( u instanceof ReadCancellationException) {
             log.info("Closing connection {} while reading segment {} due to CancellationException.", connection, segment);
             connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
-            connection.close();
         } else if (u instanceof CancellationException) {
             log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
             connection.close();
@@ -617,7 +616,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
      */
-    private class ReadCancellationException extends IllegalStateException {
+    private class ReadCancellationException extends RuntimeException {
         ReadCancellationException(Throwable wrapppedException) {
             super("CancellationException during operation Read segment", wrapppedException);
         }

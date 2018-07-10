@@ -202,8 +202,6 @@ public class PravegaRequestProcessorTest {
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         // Since the underlying store cancels the read request verify if an empty SegmentRead Wirecommand is sent as a response.
         verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0])));
-        // Verify if the connection is closed after sending an empty SegmentRead response.
-        verify(connection).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
