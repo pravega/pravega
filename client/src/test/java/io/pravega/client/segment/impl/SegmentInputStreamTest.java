@@ -25,6 +25,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertBlocks;
+import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -401,4 +402,52 @@ public class SegmentInputStreamTest {
                 -2, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
     
+    
+    
+    @Test
+    public void testRefillSize() throws EndOfSegmentException, SegmentTruncatedException {
+        byte[] data = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        ByteBuffer wireData = createEventFromData(data);
+        int wireDataSize = wireData.remaining(); // size of the data with header size.
+        int bufferSize = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE;
+
+        AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
+        when(mockAsyncInputStream.read(0, bufferSize)).thenReturn(
+            completedFuture(new SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
+
+        int expectedReadSize = bufferSize - wireDataSize;
+
+        when(mockAsyncInputStream.read(wireDataSize, expectedReadSize)).thenReturn(
+            completedFuture(new SegmentRead(segment.getScopedName(), wireDataSize, false, false, wireData.slice())));
+
+        // Verify that it requests enough data to fill the buffer.
+        @Cleanup
+        SegmentInputStreamImpl stream1 = new SegmentInputStreamImpl(mockAsyncInputStream, 0);
+
+        ByteBuffer read = stream1.read();
+        assertEquals(ByteBuffer.wrap(data), read); 
+        verify(mockAsyncInputStream, times(1)).read(0L, bufferSize);
+        verify(mockAsyncInputStream, times(1)).read(wireDataSize, expectedReadSize);
+
+        when(mockAsyncInputStream.read(0, wireDataSize)).thenReturn(
+            completedFuture(new SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
+
+        // Verify it won't read beyond it's limit.
+        @Cleanup
+        SegmentInputStreamImpl stream2 = new SegmentInputStreamImpl(mockAsyncInputStream, 0, wireDataSize, bufferSize);
+
+        read = stream2.read();
+        assertEquals(ByteBuffer.wrap(data), read);
+        verify(mockAsyncInputStream, times(1)).read(0L, wireDataSize);
+
+        // Verify it works with a small buffer.
+        when(mockAsyncInputStream.read(0, 100)).thenReturn(
+                                                           completedFuture(new SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice())));
+        @Cleanup
+        SegmentInputStreamImpl stream3 = new SegmentInputStreamImpl(mockAsyncInputStream, 0, Long.MAX_VALUE, 100);
+
+        read = stream3.read();
+        assertEquals(ByteBuffer.wrap(data), read); 
+        verify(mockAsyncInputStream, times(1)).read(0L, 100);
+    }
 }
