@@ -106,12 +106,11 @@ public class MetricsProviderTest {
     public void testGauge() {
         AtomicInteger value = new AtomicInteger(1);
         statsLogger.registerGauge("testGauge", value::get);
+        assertEquals(value.get(), MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
 
         for (int i = 1; i < 10; i++) {
-            value.set(i);
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
-            assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
-            assertEquals(i, getGauge("pravega.dynamicGauge.Gauge"));
+            assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge").getValue());
         }
         dynamicLogger.freezeGaugeValue("dynamicGauge");
         assertEquals(null, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge"));
@@ -185,15 +184,5 @@ public class MetricsProviderTest {
 
         counter.add(1L);
         assertEquals(1L, counter.get());
-    }
-
-    private Object getGauge(String metricsName) {
-        Metric metric = MetricsProvider.getMetric(metricsName);
-        if (metric == null) {
-            log.info("No metric reported");
-            return 0;
-        }
-        com.codahale.metrics.Gauge gauge = (com.codahale.metrics.Gauge) metric;
-        return gauge.getValue();
     }
 }

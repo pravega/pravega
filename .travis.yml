@@ -23,9 +23,9 @@ jobs:
     - stage: build
       if: type IN (push, pull_request)
       install: ./gradlew assemble
-      script: bash RunTestInLoop.sh
-      #after_success:
-      #     - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
+      script: ./gradlew check
+      after_success:
+           - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
 
     - stage: snapshot
       if: branch = master AND NOT (type = pull_request)
