@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.metrics;
 
-import com.codahale.metrics.Metric;
 import io.pravega.common.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
