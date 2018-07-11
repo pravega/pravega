@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.common.util.collect;
 
 import com.google.common.base.Preconditions;
@@ -102,12 +111,12 @@ public class BTreeIndex<K, V> {
                     val splitResult = p.getLayout().split(p.getData());
 
                     for (int i = 0; i < splitResult.size(); i++) {
-                        val pageKey = splitResult.get(i).getKey();
-                        val pageContents = splitResult.get(i).getValue();
+                        val pageKey = splitResult.get(i).getLeft();
+                        val pageContents = splitResult.get(i).getRight();
                         long newOffset;
                         if (i == 0) {
                             // The original page will get the first split. Nothing changes about its pointer key.
-                            p.setData(splitResult.get(0).getValue());
+                            p.setData(splitResult.get(0).getRight());
                             pageCollection.assignNewOffset(p);
                             newOffset = p.getAssignedOffset();
                         } else {
@@ -161,7 +170,7 @@ public class BTreeIndex<K, V> {
         PageCollection pageCollection = new PageCollection();
 
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageEntries = new ArrayList<Map.Entry<ByteArraySegment, ByteArraySegment>>();
+        val lastPageEntries = new ArrayList<ArrayTuple>();
         return Futures.loop(toInsert::hasNext,
                 () -> {
                     // Locate the page where entry is to be inserted. Do not yet insert it as it is more efficient
@@ -184,7 +193,7 @@ public class BTreeIndex<K, V> {
                                 }
 
                                 // Record the current entry.
-                                lastPageEntries.add(new AbstractMap.SimpleImmutableEntry<>(new ByteArraySegment(entry.getKey()), new ByteArraySegment(entry.getValue())));
+                                lastPageEntries.add(new ArrayTuple(entry.getKey(), entry.getValue()));
                             });
                 },
                 this.executor)

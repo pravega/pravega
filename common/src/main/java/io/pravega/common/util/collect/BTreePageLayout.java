@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.common.util.collect;
 
 import com.google.common.base.Preconditions;
@@ -17,6 +26,8 @@ import lombok.val;
  * Layout: Version(1)|Flags(1)|List{Key(KL)|Value(VL)}
  */
 abstract class BTreePageLayout {
+    //region Layout Config
+
     private static final byte CURRENT_VERSION = 0;
     private static final int VERSION_OFFSET = 0;
     private static final int VERSION_LENGTH = 1; // Maximum 256 versions.
@@ -27,8 +38,11 @@ abstract class BTreePageLayout {
     private static final int DATA_OFFSET = COUNT_OFFSET + COUNT_LENGTH;
     private static final byte FLAG_NONE = 0;
     private static final byte FLAG_INDEX_PAGE = 1;
-
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+
+    //endregion
+
+    //region Members
 
     @Getter
     private final int keyLength;
@@ -38,22 +52,57 @@ abstract class BTreePageLayout {
     private final int entryLength;
     @Getter
     private final int maxPageSize;
+    private final int splitSize;
+
+    //endregion
+
+    //region Constructor
 
     BTreePageLayout(int keyLength, int valueLength, int maxPageSize) {
         this.keyLength = keyLength;
         this.valueLength = valueLength;
         this.entryLength = this.keyLength + this.valueLength;
         this.maxPageSize = maxPageSize;
+        this.splitSize = calculateSplitSize();
     }
+
+    private int calculateSplitSize() {
+        // Calculate the maximum number of elements that fit in a full page.
+        int maxCount = (this.maxPageSize - DATA_OFFSET) / this.entryLength;
+
+        // A Split page will have about half the original number of elements.
+        return (maxCount / 2 + 1) * this.entryLength;
+    }
+
+    //endregion
 
     boolean mustSplit(ByteArraySegment pageContents) {
         // True if exceeding capacity, false otherwise.
         return pageContents.getLength() > this.maxPageSize;
     }
 
-    List<Map.Entry<ByteArraySegment, ByteArraySegment>> split(ByteArraySegment pageContents) {
-        val result = new ArrayList<Map.Entry<ByteArraySegment, ByteArraySegment>>();
+    List<ArrayTuple> split(ByteArraySegment pageContents) {
+        val result = new ArrayList<ArrayTuple>();
         Preconditions.checkArgument(mustSplit(pageContents), "Given argument does not require splitting.");
+
+        int index = 0;
+        val sourceData = getData(pageContents);
+        while (index < sourceData.getLength()) {
+            int length = Math.min(this.splitSize, sourceData.getLength() - index);
+            assert length % this.entryLength == 0 : "entry misaligned";
+
+            // Fetch data.
+            val splitPageData = sourceData.subSegment(index, splitSize);
+
+            // Extract key.
+            val splitKey = getKeyAt(0, splitPageData);
+
+            // Compose new page.
+            val splitPage = new ByteArraySegment(new byte[DATA_OFFSET + splitPageData.getLength()]);
+            writeHeader(splitPage, (short) (length / this.entryLength));
+            result.add(new ArrayTuple(splitKey, splitPage));
+            index += this.splitSize;
+        }
 
         return result;
     }
@@ -66,10 +115,11 @@ abstract class BTreePageLayout {
     ByteArraySegment createEmptyRoot() {
         ByteArraySegment result = new ByteArraySegment(new byte[DATA_OFFSET]);
         writeHeader(result, (short) 0);
+        // TODO: do we need to insert dummy entry???
         return result;
     }
 
-    ByteArraySegment update(Collection<Map.Entry<ByteArraySegment, ByteArraySegment>> entries, ByteArraySegment pageContents) {
+    ByteArraySegment update(Collection<ArrayTuple> entries, ByteArraySegment pageContents) {
         // entries need not be sorted
         if (entries.isEmpty()) {
             // Nothing to do.
@@ -77,30 +127,66 @@ abstract class BTreePageLayout {
         }
 
         // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
-        val newKeys = new ArrayList<Map.Entry<Integer, Map.Entry<ByteArraySegment, ByteArraySegment>>>();
+        val newEntries = new ArrayList<Map.Entry<Integer, ArrayTuple>>();
 
         // Process all the Entries, in order (by Key).
         int lastPos = 0;
-        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
-        ByteArraySegment data = getData(pageContents);
+        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getLeft(), e2.getLeft())).iterator();
+        ByteArraySegment sourceData = getData(pageContents);
         while (entryIterator.hasNext()) {
             val e = entryIterator.next();
-            val pos = binarySearch(data, e.getKey(), lastPos);
+            val pos = binarySearch(sourceData, e.getLeft(), lastPos);
             if (pos.exactMatch) {
                 // Keys already exists: Update in-place.
-                setValueAt(pos.value, data, e.getValue());
+                setValueAt(pos.value, sourceData, e.getRight());
             } else {
                 // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
                 // binary search returned the position right before where it should be
-                int dataIndex = pos.value * this.entryLength;
-                newKeys.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
+                int dataIndex = (pos.value + 1) * this.entryLength;
+                newEntries.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
             }
         }
 
-        // If we have extra keys: allocate new buffer of the correct size and start copying from the old one.
-        // TODO: finish here.
+        if (newEntries.isEmpty()) {
+            // Nothing else to change. We've already updated the keys in-place.
+            return pageContents;
+        }
 
-        return pageContents;
+        int newCount = getCount(pageContents) + newEntries.size();
+        Preconditions.checkArgument(newCount < Short.MAX_VALUE, "Too many entries.");
+
+        // If we have extra entries: allocate new buffer of the correct size and start copying from the old one.
+        val result = new ByteArraySegment(new byte[pageContents.getLength() + newEntries.size() * this.entryLength]);
+        writeHeader(result, (short) newCount);
+        val newData = getData(result);
+        int readIndex = 0;
+        int writeIndex = 0;
+        for (val e : newEntries) {
+            if (e.getKey() > readIndex) {
+                // Copy from source
+                int length = e.getKey() - readIndex;
+                newData.copyFrom(sourceData, writeIndex, length);
+                writeIndex += length;
+            }
+
+            // Write Key.
+            newData.copyFrom(e.getValue().getLeft(), writeIndex, e.getValue().getLeft().getLength());
+            writeIndex += e.getValue().getLeft().getLength();
+
+            // Write Value.
+            newData.copyFrom(e.getValue().getRight(), writeIndex, e.getValue().getRight().getLength());
+            writeIndex += e.getValue().getRight().getLength();
+
+            readIndex = e.getKey();
+        }
+
+        if (readIndex < sourceData.getLength()) {
+            // Copy the last part that we may have missed.
+            int length = sourceData.getLength() - readIndex;
+            newData.copyFrom(sourceData, writeIndex, length);
+        }
+
+        return result;
     }
 
     /**
@@ -179,6 +265,7 @@ abstract class BTreePageLayout {
     protected abstract boolean isIndexLayout();
 
     protected short getCount(ByteArraySegment pageContents) {
+        // TODO: let's make this int. It will be much more flexible in the future.
         return BitConverter.readShort(pageContents, COUNT_OFFSET);
     }
 
@@ -270,7 +357,7 @@ abstract class BTreePageLayout {
 
         ByteArraySegment updatePointers(Collection<BTreePagePointer> pointers, ByteArraySegment pageContents) {
             val toUpdate = pointers.stream()
-                                   .map(p -> (Map.Entry<ByteArraySegment, ByteArraySegment>) new AbstractMap.SimpleImmutableEntry<>(p.getKey(), serializePointer(p)))
+                    .map(p -> new ArrayTuple(p.getKey(), serializePointer(p)))
                                    .collect(Collectors.toList());
             return update(toUpdate, pageContents);
         }
