@@ -222,7 +222,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
-        String delegationToken = groupState.getLatestDelegationToken();
+        String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
+
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
         try {
