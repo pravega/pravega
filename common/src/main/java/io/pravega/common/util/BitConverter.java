@@ -19,6 +19,32 @@ import java.io.OutputStream;
  */
 public final class BitConverter {
     /**
+     * Writes the given 16-bit Short to the given ArrayView at the given offset.
+     *
+     * @param target The ArrayView to write to.
+     * @param offset The offset within the ArrayView to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeShort(ArrayView target, int offset, short value) {
+        return writeShort(target.array(), target.arrayOffset() + offset, value);
+    }
+
+    /**
+     * Writes the given 16-bit Short to the given byte array at the given offset.
+     *
+     * @param target The byte array to write to.
+     * @param offset The offset within the byte array to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeShort(byte[] target, int offset, short value) {
+        target[offset] = (byte) (value >>> 8 & 255);
+        target[offset + 1] = (byte) (value & 255);
+        return Short.BYTES;
+    }
+
+    /**
      * Writes the given 32-bit Integer to the given ArrayView at the given offset.
      *
      * @param target The ArrayView to write to.
@@ -60,6 +86,30 @@ public final class BitConverter {
         target.write(value >>> 8);
         target.write(value);
         return Integer.BYTES;
+    }
+
+    /**
+     * Reads a 16-bit Short from the given byte array starting at the given position.
+     *
+     * @param source   The byte array to read from.
+     * @param position The position in the byte array to start reading at.
+     * @return The read number.
+     */
+    public static short readShort(byte[] source, int position) {
+        return (short) ((source[position] & 0xFF) << 8
+                | (source[position + 1] & 0xFF));
+    }
+
+    /**
+     * Reads a 16-bit Short from the given ArrayView starting at the given position.
+     *
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
+     * @return The read number.
+     */
+    public static short readShort(ArrayView source, int position) {
+        return (short) ((source.get(position) & 0xFF) << 8
+                | (source.get(position + 1) & 0xFF));
     }
 
     /**

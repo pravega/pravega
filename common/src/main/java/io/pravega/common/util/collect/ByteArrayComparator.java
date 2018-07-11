@@ -1,0 +1,29 @@
+package io.pravega.common.util.collect;
+
+import io.pravega.common.util.ByteArraySegment;
+import java.util.Comparator;
+
+class ByteArrayComparator implements Comparator<byte[]> {
+    @Override
+    public int compare(byte[] b1, byte[] b2) {
+        assert b1.length == b2.length;
+        return compare(b1, 0, b2, 2, b1.length);
+    }
+
+    int compare(ByteArraySegment b1, ByteArraySegment b2) {
+        assert b1.getLength() == b2.getLength();
+        return compare(b1.array(), b1.arrayOffset(), b2.array(), b2.arrayOffset(), b1.getLength());
+    }
+
+    int compare(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
+        int r;
+        for (int i = 0; i < length; i++) {
+            r = b1[offset1 + i] - b2[offset2 + i];
+            if (r != 0) {
+                return r;
+            }
+        }
+
+        return 0;
+    }
+}
