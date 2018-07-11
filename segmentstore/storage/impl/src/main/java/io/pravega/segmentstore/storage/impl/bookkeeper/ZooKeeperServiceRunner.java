@@ -23,6 +23,7 @@ import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
+import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 /**
@@ -81,15 +82,29 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     }
 
     public void stop() {
-        ZooKeeperServer zs = this.server.getAndSet(null);
-        if (zs != null) {
-            zs.shutdown();
+        try {
+            NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+            if (sf != null) {
+                sf.closeAll();
+                sf.shutdown();
+            }
+        } catch (Throwable e) {
+            log.warn("Unable to cleanly shutdown ZooKeeper connection factory", e);
         }
 
-        NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
-        if (sf != null) {
-            sf.closeAll();
-            sf.shutdown();
+        try {
+            ZooKeeperServer zs = this.server.getAndSet(null);
+            if (zs != null) {
+                zs.shutdown();
+                ZKDatabase zkDb = zs.getZKDatabase();
+                if (zkDb != null) {
+                    // make ZK server close its log files
+                    zkDb.close();
+                }
+            }
+
+        } catch (Throwable e) {
+            log.warn("Unable to cleanly shutdown ZooKeeper server", e);
         }
     }
 

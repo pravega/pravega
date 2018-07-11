@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.base.Preconditions;
 import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthHandler;
 import io.pravega.common.auth.AuthenticationException;
@@ -16,9 +17,7 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-import javax.ws.rs.core.MultivaluedMap;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -41,46 +40,39 @@ public class PravegaAuthManager {
     private AuthHandler getHandler(String handlerName) throws AuthenticationException {
         AuthHandler retVal;
         synchronized (this) {
-                retVal = handlerMap.get(handlerName);
-            }
-            if (retVal == null) {
+            retVal = handlerMap.get(handlerName);
+        }
+        if (retVal == null) {
             throw new AuthenticationException("Handler does not exist for method " + handlerName);
         }
         return retVal;
     }
 
     /**
-     * API to authenticate and authroize access to a given resource.
+     * API to authenticate and authorize access to a given resource.
      * @param resource The resource identifier for which the access needs to be controlled.
-     * @param headers  Custom headers used for authentication.
+     * @param credentials  Credentials used for authentication.
      * @param level    Expected level of access.
      * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
-     * @throws AuthenticationException Exception faced during authentication/authorization.
+     *                 Returns false if the entity does not have access. 
+     * @throws AuthenticationException if an authentication failure occurred.
      */
-    public boolean authenticate(String resource, MultivaluedMap<String, String> headers, AuthHandler.Permissions level) throws AuthenticationException {
-        Map<String, String> paramMap = headers.entrySet().stream().collect(Collectors.toMap(k -> k.getKey(), k -> k.getValue().get(0)));
-        return authenticate(resource, paramMap, level);
-    }
-
-    /**
-     * API to authenticate and authroize access to a given resource.
-     * @param resource The resource identifier for which the access needs to be controlled.
-     * @param paramMap  Custom headers used for authentication.
-     * @param level    Expected level of access.
-     * @return         Returns true if the entity represented by the custom auth headers had given level of access to the resource.
-     *                 Returns false if the entity does not have access.
-     * @throws AuthenticationException Exception if an authentication failure occured.
-     */
-    public boolean authenticate(String resource, Map<String, String> paramMap, AuthHandler.Permissions level) throws AuthenticationException {
+    public boolean authenticate(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
+        Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
         try {
-            String method = paramMap.get("method");
+            String[] parts = credentials.split("\\s+", 2);
+            if (parts.length != 2) {
+                throw new AuthenticationException("Malformed request");
+            }
+            String method = parts[0];
+            String token = parts[1];
             AuthHandler handler = getHandler(method);
-
-            if (!handler.authenticate(paramMap)) {
+            assert handler != null;
+            if (!handler.authenticate(token)) {
                 throw new AuthenticationException("Authentication failure");
             }
-            retVal = handler.authorize(resource, paramMap).ordinal() >= level.ordinal();
+            retVal = handler.authorize(resource, token).ordinal() >= level.ordinal();
         } catch (RuntimeException e) {
             throw new AuthenticationException(e);
         }
