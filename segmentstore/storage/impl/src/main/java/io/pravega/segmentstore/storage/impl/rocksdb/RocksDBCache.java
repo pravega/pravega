@@ -239,8 +239,8 @@ class RocksDBCache implements Cache {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
                 .setBlockSize(cacheBlockSizeKB * 1024L)
-                //.setCacheIndexAndFilterBlocks(true);
-                .setNoBlockCache(true);
+                .setCacheIndexAndFilterBlocks(true);
+                //.setNoBlockCache(true);
 
         return new Options()
                 .setCreateIfMissing(true)
@@ -249,9 +249,10 @@ class RocksDBCache implements Cache {
                 .setWalTtlSeconds(0)
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
-                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
-                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
-                .setTableFormatConfig(tableFormatConfig);
+                //.setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                //.setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
+                .setTableFormatConfig(tableFormatConfig)
+                .setOptimizeFiltersForHits(true);
     }
 
     private void clear(boolean recreateDirectory) {
