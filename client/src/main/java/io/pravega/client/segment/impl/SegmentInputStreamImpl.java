@@ -40,7 +40,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
 
     private final AsyncSegmentInputStream asyncInput;
-    private final int readLength;
+    private final int minReadLength;
     @GuardedBy("$lock")
     private final CircularBuffer buffer;
     @GuardedBy("$lock")
@@ -69,18 +69,9 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         this.asyncInput = asyncInput;
         this.offset = startOffset;
         this.endOffset = endOffset;
-        /*
-         * The logic for determining the read length and buffer size are as follows.
-         * If we are reading a single event, then we set the read length to be the size
-         * of the event plus the header.
-         *
-         * If this input stream is going to read many events of different sizes, then
-         * we set the read length to be equal to the max write size and the buffer
-         * size to be twice that. We do it so that we can have at least two events
-         * buffered for next event reads.
-         */
-        this.readLength = Math.min(DEFAULT_READ_LENGTH, bufferSize);
-        this.buffer = new CircularBuffer(Math.max(bufferSize, readLength + 1));
+        // Reads should not be so large they cannot fit into the buffer.
+        this.minReadLength = Math.min(DEFAULT_READ_LENGTH, bufferSize);
+        this.buffer = new CircularBuffer(bufferSize);
         issueRequestIfNeeded();
     }
 
@@ -212,8 +203,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      */
     private void issueRequestIfNeeded() {
         //compute read length based on current offset up to which the events are read.
-        int updatedReadLength = computeReadLength(offset + buffer.dataAvailable(), readLength);
-        if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && buffer.capacityAvailable() >= updatedReadLength && outstandingRequest == null) {
+        int updatedReadLength = computeReadLength(offset + buffer.dataAvailable());
+        if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && outstandingRequest == null) {
             outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
         }
     }
@@ -221,9 +212,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     /**
      * Compute the read length based on the current fetch offset and the configured end offset.
      */
-    private int computeReadLength(long currentFetchOffset, int currentReadLength) {
+    private int computeReadLength(long currentFetchOffset) {
         Preconditions.checkState(endOffset >= currentFetchOffset,
                 "Current offset up to to which events are fetched should be less than the configured end offset");
+        int currentReadLength = Math.max(minReadLength, buffer.capacityAvailable());
         if (UNBOUNDED_END_OFFSET == endOffset) { //endOffset is UNBOUNDED_END_OFFSET if the endOffset is not set.
             return currentReadLength;
         }
@@ -260,8 +252,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public boolean canReadWithoutBlocking() {
-        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)
-                && outstandingRequest.join().getData().hasRemaining());
+        boolean result = receivedEndOfSegment || buffer.dataAvailable() > 0 || (outstandingRequest != null && Futures.isSuccessful(outstandingRequest));
         log.trace("canReadWithoutBlocking {}", result);
         return result;
     }
