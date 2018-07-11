@@ -114,6 +114,7 @@ public interface StreamSegmentStore {
      * consume the read data. If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
+     * @throws java.util.concurrent.CancellationException If the segment container is shutting down or the segment is evicted from memory.
      */
     CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
