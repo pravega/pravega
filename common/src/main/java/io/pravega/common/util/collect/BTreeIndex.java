@@ -63,7 +63,7 @@ public class BTreeIndex<K, V> {
         return locatePage(serializedKey, new PageCollection(), timer)
                 .thenApplyAsync(page -> {
                     // Found the eligible page. Return the value, if it exists.
-                    val value = this.leafLayout.getValue(serializedKey, page.getData());
+                    val value = this.leafLayout.getValue(serializedKey, page.getPage());
                     return value == null ? null : this.valueSerializer.deserialize.apply(value, 0);
                 }, this.executor);
     }
@@ -84,9 +84,9 @@ public class BTreeIndex<K, V> {
             if (offset >= 0) {
                 Preconditions.checkArgument(p.getAssignedOffset() == offset, "Expecting Page offset %s, found %s.", offset, p.getAssignedOffset());
             }
-            streams.add(p.getData().getReader());
+            streams.add(p.getPage().getContents().getReader());
             offset = p.getAssignedOffset();
-            length += p.getData().getLength();
+            length += p.getPage().getContents().getLength();
         }
 
         // Write it.
@@ -106,27 +106,26 @@ public class BTreeIndex<K, V> {
             val parents = new HashSet<Long>();
             for (PageWrapper p : currentBatch) {
                 val newChildPointers = new ArrayList<BTreePagePointer>();
-                if (p.getLayout().mustSplit(p.getData())) {
+                val splitResult = p.getPage().splitIfNecessary();
+                if (splitResult != null) {
                     // This Page must be split.
-                    val splitResult = p.getLayout().split(p.getData());
-
                     for (int i = 0; i < splitResult.size(); i++) {
-                        val pageKey = splitResult.get(i).getLeft();
-                        val pageContents = splitResult.get(i).getRight();
+                        val page =splitResult.get(i);
+                        val pageKey = page.getKeyAt(0);
                         long newOffset;
                         if (i == 0) {
                             // The original page will get the first split. Nothing changes about its pointer key.
-                            p.setData(splitResult.get(0).getRight());
+                            p.setPage(page);
                             pageCollection.assignNewOffset(p);
                             newOffset = p.getAssignedOffset();
                         } else {
-                            PageWrapper newPage = new PageWrapper(pageContents, p.getParent(),
-                                    new BTreePagePointer(pageKey, -1, pageContents.getLength()), p.isIndexPage());
+                            PageWrapper newPage = new PageWrapper(page, p.getParent(),
+                                    new BTreePagePointer(pageKey, -1, page.getLength()), p.isIndexPage());
                             pageCollection.insert(newPage);
                             newOffset = newPage.getAssignedOffset();
                         }
 
-                        newChildPointers.add(new BTreePagePointer(pageKey, newOffset, pageContents.getLength()));
+                        newChildPointers.add(new BTreePagePointer(pageKey, newOffset, page.getLength()));
                     }
                 } else {
                     // This page has been modified. Assign it a new virtual offset so that we can add a proper pointer
@@ -145,7 +144,7 @@ public class BTreeIndex<K, V> {
 
                 if (parentPage != null) {
                     // Update child pointers for the parent.
-                    parentPage.setData(this.indexLayout.updatePointers(newChildPointers, parentPage.getData()));
+                    this.indexLayout.updatePointers(newChildPointers, parentPage.getPage());
 
                     // Then queue up the parent for processing.
                     parents.add(parentPage.getAssignedOffset());
@@ -184,7 +183,7 @@ public class BTreeIndex<K, V> {
                                     // This entry goes to a different page than the one we were looking at.
                                     if (last != null) {
                                         // Commit the outstanding entries.
-                                        last.setData(this.leafLayout.update(lastPageEntries, last.getData()));
+                                        last.getPage().update(lastPageEntries);
                                     }
 
                                     // Update the pointers.
@@ -200,7 +199,7 @@ public class BTreeIndex<K, V> {
                       .thenApply(v -> {
                           // We need not forget to insert the last batch of entries into the last page.
                           if (lastPage.get() != null) {
-                              lastPage.get().setData(this.leafLayout.update(lastPageEntries, lastPage.get().getData()));
+                              lastPage.get().getPage().update(lastPageEntries);
                           }
                           return pageCollection;
                       });
@@ -242,7 +241,7 @@ public class BTreeIndex<K, V> {
                             .thenAccept(page -> {
                                 if (page.isIndexPage()) {
                                     // TODO: sanity checks.
-                                    val value = this.indexLayout.getPagePointer(key, page.getData());
+                                    val value = this.indexLayout.getPagePointer(key, page.getPage());
                                     toFetch.set(value);
                                     previous.set(page);
                                 } else {
@@ -269,8 +268,8 @@ public class BTreeIndex<K, V> {
                 .apply(pagePointer.getOffset(), pagePointer.getLength(), timeout)
                 .thenApply(data -> {
                     ByteArraySegment pageContents = new ByteArraySegment(data);
-                    boolean isIndexPage = this.indexLayout.isIndexPage(pageContents);
-                    PageWrapper wrapper = new PageWrapper(pageContents, parentPage, pagePointer, isIndexPage);
+                    BTreePageLayout layout = BTreePage.isIndexPage(pageContents) ? this.indexLayout : this.leafLayout;
+                    PageWrapper wrapper = new PageWrapper(layout.parse(pageContents), parentPage, pagePointer, layout.isIndexLayout());
                     pageCollection.insert(wrapper);
                     return wrapper;
                 });
@@ -293,7 +292,7 @@ public class BTreeIndex<K, V> {
     //region PageCollection
 
     private class PageWrapper {
-        private final AtomicReference<ByteArraySegment> data;
+        private final AtomicReference<BTreePage> page;
         @Getter
         private final PageWrapper parent;
         @Getter
@@ -304,8 +303,8 @@ public class BTreeIndex<K, V> {
         @Getter
         private final BTreePageLayout layout;
 
-        PageWrapper(ByteArraySegment data, PageWrapper parent, BTreePagePointer pointer, boolean indexPage) {
-            this.data = new AtomicReference<>(data);
+        PageWrapper(BTreePage page, PageWrapper parent, BTreePagePointer pointer, boolean indexPage) {
+            this.page = new AtomicReference<>(page);
             this.parent = parent;
             this.pointer = pointer;
             this.assignedOffset = new AtomicLong(this.pointer == null ? -1 : this.pointer.getOffset());
@@ -313,12 +312,12 @@ public class BTreeIndex<K, V> {
             this.layout = indexPage ? indexLayout : leafLayout;
         }
 
-        void setData(ByteArraySegment newData) {
-            this.data.set(newData);
+        BTreePage getPage() {
+            return this.page.get();
         }
 
-        ByteArraySegment getData() {
-            return this.data.get();
+        void setPage(BTreePage page) {
+            this.page.set(page);
         }
 
         long getAssignedOffset() {
@@ -372,7 +371,7 @@ public class BTreeIndex<K, V> {
         void insert(PageWrapper page) {
             if (page.getAssignedOffset() < 0) {
                 // This is a new page, ready to be written. We need to assign an offset.
-                long newOffset = this.indexLength.getAndAdd(page.getData().getLength());
+                long newOffset = this.indexLength.getAndAdd(page.getPage().getLength());
                 page.setAssignedOffset(newOffset);
             }
 

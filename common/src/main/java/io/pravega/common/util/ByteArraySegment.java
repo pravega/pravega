@@ -184,6 +184,25 @@ public class ByteArraySegment implements ArrayView {
     }
 
     /**
+     * Copies a specified number of bytes from the given ByteArraySegment into this ByteArraySegment.
+     *
+     * @param source       The ByteArraySegment to copy bytes from.
+     * @param sourceOffset The offset within source to start copying from.
+     * @param targetOffset The offset within this ByteArraySegment to start copying at.
+     * @param length       The number of bytes to copy.
+     * @throws IllegalStateException          If the ByteArraySegment is readonly.
+     * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
+     */
+    public void copyFrom(ByteArraySegment source, int sourceOffset, int targetOffset, int length) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Exceptions.checkArrayRange(sourceOffset, length, source.length, "index", "values.length");
+        Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
+        Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
+
+        System.arraycopy(source.array, source.startOffset+sourceOffset, this.array, targetOffset + this.startOffset, length);
+    }
+
+    /**
      * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
      * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
      *
