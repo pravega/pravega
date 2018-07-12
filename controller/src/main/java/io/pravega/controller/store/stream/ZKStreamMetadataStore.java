@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.server.retention.BucketChangeListener.StreamNotification;
@@ -49,6 +50,18 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+    private static final String BUCKET_ROOT_PATH = "/buckets";
+    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
+    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
+    private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
+    private static final String COUNTER_PATH = "/counter";
+    private static final String TRANSACTION_ROOT_PATH = "/transactions";
+
+    static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
+    static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
+    static final String COMPLETED_TX_GROUP_PATH = COMPLETED_TX_ROOT_PATH + "/groups";
+    static final String COMPLETED_TX_CURRENT_GROUP_PATH = COMPLETED_TX_GROUP_PATH + "/%d";
+
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -64,6 +77,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
+
     private final Object lock;
     @GuardedBy("lock")
     private final AtomicInt96 limit;
@@ -71,6 +85,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicInt96 counter;
     @GuardedBy("lock")
     private volatile CompletableFuture<Void> refreshFutureRef;
+
+    private final ZKGarbageCollector completedTxnGC;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         this (client, Config.BUCKET_COUNT, executor);
@@ -86,6 +102,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
+        this.completedTxnGC = new ZKGarbageCollector(storeHelper, this::gcCompletedTxn);
+    }
+
+    private CompletableFuture<Void> gcCompletedTxn() {
+        return null;
     }
 
     private void initialize() {
@@ -94,7 +115,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper);
+        return new ZKStream(scope, name, storeHelper, () -> completedTxnGC.getLatestGroup());
     }
 
     @Override
@@ -151,12 +172,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
-        return storeHelper.createZNodeIfNotExist(ZKStoreHelper.COUNTER_PATH, Int96.ZERO.toBytes())
-                .thenCompose(v -> storeHelper.getData(ZKStoreHelper.COUNTER_PATH)
+        return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH)
                         .thenCompose(data -> {
                             Int96 previous = Int96.fromBytes(data.getData());
                             Int96 nextLimit = previous.add(COUNTER_RANGE);
-                            return storeHelper.setData(ZKStoreHelper.COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
+                            return storeHelper.setData(COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock
                                         // and then reset refreshfutureref to null
@@ -224,7 +245,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
         };
 
-        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), ZKStoreHelper.BUCKET_OWNERSHIP_PATH, true));
+        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), BUCKET_OWNERSHIP_PATH, true));
 
         bucketOwnershipCacheRef.get().getListenable().addListener(bucketListener);
         bucketOwnershipCacheRef.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
@@ -271,7 +292,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
         };
 
-        String bucketRoot = String.format(ZKStoreHelper.BUCKET_PATH, bucket);
+        String bucketRoot = String.format(BUCKET_PATH, bucket);
 
         bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
         PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
@@ -298,7 +319,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         Preconditions.checkArgument(bucket < bucketCount);
 
         // try creating an ephemeral node
-        String bucketPath = ZKPaths.makePath(ZKStoreHelper.BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
+        String bucketPath = ZKPaths.makePath(BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
 
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                 .thenCompose(created -> {
@@ -315,7 +336,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
-        return storeHelper.getChildren(String.format(ZKStoreHelper.BUCKET_PATH, bucket))
+        return storeHelper.getChildren(String.format(BUCKET_PATH, bucket))
                 .thenApply(list -> list.stream().map(this::decodedScopedStreamName).collect(Collectors.toList()));
     }
 
@@ -324,7 +345,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                                                                    final OperationContext context, final Executor executor) {
         Preconditions.checkNotNull(retentionPolicy);
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
+        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
         byte[] serialize = SerializationUtils.serialize(retentionPolicy);
 
         return storeHelper.getData(retentionPath)
@@ -347,7 +368,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
                                                                  final OperationContext context, final Executor executor) {
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
+        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
 
         return storeHelper.deleteNode(retentionPath)
                 .exceptionally(e -> {

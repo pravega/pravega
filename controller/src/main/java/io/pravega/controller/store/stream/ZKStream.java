@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +60,15 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
+
+    // region to retire
+    @Deprecated
+    private static final String STREAM_COMPLETED_TX_PATH = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
+    // endregion
+
+    private static final String STREAM_COMPLETED_TX_CURRENT_PATH = ZKStreamMetadataStore.COMPLETED_TX_CURRENT_GROUP_PATH + "/%s/%s";
+
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
     private final ZKStoreHelper store;
@@ -83,8 +93,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String streamPath;
 
     private final Cache<Integer> cache;
+    private final Supplier<Integer> completedTxnGroupSupplier;
 
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> completedTxnGroupSupplier) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -100,13 +111,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
         retentionPath = String.format(RETENTION_PATH, scopeName, streamName);
         epochTransitionPath = String.format(EPOCH_TRANSITION_PATH, scopeName, streamName);
         sealedSegmentsPath = String.format(SEALED_SEGMENTS_PATH, scopeName, streamName);
-        activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
-        completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
+        activeTxRoot = String.format(STREAM_ACTIVE_TX_PATH, scopeName, streamName);
+        completedTxPath = String.format(STREAM_COMPLETED_TX_PATH, scopeName, streamName);
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
+        this.completedTxnGroupSupplier = completedTxnGroupSupplier;
     }
 
     // region overrides
@@ -409,6 +421,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
+        // TODO: shivesh
+        // check in latest. if not found, check in other groups if they exist.
+        CompletableFuture<List<String>> children = store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_GROUP_PATH);
+
+
         return cache.getCachedData(getCompletedTxPath(txId.toString()));
     }
 
@@ -423,9 +440,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
-        return store.createZNodeIfNotExist(completedTxPath,
+        String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, completedTxnGroupSupplier.get(), getScope(), getName());
+        String path = ZKPaths.makePath(root, txId.toString());
+
+        CompletableFuture<Void> future1 = store.createZNodeIfNotExist(path,
+                        new CompletedTxnRecord(timestamp, complete).toByteArray())
+                        .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+
+        // region to retire
+        // We will continue to write to old path for backward compatibility.
+        // This should eventually be removed. TODO: shivesh: add issue number
+        CompletableFuture<Void> future2 = store.createZNodeIfNotExist(completedTxPath,
                 new CompletedTxnRecord(timestamp, complete).toByteArray())
                 .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+
+        return CompletableFuture.allOf(future1, future2);
+        // endregion
     }
 
     @Override
