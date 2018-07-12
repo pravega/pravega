@@ -249,10 +249,11 @@ class RocksDBCache implements Cache {
                 .setWalTtlSeconds(0)
                 .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
-                //.setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
-                //.setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
+                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
-                .setOptimizeFiltersForHits(true);
+                .setOptimizeFiltersForHits(true)
+                .setUseDirectReads(true);
     }
 
     private void clear(boolean recreateDirectory) {
