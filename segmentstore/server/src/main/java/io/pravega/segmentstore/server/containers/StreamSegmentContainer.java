@@ -337,10 +337,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("getAttributes", streamSegmentName, attributeIds);
         this.metrics.getAttributes();
-
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> CACHE_ATTRIBUTES_RETRY.runAsync(() ->
-                        getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer), this.executor));
+                streamSegmentId -> {
+                    if (cache) {
+                        return CACHE_ATTRIBUTES_RETRY.runAsync(() ->
+                                getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer), this.executor);
+                    } else {
+                        return getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer);
+                    }
+                });
     }
 
     @Override
@@ -558,6 +563,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             }
         });
 
+        if (extendedAttributeIds.isEmpty()) {
+            // Nothing to lookup in the Attribute Index, so bail out early.
+            return CompletableFuture.completedFuture(result);
+        }
+
         // Collect remaining Extended Attributes.
         CompletableFuture<Map<UUID, Long>> r = this.attributeIndex
                 .forSegment(segmentMetadata.getId(), timer.getRemaining())
@@ -576,7 +586,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     return allValues;
                 }, this.executor);
 
-        if (cache && !segmentMetadata.isSealed() && extendedAttributeIds.size() > 0) {
+        if (cache && !segmentMetadata.isSealed()) {
             // Add them to the cache if requested.
             r = r.thenComposeAsync(extendedAttributes -> {
                 // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
