@@ -88,7 +88,7 @@ public final class MetricsNames {
 
     // Stream retention operations (Dynamic)
     public static final String RETENTION_FREQUENCY = "controller.retention_frequency";   // Dynamic Counter
-    public static final String TRUNCATED_SIZE = "controller.transactions_committed"; // Dynamic Counter
+    public static final String TRUNCATED_SIZE = "controller.truncated_size"; // Dynamic Counter
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
