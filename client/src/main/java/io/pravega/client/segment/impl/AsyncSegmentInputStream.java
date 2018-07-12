@@ -13,11 +13,13 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 /**
  * Allows for reading from a Segment asynchronously.
  */
 @RequiredArgsConstructor
+@ToString
 abstract class AsyncSegmentInputStream implements AutoCloseable {
     @Getter
     protected final Segment segmentId;
