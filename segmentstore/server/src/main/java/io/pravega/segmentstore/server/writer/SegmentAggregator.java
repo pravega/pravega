@@ -728,7 +728,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     if (Exceptions.unwrap(ex) instanceof BadOffsetException) {
                         // We attempted to write at an offset that already contained other data. This can happen for a number of
                         // reasons, but we do not have enough information here to determine why. We need to enter reconciliation
-                        // mode, and hope for the best.
+                        // mode, which will determine the actual state of the segment in storage and take appropriate actions.
                         setState(AggregatorState.ReconciliationNeeded);
                     }
 
@@ -908,7 +908,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     if (transactionMetadata.getLength() == 0
                             && ex instanceof StreamSegmentNotExistsException
                             && ((StreamSegmentNotExistsException) ex).getStreamSegmentName().equals(transactionMetadata.getName())) {
-                        log.warn("{}: Not applying '{}' because source segment is missing (storage) and had no data to begin with.", this.traceObjectId, mergeOp);
+                        log.warn("{}: Not applying '{}' because source segment is missing (storage) and had no data.", this.traceObjectId, mergeOp);
                         return null;
                     } else {
                         throw new CompletionException(ex);

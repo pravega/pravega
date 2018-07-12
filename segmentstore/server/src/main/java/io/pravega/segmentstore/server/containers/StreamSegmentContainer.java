@@ -464,7 +464,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 } else {
                     // Source now has some data - we must merge the two.
                     return this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
-                        }
+                }
             }, this.executor);
         } else {
             // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
