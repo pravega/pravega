@@ -9,12 +9,17 @@
  */
 package io.pravega.common.util.collect;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.ByteArraySegment;
-import lombok.Data;
+import lombok.Getter;
 
-@Data
-class BTreePagePointer {
+@Getter
+class PageEntry {
     private final ByteArraySegment key;
-    private final long offset;
-    private final int length;
+    private final ByteArraySegment value;
+
+    PageEntry(ByteArraySegment key, ByteArraySegment value) {
+        this.key = Preconditions.checkNotNull(key, "key");
+        this.value = Preconditions.checkNotNull(value, "value");
+    }
 }

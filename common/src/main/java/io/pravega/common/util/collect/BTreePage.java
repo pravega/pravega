@@ -66,6 +66,7 @@ class BTreePage {
     @Getter
     private ByteArraySegment data;
     private ByteArraySegment footer;
+    @Getter
     private final Config config;
 
     //endregion
@@ -133,6 +134,15 @@ class BTreePage {
         return this.contents.getLength();
     }
 
+    ByteArraySegment getValue(ByteArraySegment key) {
+        val pos = search(key, 0);
+        if (!pos.isExactMatch()) {
+            // Nothing found
+            return null;
+        }
+
+        return getValueAt(pos.getValue());
+    }
 
     ByteArraySegment getValueAt(int pos) {
         return this.data.subSegment(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength);
@@ -169,24 +179,24 @@ class BTreePage {
         return result;
     }
 
-    void update(Collection<ArrayTuple> entries) {
+    void update(Collection<PageEntry> entries) {
         if (entries.isEmpty()) {
             // Nothing to do.
             return;
         }
 
         // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
-        val newEntries = new ArrayList<Map.Entry<Integer, ArrayTuple>>();
+        val newEntries = new ArrayList<Map.Entry<Integer, PageEntry>>();
 
         // Process all the Entries, in order (by Key).
         int lastPos = 0;
-        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getLeft(), e2.getLeft())).iterator();
+        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
         while (entryIterator.hasNext()) {
             val e = entryIterator.next();
-            val pos = search(e.getLeft(), lastPos);
+            val pos = search(e.getKey(), lastPos);
             if (pos.isExactMatch()) {
                 // Keys already exists: Update in-place.
-                setValueAt(pos.getValue(), e.getRight());
+                setValueAt(pos.getValue(), e.getValue());
             } else {
                 // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
                 // binary search returned the position right before where it should be
@@ -215,12 +225,12 @@ class BTreePage {
             }
 
             // Write Key.
-            newPage.data.copyFrom(e.getValue().getLeft(), writeIndex, e.getValue().getLeft().getLength());
-            writeIndex += e.getValue().getLeft().getLength();
+            newPage.data.copyFrom(e.getValue().getKey(), writeIndex, e.getValue().getKey().getLength());
+            writeIndex += e.getValue().getKey().getLength();
 
             // Write Value.
-            newPage.data.copyFrom(e.getValue().getRight(), writeIndex, e.getValue().getRight().getLength());
-            writeIndex += e.getValue().getRight().getLength();
+            newPage.data.copyFrom(e.getValue().getValue(), writeIndex, e.getValue().getValue().getLength());
+            writeIndex += e.getValue().getValue().getLength();
 
             readIndex = e.getKey();
         }
@@ -287,10 +297,6 @@ class BTreePage {
             assert writePos == (initialCount - removedPositions.size() - 1) * this.config.entryLength : "unexpected number of bytes remaining";
             resize(newCount);
         }
-    }
-
-    SearchResult search(byte[] key) {
-        return search(new ByteArraySegment(key), 0);
     }
 
     SearchResult search(ByteArraySegment key, int startPos) {
@@ -394,8 +400,8 @@ class BTreePage {
     @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     static class SearchResult {
-        final int value;
-        final boolean exactMatch;
+        private final int value;
+        private final boolean exactMatch;
     }
 
     //endregion
