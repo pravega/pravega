@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.ClockCache;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -251,9 +252,10 @@ class RocksDBCache implements Cache {
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
-                .setTableFormatConfig(tableFormatConfig)
+                //.setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(true);
+                .setUseDirectReads(true)
+                .setRowCache(new ClockCache(readCacheSizeMB * 1024L * 1024L, -1, true));
     }
 
     private void clear(boolean recreateDirectory) {
