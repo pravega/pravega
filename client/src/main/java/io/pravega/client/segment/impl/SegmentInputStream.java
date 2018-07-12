@@ -89,5 +89,5 @@ public interface SegmentInputStream extends AutoCloseable {
      *
      * @return False if data read is blocking.
      */
-    public boolean canReadWithoutBlocking();
+    public boolean isSegmentReady();
 }

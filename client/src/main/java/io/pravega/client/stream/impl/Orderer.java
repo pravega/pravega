@@ -37,7 +37,7 @@ public class Orderer {
      * Given a list of segments this reader owns, (which contain their positions) returns the one
      * that should be read from next. This is done in way to minimize blocking and ensure fairness.
      * 
-     * This is done by calling {@link SegmentInputStream#canReadWithoutBlocking()} on each segment.
+     * This is done by calling {@link SegmentInputStream#isSegmentReady()} on each segment.
      * This method will prefer to return streams where that method is true. This method should
      * reflect that the next call to {@link SegmentInputStream#read()} will not block (either
      * because it has data or will throw {@link EndOfSegmentException}
@@ -53,7 +53,7 @@ public class Orderer {
         }
         for (int i = 0; i < segments.size(); i++) {
             T inputStream = segments.get(MathHelpers.abs(counter.incrementAndGet()) % segments.size());
-            if (inputStream.canReadWithoutBlocking()) {
+            if (inputStream.isSegmentReady()) {
                 log.trace("Selecting segment: " + inputStream.getSegmentId());
                 return inputStream;
             } else {
