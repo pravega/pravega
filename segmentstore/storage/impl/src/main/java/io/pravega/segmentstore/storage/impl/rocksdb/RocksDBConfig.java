@@ -22,7 +22,7 @@ public class RocksDBConfig {
     //region Config Names
 
     public static final Property<String> DATABASE_DIR = Property.named("dbDir", "/tmp/pravega/cache");
-    public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 1);
+    public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 64);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
     private static final String COMPONENT_CODE = "rocksdb";
