@@ -26,6 +26,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -77,7 +78,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -453,17 +453,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        // TODO: change SegmentStore to auto-seal before merging (https://github.com/pravega/pravega/issues/2558)
-        segmentStore.sealStreamSegment(mergeSegments.getSource(), TIMEOUT)
-                    .exceptionally(this::ignoreSegmentSealed)
-                    .thenCompose(v -> recordStatForTransaction(mergeSegments.getSource(), mergeSegments.getTarget())
-                        .exceptionally(e -> {
-                            // gobble up any errors from stat recording so we do not affect rest of the flow.
-                            log.error("exception while computing stats while merging txn {}", mergeSegments, e);
-                            return null;
-                        }))
-                    .thenCompose(v -> segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT))
-                    .thenAccept(v -> connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource())))
+        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
+                    .thenAccept(txnProp -> {
+                        recordStatForTransaction(txnProp, mergeSegments.getTarget());
+                        connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
+                    })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
                             log.info("Stream segment is already merged '{}'.", mergeSegments.getSource());
@@ -565,33 +559,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private CompletableFuture<Void> recordStatForTransaction(String transactionName, String targetSegmentName) {
-        return segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
-                .thenAccept(prop -> {
-                    if (prop != null &&
-                            prop.getAttributes().containsKey(Attributes.CREATION_TIME) &&
-                            prop.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
-                        long creationTime = prop.getAttributes().get(Attributes.CREATION_TIME);
-                        int numOfEvents = prop.getAttributes().get(Attributes.EVENT_COUNT).intValue();
-                        long len = prop.getLength();
+    private void recordStatForTransaction(SegmentProperties sourceInfo, String targetSegmentName) {
+        try {
+            if (sourceInfo != null &&
+                    sourceInfo.getAttributes().containsKey(Attributes.CREATION_TIME) &&
+                            sourceInfo.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
+                long creationTime = sourceInfo.getAttributes().get(Attributes.CREATION_TIME);
+                int numOfEvents = sourceInfo.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                long len = sourceInfo.getLength();
 
-                        if (statsRecorder != null) {
-                            statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
-                        }
-                    }
-                });
-    }
-
-    /**
-     * Ignores StreamSegmentSealedException, re-throws anything else.
-     */
-    @SneakyThrows
-    private Long ignoreSegmentSealed(Throwable ex) {
-        ex = Exceptions.unwrap(ex);
-        if (!(ex instanceof StreamSegmentSealedException)) {
-            throw ex;
+                if (statsRecorder != null) {
+                    statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
+                }
+            }
+        } catch (Exception ex) {
+            // gobble up any errors from stat recording so we do not affect rest of the flow.
+            log.error("exception while computing stats while merging txn {}", sourceInfo.getName(), ex);
         }
-
-        return null;
     }
 }
