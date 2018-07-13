@@ -12,13 +12,29 @@ package io.pravega.common.util.collect;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ByteArraySegment;
 import lombok.Getter;
+import lombok.NonNull;
 
+/**
+ * A Key-Value pair of ByteArraySegments that represent an entry in a B+Tree Page.
+ */
 @Getter
 class PageEntry {
+    /**
+     * The Key.
+     */
     private final ByteArraySegment key;
+    /**
+     * The Value.
+     */
     private final ByteArraySegment value;
 
-    PageEntry(ByteArraySegment key, ByteArraySegment value) {
+    /**
+     * Creates a new instance of the PageEntry class.
+     *
+     * @param key   The Key.
+     * @param value The Value.
+     */
+    PageEntry(@NonNull ByteArraySegment key, @NonNull ByteArraySegment value) {
         this.key = Preconditions.checkNotNull(key, "key");
         this.value = Preconditions.checkNotNull(value, "value");
     }

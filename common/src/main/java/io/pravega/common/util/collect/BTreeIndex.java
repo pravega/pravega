@@ -306,8 +306,8 @@ public class BTreeIndex<K, V> {
 
     private PagePointer getPagePointer(ByteArraySegment key, BTreePage page) {
         val pos = page.search(key, 0);
-        assert pos.getValue() >= 0;
-        return deserializePointer(page.getValueAt(pos.getValue()), page.getKeyAt(pos.getValue()));
+        assert pos.getPosition() >= 0;
+        return deserializePointer(page.getValueAt(pos.getPosition()), page.getKeyAt(pos.getPosition()));
     }
 
     private ByteArraySegment serializePointer(PagePointer pointer) {

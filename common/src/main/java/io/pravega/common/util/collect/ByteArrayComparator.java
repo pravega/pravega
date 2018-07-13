@@ -12,6 +12,9 @@ package io.pravega.common.util.collect;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Comparator;
 
+/**
+ * Compares two byte arrays of the same length.
+ */
 class ByteArrayComparator implements Comparator<byte[]> {
     @Override
     public int compare(byte[] b1, byte[] b2) {
