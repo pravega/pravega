@@ -1677,11 +1677,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
+        int i = 0;
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
-                mergeFutures.add(context.container.mergeStreamSegment(parentName, transactionName, TIMEOUT));
+                if (++i % 2 == 0) {
+                    // Every other Merge operation, pre-seal the source. We want to verify we correctly handle this situation as well.
+                    mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
+                }
+
+                mergeFutures.add(Futures.toVoid(context.container.mergeStreamSegment(parentName, transactionName, TIMEOUT)));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
