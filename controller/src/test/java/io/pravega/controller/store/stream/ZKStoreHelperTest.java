@@ -9,10 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -27,8 +25,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;

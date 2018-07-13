@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.Data;
@@ -25,38 +24,32 @@ import org.apache.curator.framework.recipes.leader.LeaderLatch;
 import org.apache.curator.framework.recipes.leader.LeaderLatchListener;
 
 import java.time.Duration;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
+ * Garbage Collector class which periodically executes garbage collection over some data in zookeeper.
+ * This is a generic class which takes a garbage collection Identifier (gcName) and a garbage collection lambda and periodically
+ * executes the lambda.
+ * This also implements the Batcher interface and keeps generating batch ids in
+ * each GC cycle. It is responsibility of the user to make use of the `batch-id` to group its data into these batches.
+ * Upon each periodic cycle, this class checks if a new batch should be generated, and then it executes the supplied gc lambda.
+ *
+ * All controller instances compete to become leader for GC workflow. The leader is responsible for maintaining the batch id
+ * and execute gc workflow.
+ * Users of this class can request the latest batch id from it anytime.
+ *
+ * The current batch is identified by a znode. All controller instances register a watch on this znode. And whenever leader changes
+ * the current batch, they all receive the latest update.
  */
 @Slf4j
-class ZKGarbageCollector extends AbstractService implements AutoCloseable {
+class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseable {
     private static final String GC_ROOT = "/gc/%s";
     private static final String BATCH_PATH = GC_ROOT + "/batch";
     private static final String LEADER_PATH = GC_ROOT + "/leader";
-    // 1. elect leader
-    // 2. owner of the root path. everyone else watch the root path.
-
-    // bootstrap:
-    // check if root path exists. if not, create one.
-    // elect leader
-    // if you are the leader, update the root-path
-    // else watch the root path.
-
-    // follower:
-    // if watch says current root has changed, fetch the new value. update the local variable.
-    // getPath method will return the updated value henceforth.
-
-    // leader:
-    // schedule GC periodically.
-
-    // GC thread:
-    // check if current root needs to be updated.
-    // if yes, update it on rootPath.
-    // clean up all but one older paths. We know current root. We will fetch all older paths. remove latest root path from this list. and sort and remove all but the largest number.
-    // backward compatibility -- as we re
 
     private final ZKStoreHelper zkStoreHelper;
     private final AtomicLong currentBatch;
@@ -94,8 +87,10 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
 
     @Override
     protected void doStart() {
-        long quantized = computeQuantizedGroup();
+        long quantized = computeNewBatch();
         byte[] b = getBytes(quantized);
+        // 1. create znode for storing latest batch id. If the batch id exists, get the value from the store.
+        // We will later register watch on the path and keep receiving any changes to its value.
         zkStoreHelper.createZNodeIfNotExist(BATCH_PATH, b)
                 .thenCompose(x -> zkStoreHelper.getData(BATCH_PATH))
                 .thenAccept(data -> currentBatch.set(BitConverter.readLong(data.getData(), 0)))
@@ -128,17 +123,21 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         });
     }
 
-    long getLatestGroup() {
+    @Override
+    public long getLatestBatch() {
         return currentBatch.get();
     }
 
     @SneakyThrows
     private void initialize() {
+        // 1. register watch on batch path
         watch = watch(batchPath);
 
+        // 2. attempt to acquire leadership
         CompletableFuture<Void> acquiredLeadership = new CompletableFuture<>();
         leaderLatch = electLeader(leaderPath, acquiredLeadership);
 
+        // 3. if this acquires leadership, then schedule periodic garbage collection.
         gcLoop = acquiredLeadership.thenCompose(x -> Futures.loop(this::isRunning, () -> Futures.delayedFuture(this::process,
                 periodInMillis, gcExecutor), gcExecutor));
 
@@ -155,15 +154,16 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         return BitConverter.readLong(data, 0);
     }
 
-    private long computeQuantizedGroup() {
-        return (System.currentTimeMillis() / Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
+    private long computeNewBatch() {
+        return System.currentTimeMillis() / Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis();
     }
 
     private CompletableFuture<Void> process() {
         log.info("Starting GC {}", gcName);
 
-        // this can only be called if this is the leader
-        long quantized = computeQuantizedGroup();
+        // This method is called from periodic GC thread and can only be called if this is the leader.
+        // Compute new batch id.
+        long quantized = computeNewBatch();
         CompletableFuture<Void> future = new CompletableFuture<>();
         if (quantized > currentBatch.get()) {
             // update current group in the store
@@ -171,6 +171,8 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     .thenAccept(v -> currentBatch.set(quantized));
         }
 
+        // Execute GC work supplied by the creator. We will log and ignore any exceptions in GC. The GC will be reattempted in
+        // next cycle.
         return future.thenComposeAsync(x -> gcProcessing.get(), gcExecutor)
                 .exceptionally(e -> {
                     // if GC failed, it will be tried again in the next cycle. So log and ignore.

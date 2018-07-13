@@ -33,7 +33,10 @@ import org.apache.curator.utils.ZKPaths;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,19 +53,6 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private static final String BUCKET_ROOT_PATH = "/buckets";
-    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
-    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
-    private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
-    private static final String COUNTER_PATH = "/counter";
-    private static final String TRANSACTION_ROOT_PATH = "/transactions";
-    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
-
-    static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
-    static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
-
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -75,6 +65,17 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
      * Since we use a 96 bit number for our counter, so
      */
     static final int COUNTER_RANGE = 10000;
+    static final String COUNTER_PATH = "/counter";
+    private static final String BUCKET_ROOT_PATH = "/buckets";
+    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
+    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
+    private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
+    private static final String TRANSACTION_ROOT_PATH = "/transactions";
+    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
+    static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
+    static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
+    static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
+    static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
     private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
@@ -181,7 +182,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestGroup);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
     }
 
     @Override

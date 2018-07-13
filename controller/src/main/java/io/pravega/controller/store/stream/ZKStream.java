@@ -27,7 +27,13 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
@@ -91,6 +97,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final Cache<Integer> cache;
     private final Supplier<Long> currentBatchSupplier;
+
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
+        this(scopeName, streamName, storeHelper, () -> 0L);
+    }
 
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Long> currentBatchSupplier) {
         super(scopeName, streamName);

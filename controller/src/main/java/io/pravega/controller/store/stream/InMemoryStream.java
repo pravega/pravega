@@ -25,7 +25,6 @@ import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

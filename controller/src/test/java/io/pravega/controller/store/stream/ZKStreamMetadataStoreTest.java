@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.store.stream.ZKStreamMetadataStore.COUNTER_PATH;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
@@ -115,7 +116,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         // set range in store to have lsb = Long.Max - 100
         Data<Integer> data = new Data<>(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(ZKStoreHelper.COUNTER_PATH);
+        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(COUNTER_PATH);
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh
