@@ -18,6 +18,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -392,7 +393,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
             out.writeInt(data.readableBytes());
-            out.write(data.array(), data.arrayOffset(), data.readableBytes());
+            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
         public static Event readFrom(DataInput in, int length) throws IOException {
