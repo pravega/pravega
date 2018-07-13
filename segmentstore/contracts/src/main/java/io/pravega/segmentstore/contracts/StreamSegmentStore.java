@@ -111,7 +111,9 @@ public interface StreamSegmentStore {
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain a ReadResult instance that can be used to
-     * consume the read data. If the operation failed, the future will be failed with the causing exception.
+     * consume the read data. If the operation failed, the future will be failed with the causing exception. The future
+     * will be failed with a {@link java.util.concurrent.CancellationException} if the segment container is shutting down
+     * or the segment is evicted from memory.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
