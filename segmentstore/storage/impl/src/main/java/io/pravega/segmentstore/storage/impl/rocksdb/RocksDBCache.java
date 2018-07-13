@@ -238,10 +238,10 @@ class RocksDBCache implements Cache {
 
     private Options createDatabaseOptions() {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
-                .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
-                .setBlockSize(cacheBlockSizeKB * 1024L)
-                .setCacheIndexAndFilterBlocks(true);
-                //.setNoBlockCache(true);
+                //.setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
+                //.setBlockSize(cacheBlockSizeKB * 1024L)
+                //.setCacheIndexAndFilterBlocks(true)
+                .setNoBlockCache(true);
 
         return new Options()
                 .setCreateIfMissing(true)
