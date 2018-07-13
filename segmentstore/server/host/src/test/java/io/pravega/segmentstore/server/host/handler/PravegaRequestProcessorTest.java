@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
@@ -177,6 +178,30 @@ public class PravegaRequestProcessorTest {
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0])));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 20000)
+    public void testReadSegmentWithCancellationException() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "testReadSegment";
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
+        readResult.completeExceptionally(new CancellationException("cancel read"));
+        // Simulate a CancellationException for a Read Segment.
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        // Execute and Verify readSegment is calling stack in connection and store is executed as design.
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        // Since the underlying store cancels the read request verify if an empty SegmentRead Wirecommand is sent as a response.
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0])));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
