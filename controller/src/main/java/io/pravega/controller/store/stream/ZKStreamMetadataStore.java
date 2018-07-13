@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.server.retention.BucketChangeListener;
@@ -31,8 +32,8 @@ import org.apache.curator.utils.ZKPaths;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
-import java.util.Base64;
-import java.util.List;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,7 +61,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
-    static final String COMPLETED_TX_CURRENT_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
 
     @VisibleForTesting
     /**
@@ -91,7 +92,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         this (client, Config.BUCKET_COUNT, executor);
     }
 
+    @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor) {
+        this(client, bucketCount, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
+    }
+
+    @VisibleForTesting
+    ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), bucketCount);
         initialize();
         storeHelper = new ZKStoreHelper(client, executor);
@@ -111,10 +118,66 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
-        // get all children of  
-        // TODO: shivesh
-        return null;
+        return storeHelper.getChildren(COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenApply(children -> {
+                            // retain latest two and delete remainder.
+                            List<Long> list = children.stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                            if (list.size() > 2) {
+                                return list.subList(0, list.size() - 2);
+                            } else {
+                                return new ArrayList<Long>();
+                            }
+                        }
+                )
+                // region Backward Compatibility.
+                // To Retire.. TODO: shivesh add issue number
+                .thenCompose(toDeleteList -> {
+                    // For backward compatibility, find full path on "toDelete" and find corresponding paths in old scheme and delete each txn individually!!
+                    return Futures.allOfWithResults(toDeleteList.stream()
+                            .map(toDelete -> deleteOldSchemeTxns(String.format(COMPLETED_TX_BATCH_ROOT_PATH, toDelete)))
+                            .collect(Collectors.toList()))
+                            .thenApply(x -> toDeleteList);
+                })
+                // endregion
+                .thenCompose(toDeleteList -> {
+                    // delete all those marked for toDelete.
+                    return Futures.allOf(toDeleteList.stream()
+                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_ROOT_PATH, toDelete)))
+                            .collect(Collectors.toList()));
+                });
+
     }
+
+    // region Backward Compatibility.
+    // To Retire.. TODO: shivesh add issue number
+    private CompletableFuture<List<Void>> deleteOldSchemeTxns(String rootPath) {
+        // getAllChildren will return all scopes
+        return storeHelper.getChildren(rootPath)
+                .thenCompose(scopes -> {
+                    return Futures.allOfWithResults(scopes.stream().map(scope -> {
+                        String scopePath = ZKPaths.makePath(rootPath, scope);
+                        return storeHelper.getChildren(scopePath)
+                                .thenCompose(streams -> {
+                                    return Futures.allOfWithResults(streams.stream().map(stream -> {
+                                        String streamPath = ZKPaths.makePath(scopePath, stream);
+                                        return storeHelper.getChildren(streamPath)
+                                                .thenApply(txnIds -> txnIds.stream().map(txnId -> {
+                                                    String txnPath = getOldSchemePath(scope, stream, txnId);
+                                                    return storeHelper.deletePath(txnPath, false);
+                                                }).collect(Collectors.toList()));
+                                    }).collect(Collectors.toList()));
+                                });
+                    }).collect(Collectors.toList()));
+                })
+                .thenCompose(x -> {
+                    return Futures.allOfWithResults(x.stream().flatMap(Collection::stream).flatMap(Collection::stream).collect(Collectors.toList()));
+                });
+    }
+
+    private String getOldSchemePath(String scope, String stream, String txnId) {
+        return ZKPaths.makePath(ZKPaths.makePath(ZKPaths.makePath(COMPLETED_TX_ROOT_PATH, scope), stream), txnId);
+    }
+    // endregion
 
     @Override
     ZKStream newStream(final String scope, final String name) {

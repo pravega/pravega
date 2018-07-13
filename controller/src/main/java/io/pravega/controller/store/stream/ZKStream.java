@@ -60,10 +60,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
-    // region to retire TODO: shivesh: add issue number
+    // region Backward compatibility
+    // To Retire TODO: shivesh: add issue number
     private static final String STREAM_COMPLETED_TX_PATH = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
     // endregion
-    private static final String STREAM_COMPLETED_TX_CURRENT_PATH = ZKStreamMetadataStore.COMPLETED_TX_CURRENT_BATCH_PATH + "/%s/%s";
+    private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
@@ -425,14 +426,15 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
-        String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, currentBatchSupplier.get(), getScope(), getName());
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
         CompletableFuture<Void> future1 = store.createZNodeIfNotExist(path,
                         new CompletedTxnRecord(timestamp, complete).toByteArray())
                         .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
-        // region to retire TODO: shivesh: add issue number
+        // region Backward Compatibility
+        // to retire TODO: shivesh: add issue number
         // We will continue to write to old path for backward compatibility.
         // This should eventually be removed.
         final String completedTxPath = getCompletedTxPath(txId.toString());
@@ -450,7 +452,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
                 .thenCompose(children -> Futures.allOfWithResults(children.stream().map(child -> {
-                    String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, Long.parseLong(child), getScope(), getName());
+                    String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(child), getScope(), getName());
                     String path = ZKPaths.makePath(root, txId.toString());
 
                     return cache.getCachedData(path)
@@ -473,7 +475,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 });
     }
 
-    // region To retire.. TODO: shivesh add issue number
+    // region Backward Compatibility
+    // To retire.. TODO: shivesh add issue number
     CompletableFuture<Void> removeCompletedTxEntry(final int epoch, final UUID txId) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
