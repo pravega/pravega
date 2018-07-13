@@ -22,8 +22,10 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,7 +73,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final Map<String, Data<Integer>> activeTxns = new HashMap<>();
     @GuardedBy("txnsLock")
     private final Cache<String, Data<Integer>> completedTxns = CacheBuilder.newBuilder()
-            .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
+            .expireAfterWrite(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS, TimeUnit.HOURS).build();
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
     private final Map<Long, Data<Integer>> markers = new HashMap<>();

@@ -24,14 +24,12 @@ import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -43,6 +41,7 @@ import java.util.stream.Collectors;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
+@Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
@@ -61,13 +60,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
-
-    // region to retire
-    @Deprecated
+    // region to retire TODO: shivesh: add issue number
     private static final String STREAM_COMPLETED_TX_PATH = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
     // endregion
-
-    private static final String STREAM_COMPLETED_TX_CURRENT_PATH = ZKStreamMetadataStore.COMPLETED_TX_CURRENT_GROUP_PATH + "/%s/%s";
+    private static final String STREAM_COMPLETED_TX_CURRENT_PATH = ZKStreamMetadataStore.COMPLETED_TX_CURRENT_BATCH_PATH + "/%s/%s";
 
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
@@ -93,9 +89,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String streamPath;
 
     private final Cache<Integer> cache;
-    private final Supplier<Integer> completedTxnGroupSupplier;
+    private final Supplier<Long> currentBatchSupplier;
 
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> completedTxnGroupSupplier) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Long> currentBatchSupplier) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -118,7 +114,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
-        this.completedTxnGroupSupplier = completedTxnGroupSupplier;
+        this.currentBatchSupplier = currentBatchSupplier;
     }
 
     // region overrides
@@ -420,16 +416,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
-        // TODO: shivesh
-        // check in latest. if not found, check in other groups if they exist.
-        CompletableFuture<List<String>> children = store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_GROUP_PATH);
-
-
-        return cache.getCachedData(getCompletedTxPath(txId.toString()));
-    }
-
-    @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
@@ -439,17 +425,18 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
-        final String completedTxPath = getCompletedTxPath(txId.toString());
-        String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, completedTxnGroupSupplier.get(), getScope(), getName());
+        String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
         CompletableFuture<Void> future1 = store.createZNodeIfNotExist(path,
                         new CompletedTxnRecord(timestamp, complete).toByteArray())
                         .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
-        // region to retire
+        // region to retire TODO: shivesh: add issue number
         // We will continue to write to old path for backward compatibility.
-        // This should eventually be removed. TODO: shivesh: add issue number
+        // This should eventually be removed.
+        final String completedTxPath = getCompletedTxPath(txId.toString());
+
         CompletableFuture<Void> future2 = store.createZNodeIfNotExist(completedTxPath,
                 new CompletedTxnRecord(timestamp, complete).toByteArray())
                 .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
@@ -457,6 +444,43 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return CompletableFuture.allOf(future1, future2);
         // endregion
     }
+
+
+    @Override
+    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
+        return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(child -> {
+                    String root = String.format(STREAM_COMPLETED_TX_CURRENT_PATH, Long.parseLong(child), getScope(), getName());
+                    String path = ZKPaths.makePath(root, txId.toString());
+
+                    return cache.getCachedData(path)
+                            .exceptionally(e -> {
+                                if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                                    return null;
+                                } else {
+                                    log.error("Exception while trying to fetch completed transaction status", e);
+                                    throw new CompletionException(e);
+                                }
+                            });
+                }).collect(Collectors.toList())))
+                .thenApply(result -> {
+                    Optional<Data<Integer>> any = result.stream().filter(Objects::nonNull).findFirst();
+                    if (any.isPresent()) {
+                        return any.get();
+                    } else {
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Completed Txn not found");
+                    }
+                });
+    }
+
+    // region To retire.. TODO: shivesh add issue number
+    CompletableFuture<Void> removeCompletedTxEntry(final int epoch, final UUID txId) {
+        final String completedTxPath = getCompletedTxPath(txId.toString());
+        // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
+        return store.deletePath(completedTxPath, false)
+                .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+    }
+    // endregion
 
     @Override
     public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamTruncationRecord truncationRecord) {

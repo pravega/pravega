@@ -39,7 +39,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.server.retention.BucketChangeListener.StreamNotification;
@@ -56,11 +55,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
     private static final String COUNTER_PATH = "/counter";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
+    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
 
     static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String COMPLETED_TX_GROUP_PATH = COMPLETED_TX_ROOT_PATH + "/groups";
-    static final String COMPLETED_TX_CURRENT_GROUP_PATH = COMPLETED_TX_GROUP_PATH + "/%d";
+    static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
+    static final String COMPLETED_TX_CURRENT_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
 
     @VisibleForTesting
     /**
@@ -77,7 +77,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
-
     private final Object lock;
     @GuardedBy("lock")
     private final AtomicInt96 limit;
@@ -102,20 +101,24 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
-        this.completedTxnGC = new ZKGarbageCollector(storeHelper, this::gcCompletedTxn);
-    }
-
-    private CompletableFuture<Void> gcCompletedTxn() {
-        return null;
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
     }
 
     private void initialize() {
         METRICS_PROVIDER.start();
     }
 
+    private CompletableFuture<Void> gcCompletedTxn() {
+        // get all children of  
+        // TODO: shivesh
+        return null;
+    }
+
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, () -> completedTxnGC.getLatestGroup());
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestGroup);
     }
 
     @Override
