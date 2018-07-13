@@ -194,13 +194,13 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             log.info("Sleeping for 1 min");
             Exceptions.handleInterrupted(() -> Thread.sleep(1 * 60 * 1000));
 
-            int writeCounteBeforeSleep  = testState.getEventWrittenCount();
+            long writeCounteBeforeSleep  = testState.getEventWrittenCount();
             log.info("Write count after bookie failover after 1 min sleep {}", writeCounteBeforeSleep);
 
             log.info("Sleeping for 1 min");
             Exceptions.handleInterrupted(() -> Thread.sleep(1 * 60 * 1000));
 
-            int writeCounteAfterSleep  = testState.getEventWrittenCount();
+            long writeCounteAfterSleep  = testState.getEventWrittenCount();
             log.info("Write count after bookie failover after 2 mins sleep {}", writeCounteAfterSleep);
 
             Assert.assertTrue(writeCounteAfterSleep == writeCounteBeforeSleep);
@@ -212,7 +212,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             stopWriters();
 
             //Also, verify writes happened after bookie is  brought back
-            int finalWriteCount = testState.getEventWrittenCount();
+            long finalWriteCount = testState.getEventWrittenCount();
             log.info("Final write count {}", finalWriteCount);
             Assert.assertTrue( finalWriteCount > writeCounteAfterSleep);
 
