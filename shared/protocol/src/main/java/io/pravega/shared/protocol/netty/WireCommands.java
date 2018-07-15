@@ -18,6 +18,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -49,7 +50,7 @@ public final class WireCommands {
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     
-    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as SegmentMetadata.NULL_ATTRIBUTE_VALUE
+    public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as Attributes.NULL_ATTRIBUTE_VALUE
     
     private static final Map<Integer, WireCommandType> MAPPING;
     static {
@@ -265,40 +266,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class NoSuchTransaction implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.NO_SUCH_TRANSACTION;
-        final long requestId;
-        final String txn;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.noSuchTransaction(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(txn);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String batch = in.readUTF();
-            return new NoSuchTransaction(requestId, batch);
-        }
-
-        @Override
-        public String toString() {
-            return "No such transaction: " + txn;
-        }
-        
-        @Override
-        public boolean isFailure() {
-            return true;
-        }
-    }
-
-    @Data
     public static final class InvalidEventNumber implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
@@ -426,7 +393,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
             out.writeInt(data.readableBytes());
-            out.write(data.array(), data.arrayOffset(), data.readableBytes());
+            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
         public static Event readFrom(DataInput in, int length) throws IOException {
@@ -914,6 +881,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.STREAM_SEGMENT_INFO;
         final long requestId;
         final String segmentName;
+        @Accessors(fluent = true)
         final boolean exists;
         final boolean isSealed;
         final boolean isDeleted;
@@ -952,81 +920,6 @@ public final class WireCommands {
                 startOffset = in.readLong();
             }
             return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength, startOffset);
-        }
-    }
-
-    @Data
-    public static final class GetTransactionInfo implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.getTransactionInfo(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            String delegationToken = in.readUTF();
-            return new GetTransactionInfo(requestId, segment, txid, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class TransactionInfo implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_INFO;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-        final String transactionName;
-        @Accessors(fluent = true)
-        final boolean exists;
-        final boolean isSealed;
-        final long lastModified;
-        final long dataLength;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.transactionInfo(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-            out.writeUTF(transactionName);
-            out.writeBoolean(exists);
-            out.writeBoolean(isSealed);
-            out.writeLong(lastModified);
-            out.writeLong(dataLength);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            String transactionName = in.readUTF();
-            boolean exists = in.readBoolean();
-            boolean isSealed = in.readBoolean();
-            long lastModified = in.readLong();
-            long dataLength = in.readLong();
-            return new TransactionInfo(requestId, segment, txid, transactionName, exists, isSealed, lastModified, dataLength);
         }
     }
 
@@ -1152,182 +1045,61 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CreateTransaction implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
+    public static final class MergeSegments implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
         final long requestId;
-        final String segment;
-        final UUID txid;
+        final String target;
+        final String source;
         final String delegationToken;
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.createTransaction(this);
+            cp.mergeSegments(this);
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
+            out.writeUTF(target);
+            out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
+            String target = in.readUTF();
+            String source = in.readUTF();
             String delegationToken = in.readUTF();
-            return new CreateTransaction(requestId, segment, txid, delegationToken);
+            return new MergeSegments(requestId, target, source, delegationToken);
         }
     }
 
     @Data
-    public static final class TransactionCreated implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_CREATED;
+    public static final class SegmentsMerged implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENTS_MERGED;
         final long requestId;
-        final String segment;
-        final UUID txid;
+        final String target;
+        final String source;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.transactionCreated(this);
+            cp.segmentsMerged(this);
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
+            out.writeUTF(target);
+            out.writeUTF(source);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionCreated(requestId, segment, txid);
+            String target = in.readUTF();
+            String source = in.readUTF();
+            return new SegmentsMerged(requestId, target, source);
         }
     }
-
-    @Data
-    public static final class CommitTransaction implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.commitTransaction(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            String delegationToken = in.readUTF();
-            return new CommitTransaction(requestId, segment, txid, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class TransactionCommitted implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_COMMITTED;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.transactionCommitted(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionCommitted(requestId, segment, txid);
-        }
-    }
-
-    @Data
-    public static final class AbortTransaction implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.ABORT_TRANSACTION;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-        final String delegationToken;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.abortTransaction(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            String delegationToken = in.readUTF();
-            return new AbortTransaction(requestId, segment, txid, delegationToken);
-        }
-    }
-
-    @Data
-    public static final class TransactionAborted implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TRANSACTION_ABORTED;
-        final long requestId;
-        final String segment;
-        final UUID txid;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.transactionAborted(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeLong(txid.getMostSignificantBits());
-            out.writeLong(txid.getLeastSignificantBits());
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            UUID txid = new UUID(in.readLong(), in.readLong());
-            return new TransactionAborted(requestId, segment, txid);
-        }
-    }
-
 
     @Data
     public static final class SealSegment implements Request, WireCommand {

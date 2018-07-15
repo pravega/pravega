@@ -86,7 +86,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
                 this.store.close();
             } finally {
-                this.executor.shutdown();
+                ExecutorServiceHelpers.shutdown(this.executor);
                 this.closed.set(true);
                 TestLogger.log(LOG_ID, "Closed.");
 

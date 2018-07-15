@@ -11,6 +11,7 @@ package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -24,12 +25,46 @@ public interface StreamCut extends Serializable {
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
      * of the stream or the current TAIL of the stream.
      */
-    StreamCut UNBOUNDED = () -> null;
-
+    public static final StreamCut UNBOUNDED = new StreamCut() {
+        private static final long serialVersionUID = 1L;
+        
+        @Override
+        public ByteBuffer toBytes() {
+            return ByteBuffer.allocate(0);
+        }
+        
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
+        
+        private Object readResolve() {
+            return UNBOUNDED;
+        }
+    };
+    
     /**
      * Used internally. Do not call.
      *
      * @return Implementation of EventPointer interface
      */
     StreamCutInternal asImpl();
+    
+    /**
+     * Serializes the cut to a compact byte array.
+     */
+    ByteBuffer toBytes();
+    
+    /**
+     * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
+     * 
+     * @param cut A serialized position.
+     * @return The StreamCut object.
+     */
+    static StreamCut fromBytes(ByteBuffer cut) {
+        if (!cut.hasRemaining()) {
+            return UNBOUNDED;
+        }
+        return StreamCutInternal.fromBytes(cut);
+    }
 }

@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -81,6 +82,14 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        return invoke(
+                streamSegmentName,
+                container -> container.getAttributes(streamSegmentName, attributeIds, cache, timeout),
+                "getAttributes", streamSegmentName, attributeIds);
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         return invoke(
                 streamSegmentName,
@@ -105,20 +114,11 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId,
-                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         return invoke(
-                parentStreamSegmentName,
-                container -> container.createTransaction(parentStreamSegmentName, transactionId, attributes, timeout),
-                "createTransaction", parentStreamSegmentName, transactionId, attributes);
-    }
-
-    @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        return invoke(
-                transactionName,
-                container -> container.mergeTransaction(transactionName, timeout),
-                "mergeTransaction", transactionName);
+                sourceStreamSegment,
+                container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, timeout),
+                "mergeTransaction", targetStreamSegment, sourceStreamSegment);
     }
 
     @Override

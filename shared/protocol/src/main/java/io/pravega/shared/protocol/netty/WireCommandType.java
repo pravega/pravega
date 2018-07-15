@@ -45,21 +45,9 @@ public enum WireCommandType {
     GET_STREAM_SEGMENT_INFO(11, WireCommands.GetStreamSegmentInfo::readFrom),
     STREAM_SEGMENT_INFO(12, WireCommands.StreamSegmentInfo::readFrom),
     
-    GET_TRANSACTION_INFO(13, WireCommands.GetTransactionInfo::readFrom),
-    TRANSACTION_INFO(14, WireCommands.TransactionInfo::readFrom),
-
     CREATE_SEGMENT(20, WireCommands.CreateSegment::readFrom),
     SEGMENT_CREATED(21, WireCommands.SegmentCreated::readFrom),
 
-    CREATE_TRANSACTION(22, WireCommands.CreateTransaction::readFrom),
-    TRANSACTION_CREATED(23, WireCommands.TransactionCreated::readFrom),
-
-    COMMIT_TRANSACTION(24, WireCommands.CommitTransaction::readFrom),
-    TRANSACTION_COMMITTED(25, WireCommands.TransactionCommitted::readFrom),
-
-    ABORT_TRANSACTION(26, WireCommands.AbortTransaction::readFrom),
-    TRANSACTION_ABORTED(27, WireCommands.TransactionAborted::readFrom),
-    
     SEAL_SEGMENT(28, WireCommands.SealSegment::readFrom),
     SEGMENT_SEALED(29, WireCommands.SegmentSealed::readFrom),
 
@@ -82,10 +70,12 @@ public enum WireCommandType {
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),
     SEGMENT_ALREADY_EXISTS(52, WireCommands.SegmentAlreadyExists::readFrom),
     NO_SUCH_SEGMENT(53, WireCommands.NoSuchSegment::readFrom),
-    NO_SUCH_TRANSACTION(54, WireCommands.NoSuchTransaction::readFrom),
     INVALID_EVENT_NUMBER(55, WireCommands.InvalidEventNumber::readFrom),
     SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsTruncated::readFrom),
     OPERATION_UNSUPPORTED(57, WireCommands.OperationUnsupported::readFrom),
+
+    MERGE_SEGMENTS(58, WireCommands.MergeSegments::readFrom),
+    SEGMENTS_MERGED(59, WireCommands.SegmentsMerged::readFrom),
 
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
 

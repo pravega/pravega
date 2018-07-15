@@ -20,7 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.Before;
 import org.junit.Test;
-
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -56,6 +56,11 @@ public class ConcurrentEventProcessorTest {
         @Override
         public PositionInternal asImpl() {
             return null;
+        }
+
+        @Override
+        public ByteBuffer toBytes() {
+            throw new UnsupportedOperationException();
         }
     }
 

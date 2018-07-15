@@ -10,13 +10,12 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.EventPointerInternal;
-
-import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 /**
  * A pointer to an event. This can be used to retrieve a previously read event by calling {@link EventStreamReader#fetchEvent(EventPointer)}
  */
-public interface EventPointer extends Serializable {
+public interface EventPointer {
 
     /**
      * Used internally. Do not call.
@@ -24,5 +23,21 @@ public interface EventPointer extends Serializable {
      * @return Implementation of EventPointer interface
      */
     EventPointerInternal asImpl();
+    
+    /**
+     * Serializes the Event pointer to a compact binary form.
+     * @return A binary representation of the event pointer.
+     */
+    ByteBuffer toBytes();
 
+    /**
+     * Deserializes the event pointer from its serialized from obtained from calling {@link #toBytes()}.
+     * 
+     * @param eventPointer A serialized event pointer.
+     * @return The event pointer object.
+     */
+    static EventPointer fromBytes(ByteBuffer eventPointer) {
+        return EventPointerInternal.fromBytes(eventPointer);
+    }
+    
 }

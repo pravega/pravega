@@ -41,8 +41,8 @@ public interface BatchClient {
 
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
-     * Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the
-     * current end of stream respectively.
+     * Passing StreamCut.UNBOUNDED or null to fromStreamCut and toStreamCut will result in using the current start of
+     * stream and the current end of stream respectively.
      *<p>
      * Note: In case of stream truncation: <p>
      * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>

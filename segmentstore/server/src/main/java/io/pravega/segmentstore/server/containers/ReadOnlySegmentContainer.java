@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -161,18 +162,18 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
+    public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        return unsupported("getAttributes");
+    }
+
+    @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         return unsupported("createStreamSegment");
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
-        return unsupported("createTransaction");
-    }
-
-    @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        return unsupported("mergeTransaction");
+    public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+        return unsupported("mergeStreamSegment");
     }
 
     @Override

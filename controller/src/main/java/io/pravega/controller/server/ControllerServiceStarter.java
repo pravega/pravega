@@ -46,6 +46,7 @@ import io.pravega.controller.util.Config;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -197,7 +198,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                         controllerExecutor);
 
                 // Bootstrap and start it asynchronously.
@@ -334,13 +335,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            controllerExecutor.shutdownNow();
-
-            retentionExecutor.shutdownNow();
-
-            log.info("Awaiting termination of controller executor");
-            controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
-            retentionExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");

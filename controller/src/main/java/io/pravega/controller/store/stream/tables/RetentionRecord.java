@@ -10,16 +10,24 @@
 package io.pravega.controller.store.stream.tables;
 
 import com.google.common.collect.Lists;
-import io.pravega.controller.store.stream.StreamCutRecord;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.controller.store.stream.tables.serializers.RetentionRecordSerializer;
+import lombok.Builder;
 import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.Serializable;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Data
-public class RetentionRecord implements Serializable {
+@Builder
+public class RetentionRecord {
+    public static final RetentionRecordSerializer SERIALIZER = new RetentionRecordSerializer();
+
     private final List<StreamCutRecord> streamCuts;
 
     public RetentionRecord(List<StreamCutRecord> streamCuts) {
@@ -43,5 +51,18 @@ public class RetentionRecord implements Serializable {
         // remove all stream cuts with recordingTime before supplied cut
         return new RetentionRecord(list.stream().filter(x -> x.getRecordingTime() > cut.getRecordingTime())
                 .collect(Collectors.toList()));
+    }
+
+    public static class RetentionRecordBuilder implements ObjectBuilder<RetentionRecord> {
+    }
+
+    @SneakyThrows(IOException.class)
+    public static RetentionRecord parse(final byte[] data) {
+        return SERIALIZER.deserialize(data);
+    }
+
+    @SneakyThrows(IOException.class)
+    public byte[] toByteArray() {
+        return SERIALIZER.serialize(this).getCopy();
     }
 }

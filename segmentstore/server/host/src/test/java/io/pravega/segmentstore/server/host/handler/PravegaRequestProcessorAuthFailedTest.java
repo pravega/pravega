@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -63,32 +62,14 @@ public class PravegaRequestProcessorAuthFailedTest {
     }
 
     @Test
-    public void getTransactionInfo() {
-        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
     public void createSegment() {
         processor.createSegment(new WireCommands.CreateSegment(100L, "segment", (byte) 0, 0, "token"));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 
     @Test
-    public void createTransaction() {
-        processor.createTransaction(new WireCommands.CreateTransaction(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
-    public void commitTransaction() {
-        processor.commitTransaction(new WireCommands.CommitTransaction(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
-    public void abortTransaction() {
-        processor.abortTransaction(new WireCommands.AbortTransaction(100L, "segment", UUID.randomUUID(), "token"));
+    public void mergeSegments() {
+        processor.mergeSegments(new WireCommands.MergeSegments(100L, "segment", "segment2", "token"));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
     }
 

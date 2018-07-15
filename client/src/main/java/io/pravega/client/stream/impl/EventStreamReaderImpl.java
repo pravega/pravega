@@ -116,7 +116,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (buffer == null) {
                return createEmptyEvent(null);
             } 
-            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            lastRead = Sequence.create(segment.getSegmentId(), offset);
             int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             return new EventReadImpl<>(lastRead,
                     deserializer.deserialize(buffer),
@@ -222,7 +222,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
-        String delegationToken = groupState.getLatestDelegationToken();
+        String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
+
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
         try {

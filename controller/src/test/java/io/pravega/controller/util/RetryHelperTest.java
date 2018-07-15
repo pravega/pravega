@@ -13,9 +13,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.retryable.RetryableException;
-import org.junit.After;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.time.Duration;
@@ -28,20 +27,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertTrue;
 
-public class RetryHelperTest {
+public class RetryHelperTest extends ThreadPooledTestSuite {
     private static class TestException extends RuntimeException implements RetryableException {
     }
 
-    ScheduledExecutorService executor;
-
-    @Before
-    public void setup() {
-        executor = Executors.newSingleThreadScheduledExecutor();
-    }
-
-    @After
-    public void teardown() {
-        executor.shutdown();
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
     }
 
     @Test(timeout = 10000)
@@ -78,7 +70,7 @@ public class RetryHelperTest {
         try {
             RetryHelper.withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 throw new TestException();
-            }), RetryHelper.RETRYABLE_PREDICATE, 2, executor);
+            }), RetryHelper.RETRYABLE_PREDICATE, 2, executorService());
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException);
             Throwable ex = Exceptions.unwrap(e.getCause());
@@ -91,14 +83,14 @@ public class RetryHelperTest {
                 throw new TestException();
             }
             return count.get();
-        }), RetryHelper.RETRYABLE_PREDICATE, 2, executor), RuntimeException::new) == 2);
+        }), RetryHelper.RETRYABLE_PREDICATE, 2, executorService()), RuntimeException::new) == 2);
 
         assertTrue(Futures.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             if (count.incrementAndGet() < 4) {
                 throw new RuntimeException();
             }
             return count.get();
-        }), RetryHelper.UNCONDITIONAL_PREDICATE, 2, executor), RuntimeException::new) == 4);
+        }), RetryHelper.UNCONDITIONAL_PREDICATE, 2, executorService()), RuntimeException::new) == 4);
     }
 
     @Test(timeout = 30000L)

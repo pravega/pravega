@@ -30,7 +30,6 @@ import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.host.ServiceStarter;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
-import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
@@ -39,6 +38,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
@@ -246,9 +246,15 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
+        Properties authProps = new Properties();
+        authProps.setProperty("pravega.client.auth.method", "Default");
+        authProps.setProperty("pravega.client.auth.userName", "arvind");
+        authProps.setProperty("pravega.client.auth.password", "1111_aaaa");
+
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
+                .include(authProps)
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
@@ -261,6 +267,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
+                        .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
+                        .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
@@ -271,14 +279,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
-                .include(ReadIndexConfig.builder()
-                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
-                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tcp" : "tls") + "://localhost:"
+                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
                                                                                 + controllerPorts[0])
-                                         .with(AutoScalerConfig.AUTH_USERNAME, this.userName)
-                                         .with(AutoScalerConfig.AUTH_PASSWORD, this.passwd)
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
@@ -326,7 +329,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();

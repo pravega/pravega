@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -26,6 +28,7 @@ import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
@@ -42,6 +45,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
     private final OperationCallbacks callbacks;
     private final ReadIndexFactory readIndexFactory;
+    private final CacheManager cacheManager;
     private final Storage storage;
 
     //endregion
@@ -49,16 +53,18 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     //region Constructor
 
     private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
-                                   Storage storage, OperationCallbacks callbacks) {
+                                   Storage storage, CacheManager cacheManager, OperationCallbacks callbacks) {
         super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage), null));
         this.readIndexFactory = readIndexFactory;
         this.storage = storage;
         this.callbacks = callbacks;
+        this.cacheManager = cacheManager;
     }
 
     @Override
     public void close() {
         this.readIndexFactory.close();
+        this.cacheManager.close();
         this.storage.close();
     }
 
@@ -82,9 +88,11 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         Preconditions.checkNotNull(callbacks, callbacks);
 
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
-        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), executor);
+        CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)), executor);
+        cacheManager.startAsync().awaitRunning();
+        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), cacheManager, executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
-        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, callbacks);
+        return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks);
     }
 
     //endregion

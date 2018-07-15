@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -158,28 +159,28 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+            throw new UnsupportedOperationException("getAttributes");
+        }
+
+        @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("read");
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
-        }
-
-        @Override
-        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+        public CompletableFuture<SegmentProperties> mergeStreamSegment(String target, String source, Duration timeout) {
+            throw new UnsupportedOperationException("mergeStreamSegment");
         }
 
         @Override
         public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("sealStreamSegment");
         }
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("deleteStreamSegment");
         }
 
         @Override

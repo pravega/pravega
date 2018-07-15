@@ -17,6 +17,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
@@ -54,6 +55,17 @@ public class ByteArraySegment implements ArrayView {
      */
     public ByteArraySegment(byte[] array, int startOffset, int length) {
         this(array, startOffset, length, false);
+    }
+    
+    /**
+     * Creates a new instance of the ByteArraySegment class that wraps an array backed ByteBuffer.
+     *
+     * @param buff       The ByteBuffer to wrap.
+     * @throws NullPointerException           If the array is null.
+     * @throws UnsupportedOperationException  If buff is not backed by an array.
+     */
+    public ByteArraySegment(ByteBuffer buff) {
+        this(buff.array(), buff.arrayOffset() + buff.position(), buff.remaining(), false);
     }
 
     /**

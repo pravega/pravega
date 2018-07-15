@@ -23,12 +23,12 @@ public class SynchronousStreamSegmentStoreTests extends StreamSegmentServiceTest
     @Override
     protected int getThreadPoolSize() {
         // We await all async operations, which means we'll be eating up a lot of threads for this test.
-        return super.getThreadPoolSize() * 10;
+        return super.getThreadPoolSize() * 50;
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
-        return super.createBuilder(builderConfig)
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
+        return super.createBuilder(builderConfig, instanceId)
                     .withStreamSegmentStore(setup -> {
                         StreamSegmentStore base = new StreamSegmentService(setup.getContainerRegistry(), setup.getSegmentToContainerMapper());
                         return new SynchronousStreamSegmentStore(base);

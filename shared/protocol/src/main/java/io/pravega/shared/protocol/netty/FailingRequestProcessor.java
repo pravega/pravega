@@ -9,14 +9,10 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -69,11 +65,6 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
-    public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
-        throw new IllegalStateException("Unexpected operation");
-    }
-    
-    @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         throw new IllegalStateException("Unexpected operation");
     }
@@ -83,22 +74,11 @@ public class FailingRequestProcessor implements RequestProcessor {
         throw new IllegalStateException("Unexpected operation");
     }
 
-
     @Override
-    public void createTransaction(CreateTransaction createTransaction) {
+    public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
         throw new IllegalStateException("Unexpected operation");
     }
 
-    @Override
-    public void commitTransaction(CommitTransaction commitTransaction) {
-        throw new IllegalStateException("Unexpected operation");
-    }
-    
-    @Override
-    public void abortTransaction(AbortTransaction abortTransaction) {
-        throw new IllegalStateException("Unexpected operation");
-    }
-    
     @Override
     public void sealSegment(SealSegment sealSegment) {
         throw new IllegalStateException("Unexpected operation");

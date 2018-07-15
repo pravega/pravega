@@ -9,11 +9,17 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.collect.Sets;
 import io.pravega.test.common.AssertExtensions;
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
 import org.junit.Assert;
@@ -24,10 +30,10 @@ import org.junit.Test;
  */
 public class CollectionHelpersTests {
     /**
-     * Tests the binary search method.
+     * Tests the binarySearch() method on a List.
      */
     @Test
-    public void testBinarySearch() {
+    public void testBinarySearchList() {
         int maxSize = 100;
         int skip = 3;
         ArrayList<Integer> list = new ArrayList<>();
@@ -40,6 +46,41 @@ public class CollectionHelpersTests {
             }
             // Add an element.
             list.add(maxSearchElement);
+        }
+    }
+
+    /**
+     * Tests the binarySearch() method on a IndexedMap.
+     */
+    @Test
+    public void testBinarySearchSortedMap() {
+        int maxSize = 100;
+        int skip = 3;
+        val m = new TestIndexedMap();
+        val allValues = new HashMap<Integer, String>();
+        val r = new Random(0);
+        for (int size = 0; size < maxSize; size++) {
+            // Generate search keys.
+            int maxSearchElement = (m.getCount() + 1) * skip;
+            val searchKeys = new ArrayList<Integer>();
+            for (int i = 0; i < size; i += skip) {
+                searchKeys.add(r.nextInt(size * 2));
+            }
+
+            val expectedValues = new HashMap<Integer, String>();
+            searchKeys.stream()
+                      .filter(allValues::containsKey)
+                      .forEach(k -> expectedValues.put(k, allValues.get(k)));
+
+            val actualValues = new HashMap<Integer, String>();
+            val anythingFound = CollectionHelpers.binarySearch(m, searchKeys, actualValues);
+
+            Assert.assertEquals("Unexpected return value for size " + size, expectedValues.size() > 0, anythingFound);
+            AssertExtensions.assertMapEquals("Unexpected result contents for size " + size, expectedValues, actualValues);
+
+            // Add new data.
+            m.add(maxSearchElement, Integer.toString(maxSearchElement));
+            allValues.put(maxSearchElement, Integer.toString(maxSearchElement));
         }
     }
 
@@ -65,6 +106,44 @@ public class CollectionHelpersTests {
         }
     }
 
+    /**
+     * Tests the joinSets() method.
+     */
+    @Test
+    public void testJoinSets() {
+        AssertExtensions.<Integer>assertContainsSameElements("Empty set.", Collections.emptySet(),
+                CollectionHelpers.joinSets(Collections.emptySet(), Collections.emptySet()));
+        AssertExtensions.assertContainsSameElements("Empty+non-empty.", Sets.newHashSet(1, 2, 3),
+                CollectionHelpers.joinSets(Collections.emptySet(), Sets.newHashSet(1, 2, 3)));
+        AssertExtensions.assertContainsSameElements("Non-empty+empty.", Sets.newHashSet(1, 2, 3),
+                CollectionHelpers.joinSets(Sets.newHashSet(1, 2, 3), Collections.emptySet()));
+        AssertExtensions.assertContainsSameElements("Non-empty+non-empty.", Sets.newHashSet(1, 2, 3),
+                CollectionHelpers.joinSets(Sets.newHashSet(1, 3), Sets.newHashSet(2)));
+        AssertExtensions.assertContainsSameElements("Non-empty+non-empty(duplicates).", Arrays.asList(1, 2, 2, 3),
+                CollectionHelpers.joinSets(Sets.newHashSet(1, 2), Sets.newHashSet(2, 3)));
+    }
+
+    /**
+     * Tests the joinCollections() method.
+     */
+    @Test
+    public void testJoinCollections() {
+        AssertExtensions.assertContainsSameElements("Empty set.", Collections.<Integer>emptySet(),
+                CollectionHelpers.joinCollections(Collections.<Integer>emptySet(), i -> i, Collections.<Integer>emptySet(), i -> i));
+        AssertExtensions.assertContainsSameElements("Empty+non-empty.", Arrays.asList(1, 2, 3),
+                CollectionHelpers.joinCollections(Collections.<Integer>emptySet(), i -> i, Arrays.asList("1", "2", "3"), Integer::parseInt));
+        AssertExtensions.assertContainsSameElements("Non-empty+empty.", Arrays.asList(1, 2, 3),
+                CollectionHelpers.joinCollections(Arrays.asList("1", "2", "3"), Integer::parseInt, Collections.<Integer>emptySet(), i -> i));
+        AssertExtensions.assertContainsSameElements("Non-empty+non-empty.", Arrays.asList(1, 2, 3),
+                CollectionHelpers.joinCollections(Arrays.asList("1", "3"), Integer::parseInt, Arrays.asList("2"), Integer::parseInt));
+        val c = CollectionHelpers.joinCollections(Arrays.asList("1", "2"), Integer::parseInt, Arrays.asList("2", "3"), Integer::parseInt);
+        AssertExtensions.assertContainsSameElements("Non-empty+non-empty(duplicates).", Arrays.asList(1, 2, 2, 3), c);
+
+        // Now test the iterator.
+        val copy = new ArrayList<Integer>(c);
+        AssertExtensions.assertContainsSameElements("Non-empty+non-empty(duplicates, copy).", c, copy);
+    }
+
     private Collection<Integer> createCollection(int from, int upTo) {
         Collection<Integer> collection = new HashSet<>(upTo - from);
         for (int i = from; i < upTo; i++) {
@@ -72,5 +151,28 @@ public class CollectionHelpersTests {
         }
 
         return collection;
+    }
+
+    private static class TestIndexedMap implements IndexedMap<Integer, String> {
+        private final ArrayList<Map.Entry<Integer, String>> entries = new ArrayList<>();
+
+        void add(int key, String value) {
+            this.entries.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
+        }
+
+        @Override
+        public int getCount() {
+            return this.entries.size();
+        }
+
+        @Override
+        public Integer getKey(int position) {
+            return this.entries.get(position).getKey();
+        }
+
+        @Override
+        public String getValue(int position) {
+            return this.entries.get(position).getValue();
+        }
     }
 }

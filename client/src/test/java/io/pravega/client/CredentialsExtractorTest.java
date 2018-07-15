@@ -41,9 +41,9 @@ public class CredentialsExtractorTest {
 
         AssertExtensions.assertMapEquals("Paramters are not same",
                 config.getCredentials().getAuthParameters(),
-                ImmutableMap.of("pravega.client.auth.prop1", "prop1",
-                        "pravega.client.auth.prop2", "prop2",
-                        "pravega.client.auth.method", "temp"));
+                ImmutableMap.of("prop1", "prop1",
+                        "prop2", "prop2",
+                        "method", "temp"));
 
         //If a credential is explicitly mentioned, do not override from properties
         config = ClientConfig.builder().credentials(new Credentials() {
