@@ -57,9 +57,6 @@ indexDirectories=/bk/index
 zkLedgersRootPath=/pravega/bookkeeper/ledgers
 ```
 
-#### Enabling encryption with Bookkeeper
-`TODO`
-
 ### Initializing Zookeeper paths
 
 The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers run:
@@ -84,7 +81,7 @@ Start the bookie:
 bin/bookkeeper bookie
 ```
 ### Running Bookkeeper with encryption enabled
-`TODO`
+Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/latest/security/tls/).
 
 ---
 # Installing Pravega

@@ -8,7 +8,6 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 # Pravega Encryption
-
 ## Encryption of data in flight 
 Pravega ensures that all the data in flight can be passed on in an encrytped manner.
 The different channels [channels](https://github.com/pravega/pravega/wiki/PDP-23:-Pravega-security----encryption-and-Role-Based-Access-Control#b-encryption-of-data-in-flight-over-network-and-in-tier-1)
@@ -16,9 +15,11 @@ can be configured with TLS and encryption enabled for them.
 ### Certificate management
 Pravega expects administrator user to create and manage certificate creation, deployment and management. 
 Pravega provides different configuration parameters where certificates for different communication channels can be specified.
-### Encrypted data flow between Pravega client and Pravega controller and segemtstore
-
+### Encrypted data flow between Pravega client and Pravega controller and segmentstore
+Pravega uses same cert to interact with both controller and segmentstore. The certificates need to be mentioned specifically on the client and the server.
+These certificates are not loaded from the trust store.
 ### Encrypted data flow between Pravega and tier-1 (Apache Bookkeeper)
+Apache bookkeeper supports JKS based truststore. Segmentstore uses JKS based truststore to interact with it. The configurations
 #### Segmentstore and bookkeeper
 Pravega Segmentstore uses Apache bookkeeper as Tier-1 storage. 
 Interactions between segmentstore
