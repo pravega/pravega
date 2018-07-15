@@ -178,7 +178,7 @@ interface Stream {
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    CompletableFuture<List<Long>> getActiveSegments(final long timestamp);
+    CompletableFuture<Map<Long, Long>> getActiveSegments(final long timestamp);
 
     /**
      * Returns the active segments in the specified epoch.

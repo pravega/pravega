@@ -405,7 +405,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of active segment numbers at given time stamp
      */
     @Override
-    public CompletableFuture<List<Long>> getActiveSegments(final long timestamp) {
+    public CompletableFuture<Map<Long, Long>> getActiveSegments(final long timestamp) {
         return getTruncationRecord(false)
                 .thenCompose(truncationRecord -> getHistoryIndex()
                         .thenCompose(historyIndex -> getHistoryTable()

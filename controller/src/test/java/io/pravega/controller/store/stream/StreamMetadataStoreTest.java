@@ -115,7 +115,7 @@ public abstract class StreamMetadataStoreTest {
         List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        List<Long> historicalSegments = store.getActiveSegments(scope, stream1, 10L, null, executor).get();
+        Map<Long, Long> historicalSegments = store.getActiveSegments(scope, stream1, 10L, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
