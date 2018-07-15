@@ -29,7 +29,6 @@ import org.apache.curator.utils.ZKPaths;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;

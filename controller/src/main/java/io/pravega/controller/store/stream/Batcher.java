@@ -11,9 +11,9 @@ package io.pravega.controller.store.stream;
 
 /**
  * Batcher interface to facilitate callers to group their data into different batches.
- * Implementation of this interface should manage the batch identifier, a long number, and keep incrementing it
- * whenever they feel it fit.
+ * Implementation of this interface should manage the batch identifier and update it's value
+ * based on their business logic.
  */
-public interface Batcher {
-    long getLatestBatch();
+public interface Batcher<T> {
+    T getLatestBatch();
 }

@@ -47,7 +47,7 @@ import java.util.function.Supplier;
  * the current batch, they all receive the latest update.
  */
 @Slf4j
-class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseable {
+class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoCloseable {
     private static final String GC_ROOT = "/gc/%s";
     private static final String BATCH_PATH = GC_ROOT + "/batch";
     private static final String LEADER_PATH = GC_ROOT + "/leader";
@@ -125,7 +125,7 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
     }
 
     @Override
-    public long getLatestBatch() {
+    public Long getLatestBatch() {
         return currentBatch.get();
     }
 
