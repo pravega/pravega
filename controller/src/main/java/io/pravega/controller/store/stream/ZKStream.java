@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +68,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     // region Backward compatibility
-    // To Retire TODO: shivesh: add issue number
+    // TODO 2755 retire code in this region 
     private static final String STREAM_COMPLETED_TX_PATH = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
     // endregion
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
@@ -444,16 +445,20 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
         // region Backward Compatibility
-        // to retire TODO: shivesh: add issue number
+        // TODO 2755 retire code in this region 
         // We will continue to write to old path for backward compatibility.
         // This should eventually be removed.
-        final String completedTxPath = getCompletedTxPath(txId.toString());
+        if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
+            final String completedTxPath = getCompletedTxPath(txId.toString());
 
-        CompletableFuture<Void> future2 = store.createZNodeIfNotExist(completedTxPath,
-                new CompletedTxnRecord(timestamp, complete).toByteArray())
-                .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+            CompletableFuture<Void> future2 = store.createZNodeIfNotExist(completedTxPath,
+                    new CompletedTxnRecord(timestamp, complete).toByteArray())
+                                                   .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
-        return CompletableFuture.allOf(future1, future2);
+            return CompletableFuture.allOf(future1, future2);
+        } else {
+            return future1;
+        }
         // endregion
     }
 
@@ -484,17 +489,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     }
                 });
     }
-
-    // region Backward Compatibility
-    // To retire.. TODO: shivesh add issue number
-    CompletableFuture<Void> removeCompletedTxEntry(final int epoch, final UUID txId) {
-        final String completedTxPath = getCompletedTxPath(txId.toString());
-        // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
-        return store.deletePath(completedTxPath, false)
-                .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
-    }
-    // endregion
-
+    
     @Override
     public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamTruncationRecord truncationRecord) {
         return store.createZNodeIfNotExist(truncationPath, truncationRecord.toByteArray())

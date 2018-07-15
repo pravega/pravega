@@ -15,11 +15,12 @@ import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.Data;
-import io.pravega.controller.util.Config;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.framework.recipes.leader.LeaderLatch;
 import org.apache.curator.framework.recipes.leader.LeaderLatchListener;
 
@@ -59,17 +60,15 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
     private final String gcName;
     private final String leaderPath;
     private final String batchPath;
-    private PathChildrenCache watch;
+    private NodeCache watch;
     private LeaderLatch leaderLatch;
     // dedicated thread executor for GC which will not interfere with rest of the processing.
     private final ScheduledExecutorService gcExecutor;
     private final long periodInMillis;
-
-    ZKGarbageCollector(String gcName, ZKStoreHelper zkStoreHelper, Supplier<CompletableFuture<Void>> gcProcessing) {
-        this(gcName, zkStoreHelper, gcProcessing, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
-    }
-
     @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final CompletableFuture<Void> acquiredLeadership = new CompletableFuture<>();
+    
     ZKGarbageCollector(String gcName, ZKStoreHelper zkStoreHelper, Supplier<CompletableFuture<Void>> gcProcessing, Duration gcPeriod) {
         Preconditions.checkNotNull(zkStoreHelper);
         Preconditions.checkNotNull(gcProcessing);
@@ -91,9 +90,11 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
         byte[] b = getBytes(quantized);
         // 1. create znode for storing latest batch id. If the batch id exists, get the value from the store.
         // We will later register watch on the path and keep receiving any changes to its value.
-        zkStoreHelper.createZNodeIfNotExist(BATCH_PATH, b)
-                .thenCompose(x -> zkStoreHelper.getData(BATCH_PATH))
-                .thenAccept(data -> currentBatch.set(BitConverter.readLong(data.getData(), 0)))
+        zkStoreHelper.createZNodeIfNotExist(batchPath, b)
+                .thenCompose(x -> zkStoreHelper.getData(batchPath))
+                .thenAccept(data -> {
+                    currentBatch.set(BitConverter.readLong(data.getData(), 0));
+                })
                 .thenRun(this::initialize)
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -131,13 +132,16 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
     @SneakyThrows
     private void initialize() {
         // 1. register watch on batch path
-        watch = watch(batchPath);
+        watch = registerWatch(batchPath);
 
         // 2. attempt to acquire leadership
-        CompletableFuture<Void> acquiredLeadership = new CompletableFuture<>();
         leaderLatch = electLeader(leaderPath, acquiredLeadership);
 
         // 3. if this acquires leadership, then schedule periodic garbage collection.
+        // Note: This will attempt first GC only after one period elapses. This will ensure that even if there were 
+        // back to back leadership changes with each having their own clock skews, a completed transaction record
+        // will at least be present for one GC period. 
+        // The downside is, if there are controller failures before GC period, then GC keeps getting delayed perpetually. 
         gcLoop = acquiredLeadership.thenCompose(x -> Futures.loop(this::isRunning, () -> Futures.delayedFuture(this::process,
                 periodInMillis, gcExecutor), gcExecutor));
 
@@ -155,20 +159,20 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
     }
 
     private long computeNewBatch() {
-        return System.currentTimeMillis() / Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis();
+        return System.currentTimeMillis() / periodInMillis;
     }
 
-    private CompletableFuture<Void> process() {
+    @VisibleForTesting
+    CompletableFuture<Void> process() {
         log.info("Starting GC {}", gcName);
-
+        
         // This method is called from periodic GC thread and can only be called if this is the leader.
         // Compute new batch id.
         long quantized = computeNewBatch();
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
         if (quantized > currentBatch.get()) {
-            // update current group in the store
-            future = future.thenCompose(x -> zkStoreHelper.setData(BATCH_PATH, new Data<>(getBytes(quantized), null)))
-                    .thenAccept(v -> currentBatch.set(quantized));
+            // Update current group in the store. We will get the update from the watch and update current batch locally there. 
+            future = future.thenCompose(x -> zkStoreHelper.setData(batchPath, new Data<>(getBytes(quantized), null)));
         }
 
         // Execute GC work supplied by the creator. We will log and ignore any exceptions in GC. The GC will be reattempted in
@@ -205,25 +209,17 @@ class ZKGarbageCollector extends AbstractService implements Batcher, AutoCloseab
     }
 
     @SneakyThrows
-    private PathChildrenCache watch(String watchPath) {
-        PathChildrenCacheListener watchListener = (client, event) -> {
-            switch (event.getType()) {
-                case CHILD_UPDATED:
-                    long newValue = getLong(event.getData().getData());
-                    log.debug("GC batch updated with new value {}", newValue);
-                    currentBatch.set(newValue);
-                    break;
-                case CONNECTION_LOST:
-                    break;
-                default:
-                    log.warn("Received event {}", event.getType());
-            }
+    private NodeCache registerWatch(String watchPath) {
+        NodeCache nodeCache = new NodeCache(zkStoreHelper.getClient(), watchPath);
+        NodeCacheListener watchListener = () -> {
+            currentBatch.set(getLong(nodeCache.getCurrentData().getData()));
+            log.debug("Current batch for {} changed to {}", gcName, currentBatch.get());
         };
 
-        PathChildrenCache pathChildrenCache = new PathChildrenCache(zkStoreHelper.getClient(), watchPath, true);
-        pathChildrenCache.getListenable().addListener(watchListener);
-        pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
-        return pathChildrenCache;
+        nodeCache.getListenable().addListener(watchListener);
+
+        nodeCache.start();
+        return nodeCache;
     }
 
     @SneakyThrows

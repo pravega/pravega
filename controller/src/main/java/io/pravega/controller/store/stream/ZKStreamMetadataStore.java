@@ -22,6 +22,8 @@ import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNoti
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.Config;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -76,6 +78,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
@@ -109,7 +113,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
-        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn);
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
     }
@@ -131,26 +135,37 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                         }
                 )
                 // region Backward Compatibility.
-                // To Retire.. TODO: shivesh add issue number
+                // TODO 2755 retire code in this region 
                 .thenCompose(toDeleteList -> {
-                    // For backward compatibility, find full path on "toDelete" and find corresponding paths in old scheme and delete each txn individually!!
-                    return Futures.allOfWithResults(toDeleteList.stream()
-                            .map(toDelete -> deleteOldSchemeTxns(String.format(COMPLETED_TX_BATCH_ROOT_PATH, toDelete)))
-                            .collect(Collectors.toList()))
-                            .thenApply(x -> toDeleteList);
+                    CompletableFuture<Void> future;
+                    if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
+                        log.debug("deleting batches {} on old scheme" + toDeleteList);
+
+                        // For backward compatibility, find full path on "toDelete" and find corresponding paths in old 
+                        // scheme and delete each txn individually!!
+                        future = Futures.allOf(
+                                toDeleteList.stream()
+                                            .map(toDelete -> deleteOldSchemeTxns(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
+                                            .collect(Collectors.toList()));
+                    } else {
+                        future = CompletableFuture.completedFuture(null);
+                    }
+                    return future.thenApply(x -> toDeleteList);
+
                 })
                 // endregion
                 .thenCompose(toDeleteList -> {
+                    log.debug("deleting batches {} on new scheme" + toDeleteList);
+
                     // delete all those marked for toDelete.
                     return Futures.allOf(toDeleteList.stream()
-                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_ROOT_PATH, toDelete)))
+                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
                             .collect(Collectors.toList()));
                 });
-
     }
 
     // region Backward Compatibility.
-    // To Retire.. TODO: shivesh add issue number
+    // TODO 2755 retire code in this region 
     private CompletableFuture<List<Void>> deleteOldSchemeTxns(String rootPath) {
         // getAllChildren will return all scopes
         return storeHelper.getChildren(rootPath)
@@ -158,21 +173,18 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     return Futures.allOfWithResults(scopes.stream().map(scope -> {
                         String scopePath = ZKPaths.makePath(rootPath, scope);
                         return storeHelper.getChildren(scopePath)
-                                .thenCompose(streams -> {
-                                    return Futures.allOfWithResults(streams.stream().map(stream -> {
-                                        String streamPath = ZKPaths.makePath(scopePath, stream);
-                                        return storeHelper.getChildren(streamPath)
-                                                .thenApply(txnIds -> txnIds.stream().map(txnId -> {
-                                                    String txnPath = getOldSchemePath(scope, stream, txnId);
-                                                    return storeHelper.deletePath(txnPath, false);
-                                                }).collect(Collectors.toList()));
-                                    }).collect(Collectors.toList()));
-                                });
+                                .thenCompose(streams -> Futures.allOfWithResults(streams.stream().map(stream -> {
+                                    String streamPath = ZKPaths.makePath(scopePath, stream);
+                                    return storeHelper.getChildren(streamPath)
+                                            .thenApply(txnIds -> txnIds.stream().map(txnId -> {
+                                                String txnPath = getOldSchemePath(scope, stream, txnId);
+                                                return storeHelper.deletePath(txnPath, false);
+                                            }).collect(Collectors.toList()));
+                                }).collect(Collectors.toList())));
                     }).collect(Collectors.toList()));
                 })
-                .thenCompose(x -> {
-                    return Futures.allOfWithResults(x.stream().flatMap(Collection::stream).flatMap(Collection::stream).collect(Collectors.toList()));
-                });
+                .thenCompose(x -> Futures.allOfWithResults(x.stream().flatMap(Collection::stream).flatMap(Collection::stream)
+                                                            .collect(Collectors.toList())));
     }
 
     private String getOldSchemePath(String scope, String stream, String txnId) {

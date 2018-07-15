@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -25,6 +26,7 @@ import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,8 +73,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @GuardedBy("txnsLock")
     private final Map<String, Data<Integer>> activeTxns = new HashMap<>();
     @GuardedBy("txnsLock")
-    private final Cache<String, Data<Integer>> completedTxns = CacheBuilder.newBuilder()
-            .expireAfterWrite(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS, TimeUnit.HOURS).build();
+    private final Cache<String, Data<Integer>> completedTxns;
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
     private final Map<Long, Data<Integer>> markers = new HashMap<>();
@@ -85,7 +86,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
 
     InMemoryStream(String scope, String name) {
+        this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
+    }
+
+    @VisibleForTesting
+    InMemoryStream(String scope, String name, long completedTxnTTL) {
         super(scope, name);
+        completedTxns = CacheBuilder.newBuilder()
+                                    .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
     }
 
     @Override

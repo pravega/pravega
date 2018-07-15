@@ -82,6 +82,8 @@ public final class Config {
 
     // Completed Transaction TTL
     public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = CONFIG.getInt("config.controller.server.transaction.completed.ttlInHours");
+    public static final boolean DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY =
+            CONFIG.getBoolean("config.controller.server.transaction.completed.disableBackwardCompatiblity");
 
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
