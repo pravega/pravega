@@ -427,6 +427,7 @@ public class SegmentInputStreamTest {
         TestAsyncSegmentInputStream fakeNetwork2 = new TestAsyncSegmentInputStream(segment, 2);
         TestAsyncSegmentInputStream fakeNetwork3 = new TestAsyncSegmentInputStream(segment, 3);
         TestAsyncSegmentInputStream fakeNetwork4 = new TestAsyncSegmentInputStream(segment, 4);
+        TestAsyncSegmentInputStream fakeNetwork5 = new TestAsyncSegmentInputStream(segment, 5);
         
         @Cleanup
         SegmentInputStreamImpl stream1 = new SegmentInputStreamImpl(fakeNetwork1, 0);
@@ -436,24 +437,34 @@ public class SegmentInputStreamTest {
         SegmentInputStreamImpl stream3 = new SegmentInputStreamImpl(fakeNetwork3, 0);
         @Cleanup
         SegmentInputStreamImpl stream4 = new SegmentInputStreamImpl(fakeNetwork4, 0);
+        @Cleanup
+        SegmentInputStreamImpl stream5 = new SegmentInputStreamImpl(fakeNetwork5, 0);
 
         fakeNetwork2.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice()));
         fakeNetwork3.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, wireData.slice()));
         fakeNetwork4.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, ByteBuffer.allocate(0)));
+        fakeNetwork5.completeExceptionally(0, new SegmentTruncatedException());
         
         Orderer o = new Orderer();
-        List<SegmentInputStreamImpl> segments = ImmutableList.of(stream1, stream2, stream3, stream4);
+        List<SegmentInputStreamImpl> segments = ImmutableList.of(stream1, stream2, stream3, stream4, stream5);
         assertEquals(stream2, o.nextSegment(segments));
         assertEquals(stream3, o.nextSegment(segments));
         assertEquals(stream4, o.nextSegment(segments));
+        assertEquals(stream5, o.nextSegment(segments));
         assertNotNull(stream2.read());
         assertEquals(stream3, o.nextSegment(segments));
         assertEquals(stream4, o.nextSegment(segments));
+        assertEquals(stream5, o.nextSegment(segments));
         assertNotNull(stream3.read());
         assertEquals(stream3, o.nextSegment(segments));
         assertEquals(stream4, o.nextSegment(segments));
+        assertEquals(stream5, o.nextSegment(segments));
         AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream3.read());
         AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream4.read());
+        AssertExtensions.assertThrows(SegmentTruncatedException.class, () -> stream5.read());
+        assertEquals(stream3, o.nextSegment(segments));
+        assertEquals(stream4, o.nextSegment(segments));
+        assertEquals(stream5, o.nextSegment(segments));
     }
 
     @Test
