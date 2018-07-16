@@ -13,4 +13,5 @@ package io.pravega.shared.metrics;
  * Defines a Gauge, which will wrap a gauge instance and its name.
  */
 public interface Gauge extends Metric {
+
 }
