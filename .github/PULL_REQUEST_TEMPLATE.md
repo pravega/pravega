@@ -1,4 +1,4 @@
-**Change log description (2-3 concise points about the changes here for the merge log)**
+**Change log description (2-3 concise points about the changes in this PR. When committing this PR, the committer is expected to copy the content of this section to the merge description box)**
 
 **Purpose of the change (_e.g._, Fixes #666, Closes #1234)**
 
