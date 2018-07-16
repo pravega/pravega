@@ -156,4 +156,5 @@ Once the configuration changes have been made you can start the segment store wi
 bin/pravega-segmentstore
 ```
 ## Runing Pravega Controller and Segment Store with security enabled
-`TODO`
+Here are the details for configurations for [Pravega controller](../security/pravega-security-configurations.md#Pravega controller) and [Pravega Segmentstore](../security/pravega-security-configurations.md#Pravega Segmentstore).
+These parameters can be changed to represent required security configurations.

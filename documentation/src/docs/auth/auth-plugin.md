@@ -12,6 +12,7 @@ You may obtain a copy of the License at
 This guide describes the authentication/authorization plugin model for Pravega.
 
 ## Pravega auth interface
+The custom implementation is expected to implement the [AuthHandler](https://github.com/pravega/pravega/blob/master/shared/authplugin/src/main/java/io/pravega/auth/AuthHandler.java) interface.
 
 ## Dynamically loading auth implementations
 
@@ -20,4 +21,5 @@ The plugin implementation follows the [Java Service Loader](https://docs.oracle.
 Pravega Controller expects the custom implementation Jars to be dropped in to the CLASSPATH.
 
 The custom implementation is expected to implement the [AuthHandler](https://github.com/pravega/pravega/blob/master/shared/authplugin/src/main/java/io/pravega/auth/AuthHandler.java) interface.
+
 

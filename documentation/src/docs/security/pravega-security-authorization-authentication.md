@@ -15,9 +15,10 @@ Having different levels of access to the data. This feature is crucial to supprt
 Following key features are added as part of security implementation:
 1. Administrators can enable encryption for different communication channels using TLS.
 2. A Unix-like permission system which controls which users can access which part of the data and the levels of access.
-3. Drop in implementations of the authorization/authentication APIs can be dropped in and loaded dynamically.
+3. Drop in implementations of the authorization/authentication APIs can be dropped in and loaded dynamically. See [here](../auth/auth-plugin.md) for more details.
 Multiple such implementations can co-exist and different users can use different plugins.
-4. All the other compnents that are deployed with Pravega (e.g. Bookkeeper, Zookeeper etc) can be deployed securely with TLS.
+4. Users can specify auth parameters to the client through multiple mechanisms. See [here](../auth/client-auth.md) for more details. 
+5. All the other compnents that are deployed with Pravega (e.g. Bookkeeper, Zookeeper etc) can be deployed securely with TLS.
 
 [PDP-23](https://github.com/pravega/pravega/wiki/PDP-23:-Pravega-security----encryption-and-Role-Based-Access-Control) 
 discusses different options for this design and pros and cons in detail. 
