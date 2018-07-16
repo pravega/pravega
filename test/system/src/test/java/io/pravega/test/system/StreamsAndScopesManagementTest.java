@@ -55,7 +55,7 @@ public class StreamsAndScopesManagementTest {
     // TODO: Re-creation of Streams cannot be tested (Issue https://github.com/pravega/pravega/issues/2641).
     private static final int TEST_ITERATIONS = 1;
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(8 * 60);
+    public Timeout globalTimeout = Timeout.seconds(12 * 60);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4,
             "StreamsAndScopesManagementTest-controller");
