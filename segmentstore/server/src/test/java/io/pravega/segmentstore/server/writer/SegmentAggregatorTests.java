@@ -1891,6 +1891,58 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         checkAttributes(context);
     }
 
+    /**
+     * Tests a scenario where a MergeSegmentOperation needs to be recovered but which has already been merged in Storage.
+     */
+    @Test
+    public void testRecoveryEmptyMergeOperation() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a parent segment and one transaction segment.
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Part 1: When the source segment is missing from Storage, but metadata does not reflect that.
+        SegmentAggregator ta0 = context.transactionAggregators[0];
+        context.storage.create(ta0.getMetadata().getName(), TIMEOUT).join();
+        context.storage.openWrite(ta0.getMetadata().getName())
+                .thenCompose(txnHandle -> context.storage.seal(txnHandle, TIMEOUT)).join();
+        val txn0Metadata = context.containerMetadata.getStreamSegmentMetadata(ta0.getMetadata().getId());
+        txn0Metadata.markSealed();
+        txn0Metadata.markSealedInStorage();
+        ta0.initialize(TIMEOUT).join();
+        context.storage.delete(context.storage.openWrite(txn0Metadata.getName()).join(), TIMEOUT).join();
+
+        // This is the operation that should be reconciled.
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(ta0.getMetadata().getId(), context));
+
+        // Verify the operation was ack-ed.
+        AtomicBoolean mergeAcked = new AtomicBoolean();
+        context.dataSource.setCompleteMergeCallback((target, source) -> mergeAcked.set(true));
+        context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertTrue("Merge was not ack-ed for deleted source segment.", mergeAcked.get());
+
+        // Part 2: When the source segment's metadata indicates it was deleted.
+        SegmentAggregator ta1 = context.transactionAggregators[1];
+        context.storage.create(ta1.getMetadata().getName(), TIMEOUT).join();
+        context.storage.openWrite(ta1.getMetadata().getName())
+                .thenCompose(txnHandle -> context.storage.seal(txnHandle, TIMEOUT)).join();
+        val txn1Metadata = context.containerMetadata.getStreamSegmentMetadata(ta1.getMetadata().getId());
+        txn1Metadata.markDeleted();
+
+        // This is the operation that should be reconciled.
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(ta1.getMetadata().getId(), context));
+
+        // Verify the operation was ack-ed.
+        mergeAcked.set(false);
+        context.dataSource.setCompleteMergeCallback((target, source) -> mergeAcked.set(true));
+        context.segmentAggregator.flush(TIMEOUT).join();
+
+        // Finally, verify that all operations were ack-ed back.
+        Assert.assertTrue("Merge was not ack-ed for deleted source segment.", mergeAcked.get());
+    }
+
     //endregion
 
     //region Helpers

@@ -119,6 +119,46 @@ public class EventStreamReaderTest {
         Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
     }
 
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 10000)
+    public void testReadWithSegmentTruncatedException() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+
+        //Prep the mocks.
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+
+        //Mock for the two SegmentInputStreams.
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        SegmentInputStream segmentInputStream1 = Mockito.mock(SegmentInputStream.class);
+        Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new SegmentTruncatedException());
+        Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
+
+        SegmentInputStream segmentInputStream2 = Mockito.mock(SegmentInputStream.class);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
+        Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(Segment.fromScopedName("Foo/test/0"));
+        Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
+
+        SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
+        Mockito.when(inputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        //Mock Orderer
+        Orderer orderer = Mockito.mock(Orderer.class);
+        Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
+
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
+                new ByteArraySerializer(), groupState,
+                orderer, clock::get,
+                ReaderConfig.builder().build());
+
+        AssertExtensions.assertThrows(TruncatedDataException.class,
+                () -> reader.readNextEvent(100L));
+        //Validate that groupState.getOrRefreshDelegationTokenFor method is invoked.
+        Mockito.verify(groupState, Mockito.times(1)).getOrRefreshDelegationTokenFor(segment);
+    }
+
     @Test(timeout = 10000)
     public void testRead() throws SegmentSealedException, ReinitializationRequiredException {
         AtomicLong clock = new AtomicLong();
