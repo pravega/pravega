@@ -116,7 +116,7 @@ public class MetricsProviderTest {
 
         dynamicLogger.freezeGaugeValue("dynamicGauge");
         assertEquals(null, Utils.getGauge("pravega.dynamicGauge.Gauge"));
-        }
+    }
 
     /**
      * Test that we can transition from stats enabled, to disabled, to enabled.
@@ -187,6 +187,4 @@ public class MetricsProviderTest {
         counter.add(1L);
         assertEquals(1L, counter.get());
     }
-
-
 }

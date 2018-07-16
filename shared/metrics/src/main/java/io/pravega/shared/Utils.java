@@ -26,7 +26,6 @@ public class Utils {
             return null;
         }
         return (Counter) metric;
-
     }
 
     public static Meter getMeter(String metricsName) {
@@ -37,7 +36,6 @@ public class Utils {
         }
         return (Meter) metric;
     }
-
 
     public static Gauge getGauge(String metricsName) {
         Metric metric = MetricsProvider.getMetric(metricsName);
