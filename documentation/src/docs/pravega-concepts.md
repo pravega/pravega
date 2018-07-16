@@ -146,7 +146,7 @@ space is then divided into a number of partitions, corresponding to the number
 of Stream Segments. Consistent hashing determines which Segment an Event is
 assigned to.
 
-### AutoScaling: Number of Stream Segments can vary over time
+### Auto-scaling: Varying the number of Stream Segments over time
 
 The number of Stream Segments in a Stream can grow *and shrink* over time as I/O
 load on the Stream increases and decreases.   We refer to this feature as

@@ -173,9 +173,9 @@ written to the Stream, and to shrink when data volume drops off.  We refer to
 this configuration as the Stream's Service Level Objective or SLO.  Pravega
 monitors the rate of data input to the Stream and uses the SLO to add or remove
 Stream Segments from a Stream.  Segments are added by splitting a Segment.
- Segments are removed by merging two Segments.  See [AutoScaling: The number of
-Stream Segments can vary over
-time](pravega-concepts.md#autoscaling-number-of-stream-segments-can-vary-over-time),
+ Segments are removed by merging two Segments.  See [AutoScaling: Varying the
+number of Stream Segments over
+time](pravega-concepts.md#autoscaling-varying-the-number-of-stream-segments-over-time),
 for more detail on how Pravega manages Stream Segments.
 
 It is possible to coordinate the auto scaling of Streams in Pravega with
