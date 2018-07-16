@@ -238,10 +238,8 @@ class RocksDBCache implements Cache {
 
     private Options createDatabaseOptions() {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
-                .setBlockCacheSize(1 * 1024L * 1024L)
                 .setBlockSize(cacheBlockSizeKB * 1024L)
                 .setCacheIndexAndFilterBlocks(true);
-                //.setNoBlockCache(true);
 
         return new Options()
                 .setCreateIfMissing(true)
@@ -252,7 +250,7 @@ class RocksDBCache implements Cache {
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
-                //.setTableFormatConfig(tableFormatConfig)
+                .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(true)
                 .setRowCache(new ClockCache(readCacheSizeMB * 1024L * 1024L, -1, true));

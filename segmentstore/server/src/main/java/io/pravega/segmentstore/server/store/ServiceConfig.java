@@ -45,8 +45,8 @@ public class ServiceConfig {
     public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
     public static final Property<String> KEY_FILE = Property.named("keyFile", "");
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 128L * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 10 * 60);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
 
     public static final String COMPONENT_CODE = "pravegaservice";
