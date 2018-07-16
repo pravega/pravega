@@ -105,6 +105,7 @@ public class MetricsProviderTest {
     public void testGauge() {
         AtomicInteger value = new AtomicInteger(1);
         statsLogger.registerGauge("testGauge", value::get);
+        value.set(2);
         assertEquals(value.get(), MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
 
         for (int i = 1; i < 10; i++) {
