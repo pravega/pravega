@@ -958,7 +958,7 @@ public class TableHelperTest {
                 activeSegmentsWithOffset.get(fourSegmentId) == 1L &&
                 activeSegmentsWithOffset.get(fiveSegmentId) == 1L);
 
-        // 2.3 epoch at time = 2 = {0, 2, 3}
+        // 2.3 epoch at time = 2 = {0, 2, 4, 5}
         // expected active segments = 0/1, 2/1, 4/1, 5/1
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 2, historyIndex, historyTable,
                 segmentIndex, segmentTable, truncationRecord);
