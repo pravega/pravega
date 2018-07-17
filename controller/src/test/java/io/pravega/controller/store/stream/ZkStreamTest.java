@@ -365,34 +365,34 @@ public class ZkStreamTest {
         successors = store.getSuccessors(SCOPE, streamName, eleven, context, executor).get();
         assertTrue(successors.isEmpty());
         // start -1
-        List<Long> historicalSegments = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
+        Map<Long, Long> historicalSegments = store.getActiveSegments(SCOPE, streamName, start - 1, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));
 
         // start + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, start + 1, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));
 
         // scale1 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale1 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, 1L, 2L, five)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, 1L, 2L, five)));
 
         // scale2 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale2 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 4);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, seven, eight)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, six, seven, eight)));
 
         // scale3 + 1
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 1000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
 
         // scale 3 + 10000
         historicalSegments = store.getActiveSegments(SCOPE, streamName, scale3 + 10000, context, executor).get();
         assertEquals(historicalSegments.size(), 5);
-        assertTrue(historicalSegments.containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
+        assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());

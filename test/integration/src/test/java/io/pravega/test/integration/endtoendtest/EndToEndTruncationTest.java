@@ -352,8 +352,6 @@ public class EndToEndTruncationTest {
         final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
                 newReaderGroupName, new JavaSerializer<>(), ReaderConfig.builder().build());
 
-        // Check that we get a TruncatedDataException after truncating the active segment and then read the expected event.
-        assertThrows(TruncatedDataException.class, () -> newReader.readNextEvent(1000).getEvent());
         assertEquals("Expected read event: ", "1", newReader.readNextEvent(1000).getEvent());
         assertNull(newReader.readNextEvent(1000).getEvent());
     }
@@ -399,10 +397,6 @@ public class EndToEndTruncationTest {
 
         // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
         final String newGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, parallelism)).join());
-
-        // Read again, now expecting to read from the offset defined in truncate call onwards.
         groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
         futures = readDummyEvents(clientFactory, newGroupName, parallelism);
         Futures.allOf(futures).join();
