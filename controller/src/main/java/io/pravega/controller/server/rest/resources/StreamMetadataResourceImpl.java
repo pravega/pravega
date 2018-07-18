@@ -45,12 +45,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
@@ -135,18 +132,16 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private void authenticate(String resourceName, AuthHandler.Permissions level) throws AuthException {
         if (pravegaAuthManager != null ) {
-            Map<String, String> map = null;
             List<String> authParams = headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
 
             if (authParams == null || authParams.isEmpty()) {
                 throw new AuthenticationException("Auth failed for " + resourceName);
             }
 
-            String authHeader = authParams.get(0);
-            map = Arrays.stream(authHeader.split(",")).map(str -> str.split(":"))
-                                            .collect(Collectors.toMap(e -> e[0], e -> e[1]));
+            String credentials = authParams.get(0);
+            assert credentials != null;
 
-            if (!pravegaAuthManager.authenticate(resourceName, map, level)) {
+            if (!pravegaAuthManager.authenticate(resourceName, credentials, level)) {
                 throw new AuthorizationException("Auth failed for " + resourceName, 403);
             }
         }
