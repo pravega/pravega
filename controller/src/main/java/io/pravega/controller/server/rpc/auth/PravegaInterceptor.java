@@ -21,6 +21,7 @@ import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
+import io.pravega.client.stream.impl.Credentials;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
@@ -50,10 +51,10 @@ public class PravegaInterceptor implements ServerInterceptor {
 
         Map<String, String> paramMap = new HashMap<>();
         headers.keys().stream()
-               .filter(key -> !key.endsWith(Metadata.BINARY_HEADER_SUFFIX))
+               .filter(key -> key.startsWith(Credentials.AUTH_HANDLER_PREFIX))
                .forEach(key -> {
                    try {
-                       paramMap.put(key,
+                       paramMap.put(key.substring(Credentials.AUTH_HANDLER_PREFIX.length()),
                                headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
                    } catch (IllegalArgumentException e) {
                        log.warn("Error while marshalling some of the headers {}", e.toString());

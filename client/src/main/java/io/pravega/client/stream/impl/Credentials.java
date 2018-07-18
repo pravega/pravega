@@ -18,6 +18,14 @@ import java.util.Map;
  * All implementations must support Java serialization.
  */
 public interface Credentials extends Serializable {
+
+    /**
+     * Prefix added by the client to the grpc header.
+     * Pravega client prefixes all the parameters with this before sending it over grpc.
+     * This will ensure that rest of the grpc parameters are not sent to the handlers.
+     */
+    String AUTH_HANDLER_PREFIX = "pravega_auth_";
+
     /**
      * Returns the authentication type.
      * Pravega can support multiple authentication types in a single deployment.

@@ -32,12 +32,10 @@ public class PravegaCredsWrapper extends com.google.auth.Credentials {
     public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
         Map<String, String> metadata = creds.getAuthParameters();
 
-        Map<String, List<String>> retVal = metadata.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
-                e -> {
-                    List<String> list = Collections.singletonList(e.getValue());
-                    return list;
-                }));
-        retVal.put("method", Collections.singletonList(creds.getAuthenticationType()));
+        Map<String, List<String>> retVal = metadata.entrySet().stream().collect(
+                Collectors.toMap(entry -> Credentials.AUTH_HANDLER_PREFIX + entry.getKey(),
+                        e -> Collections.singletonList(e.getValue())));
+        retVal.put(Credentials.AUTH_HANDLER_PREFIX + "method", Collections.singletonList(creds.getAuthenticationType()));
         return retVal;
     }
 
