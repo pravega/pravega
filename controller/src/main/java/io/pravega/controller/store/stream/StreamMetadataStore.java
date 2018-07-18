@@ -316,7 +316,7 @@ public interface StreamMetadataStore {
      * @param executor  callers executor
      * @return the list of segments numbers active at timestamp.
      */
-    CompletableFuture<List<Long>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
+    CompletableFuture<Map<Long, Long>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
      * Returns the segments in the specified epoch of the specified stream.

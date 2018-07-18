@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream.tables;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.Segment;
@@ -135,38 +134,42 @@ public class TableHelper {
      * @param truncationRecord truncation record
      * @return list of active segments.
      */
-    public static List<Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
+    public static Map<Long, Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
                                                final byte[] segmentIndex, final byte[] segmentTable,
                                                final StreamTruncationRecord truncationRecord) {
         final HistoryRecord record = findRecordInHistoryTable(timestamp, historyIndex, historyTable);
 
-        List<Long> segments;
+        Map<Long, Long> segments;
         if (truncationRecord == null) {
-            segments = record.getSegments();
+            segments = record.getSegments().stream().collect(Collectors.toMap(x -> x, x -> 0L));
         } else {
             // case 1: if record.epoch is before truncation, simply pick the truncation stream cut
             if (record.getEpoch() < truncationRecord.getTruncationEpochLow()) {
-                segments = Lists.newArrayList(truncationRecord.getStreamCut().keySet());
+                segments = truncationRecord.getStreamCut();
             } else if (record.getEpoch() > truncationRecord.getTruncationEpochHigh()) {
                 // case 2: if record.epoch is after truncation, simply use the record epoch
-                segments = record.getSegments();
+                segments = record.getSegments().stream().collect(Collectors.toMap(x -> x, 
+                        x -> truncationRecord.getStreamCut().getOrDefault(x, 0L)));
             } else {
                 // case 3: overlap between requested epoch and stream cut.
                 // take segments from stream cut that are from or after this epoch.
                 // take remaining segments from this epoch.
-                segments = new ArrayList<>();
+                segments = new HashMap<>();
                 // all segments from stream cut that have epoch >= this epoch
                 List<Long> fromStreamCut = truncationRecord.getCutEpochMap().entrySet().stream()
                         .filter(x -> x.getValue() >= record.getEpoch())
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
 
-                segments.addAll(fromStreamCut);
+                // add segments from the truncation record with corresponding offsets 
+                fromStreamCut.forEach(x -> segments.put(x, truncationRecord.getStreamCut().get(x)));
+                
                 // put remaining segments as those that dont overlap with ones taken from streamCut.
+                // Note: we will use the head of these segments, basically offset = 0
                 record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
                         getSegment(x, segmentIndex, segmentTable, historyIndex, historyTable)
                                 .overlaps(getSegment(y, segmentIndex, segmentTable, historyIndex, historyTable))))
-                        .forEach(segments::add);
+                        .forEach(x -> segments.put(x, 0L));  
             }
         }
         return segments;
