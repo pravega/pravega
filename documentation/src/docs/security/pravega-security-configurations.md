@@ -8,9 +8,11 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 #Pravega Security Configurations
+
 Here is a list of configuration parameters for different Pravega components.
 
 ##Pravega Segmentstore
+
 |Parameter|Details|Default value|
 |---------|-------|-------------|
 |pravegaservice.enableTls| Enable TLS on client to segmentstore connection.|false|
