@@ -7,11 +7,11 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-#Pravega Security Configurations
+# Pravega Security Configurations
 
 Here is a list of configuration parameters for different Pravega components.
 
-##Pravega Segmentstore
+## Pravega Segmentstore
 
 |Parameter|Details|Default value|
 |---------|-------|-------------|
@@ -25,7 +25,7 @@ Here is a list of configuration parameters for different Pravega components.
 |bookkeeper.tlsEnabled|Enable TLS for communication between segmentstore and Apache Bookkeeper| false|
 |bookkeeper.tlsTrustStorePath| Truststore for TLS communication between segmentstore and Apache Bookkeeper| Empty |
 
-##Pravega Controller
+## Pravega Controller
 
 |Parameter|Details|Default value|
 |---------|-------|-------------|
@@ -36,7 +36,7 @@ Here is a list of configuration parameters for different Pravega components.
 |config.controller.server.tokenSigningKey|Signing key used to sign the delegation token passed on to the segmentstore|empty|
 |config.controller.server.userPasswordFile|File containing user details for default auth implementation for Pravega (similar to /etc/passwd)|empty|
    
-##Pravega Standalone
+## Pravega Standalone
 For ease of use Pravega standalone hides some of the configurations that are mentioned above. Here are the relevant configurations for Pravega Standalone:
 
 |Parameter|Details|Default value|
