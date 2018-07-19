@@ -36,7 +36,6 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -134,26 +133,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                             }
                         }
                 )
-                // region Backward Compatibility.
-                // TODO 2755 retire code in this region 
-                .thenCompose(toDeleteList -> {
-                    CompletableFuture<Void> future;
-                    if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
-                        log.debug("deleting batches {} on old scheme" + toDeleteList);
-
-                        // For backward compatibility, find full path on "toDelete" and find corresponding paths in old 
-                        // scheme and delete each txn individually!!
-                        future = Futures.allOf(
-                                toDeleteList.stream()
-                                            .map(toDelete -> deleteOldSchemeTxns(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
-                                            .collect(Collectors.toList()));
-                    } else {
-                        future = CompletableFuture.completedFuture(null);
-                    }
-                    return future.thenApply(x -> toDeleteList);
-
-                })
-                // endregion
                 .thenCompose(toDeleteList -> {
                     log.debug("deleting batches {} on new scheme" + toDeleteList);
 
@@ -163,34 +142,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                             .collect(Collectors.toList()));
                 });
     }
-
-    // region Backward Compatibility.
-    // TODO 2755 retire code in this region 
-    private CompletableFuture<List<Void>> deleteOldSchemeTxns(String rootPath) {
-        // getAllChildren will return all scopes
-        return storeHelper.getChildren(rootPath)
-                .thenCompose(scopes -> {
-                    return Futures.allOfWithResults(scopes.stream().map(scope -> {
-                        String scopePath = ZKPaths.makePath(rootPath, scope);
-                        return storeHelper.getChildren(scopePath)
-                                .thenCompose(streams -> Futures.allOfWithResults(streams.stream().map(stream -> {
-                                    String streamPath = ZKPaths.makePath(scopePath, stream);
-                                    return storeHelper.getChildren(streamPath)
-                                            .thenApply(txnIds -> txnIds.stream().map(txnId -> {
-                                                String txnPath = getOldSchemePath(scope, stream, txnId);
-                                                return storeHelper.deletePath(txnPath, false);
-                                            }).collect(Collectors.toList()));
-                                }).collect(Collectors.toList())));
-                    }).collect(Collectors.toList()));
-                })
-                .thenCompose(x -> Futures.allOfWithResults(x.stream().flatMap(Collection::stream).flatMap(Collection::stream)
-                                                            .collect(Collectors.toList())));
-    }
-
-    private String getOldSchemePath(String scope, String stream, String txnId) {
-        return ZKPaths.makePath(ZKPaths.makePath(ZKPaths.makePath(COMPLETED_TX_ROOT_PATH, scope), stream), txnId);
-    }
-    // endregion
 
     @Override
     ZKStream newStream(final String scope, final String name) {
