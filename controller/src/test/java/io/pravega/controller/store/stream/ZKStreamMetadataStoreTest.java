@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.task.TxnResource;
@@ -381,7 +382,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(1, oldSchemeTxns.size());
         assertEquals(txnId, oldSchemeTxns.get(0));
         String txnOldPath = ZKPaths.makePath(streamOldPath, txnId.toString());
-        assertTrue(Futures.await(storeHelper.getData(txnOldPath)));
+        Data<Integer> oldSchemeTxnData = storeHelper.getData(txnOldPath).join();
+        assertEquals(TxnStatus.COMMITTED, CompletedTxnRecord.parse(oldSchemeTxnData.getData()).getCompletionStatus());
+        // explicitly delete from old scheme
+        storeHelper.deletePath(txnOldPath, false).join();
+        status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
         // endregion
         
         // create another transaction after introducing a delay greater than gcperiod so that it gets created in a new batch 
@@ -399,7 +405,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         // TODO: 2755 retire code in this region 
         oldSchemeTxns = storeHelper.getChildren(streamOldPath).join()
                                    .stream().map(UUID::fromString).sorted().collect(Collectors.toList());
-        assertEquals(2, oldSchemeTxns.size());
+        // verify it is created in old path
+        assertEquals(1, oldSchemeTxns.size());
         // endregion
         
         // let one more gc cycle run and verify that these two batches are not cleaned up. 
@@ -408,14 +415,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                              .stream().map(Long::parseLong).sorted().collect(Collectors.toList());
         assertEquals(2, batches.size());
 
-        // region Backward Compatibility
-        // TODO: 2755 retire code in this region 
-        oldSchemeTxns = storeHelper.getChildren(streamOldPath).join()
-                                   .stream().map(UUID::fromString).sorted().collect(Collectors.toList());
-        assertEquals(2, oldSchemeTxns.size());
-        // endregion
-
-        // create another transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
+        // create third transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
         Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 2L), scope, stream), 
                 Duration.ofSeconds(2).toMillis(), executor).join();
         // Verify that a new batch is created here. 
@@ -437,6 +437,14 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertFalse(batches.contains(firstBatch));
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
+
+        // region Backward Compatibility
+        // TODO: 2755 retire code in this region
+        // verify that for transactions with data only on old path, getTransactionStatus returns correct value
+        storeHelper.createZNode(txnOldPath, oldSchemeTxnData.getData()).join();
+        status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
+        // endregion
     }
 
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
