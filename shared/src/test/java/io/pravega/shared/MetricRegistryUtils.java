@@ -17,7 +17,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class Utils {
+public class MetricRegistryUtils {
 
     public static Counter getCounter(String metricsName) {
         Metric metric = MetricsProvider.getMetric(metricsName);

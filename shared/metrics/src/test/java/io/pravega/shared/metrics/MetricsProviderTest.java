@@ -11,12 +11,11 @@ package io.pravega.shared.metrics;
 
 import io.pravega.common.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
-import io.pravega.shared.Utils;
+import io.pravega.shared.MetricRegistryUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -72,10 +71,10 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.incCounterValue("dynamicCounter", i);
-            assertEquals(sum, Utils.getCounter("pravega.dynamicCounter.Counter").getCount());
+            assertEquals(sum, MetricRegistryUtils.getCounter("pravega.dynamicCounter.Counter").getCount());
         }
         dynamicLogger.freezeCounter("dynamicCounter");
-        assertEquals(null, Utils.getCounter("pravega.dynamicCounter.Counter"));
+        assertEquals(null, MetricRegistryUtils.getCounter("pravega.dynamicCounter.Counter"));
     }
 
     /**
@@ -95,7 +94,7 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.recordMeterEvents("dynamicMeter", i);
-            assertEquals(sum, Utils.getMeter("pravega.dynamicMeter.Meter").getCount());
+            assertEquals(sum, MetricRegistryUtils.getMeter("pravega.dynamicMeter.Meter").getCount());
         }
     }
 
@@ -107,15 +106,15 @@ public class MetricsProviderTest {
         AtomicInteger value = new AtomicInteger(1);
         statsLogger.registerGauge("testGauge", value::get);
         value.set(2);
-        assertEquals(value.get(), Utils.getGauge("pravega.testStatsLogger.testGauge").getValue());
+        assertEquals(value.get(), MetricRegistryUtils.getGauge("pravega.testStatsLogger.testGauge").getValue());
 
         for (int i = 1; i < 10; i++) {
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
-            assertEquals(i, Utils.getGauge("pravega.dynamicGauge.Gauge").getValue());
+            assertEquals(i, MetricRegistryUtils.getGauge("pravega.dynamicGauge.Gauge").getValue());
         }
 
         dynamicLogger.freezeGaugeValue("dynamicGauge");
-        assertEquals(null, Utils.getGauge("pravega.dynamicGauge.Gauge"));
+        assertEquals(null, MetricRegistryUtils.getGauge("pravega.dynamicGauge.Gauge"));
     }
 
     /**
@@ -129,7 +128,7 @@ public class MetricsProviderTest {
         MetricsProvider.initialize(config);
         statsLogger.createCounter("counterDisabled");
 
-        assertEquals(null, Utils.getCounter("counterDisabled"));
+        assertEquals(null, MetricRegistryUtils.getCounter("counterDisabled"));
 
         config = MetricsConfig.builder()
                               .with(MetricsConfig.ENABLE_STATISTICS, true)
@@ -138,7 +137,7 @@ public class MetricsProviderTest {
         statsLogger.createCounter("counterEnabled");
 
         Assert.assertNotNull(
-                Utils.getCounter("pravega.testStatsLogger.counterEnabled"));
+                MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterEnabled"));
     }
 
     /**
@@ -148,21 +147,21 @@ public class MetricsProviderTest {
     public void testContinuity() {
         statsLogger.createCounter("continuity-counter");
         Assert.assertNotNull("Not registered before disabling.",
-                Utils.getCounter("pravega.testStatsLogger.continuity-counter"));
+                MetricRegistryUtils.getCounter("pravega.testStatsLogger.continuity-counter"));
 
         MetricsConfig disableConfig = MetricsConfig.builder()
                                             .with(MetricsConfig.ENABLE_STATISTICS, false)
                                             .build();
         MetricsProvider.initialize(disableConfig);
         Assert.assertNull("Still registered after disabling.",
-                Utils.getCounter("pravega.testStatsLogger.continuity-counter"));
+                MetricRegistryUtils.getCounter("pravega.testStatsLogger.continuity-counter"));
 
         MetricsConfig enableConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .build();
         MetricsProvider.initialize(enableConfig);
         Assert.assertNotNull("Not registered after re-enabling.",
-                Utils.getCounter("pravega.testStatsLogger.continuity-counter"));
+                MetricRegistryUtils.getCounter("pravega.testStatsLogger.continuity-counter"));
     }
 
     /**
