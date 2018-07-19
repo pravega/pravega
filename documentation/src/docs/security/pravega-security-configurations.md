@@ -20,7 +20,11 @@ Here is a list of configuration parameters for different Pravega components.
 |autoScale.authEnabled|Enable authorization/authentication for internal communication  between segmentstore and controller|false|
 |autoScale.tlsCertFile|Certificate file used for encrypted internal communication between segmentstore and controller| empty|
 |autoScale.tokenSigningKey|Signing key used to sign the delegation token sent from controller to segmentstore| Empty|
+|bookkeeper.tlsEnabled|Enable TLS for communication between segmentstore and Apache Bookkeeper| false|
+|bookkeeper.tlsTrustStorePath| Truststore for TLS communication between segmentstore and Apache Bookkeeper| Empty |
+
 ##Pravega Controller
+
 |Parameter|Details|Default value|
 |---------|-------|-------------|
 |config.controller.server.authorizationEnabled|Enable authorization/authentication| false|

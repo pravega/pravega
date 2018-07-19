@@ -18,17 +18,19 @@ Pravega provides different configuration parameters where certificates for diffe
 ### Encrypted data flow between Pravega client and Pravega controller and segmentstore
 Pravega uses same cert to interact with both controller and segmentstore. The certificates need to be mentioned specifically on the client and the server.
 These certificates are not loaded from the trust store.
+
 ### Encrypted data flow between Pravega and tier 1 (Apache Bookkeeper)
-Apache bookkeeper supports JKS based truststore. Segmentstore uses JKS based truststore to interact with it. The configurations
-#### Segmentstore and bookkeeper
 Pravega Segmentstore uses Apache bookkeeper as Tier 1 storage. 
-Interactions between segmentstore
+Apache bookkeeper supports JKS based truststore. Segmentstore uses JKS based truststore to interact with it. 
+The configurations can be found [here](pravega-security-configurations.md#pravega-segmentstore).
+
 ### Encrypted access to Apache Zookeeper
 This implementation is still in [progress](https://github.com/pravega/pravega/issues/2034). 
+
 ## Encryption of data at rest
 ### Encryption of data in tier2
 Pravega can work with multiple tier2 implementations. Currently we have HDFS, extended S3 and filesystem (NFS) as tier2 implementations.
  These tier2 can be independantly configured to enable encryption. This is transperant to how Pravega interacts with them.
  
 ### Encryption of data in tier1 
-Pravega users Apache BookKeeper as tier1 implementation. 
+Pravega users Apache BookKeeper as tier1 implementation. Apache Bookkeeper currently does not support encryption of data written to disk.
