@@ -67,7 +67,9 @@ class RocksDBCache implements Cache {
      * RocksDB stores data in memory related to internal indexes (e.g., it may range between 5% to 30% of the total
      * memory consumption depending on the configuration and data at hand). The size of the internal indexes in RocksDB
      * mainly depend on the size of cached data blocks (cacheBlockSizeKB). If you increase cacheBlockSizeKB, the number
-     * of blocks will decrease, so the index size will also reduce linearly (but increasing read amplification).
+     * of blocks will decrease, so the index size will also reduce linearly (but increasing read amplification). For an
+     * in depth description of RocksDB's memory settings and their potential implications, we refer to:
+     * https://github.com/facebook/rocksdb/wiki/Memory-usage-in-RocksDB
      */
     private static final int CACHE_BLOCK_SIZE_KB = 32;
 
