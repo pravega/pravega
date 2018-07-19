@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -45,6 +46,31 @@ class RocksDBCache implements Cache {
      * See this for more info: https://github.com/facebook/rocksdb/wiki/Basic-Operations#purging-wal-files
      */
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
+
+    /**
+     * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
+     */
+    private static final int MAX_WRITE_BUFFER_NUMBER = 4;
+
+    /**
+     * Minimum number of in-memory write buffers (memtables) to be merged before flushing to storage.
+     */
+    private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
+
+    /**
+     * RocksDB allows to buffer writes in-memory (memtables) to improve write performance, thus executing an async flush
+     * process of writes to disk. This parameter bounds the maximum amount of memory devoted to absorb writes.
+     */
+    private static final int WRITE_BUFFER_SIZE_MB = 64 / MAX_WRITE_BUFFER_NUMBER;
+
+    /**
+     * RocksDB stores data in memory related to internal indexes (e.g., it may range between 5% to 30% of the total
+     * memory consumption depending on the configuration and data at hand). The size of the internal indexes in RocksDB
+     * mainly depend on the size of cached data blocks (cacheBlockSizeKB). If you increase cacheBlockSizeKB, the number
+     * of blocks will decrease, so the index size will also reduce linearly (but increasing read amplification).
+     */
+    private static final int CACHE_BLOCK_SIZE_KB = 32;
+
 
     @Getter
     private final String id;
@@ -218,12 +244,22 @@ class RocksDBCache implements Cache {
     }
 
     private Options createDatabaseOptions() {
+        BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
+                .setBlockSize(CACHE_BLOCK_SIZE_KB * 1024L)
+                .setCacheIndexAndFilterBlocks(true);
+
         return new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
+                .setWriteBufferSize(WRITE_BUFFER_SIZE_MB * 1024L * 1024L)
+                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
+                .setTableFormatConfig(tableFormatConfig)
+                .setOptimizeFiltersForHits(true)
+                .setUseDirectReads(true);
     }
 
     private void clear(boolean recreateDirectory) {
