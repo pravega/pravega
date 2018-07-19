@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.stream.tables.Data;
@@ -438,17 +437,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertFalse(batches.contains(firstBatch));
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
-
-        // region Backward Compatibility
-        // TODO: 2755 retire code in this region 
-        oldSchemeTxns = storeHelper.getChildren(streamOldPath).join()
-                                   .stream().map(UUID::fromString).sorted().collect(Collectors.toList());
-        assertEquals(2, oldSchemeTxns.size());
-        assertFalse(oldSchemeTxns.contains(txnId));
-        // ensure transaction is also deleted from old scheme path
-        AssertExtensions.assertThrows("", () -> storeHelper.getData(txnOldPath), 
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
-        // endregion
     }
 
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
