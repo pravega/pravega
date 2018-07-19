@@ -639,9 +639,6 @@ class HDFSStorage implements SyncStorage {
         //There is only one file per segment.
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
         try (FSDataInputStream stream = this.fileSystem.open(currentFile.getPath())) {
-            if (offset + length > stream.available()) {
-                throw new ArrayIndexOutOfBoundsException();
-            }
             stream.readFully(offset, buffer, bufferOffset, length);
         }
         return length;
