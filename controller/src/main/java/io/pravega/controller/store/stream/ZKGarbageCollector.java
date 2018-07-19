@@ -29,13 +29,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
  * Garbage Collector class which periodically executes garbage collection over some data in zookeeper.
  * This is a generic class which takes a garbage collection Identifier (gcName) and a garbage collection lambda and periodically
  * executes the lambda.
- * This also implements the Batcher interface and keeps generating batch ids in
+ * This also implements the Batching logic and the leader keeps generating new long based batch ids in
  * each GC cycle. It is responsibility of the user to make use of the `batch-id` to group its data into these batches.
  * Upon each periodic cycle, this class checks if a new batch should be generated, and then it executes the supplied gc lambda.
  *
@@ -47,21 +48,21 @@ import java.util.function.Supplier;
  * the current batch, they all receive the latest update.
  */
 @Slf4j
-class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoCloseable {
+class ZKGarbageCollector extends AbstractService implements AutoCloseable {
     private static final String GC_ROOT = "/gc/%s";
     private static final String BATCH_PATH = GC_ROOT + "/batch";
     private static final String LEADER_PATH = GC_ROOT + "/leader";
 
     private final ZKStoreHelper zkStoreHelper;
     private final AtomicLong currentBatch;
-    private CompletableFuture<Void> gcLoop;
+    private final AtomicReference<CompletableFuture<Void>> gcLoop;
     private final CompletableFuture<Void> latch = new CompletableFuture<>();
     private final Supplier<CompletableFuture<Void>> gcProcessing;
     private final String gcName;
     private final String leaderPath;
     private final String batchPath;
-    private NodeCache watch;
-    private LeaderLatch leaderLatch;
+    private final AtomicReference<NodeCache> watch;
+    private final AtomicReference<LeaderLatch> leaderLatch;
     // dedicated thread executor for GC which will not interfere with rest of the processing.
     private final ScheduledExecutorService gcExecutor;
     private final long periodInMillis;
@@ -76,12 +77,15 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
 
         this.currentBatch = new AtomicLong();
         this.gcName = gcName;
+        this.leaderLatch = new AtomicReference<>();
         this.leaderPath = String.format(LEADER_PATH, gcName);
+        this.watch = new AtomicReference<>();
         this.batchPath = String.format(BATCH_PATH, gcName);
         this.zkStoreHelper = zkStoreHelper;
         this.gcProcessing = gcProcessing;
         this.periodInMillis = gcPeriod.toMillis();
         this.gcExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.gcLoop = new AtomicReference<>();
     }
 
     @Override
@@ -109,9 +113,9 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
     @Override
     protected void doStop() {
         latch.thenAccept(v -> {
-            if (gcLoop != null) {
-                gcLoop.cancel(true);
-                gcLoop.whenComplete((r, e) -> {
+            if (gcLoop.get() != null) {
+                gcLoop.get().cancel(true);
+                gcLoop.get().whenComplete((r, e) -> {
                     if (e != null) {
                         notifyFailed(e);
                     } else {
@@ -124,7 +128,6 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
         });
     }
 
-    @Override
     public Long getLatestBatch() {
         return currentBatch.get();
     }
@@ -132,18 +135,18 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
     @SneakyThrows
     private void initialize() {
         // 1. register watch on batch path
-        watch = registerWatch(batchPath);
+        watch.set(registerWatch(batchPath));
 
         // 2. attempt to acquire leadership
-        leaderLatch = electLeader(leaderPath, acquiredLeadership);
+        leaderLatch.set(electLeader(leaderPath, acquiredLeadership));
 
         // 3. if this acquires leadership, then schedule periodic garbage collection.
         // Note: This will attempt first GC only after one period elapses. This will ensure that even if there were 
         // back to back leadership changes with each having their own clock skews, a completed transaction record
         // will at least be present for one GC period. 
         // The downside is, if there are controller failures before GC period, then GC keeps getting delayed perpetually. 
-        gcLoop = acquiredLeadership.thenCompose(x -> Futures.loop(this::isRunning, () -> Futures.delayedFuture(this::process,
-                periodInMillis, gcExecutor), gcExecutor));
+        gcLoop.set(acquiredLeadership.thenCompose(x -> Futures.loop(this::isRunning, () -> Futures.delayedFuture(this::process,
+                periodInMillis, gcExecutor), gcExecutor)));
 
         log.info("GC {} initialized", gcName);
     }
@@ -185,7 +188,7 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
                 });
     }
 
-    @SneakyThrows
+    @SneakyThrows(Exception.class)
     private LeaderLatch electLeader(String leaderPath, CompletableFuture<Void> acquireLeadershipLatch) {
         LeaderLatch leaderLatch = new LeaderLatch(zkStoreHelper.getClient(), leaderPath);
         LeaderLatchListener leaderListener = new LeaderLatchListener() {
@@ -208,7 +211,7 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
         return leaderLatch;
     }
 
-    @SneakyThrows
+    @SneakyThrows(Exception.class)
     private NodeCache registerWatch(String watchPath) {
         NodeCache nodeCache = new NodeCache(zkStoreHelper.getClient(), watchPath);
         NodeCacheListener watchListener = () -> {
@@ -222,15 +225,15 @@ class ZKGarbageCollector extends AbstractService implements Batcher<Long>, AutoC
         return nodeCache;
     }
 
-    @SneakyThrows
+    @SneakyThrows(Exception.class)
     @Override
     public void close() {
-        if (watch != null) {
-            watch.close();
+        if (watch.get() != null) {
+            watch.get().close();
         }
 
-        if (leaderLatch != null) {
-            leaderLatch.close();
+        if (leaderLatch.get() != null) {
+            leaderLatch.get().close();
         }
 
         gcExecutor.shutdown();

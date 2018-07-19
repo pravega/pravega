@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -96,13 +97,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String streamPath;
 
     private final Cache<Integer> cache;
-    private final Batcher<Long> currentBatchSupplier;
+    private final Supplier<Long> currentBatchSupplier;
 
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
         this(scopeName, streamName, storeHelper, () -> 0L);
     }
 
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Batcher<Long> currentBatchSupplier) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Long> currentBatchSupplier) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -436,7 +437,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
-        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.getLatestBatch(), getScope(), getName());
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
         CompletableFuture<Void> future1 = store.createZNodeIfNotExist(path,
