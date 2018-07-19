@@ -132,7 +132,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         return currentBatch.get();
     }
 
-    @SneakyThrows
+    @SneakyThrows(Exception.class)
     private void initialize() {
         // 1. register watch on batch path
         watch.set(registerWatch(batchPath));
