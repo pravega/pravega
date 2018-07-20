@@ -98,7 +98,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         this.startingSegmentNumber = startingSegmentNumber;
     }
 
-    protected int getStartingSegmentNumber() {
+    protected synchronized int getStartingSegmentNumber() {
         return this.startingSegmentNumber;
     }
 
