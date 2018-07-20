@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
@@ -429,7 +430,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+    public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         ensureRunning();
 
         logRequest("mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
@@ -439,11 +440,40 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(targetStreamSegment, timer.getRemaining(),
                         targetSegmentId -> this.segmentMapper.getOrAssignStreamSegmentId(sourceStreamSegment, timer.getRemaining(),
-                                sourceSegmentId -> {
-                                    Operation op = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
-                                    return this.durableLog.add(op, timer.getRemaining());
-                                }))
-                .thenComposeAsync(v -> this.stateStore.remove(sourceStreamSegment, timer.getRemaining()), this.executor);
+                                sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
+                .thenComposeAsync(sp -> this.stateStore.remove(sourceStreamSegment, timer.getRemaining())
+                                                       .thenApply(v -> sp), this.executor);
+    }
+
+    private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
+        // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
+        SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
+
+        CompletableFuture<Void> result = trySealStreamSegment(sourceMetadata, timer.getRemaining());
+        if (sourceMetadata.getLength() == 0) {
+            // Source is empty. We may be able to skip the merge altogether and simply delete the segment. But we can only
+            // be certain of this if the source is also sealed, otherwise it's possible it may still have outstanding
+            // writes in the pipeline. As such, we cannot pipeline the two operations, and must wait for the seal to finish first.
+            result = result.thenComposeAsync(v -> {
+                // Seal is done. The DurableLog guarantees that the metadata is now updated with all operations up
+                // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
+                if (sourceMetadata.getLength() == 0) {
+                    // Source is still empty after sealing - OK to delete.
+                    log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
+                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
+                } else {
+                    // Source now has some data - we must merge the two.
+                    return this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining());
+                }
+            }, this.executor);
+        } else {
+            // Source is not empty, so we cannot delete. Make use of the DurableLog's pipelining abilities by queueing up
+            // the Merge right after the Seal.
+            result = CompletableFuture.allOf(result,
+                    this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining()));
+        }
+
+        return result.thenApply(v -> sourceMetadata.getSnapshot());
     }
 
     @Override
@@ -485,6 +515,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
+
+    /**
+     * Attempts to seal a Segment that may already be sealed.
+     *
+     * @param metadata The SegmentMetadata for the Segment to Seal.
+     * @param timeout  Timeout for the operation.
+     * @return A CompletableFuture that will indicate when the operation completes. If the given segment is already sealed,
+     * this future will already be completed, otherwise it will complete once the seal is performed.
+     */
+    private CompletableFuture<Void> trySealStreamSegment(SegmentMetadata metadata, Duration timeout) {
+        if (metadata.isSealed()) {
+            return CompletableFuture.completedFuture(null);
+        } else {
+            // It is OK to ignore StreamSegmentSealedException as the segment may have already been sealed by a concurrent
+            // call to this or via some other operation.
+            return Futures.exceptionallyExpecting(
+                    this.durableLog.add(new StreamSegmentSealOperation(metadata.getId()), timeout),
+                    ex -> ex instanceof StreamSegmentSealedException,
+                    null);
+        }
+    }
 
     /**
      * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
