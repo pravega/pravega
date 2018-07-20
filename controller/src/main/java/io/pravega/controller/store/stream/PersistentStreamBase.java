@@ -98,7 +98,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
         this.startingSegmentNumber = startingSegmentNumber;
     }
 
-    protected int getStartingSegmentNumber() { return this.startingSegmentNumber; }
+    protected int getStartingSegmentNumber() {
+        return this.startingSegmentNumber;
+    }
 
     /***
      * Creates a new stream record in the stream store.

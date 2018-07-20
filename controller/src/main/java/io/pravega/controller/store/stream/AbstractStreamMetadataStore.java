@@ -737,7 +737,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         if (safeStartingSegmentNumber != null) {
             pendingStreamRecreations.remove(new ImmutablePair<>(scope, stream));
             return safeStartingSegmentNumber;
-        } else return 0;
+        }
+
+        return 0;
     }
 
     @VisibleForTesting

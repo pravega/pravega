@@ -53,14 +53,15 @@ public class TableHelper {
      * Segment Table records are indexed and and it is O(constant) operation to get segment offset given segmentIndex.
      *
      * @param segmentId    segment id
+     * @param startingSegmentNumber starting segment number
      * @param segmentIndex segment table index
      * @param segmentTable segment table
      * @param historyIndex history index
      * @param historyTable history table
      * @return Segment object
      */
-    public static Segment getSegment(final long segmentId, final int startingSegmentNumber, final byte[] segmentIndex, final byte[] segmentTable,
-                                     final byte[] historyIndex, final byte[] historyTable) {
+    public static Segment getSegment(final long segmentId, final int startingSegmentNumber, final byte[] segmentIndex,
+                                     final byte[] segmentTable, final byte[] historyIndex, final byte[] historyTable) {
         int segmentNumber = getSegmentNumber(segmentId) - startingSegmentNumber;
         Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, segmentNumber);
         if (recordOpt.isPresent()) {
@@ -132,6 +133,7 @@ public class TableHelper {
      * @param segmentIndex     segment index
      * @param segmentTable     segment table
      * @param truncationRecord truncation record
+     * @param startingSegmentNumber starting segment number
      * @return list of active segments.
      */
     public static Map<Long, Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
@@ -199,6 +201,7 @@ public class TableHelper {
      * @param segmentTable             segment table
      * @param streamCut                stream cut to truncate at.
      * @param previousTruncationRecord the current truncation record that identifies truncation point.
+     * @param startingSegmentNumber starting segment number
      * @return Returns new truncation record with updating flag set to true.
      */
     public static StreamTruncationRecord computeTruncationRecord(final byte[] historyIndex, final byte[] historyTable,
@@ -235,12 +238,12 @@ public class TableHelper {
      * @param segmentTable             segment table
      * @param from                     stream cut to truncate at.
      * @param to                       stream cut to truncate at.
+     * @param startingSegmentNumber    starting segment number
      * @return returns segments that fall between given stream cuts
      */
     public static List<Segment> findSegmentsBetweenStreamCuts(final byte[] historyIndex, final byte[] historyTable,
                                                               final byte[] segmentIndex, final byte[] segmentTable,
-                                                              final Map<Long, Long> from,
-                                                              final Map<Long, Long> to,
+                                                              final Map<Long, Long> from, final Map<Long, Long> to,
                                                               final int startingSegmentNumber) {
         Preconditions.checkArgument(!(from.isEmpty() && to.isEmpty()));
         // 1. compute epoch cut map for from and to
@@ -300,12 +303,12 @@ public class TableHelper {
      * @param segmentTable segment table for the stream
      * @param streamCut stream cut to compute size till
      * @param sealedSegmentsRecord record for all the sealed segments for the given stream.
+     * @param startingSegmentNumber starting segment number for the stream.
      * @return size (in bytes) of stream till the given stream cut.
      */
     public static long getSizeTillStreamCut(final byte[] historyIndex, final byte[] historyTable, final byte[] segmentIndex,
                                             final byte[] segmentTable, final Map<Long, Long> streamCut,
-                                            final SealedSegmentsRecord sealedSegmentsRecord,
-                                            final int startingSegmentNumber) {
+                                            final SealedSegmentsRecord sealedSegmentsRecord, final int startingSegmentNumber) {
         Preconditions.checkNotNull(streamCut);
         Preconditions.checkNotNull(historyIndex);
         Preconditions.checkNotNull(historyTable);
@@ -458,12 +461,11 @@ public class TableHelper {
      *
      * @param newRanges             ranges
      * @param timeStamp             timestamp
+     * @param startingSegmentNumber starting segment number for the stream.
      * @return pair of serialized segment index and segment table.
      */
-    public static Pair<byte[], byte[]> createSegmentTableAndIndex(
-            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-            final long timeStamp,
-            final int startingSegmentNumber) {
+    public static Pair<byte[], byte[]> createSegmentTableAndIndex(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                                  final long timeStamp, final int startingSegmentNumber) {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         final ByteArrayOutputStream segmentIndex = new ByteArrayOutputStream();
         writeToSegmentTableAndIndex(startingSegmentNumber, 0, newRanges, timeStamp, segmentStream, segmentIndex);

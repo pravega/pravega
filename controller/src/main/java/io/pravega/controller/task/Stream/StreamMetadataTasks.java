@@ -652,8 +652,7 @@ public class StreamMetadataTasks extends TaskBase {
                                        }
 
                                        return null;
-                                   }, executor)
-                            , executor))
+                                   }, executor), executor))
                     .thenApply(v -> safeStartingNumber.get());
     }
 
