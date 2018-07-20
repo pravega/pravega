@@ -69,10 +69,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private final String scope;
     private final String name;
+    private int startingSegmentNumber;
 
     PersistentStreamBase(final String scope, final String name) {
         this.scope = scope;
         this.name = name;
+        this.startingSegmentNumber = 0;
     }
 
     @Override
@@ -89,6 +91,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public String getScopeName() {
         return this.scope;
     }
+
+    @Override
+    public synchronized void setStartingSegmentNumber(int startingSegmentNumber) {
+        Preconditions.checkArgument(this.startingSegmentNumber == 0, "Attempting to reset startingSegmentNumber.");
+        this.startingSegmentNumber = startingSegmentNumber;
+    }
+
+    protected int getStartingSegmentNumber() { return this.startingSegmentNumber; }
 
     /***
      * Creates a new stream record in the stream store.
@@ -121,7 +131,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose((Void v) -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
-                                    IntStream.range(0, numSegments).boxed().map(x -> computeSegmentId(x, 0)).collect(Collectors.toList()));
+                                    IntStream.range(startingSegmentNumber, startingSegmentNumber + numSegments)
+                                             .boxed()
+                                             .map(x -> computeSegmentId(x, 0))
+                                             .collect(Collectors.toList()));
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
                         .thenCompose((Void v) -> createSealedSegmentsRecord(new SealedSegmentsRecord(Collections.emptyMap()).toByteArray()))
@@ -137,8 +150,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
-
-        final Pair<byte[], byte[]> segmentTableAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp);
+        final Pair<byte[], byte[]> segmentTableAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp, startingSegmentNumber);
 
         return createSegmentIndexIfAbsent(new Data<>(segmentTableAndIndex.getKey(), null))
                 .thenCompose((Void v) -> createSegmentTableIfAbsent(new Data<>(segmentTableAndIndex.getValue(), null)));
@@ -175,7 +187,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose(history -> getSegmentIndexFromStore()
                                 .thenCompose(segmentIndex -> getSegmentTableFromStore()
                                         .thenApply(segmentTable -> TableHelper.computeTruncationRecord(historyIndex.getData(), history.getData(),
-                                                segmentIndex.getData(), segmentTable.getData(), streamCut, truncationRecord)))));
+                                                segmentIndex.getData(), segmentTable.getData(), streamCut, truncationRecord, startingSegmentNumber)))));
     }
 
     @Override
@@ -417,7 +429,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                                 historyTable.getData(),
                                                                 segmentIndex.getData(),
                                                                 segmentTable.getData(),
-                                                                truncationRecord))
+                                                                truncationRecord,
+                                                                startingSegmentNumber))
                                         ))));
     }
 
@@ -436,7 +449,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .thenCompose(segmentIndex -> getSegmentTable()
                                         .thenApply(segmentTable ->
                                                 TableHelper.findSegmentsBetweenStreamCuts(historyIndex.getData(), historyTable.getData(),
-                                                        segmentIndex.getData(), segmentTable.getData(), from, to)))));
+                                                        segmentIndex.getData(), segmentTable.getData(), from, to, startingSegmentNumber)))));
     }
 
     /**
@@ -1215,7 +1228,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         .thenCompose(segmentTable -> getSealedSegmentsRecord()
                                                 .thenApply(sealedData -> TableHelper.getSizeTillStreamCut(historyIndex.getData(),
                                                         historyTable.getData(), segmentIndex.getData(), segmentTable.getData(), streamCut,
-                                                        SealedSegmentsRecord.parse(sealedData.getData())))))));
+                                                        SealedSegmentsRecord.parse(sealedData.getData()), startingSegmentNumber))))));
     }
 
     @Override
@@ -1385,7 +1398,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTable()
                         .thenCompose(historyTable -> getSegmentIndex()
                                 .thenCompose(segmentIndex -> getSegmentTable()
-                                        .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(),
+                                        .thenApply(segmentTable -> TableHelper.getSegment(number, startingSegmentNumber, segmentIndex.getData(),
                                                 segmentTable.getData(), historyIndex.getData(), historyTable.getData())))));
     }
 

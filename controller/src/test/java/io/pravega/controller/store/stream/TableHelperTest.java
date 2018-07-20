@@ -39,6 +39,7 @@ public class TableHelperTest {
     public void getSegmentTest() {
         long time = System.currentTimeMillis();
         int epoch = 0;
+        int startingSegmentNumber = 0;
         final List<Long> startSegments = Lists.newArrayList(0L, 1L, 2L, 3L, 4L);
         Pair<byte[], byte[]> segmentTableAndIndex = createSegmentTableAndIndex(5, time);
         byte[] segmentTable = segmentTableAndIndex.getValue();
@@ -47,7 +48,7 @@ public class TableHelperTest {
         byte[] historyTable = TableHelper.createHistoryTable(time, startSegments);
         byte[] historyIndex = TableHelper.createHistoryIndex();
 
-        Segment segment = TableHelper.getSegment(0L, segmentIndex, segmentTable, historyIndex, historyTable);
+        Segment segment = TableHelper.getSegment(0L, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
         assertEquals(segment.segmentId(), 0L);
         assertEquals(segment.getStart(), time);
         assertEquals(segment.getKeyStart(), 0, 0);
@@ -68,7 +69,7 @@ public class TableHelperTest {
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, time);
 
-        segment = TableHelper.getSegment(computeSegmentId(9, 1), segmentIndex, segmentTable, historyIndex, historyTable);
+        segment = TableHelper.getSegment(computeSegmentId(9, 1), startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
         assertEquals(computeSegmentId(9, 1), segment.segmentId());
         assertEquals(segment.getStart(), time);
         assertEquals(segment.getKeyStart(), 1.0 / 5 * 4, 0);
@@ -82,7 +83,7 @@ public class TableHelperTest {
         final byte[] historyIndexCopy = historyIndex;
         final byte[] historyTablecopy = historyTable;
 
-        AssertExtensions.assertThrows(StoreException.class, () -> TableHelper.getSegment(computeSegmentId(10, 1),
+        AssertExtensions.assertThrows(StoreException.class, () -> TableHelper.getSegment(computeSegmentId(10, 1), startingSegmentNumber,
                 segmentIndex2, segmentTablecopy, historyIndexCopy, historyTablecopy));
         assertEquals(10, TableHelper.getSegmentCount(segmentIndex2, segmentTable));
 
@@ -98,7 +99,7 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, time);
 
-        segment = TableHelper.getSegment(computeSegmentId(10, 2), segmentIndex3, segmentTable3, historyIndex, historyTable);
+        segment = TableHelper.getSegment(computeSegmentId(10, 2), startingSegmentNumber, segmentIndex3, segmentTable3, historyIndex, historyTable);
         assertEquals(segment.segmentId(), computeSegmentId(10, 2));
         assertEquals(15, TableHelper.getSegmentCount(segmentIndex3, segmentTable3));
     }
@@ -107,6 +108,7 @@ public class TableHelperTest {
     public void getActiveSegmentsTest() {
         final List<Long> startSegments = Lists.newArrayList(0L, 1L, 2L, 3L, 4L);
         long timestamp = 1;
+        int startingSegmentNumber = 0;
         byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
         byte[] historyIndex = TableHelper.createHistoryIndex();
         List<Long> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
@@ -134,13 +136,13 @@ public class TableHelperTest {
         activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, newSegments);
 
-        Map<Long, Long> activeSegmentsWithOffset = TableHelper.getActiveSegments(0, historyIndex, historyTable, null, null, null);
+        Map<Long, Long> activeSegmentsWithOffset = TableHelper.getActiveSegments(0, historyIndex, historyTable, null, null, null, startingSegmentNumber);
         assertEquals(Sets.newHashSet(startSegments), activeSegmentsWithOffset.keySet());
 
-        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp - 1, historyIndex, historyTable, null, null, null);
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp - 1, historyIndex, historyTable, null, null, null, startingSegmentNumber);
         assertEquals(Sets.newHashSet(startSegments), activeSegmentsWithOffset.keySet());
 
-        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null);
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null, startingSegmentNumber);
         assertEquals(Sets.newHashSet(newSegments), activeSegmentsWithOffset.keySet());
     }
 
@@ -791,6 +793,7 @@ public class TableHelperTest {
         final List<Long> startSegments = Lists.newArrayList(0L, 1L);
         int epoch = 0;
         // epoch 0 --> 0, 1
+        int startingSegmentNumber = 0;
         long timestamp = System.currentTimeMillis();
         Pair<byte[], byte[]> segmentTableAndIndex = createSegmentTableAndIndex(2, timestamp);
         byte[] segmentTable = segmentTableAndIndex.getValue();
@@ -878,7 +881,7 @@ public class TableHelperTest {
         streamCut1.put(0L, 1L);
         streamCut1.put(1L, 1L);
         StreamTruncationRecord truncationRecord = TableHelper.computeTruncationRecord(historyIndex, historyTable, segmentIndex,
-                segmentTable, streamCut1, StreamTruncationRecord.EMPTY);
+                segmentTable, streamCut1, StreamTruncationRecord.EMPTY, startingSegmentNumber);
 
         assertTrue(truncationRecord.getToDelete().isEmpty());
         assertTrue(truncationRecord.getStreamCut().equals(streamCut1));
@@ -893,7 +896,7 @@ public class TableHelperTest {
         // 1.1 epoch at time = 0 = {0, 1}
         // expected active segments with offset = 0/1, 1/1
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable, 
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 2 && 
                 activeSegmentsWithOffset.containsKey(0L) && 
                 activeSegmentsWithOffset.containsKey(1L) && 
@@ -903,7 +906,7 @@ public class TableHelperTest {
         // 1.2 epoch at time = 1 = {0, 2, 3}
         // expected active segments = 0/1, 2/0, 3/0
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 3 &&
                 activeSegmentsWithOffset.containsKey(0L) &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
@@ -918,7 +921,7 @@ public class TableHelperTest {
         streamCut2.put(fourSegmentId, 1L);
         streamCut2.put(fiveSegmentId, 1L);
         truncationRecord = TableHelper.computeTruncationRecord(historyIndex, historyTable, segmentIndex, segmentTable,
-                streamCut2, truncationRecord);
+                streamCut2, truncationRecord, startingSegmentNumber);
         assertTrue(truncationRecord.getToDelete().size() == 2
                 && truncationRecord.getToDelete().contains(1L)
                 && truncationRecord.getToDelete().contains(threeSegmentId));
@@ -933,7 +936,7 @@ public class TableHelperTest {
         // 2.1 epoch at time = 0 = {0, 1}
         // expected active segments = 0/1, 2/1, 4/1, 5/1
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 4 &&
                 activeSegmentsWithOffset.containsKey(0L) &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
@@ -947,7 +950,7 @@ public class TableHelperTest {
         // 2.2 epoch at time = 1 = {0, 2, 3}
         // expected active segments = 0/1, 2/1, 4/1, 5/1
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 4 &&
                 activeSegmentsWithOffset.containsKey(0L) &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
@@ -961,7 +964,7 @@ public class TableHelperTest {
         // 2.3 epoch at time = 2 = {0, 2, 4, 5}
         // expected active segments = 0/1, 2/1, 4/1, 5/1
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 2, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 4 &&
                 activeSegmentsWithOffset.containsKey(0L) &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
@@ -978,7 +981,8 @@ public class TableHelperTest {
         streamCut3.put(fiveSegmentId, 10L);
         streamCut3.put(eightSegmentId, 10L);
         streamCut3.put(nineSegmentId, 10L);
-        truncationRecord = TableHelper.computeTruncationRecord(historyIndex, historyTable, segmentIndex, segmentTable, streamCut3, truncationRecord);
+        truncationRecord = TableHelper.computeTruncationRecord(historyIndex, historyTable, segmentIndex, segmentTable,
+                streamCut3, truncationRecord, startingSegmentNumber);
         assertTrue(truncationRecord.getToDelete().size() == 1
                 && truncationRecord.getToDelete().contains(0L));
         assertTrue(truncationRecord.getStreamCut().equals(streamCut3));
@@ -995,7 +999,7 @@ public class TableHelperTest {
         // 3.1 epoch at time 0 = 0 = {0, 1}
         // expected active segments = 2/10, 4/10, 5/10, 8/10, 9/10
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 5 &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
                 activeSegmentsWithOffset.containsKey(fourSegmentId) &&
@@ -1011,7 +1015,7 @@ public class TableHelperTest {
         // 3.2 epoch at time 2 = 2 = {0, 2, 4, 5}
         // expected active segments = 2/10, 4/10, 5/10, 8/10, 9/10
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 2, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 5 &&
                 activeSegmentsWithOffset.containsKey(twoSegmentId) &&
                 activeSegmentsWithOffset.containsKey(fourSegmentId) &&
@@ -1027,7 +1031,7 @@ public class TableHelperTest {
         // 3.3 epoch at time 3 = 3 = {0, 4, 5, 6, 7}
         // expected active segments = 4/10, 5/10, 8/10, 9/10, 6/0, 7/0
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 3, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 6 &&
                 activeSegmentsWithOffset.containsKey(fourSegmentId) &&
                 activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
@@ -1045,7 +1049,7 @@ public class TableHelperTest {
         // 3.4 epoch at time 4 = 4 = {4, 5, 6, 7, 8, 9}
         // expected active segments = 4/10, 5/10, 8/10, 9/10, 6/0, 7/0
         activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 4, historyIndex, historyTable,
-                segmentIndex, segmentTable, truncationRecord);
+                segmentIndex, segmentTable, truncationRecord, startingSegmentNumber);
         assertTrue(activeSegmentsWithOffset.size() == 6 &&
                 activeSegmentsWithOffset.containsKey(fourSegmentId) &&
                 activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
@@ -1074,7 +1078,7 @@ public class TableHelperTest {
         StreamTruncationRecord finalTruncationRecord = truncationRecord;
         AssertExtensions.assertThrows("",
                 () -> TableHelper.computeTruncationRecord(finalIndexTable, finalHistoryTable, finalSegmentIndex, finalSegmentTable,
-                        streamCut4, finalTruncationRecord), e -> e instanceof IllegalArgumentException);
+                        streamCut4, finalTruncationRecord, startingSegmentNumber), e -> e instanceof IllegalArgumentException);
 
         Map<Long, Long> streamCut5 = new HashMap<>();
         streamCut3.put(twoSegmentId, 10L);
@@ -1083,7 +1087,7 @@ public class TableHelperTest {
         streamCut3.put(0L, 10L);
         AssertExtensions.assertThrows("",
                 () -> TableHelper.computeTruncationRecord(finalIndexTable, finalHistoryTable, finalSegmentIndex, finalSegmentTable,
-                        streamCut5, finalTruncationRecord), e -> e instanceof IllegalArgumentException);
+                        streamCut5, finalTruncationRecord, startingSegmentNumber), e -> e instanceof IllegalArgumentException);
     }
 
     // region stream cut test
@@ -1110,6 +1114,7 @@ public class TableHelperTest {
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
         long timestamp = System.currentTimeMillis();
         int epoch = 0;
+        int startingSegmentNumber = 0;
 
         long threeId = computeSegmentId(3, 1);
         long fourId = computeSegmentId(4, 1);
@@ -1139,7 +1144,7 @@ public class TableHelperTest {
                 .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
         newSegments = segments.stream().map(x -> x.segmentId()).collect(Collectors.toList());
 
-        Pair<byte[], byte[]> segmentAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp);
+        Pair<byte[], byte[]> segmentAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp, startingSegmentNumber);
         byte[] segmentIndex = segmentAndIndex.getKey();
         byte[] segmentTable = segmentAndIndex.getValue();
         byte[] historyIndex = TableHelper.createHistoryIndex();
@@ -1216,13 +1221,15 @@ public class TableHelperTest {
         byte[] segmentTable = list.get(1);
         byte[] historyIndex = list.get(2);
         byte[] historyTable = list.get(3);
+        int startingSegmentNumber = 0;
 
         Map<Long, Long> fromStreamCut = new HashMap<>();
         fromStreamCut.put(zero, 0L);
         fromStreamCut.put(one, 0L);
         fromStreamCut.put(two, 0L);
 
-        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex,
+                segmentTable, fromStreamCut, Collections.emptyMap(), startingSegmentNumber);
         assertEquals(11, segments.size());
 
         fromStreamCut = new HashMap<>();
@@ -1230,7 +1237,8 @@ public class TableHelperTest {
         fromStreamCut.put(two, 0L);
         fromStreamCut.put(five, 0L);
         fromStreamCut.put(six, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                fromStreamCut, Collections.emptyMap(), startingSegmentNumber);
         assertEquals(10, segments.size());
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == one));
 
@@ -1238,7 +1246,8 @@ public class TableHelperTest {
         fromStreamCut.put(zero, 0L);
         fromStreamCut.put(five, 0L);
         fromStreamCut.put(ten, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                fromStreamCut, Collections.emptyMap(), startingSegmentNumber);
         assertEquals(6, segments.size());
         // 0, 3, 4, 5, 9, 10
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == one || x.segmentId() == two || x.segmentId() == six ||
@@ -1249,7 +1258,8 @@ public class TableHelperTest {
         fromStreamCut.put(seven, 0L);
         fromStreamCut.put(eight, 0L);
         fromStreamCut.put(nine, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                fromStreamCut, Collections.emptyMap(), startingSegmentNumber);
         assertEquals(5, segments.size());
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == one || x.segmentId() == two || x.segmentId() == three ||
                 x.segmentId() == four || x.segmentId() == five));
@@ -1257,7 +1267,8 @@ public class TableHelperTest {
         fromStreamCut = new HashMap<>();
         fromStreamCut.put(ten, 0L);
         fromStreamCut.put(nine, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, Collections.emptyMap());
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                fromStreamCut, Collections.emptyMap(), startingSegmentNumber);
         assertEquals(2, segments.size());
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == one || x.segmentId() == two || x.segmentId() == three ||
                 x.segmentId() == four || x.segmentId() == five || x.segmentId() == six || x.segmentId() == seven ||
@@ -1282,6 +1293,7 @@ public class TableHelperTest {
         byte[] segmentTable = list.get(1);
         byte[] historyIndex = list.get(2);
         byte[] historyTable = list.get(3);
+        int startingSegmentNumber = 0;
 
         // to before from
         Map<Long, Long> fromStreamCut = new HashMap<>();
@@ -1295,7 +1307,8 @@ public class TableHelperTest {
         toStreamCut.put(one, 0L);
         toStreamCut.put(two, 0L);
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCut, toStreamCut));
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                        fromStreamCut, toStreamCut, startingSegmentNumber));
 
         // to and from overlap
         Map<Long, Long> fromStreamCutOverlap = new HashMap<>();
@@ -1310,7 +1323,8 @@ public class TableHelperTest {
         toStreamCutOverlap.put(six, 0L);
         toStreamCutOverlap.put(two, 0L);
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutOverlap, toStreamCutOverlap));
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                        fromStreamCutOverlap, toStreamCutOverlap, startingSegmentNumber));
 
         Map<Long, Long> fromPartialOverlap = new HashMap<>();
         fromPartialOverlap.put(zero, 0L);
@@ -1325,7 +1339,8 @@ public class TableHelperTest {
         toPartialOverlap.put(three, 0L);
         toPartialOverlap.put(four, 0L);
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromPartialOverlap, toPartialOverlap));
+                () -> TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                        fromPartialOverlap, toPartialOverlap, startingSegmentNumber));
 
         // Success cases
         Map<Long, Long> fromStreamCutSuccess = new HashMap<>();
@@ -1338,7 +1353,8 @@ public class TableHelperTest {
         toStreamCutSuccess.put(five, 0L);
         toStreamCutSuccess.put(six, 0L);
         toStreamCutSuccess.put(two, 0L);
-        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutSuccess, toStreamCutSuccess);
+        List<Segment> segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex,
+                segmentTable, fromStreamCutSuccess, toStreamCutSuccess, startingSegmentNumber);
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == zero || x.segmentId() == one || x.segmentId() == two ||
                 x.segmentId() == five || x.segmentId() == six));
@@ -1352,7 +1368,8 @@ public class TableHelperTest {
         toStreamCutSuccess = new HashMap<>();
         toStreamCutSuccess.put(nine, 0L);
         toStreamCutSuccess.put(ten, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, fromStreamCutSuccess, toStreamCutSuccess);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                fromStreamCutSuccess, toStreamCutSuccess, startingSegmentNumber);
         assertEquals(10, segments.size());
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == one));
 
@@ -1362,7 +1379,8 @@ public class TableHelperTest {
         toStreamCutSuccess.put(five, 0L);
         toStreamCutSuccess.put(six, 0L);
         toStreamCutSuccess.put(two, 0L);
-        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable, Collections.emptyMap(), toStreamCutSuccess);
+        segments = TableHelper.findSegmentsBetweenStreamCuts(historyIndex, historyTable, segmentIndex, segmentTable,
+                Collections.emptyMap(), toStreamCutSuccess, startingSegmentNumber);
         assertEquals(5, segments.size());
         assertTrue(segments.stream().noneMatch(x -> x.segmentId() == three || x.segmentId() == four || x.segmentId() == seven ||
                 x.segmentId() == eight || x.segmentId() == nine || x.segmentId() == ten));
@@ -1371,13 +1389,14 @@ public class TableHelperTest {
 
     private Pair<byte[], byte[]> createSegmentTableAndIndex(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
+        final int startingSegmentNumber = 0;
 
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
-        return TableHelper.createSegmentTableAndIndex(newRanges, eventTime);
+        return TableHelper.createSegmentTableAndIndex(newRanges, eventTime, startingSegmentNumber);
     }
 
     private Pair<byte[], byte[]> updateSegmentTableAndIndex(byte[] segmentIndex, byte[] segmentTable, int numSegments,

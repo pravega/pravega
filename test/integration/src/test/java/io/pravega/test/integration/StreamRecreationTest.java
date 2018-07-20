@@ -1,9 +1,14 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -23,11 +28,13 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 public class StreamRecreationTest {
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
+    private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
@@ -69,33 +76,47 @@ public class StreamRecreationTest {
     @Test(timeout = 40000)
     public void testStreamRecreation() throws Exception {
         final String myScope = "myScope";
-        final String myStream = "myString";
+        final String myStream = "myStream";
+        final String myReaderGroup = "myReaderGroup";
+        final int numIterations = 20;
 
         // Create the scope and the stream.
         @Cleanup
-        StreamManager streamManager = StreamManager.create(URI.create("tcp://" + serviceHost + ":" + controllerPort));
+        StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(myScope);
-        StreamConfiguration streamConfiguration = StreamConfiguration.builder().scope(myScope).streamName(myStream).build();
-        streamManager.createStream(myScope, myStream, streamConfiguration);
-
-        // Write a single event.
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(myScope, URI.create("tcp://" + serviceHost + ":" + controllerPort));
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        writer.writeEvent("Test Event 1").join();
-        writer.close();
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(myScope, controllerURI);
+        final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                                     .stream(Stream.of(myScope, myStream))
+                                                                     .build();
 
-        // Delete the stream.
-        streamManager.sealStream(myScope, myStream);
-        streamManager.deleteStream(myScope, myStream);
+        for (int i = 0; i < numIterations; i++) {
+            final String eventContent = "myEvent" + String.valueOf(i);
+            StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                                                                         .scope(myScope)
+                                                                         .streamName(myStream)
+                                                                         .build();
+            streamManager.createStream(myScope, myStream, streamConfiguration);
 
-        // Wait for a while and then create it again.
-        Thread.sleep(10000);
-        streamManager.createStream(myScope, myStream, streamConfiguration);
-        streamManager.sealStream(myScope, myStream);
-        streamManager.deleteStream(myScope, myStream);
-        @Cleanup
-        EventStreamWriter<String> writer2 = clientFactory.createEventWriter(myStream, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        writer2.writeEvent("Test Event 2").join();
+            // Write a single event.
+            @Cleanup
+            ClientFactory clientFactory = ClientFactory.withScope(myScope, controllerURI);
+            EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
+                    EventWriterConfig.builder().build());
+            writer.writeEvent(eventContent).join();
+            writer.close();
+
+            // Read the event
+            readerGroupManager.createReaderGroup(myReaderGroup, readerGroupConfig);
+            readerGroupManager.getReaderGroup(myReaderGroup).resetReaderGroup(readerGroupConfig);
+            @Cleanup
+            EventStreamReader<String> reader = clientFactory.createReader("myReader", myReaderGroup, new JavaSerializer<>(),
+                    ReaderConfig.builder().build());
+            assertEquals("Wrong event read in re-created stream", eventContent, reader.readNextEvent(1000).getEvent());
+
+            // Delete the stream.
+            streamManager.sealStream(myScope, myStream);
+            streamManager.deleteStream(myScope, myStream);
+        }
     }
 }

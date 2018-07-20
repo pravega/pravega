@@ -103,6 +103,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                    final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
+            stream.setStartingSegmentNumber(popSafeStartingSegmentNumber(scopeName, streamName));
             return stream.create(configuration, timeStamp)
                     .thenApply(x -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);

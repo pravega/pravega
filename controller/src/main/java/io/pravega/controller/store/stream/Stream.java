@@ -474,4 +474,6 @@ interface Stream {
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */
     void refresh();
+
+    void setStartingSegmentNumber(int startingSegmentNumber);
 }

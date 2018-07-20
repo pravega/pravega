@@ -161,7 +161,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(creationPath).thenCompose(exists -> {
             if (!exists) {
                 return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                        configuration, creationTime));
+                        configuration, creationTime, getStartingSegmentNumber()));
             }
 
             return getCreationTime().thenCompose(storedCreationTime ->
@@ -170,7 +170,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
                         } else {
                             return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                    configuration, storedCreationTime));
+                                    configuration, storedCreationTime, getStartingSegmentNumber()));
                         }
                     }));
         });
@@ -183,15 +183,15 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return getConfiguration().thenCompose(config -> store.checkExists(statePath)
                 .thenCompose(stateExists -> {
                     if (!stateExists) {
-                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime));
+                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime, getStartingSegmentNumber()));
                     }
 
                     return getState(false).thenApply(state -> {
                         if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                            return new CreateStreamResponse(status, config, creationTime);
+                            return new CreateStreamResponse(status, config, creationTime, getStartingSegmentNumber());
                         } else {
                             return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                    config, creationTime);
+                                    config, creationTime, getStartingSegmentNumber());
                         }
                     });
                 }));

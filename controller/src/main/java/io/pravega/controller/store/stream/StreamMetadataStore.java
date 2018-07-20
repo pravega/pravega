@@ -978,4 +978,15 @@ public interface StreamMetadataStore {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * Associates a safe starting number for segments in a stream that is about to be created.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param startingSegmentNumber base segment number to start constructing segment ids in this stream.
+     * @param executor executor
+     * @return CompletableFuture which indicates that the safe segment number has been set.
+     */
+    CompletableFuture<Void> assignSafeStartingSegmentNumberFor(String scope, String stream, int startingSegmentNumber, ScheduledExecutorService executor);
 }

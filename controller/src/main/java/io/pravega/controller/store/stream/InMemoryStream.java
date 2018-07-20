@@ -130,10 +130,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (config != null) {
                 handleStreamMetadataExists(timestamp, result, time, config.getStreamConfiguration(), currentState);
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time, getStartingSegmentNumber()));
             }
         } else {
-            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp));
+            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp, getStartingSegmentNumber()));
         }
 
         return result;
@@ -147,15 +147,15 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 CreateStreamResponse.CreateStatus status;
                 status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                         CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-                result.complete(new CreateStreamResponse(status, config, time));
+                result.complete(new CreateStreamResponse(status, config, time, getStartingSegmentNumber()));
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time, getStartingSegmentNumber()));
             }
         } else {
             CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                     CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
-            result.complete(new CreateStreamResponse(status, config, time));
+            result.complete(new CreateStreamResponse(status, config, time, getStartingSegmentNumber()));
         }
     }
 
