@@ -475,5 +475,10 @@ interface Stream {
      */
     void refresh();
 
+    /**
+     * Assign a value to this stream from which its segment ids will start from.
+     *
+     * @param startingSegmentNumber base value for the id construction of stream segments.
+     */
     void setStartingSegmentNumber(int startingSegmentNumber);
 }
