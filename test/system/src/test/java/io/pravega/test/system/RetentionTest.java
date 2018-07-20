@@ -162,10 +162,6 @@ public class RetentionTest {
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        //try reading the event that was written earlier.
-        //expectation is it should have been truncated and we should find stream to be empty
-        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(6000));
-
         //verify reader functionality is unaffected post truncation
         String event = "newEvent";
         writer.writeEvent(event);

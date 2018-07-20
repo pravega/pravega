@@ -174,12 +174,8 @@ public class OffsetTruncationTest {
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
-        // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
+        // Just after the truncation, read events from the offset defined in truncate call onwards.
         final String newGroupName = READER_GROUP + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
-        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, PARALLELISM)).join());
-
-        // Read again, now expecting to read events from the offset defined in truncate call onwards.
         groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
         futures = readDummyEvents(clientFactory, newGroupName, PARALLELISM);
         Futures.allOf(futures).join();
