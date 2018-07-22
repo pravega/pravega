@@ -169,7 +169,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Void> mergeStreamSegment(String target, String source, Duration timeout) {
+        public CompletableFuture<SegmentProperties> mergeStreamSegment(String target, String source, Duration timeout) {
             throw new UnsupportedOperationException("mergeStreamSegment");
         }
 
