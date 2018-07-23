@@ -75,11 +75,11 @@ public class RESTServer extends AbstractIdleService {
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
             if (restServerConfig.isTlsEnabled()) {
-                SSLContextConfigurator sslCon = new SSLContextConfigurator();
-                sslCon.setKeyStoreFile(restServerConfig.getKeyFilePath());
-                sslCon.setKeyStorePass(loadPasswordFromFile(restServerConfig.getKeyFilePasswordPath()));
+                SSLContextConfigurator contextConfigurator = new SSLContextConfigurator();
+                contextConfigurator.setKeyStoreFile(restServerConfig.getKeyFilePath());
+                contextConfigurator.setKeyStorePass(loadPasswordFromFile(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
-                        new SSLEngineConfigurator(sslCon, false, false, false));
+                        new SSLEngineConfigurator(contextConfigurator, false, false, false));
             } else {
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
             }
@@ -89,6 +89,8 @@ public class RESTServer extends AbstractIdleService {
     }
 
     private String loadPasswordFromFile(String keyFilePasswordPath) {
+        // In case the path is not specified, return empty string. This means the password is not used.
+        // In case of error, return empty password. Which will fail the SSL connection if the password is expected.
 
         if (Strings.isNullOrEmpty(keyFilePasswordPath)) {
             return "";
