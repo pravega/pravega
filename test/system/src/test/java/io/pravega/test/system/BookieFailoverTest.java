@@ -212,6 +212,8 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             // Bring back the bookie which was killed.
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
+            // Give some more time to writers to write more events.
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
             stopWriters();
 
             // Also, verify writes happened after bookie is brought back.
