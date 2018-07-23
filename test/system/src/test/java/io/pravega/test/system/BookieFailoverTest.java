@@ -198,18 +198,18 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             long writeCountBeforeSleep  = testState.getEventWrittenCount();
-            log.info("Write count after bookie failover after {} seconds sleep {}.", WAIT_AFTER_FAILOVER_MILLIS / 1000, writeCountBeforeSleep);
+            log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep, WAIT_AFTER_FAILOVER_MILLIS / 1000);
 
             log.info("Sleeping for {} seconds.", WAIT_AFTER_FAILOVER_MILLIS / 1000);
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             long writeCountAfterSleep  = testState.getEventWrittenCount();
-            log.info("Write count after bookie failover after {} seconds sleep {}.", WAIT_AFTER_FAILOVER_MILLIS / 1000, writeCountAfterSleep);
+            log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep, WAIT_AFTER_FAILOVER_MILLIS / 1000);
 
             Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
             log.info("Writes failed when bookie is scaled down.");
 
-            // Bring back the bookie which was killed.
+            // Bring up a new bookie instance.
             Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
             // Give some more time to writers to write more events.
