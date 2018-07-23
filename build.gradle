@@ -124,6 +124,7 @@ project('shared:authplugin') {
 project ('shared') {
     dependencies {
         compile project(':common')
+        compile project(':shared:metrics')
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -153,6 +154,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
         compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile project(':common')
+        testCompile project(path:':shared', configuration:'testRuntime')
     }
 
     javadoc {
@@ -348,6 +350,7 @@ project('test:integration') {
         testCompile project(path:':shared:protocol', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
+        testCompile project(path:':shared', configuration:'testRuntime')
 
         // Workaround for intellij issue, since we cannot add both the compile dependency and the testRuntime
         // dependency of the client project into the compile scope of the integration tests
