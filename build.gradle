@@ -441,6 +441,7 @@ project('shared:controller-api') {
 project('controller') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/config"
     }
 
     apply plugin: 'application'

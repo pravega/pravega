@@ -47,7 +47,7 @@ public abstract class PingTest {
     private Client client;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
@@ -57,9 +57,9 @@ public abstract class PingTest {
         client = createJerseyClient();
     }
 
-    protected abstract Client createJerseyClient();
+    protected abstract Client createJerseyClient() throws Exception;
 
-    abstract RESTServerConfig getServerConfig();
+    abstract RESTServerConfig getServerConfig() throws Exception;
 
 
     @After
@@ -100,10 +100,14 @@ public abstract class PingTest {
 
     public static class SecurePingTest extends PingTest {
 
+        private String getResourcePath(String resource) throws Exception {
+            return this.getClass().getClassLoader().getResource(resource).toURI().getPath();
+        }
+
         @Override
-        protected Client createJerseyClient() {
+        protected Client createJerseyClient() throws Exception {
             SslConfigurator sslConfig = SslConfigurator.newInstance()
-                                                       .trustStoreFile("../config/bookie.truststore.jks");
+                                                       .trustStoreFile(getResourcePath("bookie.truststore.jks"));
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
@@ -112,11 +116,11 @@ public abstract class PingTest {
         }
 
         @Override
-        RESTServerConfig getServerConfig() {
+        RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath("../config/bookie.keystore.jks")
-                                       .keyFilePasswordPath("../config/bookie.keystore.jks.passwd")
+                                       .keyFilePath(getResourcePath("bookie.keystore.jks"))
+                                       .keyFilePasswordPath(getResourcePath("bookie.keystore.jks.passwd"))
                                        .build();
         }
 
