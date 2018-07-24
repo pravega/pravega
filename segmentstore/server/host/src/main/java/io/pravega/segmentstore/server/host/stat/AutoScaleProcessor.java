@@ -117,7 +117,6 @@ public class AutoScaleProcessor {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                                 .trustStore(configuration.getTlsCertFile())
-                                                .validateHostName(false)
                                                 .build());
                         } else {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
