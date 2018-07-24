@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -153,6 +154,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
+    @Ignore
     @Test
     public void scaleTests() {
         CompletableFuture<Void> scaleup = scaleUpTest();

@@ -18,6 +18,7 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -45,6 +46,7 @@ public class ZookeeperTest {
      * The test fails incase zookeeper cannot be accessed
      *
      */
+    @Ignore
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");

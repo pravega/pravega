@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -143,6 +144,7 @@ public class StreamsAndScopesManagementTest {
      * each scope, the test creates a range of streams and tries to create, update, seal and delete them in correct and
      * incorrect situations. The test also performs metadata operation on empty and non-empty streams.
      */
+    @Ignore
     @Test
     public void testStreamsAndScopesManagement() {
         // Perform management tests with Streams and Scopes.

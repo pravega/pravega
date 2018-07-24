@@ -41,6 +41,7 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -140,6 +141,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
+    @Ignore
     @Test(timeout = 25 * 60 * 1000)
     public void readWriteAndScaleWithFailoverTest() throws Exception {
         try {

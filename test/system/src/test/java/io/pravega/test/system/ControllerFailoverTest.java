@@ -39,6 +39,7 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -126,6 +127,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
 
+    @Ignore
     @Test(timeout = 180000)
     public void failoverTest() throws InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);

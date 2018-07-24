@@ -15,6 +15,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -47,6 +48,7 @@ public class PravegaControllerTest {
      * The test fails incase controller is not running on given ports
      */
 
+    @Ignore
     @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
