@@ -51,7 +51,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -164,7 +163,6 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      * StreamCuts work correctly under scaling events (thus writing TOTAL_EVENTS). Finally, this test checks reading
      * different StreamCut combinations in both streams for all events (encompassing events before and after scaling).
      */
-    @Ignore
     @Test
     public void streamCutsTest() {
         @Cleanup

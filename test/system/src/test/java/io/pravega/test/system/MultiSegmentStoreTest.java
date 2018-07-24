@@ -40,7 +40,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -120,7 +119,6 @@ public class MultiSegmentStoreTest {
         Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Ignore
     @Test(timeout = 600000)
     public void testMultiSegmentStores() throws InterruptedException, ExecutionException {
         // Test Sanity.

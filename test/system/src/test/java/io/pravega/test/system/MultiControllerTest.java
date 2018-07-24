@@ -36,7 +36,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
@@ -111,7 +110,6 @@ public class MultiControllerTest {
      * @throws ExecutionException   On API execution failures.
      * @throws InterruptedException If test is interrupted.
      */
-    @Ignore
     @Test(timeout = 300000)
     public void multiControllerTest() throws ExecutionException, InterruptedException {
 

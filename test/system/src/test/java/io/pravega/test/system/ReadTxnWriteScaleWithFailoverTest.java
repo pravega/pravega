@@ -42,7 +42,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -143,7 +142,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Ignore
     @Test
     public void readTxnWriteScaleWithFailoverTest() throws Exception {
         try {

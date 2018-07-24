@@ -44,7 +44,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -127,7 +126,6 @@ public class RetentionTest {
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
 
-    @Ignore
     @Test
     public void retentionTest() throws Exception {
         @Cleanup

@@ -49,7 +49,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -141,7 +140,6 @@ public class OffsetTruncationTest {
      * (truncatedEvents). The tests asserts that readers first get a TruncatedDataException as they are attempting to
      * read a truncated segment, and then they only read the remaining events that have not been truncated.
      */
-    @Ignore
     @Test
     public void offsetTruncationTest() {
         final int totalEvents = 200;

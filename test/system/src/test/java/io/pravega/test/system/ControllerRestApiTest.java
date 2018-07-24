@@ -57,7 +57,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -132,7 +131,6 @@ public class ControllerRestApiTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-    @Ignore
     @Test(timeout = 300000)
     public void restApiTests() {
 

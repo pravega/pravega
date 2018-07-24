@@ -35,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -141,7 +140,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     }
 
 
-    @Ignore
     @Test(timeout = 25 * 60 * 1000)
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
         try {

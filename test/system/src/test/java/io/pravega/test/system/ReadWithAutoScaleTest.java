@@ -47,7 +47,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -133,7 +132,6 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Ignore
     @Test
     public void scaleTestsWithReader() {
 
