@@ -80,6 +80,8 @@ Start the bookie:
 ```
 bin/bookkeeper bookie
 ```
+### Running Bookkeeper with encryption enabled
+Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/latest/security/tls/).
 
 ---
 # Installing Pravega
@@ -153,3 +155,6 @@ Once the configuration changes have been made you can start the segment store wi
 ```
 bin/pravega-segmentstore
 ```
+## Runing Pravega Controller and Segment Store with security enabled
+Here are the details for configurations for [Pravega controller](../security/pravega-security-configurations.md#Pravega controller) and [Pravega Segmentstore](../security/pravega-security-configurations.md#Pravega Segmentstore).
+These parameters can be changed to represent required security configurations.
