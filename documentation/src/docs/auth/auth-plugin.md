@@ -16,7 +16,7 @@ The custom implementation performs the implementation of the [AuthHandler](https
 
 ## Dynamic loading of _auth_ implementations
 
-Administrators and users are allowed to implement their own Authorization/Authentication plugins. Multiple pluginsof such kind can exist together.
+Administrators and users are allowed to implement their own Authorization/Authentication plugins. Multiple plugins of such kind can exist together.
 The implementation of plugin follows the [Java Service Loader](https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html) approach.
 The required Jars for the custom implementation needs to be located in the **CLASSPATH** to enable the access for Pravega Controller for implementation.
 <dl><dt>Note:</dt><dd>
