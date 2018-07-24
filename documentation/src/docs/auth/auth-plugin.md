@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Implementation of Pravega Authentication/Authorization plugin
+# Implementation of Pravega Authentication/Authorization Plugin
 
 This guide describes in detail the Authentication/Authorization plugin model for Pravega.
 
