@@ -693,6 +693,7 @@ public class ControllerImpl implements Controller {
             log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
             NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
             for (SegmentRange r : ranges.getSegmentRangesList()) {
+                Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
                 rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
             }
             return new StreamSegments(rangeMap, ranges.getDelegationToken());
@@ -779,6 +780,7 @@ public class ControllerImpl implements Controller {
         NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
+            Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
         StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
