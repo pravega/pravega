@@ -102,17 +102,22 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
     @Override
     protected void doStop() {
         latch.thenAccept(v -> {
-            if (gcLoop.get() != null) {
-                gcLoop.get().cancel(true);
-                gcLoop.get().whenComplete((r, e) -> {
-                    if (e != null && !(Exceptions.unwrap(e) instanceof CancellationException)) {
-                        log.error("Exception while trying to stop GC {}", gcName, e);
-                        notifyFailed(e);
-                    } else {
-                        notifyStopped();
-                    }
-                });
-            } else {
+            CompletableFuture<Void> gcLoopFuture = gcLoop.updateAndGet(x -> {
+                if (x != null) {
+                    x.cancel(true);
+                    x.whenComplete((r, e) -> {
+                        if (e != null && !(Exceptions.unwrap(e) instanceof CancellationException)) {
+                            log.error("Exception while trying to stop GC {}", gcName, e);
+                            notifyFailed(e);
+                        } else {
+                            notifyStopped();
+                        }
+                    });
+                }
+                return x;
+            });
+
+            if (gcLoopFuture == null) {
                 notifyStopped();
             }
         });
