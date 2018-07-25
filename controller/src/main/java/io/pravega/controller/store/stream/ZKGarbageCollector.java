@@ -135,8 +135,8 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     // Hence this is loose rights guarantee as opposed to a leader election. But practically we will have
                     // large GC intervals and small execution for GC will mean exclusion.
                     log.info("Acquired guard, starting GC iteration for {}", gcName);
-                    // Also, the update to the version increases the batch id. All those watching will get and update the
-                    // batch id eventually.
+                    // Also, the update to the version increases the batch id. All those watching, including this process,
+                    // will get and update the batch id eventually.
 
                     // Execute GC work supplied by the creator. We will log and ignore any exceptions in GC. The GC will be reattempted in
                     // next cycle.
@@ -153,7 +153,6 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     }
                     return null;
                 });
-
     }
 
     @VisibleForTesting
@@ -179,9 +178,12 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
     @SneakyThrows(IOException.class)
     @Override
     public void close() {
-        if (watch.get() != null) {
-            watch.get().close();
-        }
+        watch.getAndUpdate(x -> {
+            if (x != null) {
+                x.close();
+            }
+            return x;
+        });
 
         gcExecutor.shutdown();
     }
