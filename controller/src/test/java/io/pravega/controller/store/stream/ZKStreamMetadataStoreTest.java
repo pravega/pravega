@@ -422,7 +422,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
                              .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
 
-        long thirdBatch = batches.stream().max(Long::compare).get();
+        int thirdBatch = batches.stream().max(Long::compare).get();
         assertTrue(thirdBatch > secondBatch);
         
         // wait for more than TTL, then do another getTxnStatus

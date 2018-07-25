@@ -452,11 +452,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
         if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
             final String completedTxPath = getOldSchemeCompletedTxPath(txId.toString());
 
-            CompletableFuture<Void> create0_3_0Future = store.createZNodeIfNotExist(completedTxPath,
+            CompletableFuture<Void> createOldSchemeFuture = store.createZNodeIfNotExist(completedTxPath,
                     new CompletedTxnRecord(timestamp, complete).toByteArray())
                                                    .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
-            return CompletableFuture.allOf(createZnodeFuture, create0_3_0Future);
+            return CompletableFuture.allOf(createZnodeFuture, createOldSchemeFuture);
         } else {
             return createZnodeFuture;
         }
