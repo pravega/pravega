@@ -68,6 +68,7 @@ public class StreamSegments {
     }
     
     public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+        verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
@@ -83,6 +84,15 @@ public class StreamSegments {
         return new StreamSegments(result, delegationToken);
     }
     
+    private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+        for (Entry<Long, List<SegmentWithRange>> entry : replacementRanges.getReplacementRanges().entrySet()) {
+            double upperRange = entry.getValue().stream().mapToDouble(range -> range.getHigh()).max().orElseThrow(IllegalStateException::new);
+            Segment segment = segments.get(upperRange);
+            Preconditions.checkState(segment != null && segment.getSegmentId() == entry.getKey(),
+                                     "Incorrect upper range {} for segment being replaced {}", upperRange, segment);
+        }
+    }
+
     @Override
     public String toString() {
         return "StreamSegments:" + segments.toString();
