@@ -47,8 +47,7 @@ import java.util.function.Supplier;
 @Slf4j
 class ZKGarbageCollector extends AbstractService implements AutoCloseable {
     private static final String GC_ROOT = "/garbagecollection/%s";
-    @VisibleForTesting
-    static final String GUARD_PATH = GC_ROOT + "/guard";
+    private static final String GUARD_PATH = GC_ROOT + "/guard";
 
     private final ZKStoreHelper zkStoreHelper;
     private final AtomicReference<CompletableFuture<Void>> gcLoop;
