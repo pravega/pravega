@@ -9,10 +9,12 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
+import io.pravega.common.auth.AuthConstants;
 import io.pravega.common.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
@@ -21,8 +23,8 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -31,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
-    private static final String DEFAULT_NAME = "Pravega-Default";
     private final ConcurrentHashMap<String, PravegaACls> userMap;
     private final StrongPasswordProcessor encryptor;
 
@@ -66,15 +67,14 @@ public class PasswordAuthHandler implements AuthHandler {
 
     @Override
     public String getHandlerName() {
-        return DEFAULT_NAME;
+        return AuthConstants.BASIC;
     }
 
     @Override
-    public boolean authenticate(Map<String, String> headers) {
-        String userName = headers.get("username");
-        String password = headers.get("password");
-        Preconditions.checkArgument(userName != null, "Username not found in header");
-        Preconditions.checkArgument(password != null, "Password not found in header");
+    public boolean authenticate(String token) {
+        String[] parts = parseToken(token);
+        String userName = parts[0];
+        String password = parts[1];
 
         try {
             return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
@@ -85,18 +85,25 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     @Override
-    public Permissions authorize(String resource, Map<String, String> headers) {
-        String userName = headers.get("username");
+    public Permissions authorize(String resource, String token) {
+        String[] parts = parseToken(token);
+        String userName = parts[0];
+
         if (Strings.isNullOrEmpty(userName) || !userMap.containsKey(userName)) {
             throw new CompletionException(new AuthenticationException(userName));
         }
         return authorizeForUser(userMap.get(userName), resource);
-
     }
 
     @Override
     public void initialize(ServerConfig serverConfig) {
         loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
+    }
+
+    private static String[] parseToken(String token) {
+        String[] parts = new String(Base64.getDecoder().decode(token), Charsets.UTF_8).split(":", 2);
+        Preconditions.checkArgument(parts.length == 2, "Invalid authorization token");
+        return parts;
     }
 
     private Permissions authorizeForUser(PravegaACls pravegaACls, String resource) {
