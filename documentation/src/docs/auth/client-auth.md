@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Client _auth_ Interface
 Pravega client can access Pravega APIs through `grpc`. Some of the admin APIs can be accessed via `REST` API. 
-The Authorization/Authentication API and plugin works for both these interfaces.
+The Authorization/Authentication API and plugin works for both of these interfaces.
 
 ##`grpc` Client _auth_ Interface
 If multiple plugin exists, a client selects its _auth_ handler by setting a `grpc` header with the name `method`. 
@@ -24,11 +24,10 @@ The order of preference is listed below:
 1. User explicitly provides a credential object through the API. This results in overriding the other settings.
 2. System properties: System properties are defined in the format: `pravega.client.auth.*`
 3. Environment variables: Environment variables are defined in the format: `pravega_client_auth_*`
-4. In case of option 2 and 3, the caller decides on whether the class needs to be loaded dynamically by setting property `pravega.client.auth.loadDynamic` to true.
+4. In case of option 2 and 3, the caller decides on whether, the class needs to be loaded dynamically by setting property `pravega.client.auth.loadDynamic` to true.
  
 # `REST` Client _auth_ Interface
 The `REST` client in order to access the Pravega API uses the similar approach as mentioned in the above sections. The custom _auth_ parameters are sent as the part of the `Authorization` HTTP header.
 
-The REST server implementation on Pravega Controller extracts these headers, passes it to valid auth plugin implementation
-and then resumes with the call if the authentication and authorization matches the intended access pattern.
+The `REST` server implementation on Pravega **Controller** extracts these headers and passes it to the valid _auth_ plugin implementation.It then resumes, if the authentication and authorization matches the intended access pattern.
 
