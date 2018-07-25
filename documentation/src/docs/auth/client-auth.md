@@ -7,28 +7,27 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Client Auth interface
+# Client _auth_ Interface
 Pravega client can access Pravega APIs through `grpc`. Some of the admin APIs can be accessed via `REST` API. 
-The authorization/authentication API and plugin works for both these interfaces.
+The Authorization/Authentication API and plugin works for both these interfaces.
 
-## grpc client auth interface
-In case more than one plugin exists, a client selects its auth handler by setting a grpc header with a name "method". 
-This is done by implementing [Credentials](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/Credentials.java) interface.
- This is passed through the [ClientConfig](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/ClientConfig.java) object to the Pravega client.
-The authentication related parameters are passed through custom grpc headers. These are extracted through grpc interceptors and passed on to the specific auth plugin.
+##`grpc` Client _auth_ Interface
+If multiple plugin exists, a client selects its _auth_ handler by setting a `grpc` header with the name `method`. 
+This is performed by implementing [Credentials](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/Credentials.java) interface by passing through the [ClientConfig](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/ClientConfig.java) object to the Pravega client.
+The parameters for authentication are passed through custom `grpc` headers. These are extracted through `grpc` interceptors and passed on to the specific _auth_ plugin.
 This plugin is identified by the `method` header.
 
-## Dynamic extraction of the auth parameters on the client
-The parameters can also be extracted dynamically from the system properties OR environment variables.
-Here is the order of preference in descending order
+## Dynamic extraction of the _auth_ parameters on the client
+Dynamic extraction of parameters is also possible using the system properties or environment variables.
+The order of preference is listed below:
 
-1. User explicitly provides a credential object through the API. This overrides any other settings.
+1. User explicitly provides a credential object through the API. This results in overriding the other settings.
 2. System properties: System properties are defined in the format: `pravega.client.auth.*`
-3. Environment variables. Environment variables are defined under the format `pravega_client_auth_*`
-4. In case of option 2 and 3, the caller can decide whether the class needs to be loaded dynamically by setting property `pravega.client.auth.loadDynamic` to true.
+3. Environment variables: Environment variables are defined in the format: `pravega_client_auth_*`
+4. In case of option 2 and 3, the caller decides on whether the class needs to be loaded dynamically by setting property `pravega.client.auth.loadDynamic` to true.
  
-# REST client auth interface
-The REST client to access Pravea API uses the similar approach. The custom auth parameters are sent as part of the `Authorization` HTTP header.
+# `REST` Client _auth_ Interface
+The `REST` client in order to access the Pravega API uses the similar approach as mentioned in the above sections. The custom _auth_ parameters are sent as the part of the `Authorization` HTTP header.
 
 The REST server implementation on Pravega Controller extracts these headers, passes it to valid auth plugin implementation
 and then resumes with the call if the authentication and authorization matches the intended access pattern.
