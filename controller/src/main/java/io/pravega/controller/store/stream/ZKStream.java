@@ -97,14 +97,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String streamPath;
 
     private final Cache<Integer> cache;
-    private final Supplier<Long> currentBatchSupplier;
+    private final Supplier<Integer> currentBatchSupplier;
 
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
-        this(scopeName, streamName, storeHelper, () -> 0L);
+        this(scopeName, streamName, storeHelper, () -> 0);
     }
 
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Long> currentBatchSupplier) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -441,9 +441,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
         String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
-        CompletableFuture<Void> future1 = store.createZNodeIfNotExist(path,
+        CompletableFuture<Void> createZnodeFuture = store.createZNodeIfNotExist(path,
                         new CompletedTxnRecord(timestamp, complete).toByteArray())
-                        .whenComplete((r, e) -> cache.invalidateCache(completedTxPathOldScheme));
+                        .whenComplete((r, e) -> cache.invalidateCache(path));
 
         // region Backward Compatibility
         // TODO 2755 retire code in this region 
@@ -452,13 +452,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
         if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
             final String completedTxPath = getOldSchemeCompletedTxPath(txId.toString());
 
-            CompletableFuture<Void> future2 = store.createZNodeIfNotExist(completedTxPath,
+            CompletableFuture<Void> create0_3_0Future = store.createZNodeIfNotExist(completedTxPath,
                     new CompletedTxnRecord(timestamp, complete).toByteArray())
                                                    .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
-            return CompletableFuture.allOf(future1, future2);
+            return CompletableFuture.allOf(createZnodeFuture, create0_3_0Future);
         } else {
-            return future1;
+            return createZnodeFuture;
         }
         // endregion
     }
@@ -467,20 +467,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
-                .thenCompose(children -> Futures.allOfWithResults(children.stream().map(child -> {
-                    String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(child), getScope(), getName());
-                    String path = ZKPaths.makePath(root, txId.toString());
+                .thenCompose(children -> {
+                    return Futures.allOfWithResults(children.stream().map(child -> {
+                                String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(child), getScope(), getName());
+                                String path = ZKPaths.makePath(root, txId.toString());
 
-                    return cache.getCachedData(path)
-                            .exceptionally(e -> {
-                                if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                    return null;
-                                } else {
-                                    log.error("Exception while trying to fetch completed transaction status", e);
-                                    throw new CompletionException(e);
-                                }
-                            });
-                }).collect(Collectors.toList())))
+                                return cache.getCachedData(path)
+                                        .exceptionally(e -> {
+                                            if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                                                return null;
+                                            } else {
+                                                log.error("Exception while trying to fetch completed transaction status", e);
+                                                throw new CompletionException(e);
+                                            }
+                                        });
+                            }).collect(Collectors.toList()));
+                        })
                 .thenCompose(result -> {
                     Optional<Data<Integer>> any = result.stream().filter(Objects::nonNull).findFirst();
                     if (any.isPresent()) {

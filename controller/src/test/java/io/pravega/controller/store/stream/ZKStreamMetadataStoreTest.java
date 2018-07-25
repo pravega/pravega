@@ -369,10 +369,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         TxnStatus status = store.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, status);
         // verify txns are created in a new batch
-        List<Long> batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                                        .stream().map(Long::parseLong).collect(Collectors.toList());
+        List<Integer> batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+                                        .stream().map(Integer::parseInt).collect(Collectors.toList());
         assertEquals(1, batches.size());
-        long firstBatch = batches.get(0);
+        int firstBatch = batches.get(0);
 
         // region Backward Compatibility
         // TODO 2755 retire code in this region
@@ -395,10 +395,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 Duration.ofSeconds(2).toMillis(), executor).join();
         // verify that this gets created in a new batch
         batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
         assertEquals(2, batches.size());
         assertTrue(batches.contains(firstBatch));
-        long secondBatch = batches.stream().max(Long::compare).get();
+        int secondBatch = batches.stream().max(Integer::compare).get();
         assertTrue(secondBatch > firstBatch);
         
         // region Backward Compatibility
@@ -412,7 +412,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         // let one more gc cycle run and verify that these two batches are not cleaned up. 
         batches = Futures.delayedFuture(() -> storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH),
                 Duration.ofSeconds(2).toMillis(), executor).join()
-                             .stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
         assertEquals(2, batches.size());
 
         // create third transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
@@ -420,7 +420,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 Duration.ofSeconds(2).toMillis(), executor).join();
         // Verify that a new batch is created here. 
         batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
 
         long thirdBatch = batches.stream().max(Long::compare).get();
         assertTrue(thirdBatch > secondBatch);
@@ -432,7 +432,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         // verify that only 2 latest batches remain and that firstBatch has been GC'd
         batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
         assertEquals(2, batches.size());
         assertFalse(batches.contains(firstBatch));
         assertTrue(batches.contains(secondBatch));

@@ -30,9 +30,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
 
 public class ZkGarbageCollectorTest {
 
@@ -62,54 +60,51 @@ public class ZkGarbageCollectorTest {
     public void testGC() {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
         String gcName = "testGC";
-        Duration gcPeriod = Duration.ofSeconds(1);
+        Duration gcPeriod = Duration.ofSeconds(2);
+        Duration delta = Duration.ofMillis(100);
 
         BlockingQueue<CompletableFuture<Void>> queue = new LinkedBlockingQueue<>();
         // A supplier that takes a future from the queue and returns it. 
-        Supplier<CompletableFuture<Void>> gcwork1 = () -> Exceptions.handleInterrupted(queue::take);
-        Supplier<CompletableFuture<Void>> gcwork = () -> CompletableFuture.completedFuture(null);
-        
-        // create first gc. Wait until it becomes the leader.  
-        ZKGarbageCollector gc1 = spy(new ZKGarbageCollector(gcName, zkStoreHelper, gcwork1, gcPeriod));
+        Supplier<CompletableFuture<Void>> gcwork = () -> Exceptions.handleInterrupted(queue::take);
+
+        // create first gc. Wait until it becomes the leader.
+        ZKGarbageCollector gc1 = new ZKGarbageCollector(gcName, zkStoreHelper, gcwork, gcPeriod);
         awaitStart(gc1);
-        Futures.await(gc1.getAcquiredLeadership());
-        
+        assertEquals(0, gc1.getLatestBatch());
+
         // now create additional gcs. 
-        ZKGarbageCollector gc2 = spy(new ZKGarbageCollector(gcName, zkStoreHelper, gcwork, gcPeriod));
+        ZKGarbageCollector gc2 = new ZKGarbageCollector(gcName, zkStoreHelper, gcwork, gcPeriod);
         awaitStart(gc2);
-        assertFalse(gc2.getAcquiredLeadership().isDone());
+        assertEquals(0, gc2.getLatestBatch());
 
-        ZKGarbageCollector gc3 = spy(new ZKGarbageCollector(gcName, zkStoreHelper, gcwork, gcPeriod));
-        awaitStart(gc3);
-        assertFalse(gc3.getAcquiredLeadership().isDone());
+        // verify that only gc1's gcwork is called because it is the leader. gc2 is never called
+        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
 
-        long batch1 = gc1.getLatestBatch();
-        long batch2 = gc2.getLatestBatch();
-        long batch3 = gc3.getLatestBatch();
-        assertTrue(batch1 == batch2 && batch1 == batch3);
-        
-        // verify that only gc1's gcwork is called periodically. gc2 and gc3 are never called
-        Futures.delayedFuture(gcPeriod.multipliedBy(2), executor).join();
-        verify(gc1, times(1)).process();
-        verify(gc2, never()).process();
-        verify(gc3, never()).process();
-        
+        gc1.fetchVersion().join();
+        gc2.fetchVersion().join();
+
+        assertEquals(1, gc1.getLatestBatch());
+        assertEquals(1, gc2.getLatestBatch());
+
         // now post a failed future in the queue. 
         queue.add(Futures.failedFuture(new RuntimeException()));
 
         // the processing should not fail and gc should happen in the next period. 
-        Futures.delayedFuture(gcPeriod.multipliedBy(2), executor).join();
-        verify(gc1, times(2)).process();
-        verify(gc2, never()).process();
-        verify(gc3, never()).process();
-
-        long newBatch1 = gc1.getLatestBatch();
-        long newBatch2 = gc2.getLatestBatch();
-        long newBatch3 = gc3.getLatestBatch();
-        assertTrue(newBatch1 == newBatch2 && newBatch1 == newBatch3);
-        assertTrue(newBatch1 > batch1);
+        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        // at least one of the three GC will be able to take the guard and run the periodic processing.
+        // add some delay
+        assertEquals(2, gc1.getLatestBatch());
+        assertEquals(2, gc2.getLatestBatch());
 
         queue.add(CompletableFuture.completedFuture(null));
+
+        // now stop GC1 so that gc2 become leader for GC workflow.
+        gc1.stopAsync();
+        gc1.awaitTerminated();
+
+        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        gc2.fetchVersion().join();
+        assertEquals(3, gc2.getLatestBatch());
     }
 
     private void awaitStart(ZKGarbageCollector gc) {
