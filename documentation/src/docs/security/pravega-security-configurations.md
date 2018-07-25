@@ -9,42 +9,42 @@ You may obtain a copy of the License at
 -->
 # Pravega Security Configurations
 
-Here is a list of configuration parameters for different Pravega components.
+The following is the list of configuration parameters for different Pravega components.
 
 ## Pravega Segmentstore
 
-|Parameter|Details|Default value|
+|Parameter|Details|Default Value|
 |---------|-------|-------------|
-|pravegaservice.enableTls| Enable TLS on client to segmentstore connection.|false|
+|pravegaservice.enableTls| Enable TLS on client to segmentstore connection.|False|
 |pravegaservice.certFile|Certificate file used for TLS (public key)| Empty|
-|pravegaservice.keyFile|Key file (Private key) used for TLS|empty|
-|autoScale.tlsEnabled| Enable TLS for internal communication between segmentstore and controller|false|
-|autoScale.authEnabled|Enable authorization/authentication for internal communication  between segmentstore and controller|false|
-|autoScale.tlsCertFile|Certificate file used for encrypted internal communication between segmentstore and controller| empty|
+|pravegaservice.keyFile|Key file (Private key) used for TLS|Empty|
+|autoScale.tlsEnabled| Enable TLS for internal communication between segmentstore and controller|False|
+|autoScale.authEnabled|Enable authorization/authentication for internal communication  between segmentstore and controller|False|
+|autoScale.tlsCertFile|Certificate file used for encrypted internal communication between segmentstore and controller| Empty|
 |autoScale.tokenSigningKey|Signing key used to sign the delegation token sent from controller to segmentstore| Empty|
-|bookkeeper.tlsEnabled|Enable TLS for communication between segmentstore and Apache Bookkeeper| false|
+|bookkeeper.tlsEnabled|Enable TLS for communication between segmentstore and Apache Bookkeeper| False|
 |bookkeeper.tlsTrustStorePath| Truststore for TLS communication between segmentstore and Apache Bookkeeper| Empty |
 
 ## Pravega Controller
 
-|Parameter|Details|Default value|
+|Parameter|Details|Default Value|
 |---------|-------|-------------|
-|config.controller.server.authorizationEnabled|Enable authorization/authentication| false|
-|config.controller.server.tlsEnabled|Enable encrypted channel between Pravega client and controller|false|
-|config.controller.server.tlsKeyFile|The key file(Private key) for communication between Pravega client and controller|empty|
-|config.controller.server.tlsCertFile|Public key certificate for communication between Pravega client and controller|empty|
-|config.controller.server.tokenSigningKey|Signing key used to sign the delegation token passed on to the segmentstore|empty|
-|config.controller.server.userPasswordFile|File containing user details for default auth implementation for Pravega (similar to /etc/passwd)|empty|
+|config.controller.server.authorizationEnabled|Enable authorization/authentication| False|
+|config.controller.server.tlsEnabled|Enable encrypted channel between Pravega client and controller|False|
+|config.controller.server.tlsKeyFile|The key file (Private key) for communication between Pravega client and controller|Empty|
+|config.controller.server.tlsCertFile|Public key certificate for communication between Pravega client and controller|Empty|
+|config.controller.server.tokenSigningKey|Signing key used to sign the delegation token passed on to the segmentstore|Empty|
+|config.controller.server.userPasswordFile|File containing user details for default _auth_ implementation for Pravega (similar to `/etc/passwd`)|Empty|
    
 ## Pravega Standalone
-For ease of use Pravega standalone hides some of the configurations that are mentioned above. Here are the relevant configurations for Pravega Standalone:
+For ease of use Pravega standalone hides some of the configurations that are mentioned above. Below is the table containing relevant configurations for Pravega Standalone:
 
-|Parameter|Details|Default value|
+|Parameter|Details|Default Value|
 |---------|-------|-------------|
-|singlenode.enableTls|Enable TLS between all the components deployed within the singlenode| false|
-|singlenode.enableAuth|Enable authentication/authorization between all the components withing the singlenode |false|
-|singlenode.certFile|If TLS is enabled, the public key certificate that is used for internal communication between segmentstore and controller|empty|
-|singlenode.keyFile|If TLS is enabled, this represents the private key by all the server sockets| empty|
-|singlenode.passwdFile|If auth is enabled, this represents the password file for the default auth plugin implementation|empty|
-|singlenode.userName|If auth is enabled, this represents the username used for internal communication between segmentstore and controller|empty|
-|singlenode.passwd|If auth is enabled, this represents the password used for internal communication between segmentstore and controller|empty|
+|singlenode.enableTls|Enable TLS between all the components deployed within the singlenode| False|
+|singlenode.enableAuth|Enable authentication/authorization between all the components within the singlenode |False|
+|singlenode.certFile|If TLS is enabled, the public key certificate is used for internal communication between segmentstore and controller|Empty|
+|singlenode.keyFile|If TLS is enabled, this represents the private key by all the server sockets| Empty|
+|singlenode.passwdFile|If _auth_ is enabled, this represents the password file for the default _auth_ plugin implementation|Empty|
+|singlenode.userName|If _auth_ is enabled, this represents the username used for internal communication between segmentstore and controller|Empty|
+|singlenode.passwd|If _auth_ is enabled, this represents the password used for internal communication between segmentstore and controller|Empty|
