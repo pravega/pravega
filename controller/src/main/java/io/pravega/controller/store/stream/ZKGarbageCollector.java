@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.RetryHelper;
+import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.recipes.cache.NodeCache;
@@ -179,12 +180,15 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         return nodeCache;
     }
 
-    @SneakyThrows(IOException.class)
     @Override
     public void close() {
         watch.getAndUpdate(x -> {
             if (x != null) {
-                x.close();
+                try {
+                    x.close();
+                } catch (IOException e) {
+                    throw Lombok.sneakyThrow(e);
+                }
             }
             return x;
         });
