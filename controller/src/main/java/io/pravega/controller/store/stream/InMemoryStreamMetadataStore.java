@@ -97,14 +97,14 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<CreateStreamResponse> createStream(final String scopeName, final String streamName,
-                                                   final StreamConfiguration configuration,
-                                                   final long timeStamp,
-                                                   final OperationContext context,
-                                                   final Executor executor) {
+                                                                final int startingSegmentNumber,
+                                                                final StreamConfiguration configuration,
+                                                                final long timeStamp,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
-            stream.setStartingSegmentNumber(popSafeStartingSegmentNumber(scopeName, streamName));
-            return stream.create(configuration, timeStamp)
+            return stream.create(configuration, timeStamp, startingSegmentNumber)
                     .thenApply(x -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);
                         scopes.get(scopeName).addStreamToScope(streamName);

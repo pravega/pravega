@@ -71,6 +71,7 @@ import static org.mockito.Mockito.mock;
 public class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
+    private static final int STARTING_SEGMENT_NUMBER = 0;
 
     private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
@@ -107,7 +108,7 @@ public class ControllerEventProcessorTest {
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
-        streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();
+        streamStore.createStream(SCOPE, STREAM, STARTING_SEGMENT_NUMBER, configuration1, start, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
         // endregion
     }

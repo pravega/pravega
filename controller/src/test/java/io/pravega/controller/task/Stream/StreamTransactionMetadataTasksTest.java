@@ -491,10 +491,11 @@ public class StreamTransactionMetadataTasksTest {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                 .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final int startingSegmentNumber = 0;
 
         // Create stream and scope
         streamStoreMock.createScope(SCOPE).join();
-        streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
+        streamStoreMock.createStream(SCOPE, STREAM, startingSegmentNumber, configuration1, System.currentTimeMillis(), null, executor).join();
         streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         // mock streamMetadataStore.generateTxnId should throw excecption first time.

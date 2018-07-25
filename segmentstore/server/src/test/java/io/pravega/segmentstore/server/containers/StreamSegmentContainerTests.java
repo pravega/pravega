@@ -878,10 +878,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             if (expectedDeleted) {
                 // Verify the segments and their Transactions are not there anymore.
                 for (String sn : toCheck) {
-                    AssertExtensions.assertThrows(
-                            "getStreamSegmentInfo did not throw expected exception when called on a deleted StreamSegment.",
-                            context.container.getStreamSegmentInfo(sn, false, TIMEOUT)::join,
-                            ex -> ex instanceof StreamSegmentNotExistsException);
+                    Assert.assertTrue(
+                            "getStreamSegmentInfo did not mark as deleted a StreamSegment after deletion operation.",
+                            context.container.getStreamSegmentInfo(sn, false, TIMEOUT).join().isDeleted());
 
                     AssertExtensions.assertThrows(
                             "append did not throw expected exception when called on a deleted StreamSegment.",

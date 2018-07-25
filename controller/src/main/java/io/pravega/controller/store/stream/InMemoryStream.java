@@ -25,6 +25,7 @@ import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.util.Config;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.Arrays;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicInteger startingSegmentNumber = new AtomicInteger(0);
     private final Object lock = new Object();
     @GuardedBy("lock")
     private Data<Integer> configuration;
@@ -114,7 +116,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp) {
+    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp, final int startingSegmentNumber) {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
@@ -128,34 +130,34 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, config.getStreamConfiguration(), currentState);
+                handleStreamMetadataExists(timestamp, result, time, startingSegmentNumber, config.getStreamConfiguration(), currentState);
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time, getStartingSegmentNumber()));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time, startingSegmentNumber));
             }
         } else {
-            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp, getStartingSegmentNumber()));
+            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp, startingSegmentNumber));
         }
 
         return result;
     }
 
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
-                                            final StreamConfiguration config, Data<Integer> currentState) {
+                                            final int startingSegmentNumber, final StreamConfiguration config, Data<Integer> currentState) {
         if (currentState != null) {
             State stateVal = StateRecord.parse(currentState.getData()).getState();
             if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
                 CreateStreamResponse.CreateStatus status;
                 status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                         CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-                result.complete(new CreateStreamResponse(status, config, time, getStartingSegmentNumber()));
+                result.complete(new CreateStreamResponse(status, config, time, startingSegmentNumber));
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time, getStartingSegmentNumber()));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time, startingSegmentNumber));
             }
         } else {
             CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                     CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
-            result.complete(new CreateStreamResponse(status, config, time, getStartingSegmentNumber()));
+            result.complete(new CreateStreamResponse(status, config, time, startingSegmentNumber));
         }
     }
 
@@ -703,6 +705,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> checkScopeExists() throws StoreException {
+        System.err.println("checkScopeExists inmemorystream");
         return CompletableFuture.completedFuture(null);
     }
 
@@ -920,6 +923,17 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             this.waitingRequestNode = null;
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createStartingSegmentNumberNode(int providedSegmentNumber) {
+        startingSegmentNumber.compareAndSet(0, providedSegmentNumber);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Integer> getStartingSegmentNumberNode() {
+        return CompletableFuture.completedFuture(startingSegmentNumber.get());
     }
 
     private Data<Integer> copy(Data<Integer> input) {

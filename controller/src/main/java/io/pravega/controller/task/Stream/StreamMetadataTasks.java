@@ -578,9 +578,10 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
                                                                           StreamConfiguration config, long timestamp) {
+        //AtomicInteger startingSegmentNumberAtomic = new AtomicInteger();
         return findSafeStartingSegmentNumber(scope, stream)
-                .thenComposeAsync(safeStartingSegmentNumber -> streamMetadataStore.assignSafeStartingSegmentNumberFor(scope, stream, safeStartingSegmentNumber, executor), executor)
-                .thenComposeAsync(v -> this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor), executor)
+                .thenComposeAsync(safeStartingSegmentNumber -> this.streamMetadataStore.createStream(scope, stream,
+                        safeStartingSegmentNumber, config, timestamp, null, executor), executor)
                 .thenComposeAsync(response -> {
                     log.info("{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
@@ -631,6 +632,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Integer> findSafeStartingSegmentNumber(String scope, String stream) {
         final AtomicInteger safeStartingNumber = new AtomicInteger(0);
         final AtomicBoolean isSafeStartSegmentNumber = new AtomicBoolean(false);
+        final int safeNumberSearchMultiplier = 10;
         return streamMetadataStore.checkStreamExists(scope, stream)
                     .thenCompose(streamExists -> Futures.loop(
                             () -> !streamExists && !isSafeStartSegmentNumber.get(),
@@ -639,12 +641,12 @@ public class StreamMetadataTasks extends TaskBase {
                                        // If there is no exception this means that the segment exists, despite we are
                                        // creating a stream. Thus, we are facing a stream re-creation, which calls for
                                        // start creating segment ids not from 0, but from a safe id to avoid collisions.
-                                       if (ex == null && isValidStreamSegmentInfo(si)) {
+                                       if (ex == null && si.isDeleted() && isValidStreamSegmentInfo(si)) {
                                            log.debug("Unsafe starting segment number {} possibly due to a stream {}/{} re-creation.", safeStartingNumber.get(), scope, stream);
                                            if (safeStartingNumber.get() == 0) {
                                                safeStartingNumber.set(1);
                                            } else {
-                                               log.debug("Increased safe starting segment number to {}.", safeStartingNumber.updateAndGet(x -> x * 2));
+                                               log.debug("Increased safe starting segment number to {}.", safeStartingNumber.updateAndGet(x -> x * safeNumberSearchMultiplier));
                                            }
                                        } else {
                                            log.info("Safe starting segment number {} for stream {}/{}.", safeStartingNumber.get(), scope, stream);

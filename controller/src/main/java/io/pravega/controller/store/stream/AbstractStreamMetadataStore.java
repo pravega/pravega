@@ -50,7 +50,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -86,8 +85,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
-
-    private final Map<Pair<String, String>, Integer> pendingStreamRecreations = new ConcurrentHashMap<>();
 
     protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
         cache = CacheBuilder.newBuilder()
@@ -144,15 +141,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<CreateStreamResponse> createStream(final String scope,
                                                    final String name,
+                                                   final int startingSegmentNumber,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
-
-        // Assign a safe starting segment number that handles both regular stream creations and re-creations.
-        Stream s = getStream(scope, name, context);
-        s.setStartingSegmentNumber(popSafeStartingSegmentNumber(scope, name));
-        return withCompletion(s.create(configuration, createTimestamp), executor)
+        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
                 .thenApply(result -> {
                     if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
                         CREATE_STREAM.reportSuccessValue(1);
@@ -714,11 +708,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
     }
 
-    @Override
-    public CompletableFuture<Void> assignSafeStartingSegmentNumberFor(String scope, String stream, int startingSegmentNumber, ScheduledExecutorService executor) {
-            return CompletableFuture.runAsync(() -> pendingStreamRecreations.put(new ImmutablePair<>(scope, stream), startingSegmentNumber), executor);
-    }
-
     protected Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
@@ -730,16 +719,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             stream.refresh();
         }
         return stream;
-    }
-
-    synchronized int popSafeStartingSegmentNumber(String scope, String stream) {
-        final Integer safeStartingSegmentNumber = pendingStreamRecreations.get(new ImmutablePair<>(scope, stream));
-        if (safeStartingSegmentNumber != null) {
-            pendingStreamRecreations.remove(new ImmutablePair<>(scope, stream));
-            return safeStartingSegmentNumber;
-        }
-
-        return 0;
     }
 
     @VisibleForTesting

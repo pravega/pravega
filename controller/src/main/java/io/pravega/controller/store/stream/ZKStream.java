@@ -66,13 +66,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final String STARTING_SEGMENT_NUMBER_PATH = STREAM_PATH + "/startingSegmentNumber";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     // region Backward compatibility
     // TODO 2755 retire code in this region 
     private static final String STREAM_COMPLETED_TX_PATH_OLD_SCHEME = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
     // endregion
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
-
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
     private final ZKStoreHelper store;
@@ -92,6 +92,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String activeTxRoot;
     private final String completedTxPathOldScheme;
     private final String markerPath;
+    private final String startingSegmentNumberPath;
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
@@ -125,6 +126,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
+        startingSegmentNumberPath = String.format(STARTING_SEGMENT_NUMBER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
         this.currentBatchSupplier = currentBatchSupplier;
@@ -155,43 +157,43 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime) {
+    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime, final int startingSegmentNumber) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
         return store.checkExists(creationPath).thenCompose(exists -> {
             if (!exists) {
                 return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                        configuration, creationTime, getStartingSegmentNumber()));
+                        configuration, creationTime, startingSegmentNumber));
             }
 
             return getCreationTime().thenCompose(storedCreationTime ->
                     store.checkExists(configurationPath).thenCompose(configExists -> {
                         if (configExists) {
-                            return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
+                            return handleConfigExists(storedCreationTime, startingSegmentNumber, storedCreationTime == creationTime);
                         } else {
                             return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                    configuration, storedCreationTime, getStartingSegmentNumber()));
+                                    configuration, storedCreationTime, startingSegmentNumber));
                         }
                     }));
         });
     }
 
-    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
+    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
         return getConfiguration().thenCompose(config -> store.checkExists(statePath)
                 .thenCompose(stateExists -> {
                     if (!stateExists) {
-                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime, getStartingSegmentNumber()));
+                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime, startingSegmentNumber));
                     }
 
                     return getState(false).thenApply(state -> {
                         if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                            return new CreateStreamResponse(status, config, creationTime, getStartingSegmentNumber());
+                            return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
                         } else {
                             return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                    config, creationTime, getStartingSegmentNumber());
+                                    config, creationTime, startingSegmentNumber);
                         }
                     });
                 }));
@@ -664,6 +666,20 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
+    }
+
+    @Override
+    CompletableFuture<Void> createStartingSegmentNumberNode(int startingSegmentNumber) {
+        byte[] b = new byte[Integer.BYTES];
+        BitConverter.writeInt(b, 0, startingSegmentNumber);
+
+        return store.createZNodeIfNotExist(startingSegmentNumberPath, b)
+                    .thenApply(x -> cache.invalidateCache(startingSegmentNumberPath));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getStartingSegmentNumberNode() {
+        return cache.getCachedData(startingSegmentNumberPath).thenApply(data -> BitConverter.readInt(data.getData(), 0));
     }
 
     // endregion

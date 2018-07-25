@@ -553,10 +553,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
-                AssertExtensions.assertThrows(
+                Assert.assertTrue(
                         "Segment '" + segmentName + "' was not deleted.",
-                        () -> store.getStreamSegmentInfo(segmentName, false, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                        store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().isDeleted());
             } else {
                 SegmentProperties sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
                 long expectedStartOffset = startOffsets.getOrDefault(segmentName, 0L);

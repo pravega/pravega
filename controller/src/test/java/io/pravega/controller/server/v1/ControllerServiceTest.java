@@ -102,6 +102,7 @@ public class ControllerServiceTest {
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
+        final int startingSegmentNumber = 0;
 
         // createScope
         streamStore.createScope(SCOPE).get();
@@ -109,11 +110,11 @@ public class ControllerServiceTest {
         // region createStream
         startTs = System.currentTimeMillis();
         OperationContext context = streamStore.createContext(SCOPE, stream1);
-        streamStore.createStream(SCOPE, stream1, configuration1, startTs, context, executor).get();
+        streamStore.createStream(SCOPE, stream1, startingSegmentNumber, configuration1, startTs, context, executor).get();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor);
 
         OperationContext context2 = streamStore.createContext(SCOPE, stream2);
-        streamStore.createStream(SCOPE, stream2, configuration2, startTs, context2, executor).get();
+        streamStore.createStream(SCOPE, stream2, startingSegmentNumber, configuration2, startTs, context2, executor).get();
         streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor);
 
         // endregion

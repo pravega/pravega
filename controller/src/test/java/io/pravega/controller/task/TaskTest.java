@@ -114,6 +114,7 @@ public class TaskTest {
     @Before
     public void setUp() throws ExecutionException, InterruptedException {
         final String stream2 = "stream2";
+        final int startingSegmentNumber = 0;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
@@ -122,9 +123,9 @@ public class TaskTest {
         // region createStream
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
-        streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).join();
+        streamStore.createStream(SCOPE, stream1, startingSegmentNumber, configuration1, start, null, executor).join();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).join();
-        streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor).join();
+        streamStore.createStream(SCOPE, stream2, startingSegmentNumber, configuration2, start, null, executor).join();
         streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).join();
         // endregion
 

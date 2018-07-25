@@ -38,6 +38,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class StreamRecreationTest {
@@ -87,7 +88,7 @@ public class StreamRecreationTest {
         final String myScope = "myScope";
         final String myStream = "myStream";
         final String myReaderGroup = "myReaderGroup";
-        final int numIterations = 20;
+        final int numIterations = 5;
 
         // Create the scope and the stream.
         @Cleanup
@@ -100,6 +101,7 @@ public class StreamRecreationTest {
                                                                      .build();
 
         for (int i = 0; i < numIterations; i++) {
+            log.debug("Stream re-creation iteration {}.", i);
             final String eventContent = "myEvent" + String.valueOf(i);
             StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                          .scope(myScope)
@@ -124,8 +126,8 @@ public class StreamRecreationTest {
             assertEquals("Wrong event read in re-created stream", eventContent, reader.readNextEvent(1000).getEvent());
 
             // Delete the stream.
-            streamManager.sealStream(myScope, myStream);
-            streamManager.deleteStream(myScope, myStream);
+            assertTrue("Unable to seal re-created stream.", streamManager.sealStream(myScope, myStream));
+            assertTrue("Unable to delete re-created stream.", streamManager.deleteStream(myScope, myStream));
         }
     }
 }

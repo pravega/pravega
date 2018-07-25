@@ -207,10 +207,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // Segment exists in Metadata, but is marked as deleted.
         sm.markDeleted();
-        AssertExtensions.assertThrows(
+        Assert.assertTrue(
                 "getStreamSegmentInfo did not throw correct exception when segment is marked as Deleted in metadata.",
-                () -> context.mapper.getStreamSegmentInfo(segmentName, TIMEOUT),
-                ex -> ex instanceof StreamSegmentNotExistsException);
+                context.mapper.getStreamSegmentInfo(segmentName, TIMEOUT).join().isDeleted());
     }
 
     /**
