@@ -43,7 +43,7 @@ Some specific Pravega instructions are shown below. All sets are assumed to be r
 
 #### Bookkeeper Configuration
 
-In the file `conf/bk_server.conf` file, the following configuration options should be implemented.
+In the file `conf/bk_server.conf`, the following configuration options should be implemented:
 
 ```
 # Comma separated list of <zp-ip>:<port> for all ZK servers
@@ -69,7 +69,7 @@ Replace `<$ZK_URL>` with the IP address of the Zookeeper nodes.
 
 ### Running Bookkeeper
 
-The bookie needs the following formatting before statring it.
+The bookie needs the following formatting before statring it:
 
 ```
 bin/bookkeeper shell metaformat -nonInteractive
@@ -89,7 +89,7 @@ Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](
 For non-production systems, the containers can be used that are provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
 The following two key components of Pravega needs to be run:
-- Controller: The Control plane for Pravega. Installation requires at least one controlle.\(Two or more are recommended for HA\).
+- Controller: The Control plane for Pravega. Installation requires at least one controller. \(Two or more are recommended for HA\).
 - Segment Store: The Storage node for Pravega. Installation requires at least one segment store.
 
 Before we start, the latest Pravega release needs to be downloaded from the [github releases page](https://github.com/pravega/pravega/releases).
@@ -116,7 +116,7 @@ cd pravega-0.1.0
 
 ## Installation of the Controller
 
-The controller can be run by using the following command. Replace `<zk-ip>` with the IP address of the Zookeeper nodes in the following command.
+The controller can be run by using the following command. Replace `<zk-ip>` with the IP address of the Zookeeper nodes in the following command:
 
 ```
 ZK_URL=<zk-ip>:2181 bin/pravega-controller
