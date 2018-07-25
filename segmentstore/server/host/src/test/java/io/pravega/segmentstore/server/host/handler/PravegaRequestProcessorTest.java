@@ -314,9 +314,9 @@ public class PravegaRequestProcessorTest {
         processor.deleteSegment(new WireCommands.DeleteSegment(3, transactionName, ""));
         order.verify(connection).send(new WireCommands.SegmentDeleted(3, transactionName));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(4, transactionName, ""));
-        order.verify(connection)
-             .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
-                                                                                                     txnid)));
+        order.verify(connection).send(Mockito.argThat(t -> {
+            return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).isDeleted();
+        }));
 
         // Verify the case when the transaction segment is already sealed. This simulates the case when the process
         // crashed after sealing, but before issuing the merge.
