@@ -23,21 +23,21 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 -   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
 
--   Unlimited Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
+-   Unlimited Retention - Ingest, process and retain data in streams forever.It uses the same paradigm to access both real-time and historical events stored in Pravega.
 
--   Storage Efficiency - Use Pravega to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
+-   Storage Efficiency - Pravega can be used to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
 
--   Durability - Don't compromise between performance, durability and consistency.
+-   Durability - In Pravega, there is no compromise between performance, durability and consistency.
     Pravega persists and protects data before the write operation is acknowledged to the client.
     
--   Transaction Support - A developer uses a Pravega Transaction to ensure that a set of events are written to a stream atomically.
+-   Transaction Support - Pravega Transactions can be used by the developer to ensure that a set of events are written to a stream atomically.
 
--   Security and pluggable role based access control - Administrator can deploy Pravega securely by enabling TLS for communications and deploy their own implementation of role based access control plugin.   
+-   Security and pluggable role based access control - Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role based access control plugin.   
 
 
 ## Releases
 
-The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
+The latest pravega releases can be found at [Github Release](https://github.com/pravega/pravega/releases).
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Read [Getting Started](getting-started.md) page for more information, and also v
 
 ## Frequently Asked Questions
 
-You can find a list of frequently asked questions [here](faq.md).
+ List of frequently asked questions can be found at [here](faq.md).
 
 ## Running Pravega
 
