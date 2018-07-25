@@ -48,10 +48,10 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class StreamsAndScopesManagementTest {
 
-    private static final int NUM_SCOPES = 5;
-    private static final int NUM_STREAMS = 20;
+    private static final int NUM_SCOPES = 3;
+    private static final int NUM_STREAMS = 5;
     private static final int NUM_EVENTS = 100;
-    private static final int TEST_ITERATIONS = 2;
+    private static final int TEST_ITERATIONS = 3;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(20 * 60);
 

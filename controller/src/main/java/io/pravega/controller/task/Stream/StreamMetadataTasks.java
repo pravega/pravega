@@ -655,6 +655,14 @@ public class StreamMetadataTasks extends TaskBase {
 
                                        return null;
                                    }, executor), executor))
+                    .handleAsync((v, ex) -> {
+                        // If an unexpected exception occurs while looking for a safe starting segment number, use default.
+                        if (ex != null) {
+                            log.warn("Falling back to default starting segment number (0) due to unexpected exception during search: {}.", ex);
+                            safeStartingNumber.set(0);
+                        }
+                        return null;
+                    })
                     .thenApply(v -> safeStartingNumber.get());
     }
 
