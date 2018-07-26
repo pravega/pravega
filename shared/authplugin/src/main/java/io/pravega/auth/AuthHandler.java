@@ -9,16 +9,22 @@
  */
 package io.pravega.auth;
 
-import java.util.Map;
-
 /**
  * Custom authorization/authentication handlers implement this interface.
  * The implementations are loaded from the classpath using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
  * Pravega controller also implements this interface through {@link #PasswordAuthHandler}.
  *
- * Each custom auth handler is registered with a unique name.
- * A client selects its auth handler by setting a grpc header with a name "method". T
- * his is done by implementing `PravegaCredentials` interface and passing it to client calls.
+ * Each custom auth handler is registered with a unique name identifying a supported authentication scheme.
+ *
+ * The client supplies authentication credentials formatted as per HTTP 1.1 (RFC 7235):
+ * <pre>
+ *     Authentication: &lt;scheme&gt; &lt;token&gt;
+ * </pre>
+ * This is done by implementing `PravegaCredentials` interface and passing it to client calls.
+ *
+ * The credentials are passed via the {@code Authorization} header.  For gRPC, the header is passed via call metadata.
+ * For REST, the credentials are passed as the value of the HTTP {@code Authorization} header.
+ * For gRPC, the credentials are passed as the value of the {@code Authorization} header in call metadata.
  *
  */
 public interface AuthHandler {
@@ -39,10 +45,10 @@ public interface AuthHandler {
      * Authenticates a given request. Pravega controller passes the HTTP headers associated with the call.
      * The custom implementation returns whether the user represented by these headers is authenticated.
      *
-     * @param headers the key-value pairs passed through grpc.
+     * @param token the credentials token passed via the {@code Authorization} header.
      * @return Returns true when the user is authenticated.
      */
-    boolean authenticate(Map<String, String> headers);
+    boolean authenticate(String token);
 
     /**
      * Authorizes the access to a given resource. Pravega controller passes the HTTP headers associated with the call.
@@ -50,10 +56,10 @@ public interface AuthHandler {
      * by the headers.
      *
      * @param resource the resource that needs to be accessed.
-     * @param headers the context for authorization.
+     * @param token the credentials token passed via the {@code Authorization} header.
      * @return The level of authorization.
      */
-    Permissions authorize(String resource, Map<String, String> headers);
+    Permissions authorize(String resource, String token);
 
     /**
      * Sets the configuration. If the auth handler needs to access the server configuration, it can be accessed though this var.

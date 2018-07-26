@@ -16,6 +16,7 @@ import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.curator.shaded.com.google.common.collect.Sets;
 import org.junit.Test;
 
 import java.util.AbstractMap;
@@ -133,14 +134,14 @@ public class TableHelperTest {
         activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, newSegments);
 
-        activeSegments = TableHelper.getActiveSegments(0, historyIndex, historyTable, null, null, null);
-        assertEquals(startSegments, activeSegments);
+        Map<Long, Long> activeSegmentsWithOffset = TableHelper.getActiveSegments(0, historyIndex, historyTable, null, null, null);
+        assertEquals(Sets.newHashSet(startSegments), activeSegmentsWithOffset.keySet());
 
-        activeSegments = TableHelper.getActiveSegments(timestamp - 1, historyIndex, historyTable, null, null, null);
-        assertEquals(startSegments, activeSegments);
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp - 1, historyIndex, historyTable, null, null, null);
+        assertEquals(Sets.newHashSet(startSegments), activeSegmentsWithOffset.keySet());
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null);
-        assertEquals(newSegments, activeSegments);
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable, null, null, null);
+        assertEquals(Sets.newHashSet(newSegments), activeSegmentsWithOffset.keySet());
     }
 
     @Test
@@ -789,7 +790,7 @@ public class TableHelperTest {
     public void truncationTest() {
         final List<Long> startSegments = Lists.newArrayList(0L, 1L);
         int epoch = 0;
-        // epoch 0
+        // epoch 0 --> 0, 1
         long timestamp = System.currentTimeMillis();
         Pair<byte[], byte[]> segmentTableAndIndex = createSegmentTableAndIndex(2, timestamp);
         byte[] segmentTable = segmentTableAndIndex.getValue();
@@ -800,7 +801,7 @@ public class TableHelperTest {
         List<Long> activeSegments = TableHelper.getActiveSegments(historyIndex, historyTable);
         assertEquals(activeSegments, startSegments);
 
-        // epoch 1
+        // epoch 1 --> 0, 2, 3 
         epoch++;
         long twoSegmentId = computeSegmentId(2, 1);
         long threeSegmentId = computeSegmentId(3, 1);
@@ -818,7 +819,7 @@ public class TableHelperTest {
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 1);
 
-        // epoch 2
+        // epoch 2 --> 0, 2, 4, 5
         epoch++;
         long fourSegmentId = computeSegmentId(4, 2);
         long fiveSegmentId = computeSegmentId(5, 2);
@@ -836,7 +837,7 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 2);
 
-        // epoch 3
+        // epoch 3 --> 0, 4, 5, 6, 7
         epoch++;
         long sixSegmentId = computeSegmentId(6, 3);
         long sevenSegmentId = computeSegmentId(7, 3);
@@ -854,7 +855,7 @@ public class TableHelperTest {
         partial = HistoryRecord.readLatestRecord(historyIndex, historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyIndex, historyTable, partial, timestamp + 3);
 
-        // epoch 4
+        // epoch 4 --> 4, 5, 6, 7, 8, 9
         epoch++;
         long eightSegmentId = computeSegmentId(8, 4);
         long nineSegmentId = computeSegmentId(9, 4);
@@ -885,6 +886,32 @@ public class TableHelperTest {
                 truncationRecord.getCutEpochMap().get(1L) == 0);
         truncationRecord = StreamTruncationRecord.complete(truncationRecord);
 
+        // getActiveSegments wrt first truncation record which is on epoch 0
+        Map<Long, Long> activeSegmentsWithOffset;
+        // 1. truncationRecord = 0/1, 1/1
+        
+        // 1.1 epoch at time = 0 = {0, 1}
+        // expected active segments with offset = 0/1, 1/1
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable, 
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 2 && 
+                activeSegmentsWithOffset.containsKey(0L) && 
+                activeSegmentsWithOffset.containsKey(1L) && 
+                activeSegmentsWithOffset.get(0L) == 1L && 
+                activeSegmentsWithOffset.get(1L) == 1L);
+
+        // 1.2 epoch at time = 1 = {0, 2, 3}
+        // expected active segments = 0/1, 2/0, 3/0
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 3 &&
+                activeSegmentsWithOffset.containsKey(0L) &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(threeSegmentId) &&
+                activeSegmentsWithOffset.get(0L) == 1L &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 0L &&
+                activeSegmentsWithOffset.get(threeSegmentId) == 0L);
+
         Map<Long, Long> streamCut2 = new HashMap<>();
         streamCut2.put(0L, 1L);
         streamCut2.put(twoSegmentId, 1L);
@@ -902,6 +929,49 @@ public class TableHelperTest {
                 truncationRecord.getCutEpochMap().get(fiveSegmentId) == 2);
         truncationRecord = StreamTruncationRecord.complete(truncationRecord);
 
+        // 2. truncationRecord = 0/1, 2/1, 4/1, 5/1. 
+        // 2.1 epoch at time = 0 = {0, 1}
+        // expected active segments = 0/1, 2/1, 4/1, 5/1
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 4 &&
+                activeSegmentsWithOffset.containsKey(0L) &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.get(0L) == 1L &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 1L);
+
+        // 2.2 epoch at time = 1 = {0, 2, 3}
+        // expected active segments = 0/1, 2/1, 4/1, 5/1
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 1, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 4 &&
+                activeSegmentsWithOffset.containsKey(0L) &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.get(0L) == 1L &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 1L);
+
+        // 2.3 epoch at time = 2 = {0, 2, 4, 5}
+        // expected active segments = 0/1, 2/1, 4/1, 5/1
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 2, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 4 &&
+                activeSegmentsWithOffset.containsKey(0L) &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.get(0L) == 1L &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 1L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 1L);
+
         Map<Long, Long> streamCut3 = new HashMap<>();
         streamCut3.put(twoSegmentId, 10L);
         streamCut3.put(fourSegmentId, 10L);
@@ -918,6 +988,77 @@ public class TableHelperTest {
                 truncationRecord.getCutEpochMap().get(eightSegmentId) == 4 &&
                 truncationRecord.getCutEpochMap().get(nineSegmentId) == 4);
         truncationRecord = StreamTruncationRecord.complete(truncationRecord);
+
+        // 3. truncation record 2/10, 4/10, 5/10, 8/10, 9/10
+        // getActiveSegments wrt first truncation record which spans epoch 2 to 4
+
+        // 3.1 epoch at time 0 = 0 = {0, 1}
+        // expected active segments = 2/10, 4/10, 5/10, 8/10, 9/10
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 5 &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.containsKey(eightSegmentId) &&
+                activeSegmentsWithOffset.containsKey(nineSegmentId) &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(eightSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(nineSegmentId) == 10L);
+
+        // 3.2 epoch at time 2 = 2 = {0, 2, 4, 5}
+        // expected active segments = 2/10, 4/10, 5/10, 8/10, 9/10
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 2, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 5 &&
+                activeSegmentsWithOffset.containsKey(twoSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.containsKey(eightSegmentId) &&
+                activeSegmentsWithOffset.containsKey(nineSegmentId) &&
+                activeSegmentsWithOffset.get(twoSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(eightSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(nineSegmentId) == 10L);
+
+        // 3.3 epoch at time 3 = 3 = {0, 4, 5, 6, 7}
+        // expected active segments = 4/10, 5/10, 8/10, 9/10, 6/0, 7/0
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 3, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 6 &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.containsKey(eightSegmentId) &&
+                activeSegmentsWithOffset.containsKey(nineSegmentId) &&
+                activeSegmentsWithOffset.containsKey(sixSegmentId) &&
+                activeSegmentsWithOffset.containsKey(sevenSegmentId) &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(eightSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(nineSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(sixSegmentId) == 0L &&
+                activeSegmentsWithOffset.get(sevenSegmentId) == 0L);
+
+        // 3.4 epoch at time 4 = 4 = {4, 5, 6, 7, 8, 9}
+        // expected active segments = 4/10, 5/10, 8/10, 9/10, 6/0, 7/0
+        activeSegmentsWithOffset = TableHelper.getActiveSegments(timestamp + 4, historyIndex, historyTable,
+                segmentIndex, segmentTable, truncationRecord);
+        assertTrue(activeSegmentsWithOffset.size() == 6 &&
+                activeSegmentsWithOffset.containsKey(fourSegmentId) &&
+                activeSegmentsWithOffset.containsKey(fiveSegmentId) &&
+                activeSegmentsWithOffset.containsKey(eightSegmentId) &&
+                activeSegmentsWithOffset.containsKey(nineSegmentId) &&
+                activeSegmentsWithOffset.containsKey(sixSegmentId) &&
+                activeSegmentsWithOffset.containsKey(sevenSegmentId) &&
+                activeSegmentsWithOffset.get(fourSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(fiveSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(eightSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(nineSegmentId) == 10L &&
+                activeSegmentsWithOffset.get(sixSegmentId) == 0L &&
+                activeSegmentsWithOffset.get(sevenSegmentId) == 0L);
 
         // behind previous
         Map<Long, Long> streamCut4 = new HashMap<>();
