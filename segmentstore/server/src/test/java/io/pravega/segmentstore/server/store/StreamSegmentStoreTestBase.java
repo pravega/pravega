@@ -74,18 +74,21 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
     // a decent size so that the tests do finish up within a few seconds.
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
-    private static final int THREADPOOL_SIZE_TEST = 3;
-    private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
-    private static final int SEGMENT_COUNT = 10;
-    private static final int TRANSACTIONS_PER_SEGMENT = 1;
+    protected static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
+    protected static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
+    protected static final int THREADPOOL_SIZE_TEST = 3;
+    protected static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
+    protected static final int SEGMENT_COUNT = 10;
+    protected static final int TRANSACTIONS_PER_SEGMENT = 1;
+
     protected static final int APPENDS_PER_SEGMENT = 100;
     protected static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     protected static final int MAX_INSTANCE_COUNT = 5;
-    private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
-    private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+
+    protected static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+
     protected static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -114,6 +117,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
+
 
     @Override
     protected int getThreadPoolSize() {
@@ -439,6 +443,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     /**
      * Executes all the requests asynchronously, one by one, on the given FencingTextContext.
+     * @param requests                  Requests to execute.
+     * @param newInstanceFrequency      Frequency of the requests.
+     * @param context                   Context.
+     * @return                          CompletableFuture.
      */
     protected CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context) {
         AtomicInteger index = new AtomicInteger();
