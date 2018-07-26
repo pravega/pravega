@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -45,14 +44,14 @@ class LedgerData {
     @GuardedBy("this")
     private long lastReadEntry = 0;
     @GuardedBy("this")
-    private AtomicBoolean readonly;
+    private boolean readonly;
 
     public LedgerData(LedgerHandle ledgerHandle, int offset, int updateVersion, long containerEpoch) {
         this.ledgerHandle = ledgerHandle;
         this.startOffset = offset;
         this.updateVersion = updateVersion;
         this.containerEpoch = containerEpoch;
-        this.readonly = new AtomicBoolean(false);
+        this.readonly = false;
     }
 
     public byte[] serialize() {
@@ -95,7 +94,7 @@ class LedgerData {
     }
 
     synchronized void setReadonly(boolean readonly) {
-        this.readonly.set(readonly);
+        this.readonly = readonly;
     }
 
     synchronized void setStartOffset(int startOffset) {

@@ -27,7 +27,7 @@ import org.apache.curator.framework.CuratorFramework;
  * Storage adapter for Apache BookKeeper based storage.
  *
  * Each segment is represented by a log built on top of BookKeeper ledgers. This implementation follows some recommendations
- * here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
+ * here: https://bookkeeper.apache.org/docs/4.5.0/api/ledger-api/
  * This log is called a LogStorage. A LogStorage consists of a number of ledgers and metadata for the segment and the ledgers.
  * The metadata is stored in ZK. It is accessed using the curator framework.
  *

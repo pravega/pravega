@@ -23,8 +23,9 @@ import lombok.Getter;
  *
  **/
 class LogStorage {
+    @Getter
     @GuardedBy("this")
-    final ConcurrentSkipListMap<Integer, LedgerData> dataMap;
+    private final ConcurrentSkipListMap<Integer, LedgerData> dataMap;
 
     @Getter
     private final String name;
@@ -46,10 +47,10 @@ class LogStorage {
     private final ImmutableDate lastModified;
 
 
-    LogStorage(String streamSegmentName, int updateVersion, long containerEpoch, int sealed) {
+    LogStorage(String streamSegmentName, int updateVersion, long containerEpoch, boolean sealed) {
         this.dataMap = new ConcurrentSkipListMap<>();
         this.name = streamSegmentName;
-        this.sealed = sealed == 1;
+        this.sealed = sealed;
         this.containerEpoch = containerEpoch;
         this.updateVersion = updateVersion;
         lastModified = new ImmutableDate();
@@ -114,7 +115,7 @@ class LogStorage {
         long epoc = bb.getLong();
         int sealed = bb.getInt();
 
-        return new LogStorage(segmentName, version, epoc, sealed);
+        return new LogStorage(segmentName, version, epoc, sealed == 1);
     }
 
     synchronized void setContainerEpoch(long containerEpoch) {

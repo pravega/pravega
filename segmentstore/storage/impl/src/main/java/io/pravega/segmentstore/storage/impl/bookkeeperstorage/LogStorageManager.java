@@ -82,7 +82,7 @@ class LogStorageManager {
      */
     public LedgerData create(String streamSegmentName) throws StreamSegmentException {
         log.info("Creating segment {}", streamSegmentName);
-        LogStorage logStorage = new LogStorage(streamSegmentName, 0, this.containerEpoch.get(), 0);
+        LogStorage logStorage = new LogStorage(streamSegmentName, 0, this.containerEpoch.get(), false);
 
         /* Create the node for the segment in the ZK. */
         try {
@@ -206,23 +206,23 @@ class LogStorageManager {
         int currentBufferOffset = bufferOffset;
 
         try {
-        LogStorage ledger = getOrRetrieveStorageLedger(segmentName);
-        Preconditions.checkArgument(offset + length <= ledger.getLength(), segmentName);
-        /** Loop till the data is read completely. */
-        while (currentLength != 0) {
-            /* Get the BK ledger which contains the offset. */
-            /** Read data from the BK ledger. */
-            int dataRead = 0;
+            LogStorage ledger = getOrRetrieveStorageLedger(segmentName);
+            Preconditions.checkArgument(offset + length <= ledger.getLength(), segmentName);
+            /** Loop till the data is read completely. */
+            while (currentLength != 0) {
+                /* Get the BK ledger which contains the offset. */
+                /** Read data from the BK ledger. */
+                int dataRead = 0;
                 dataRead = readDataFromLedger(ledger.getLedgerDataForReadAt(currentOffset),
                         currentOffset,
                         buffer, currentBufferOffset, currentLength);
 
-            /** Update the remaining lengths and offsets. */
-            Preconditions.checkState(dataRead != 0, "No data read");
-            currentLength -= dataRead;
-            currentOffset += dataRead;
-            currentBufferOffset += dataRead;
-        }
+                /** Update the remaining lengths and offsets. */
+                Preconditions.checkState(dataRead != 0, "No data read");
+                currentLength -= dataRead;
+                currentOffset += dataRead;
+                currentBufferOffset += dataRead;
+            }
         } catch (Exception e) {
             throw translateZKException(segmentName, e);
         }
@@ -344,7 +344,7 @@ class LogStorageManager {
 
     void deleteAllLedgers(LogStorage ledger) {
         synchronized (ledger) {
-            ledger.dataMap.entrySet().stream().forEach(entry -> deleteLedger(entry.getValue().getLedgerHandle()));
+            ledger.getDataMap().entrySet().stream().forEach(entry -> deleteLedger(entry.getValue().getLedgerHandle()));
         }
     }
 
@@ -434,7 +434,7 @@ class LogStorageManager {
             } else {
                 // If there is no ledger, create a new one.
                 LedgerData data = createLedgerAt(ledger.getName(), (int) offset);
-                ledger.dataMap.put((int) offset, data);
+                ledger.getDataMap().put((int) offset, data);
                 return data;
             }
         }
@@ -685,11 +685,11 @@ class LogStorageManager {
     List<CuratorOp> addLedgerDataFrom(LogStorage source, LogStorage target) {
         List<CuratorOp> retVal = null;
         synchronized (source) {
-            retVal = source.dataMap.entrySet().stream().map(entry -> {
+            retVal = source.getDataMap().entrySet().stream().map(entry -> {
                 int newKey = (int) (entry.getKey() + target.getLength());
                 LedgerData value = entry.getValue();
                 value.setStartOffset(newKey);
-                target.dataMap.put(newKey, value);
+                target.getDataMap().put(newKey, value);
                 try {
                     return createAddOp(target.getName(), newKey, entry.getValue());
                 } catch (StreamSegmentException e) {
