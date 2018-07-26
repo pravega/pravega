@@ -25,11 +25,13 @@ import lombok.Getter;
 abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase {
     static final int BOOKIE_COUNT = 1;
     @Getter(AccessLevel.PROTECTED)
+    BookKeeperRunner bookkeeper = null;
+
+    @Getter(AccessLevel.PROTECTED)
     private File baseDir = null;
     @Getter(AccessLevel.PROTECTED)
     private File rocksDBDir = null;
-    @Getter(AccessLevel.PROTECTED)
-    BookKeeperRunner bookkeeper = null;
+
 
     /**
      * Starts BookKeeper and sets up RocksDB.
