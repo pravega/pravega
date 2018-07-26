@@ -240,6 +240,7 @@ public class BookKeeperStorageIntegrationTest extends BookKeeperIntegrationTestB
 
         log.info("Finished.");
     }
+
     //region StreamSegmentStoreTestBase Implementation
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
