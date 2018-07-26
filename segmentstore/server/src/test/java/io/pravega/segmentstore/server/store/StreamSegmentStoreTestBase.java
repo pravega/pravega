@@ -80,12 +80,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
     private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
-    private static final int APPENDS_PER_SEGMENT = 100;
-    private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
-    private static final int MAX_INSTANCE_COUNT = 5;
+    protected static final int APPENDS_PER_SEGMENT = 100;
+    protected static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
+    protected static final int MAX_INSTANCE_COUNT = 5;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
-    private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(120);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -308,7 +308,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(int instanceId) throws Exception {
+    protected ServiceBuilder createBuilder(int instanceId) throws Exception {
         val builder = createBuilder(this.configBuilder, instanceId);
         try {
             builder.initialize();
@@ -349,7 +349,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return createAppendDataRequests(segmentNames, segmentContents, lengths, ATTRIBUTE_UPDATES_PER_SEGMENT, APPENDS_PER_SEGMENT);
     }
 
-    private ArrayList<StoreRequest> createAppendDataRequests(
+    protected ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths,
             int attributeUpdatesPerSegment, int appendsPerSegment) {
         val result = new ArrayList<StoreRequest>();
@@ -382,8 +382,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
-                                               HashMap<String, Long> lengths, StreamSegmentStore store) {
+    protected CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
+                                                 HashMap<String, Long> lengths, StreamSegmentStore store) {
         return execute(createAppendDataRequests(segmentNames, segmentContents, lengths), store);
     }
 
@@ -393,7 +393,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
     }
 
-    private ArrayList<StoreRequest> createMergeTransactionsRequests(
+    protected ArrayList<StoreRequest> createMergeTransactionsRequests(
             HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
             HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {
 
@@ -416,12 +416,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
-                                                      HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+    protected CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                                        HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
         return execute(createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents), store);
     }
 
-    private ArrayList<StoreRequest> createSealSegmentsRequests(Collection<String> segmentNames) {
+    protected ArrayList<StoreRequest> createSealSegmentsRequests(Collection<String> segmentNames) {
         val result = new ArrayList<StoreRequest>();
         for (String segmentName : segmentNames) {
             result.add(store -> Futures.toVoid(store.sealStreamSegment(segmentName, TIMEOUT)));
@@ -429,7 +429,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    private CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
         return execute(createSealSegmentsRequests(segmentNames), store);
     }
 
@@ -440,7 +440,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Executes all the requests asynchronously, one by one, on the given FencingTextContext.
      */
-    private CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context) {
+    protected CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context) {
         AtomicInteger index = new AtomicInteger();
         return Futures.loop(
                 requests::hasNext,
@@ -472,7 +472,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .runAsync(() -> request.apply(requestStore.get()), executorService());
     }
 
-    private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
         val result = new ArrayList<CompletableFuture<Void>>();
         for (String segmentName : segmentNames) {
             result.add(store.deleteStreamSegment(segmentName, TIMEOUT));
@@ -481,7 +481,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(result);
     }
 
-    private ArrayList<String> createSegments(StreamSegmentStore store) {
+    protected ArrayList<String> createSegments(StreamSegmentStore store) {
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
@@ -495,7 +495,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return segmentNames;
     }
 
-    private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
+    protected HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, StreamSegmentStore store) {
         // Create the Transactions and collect their names.
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         HashMap<String, ArrayList<String>> transactions = new HashMap<>();
@@ -586,7 +586,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) {
+    protected void checkReads(HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
@@ -829,7 +829,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                    }), executorService());
     }
 
-    private int applyFencingMultiplier(int originalValue) {
+    protected int applyFencingMultiplier(int originalValue) {
         return (int) Math.round(originalValue * getFencingTestOperationMultiplier());
     }
 
@@ -840,7 +840,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Context for the Fencing test.
      */
-    private class FencingTestContext implements AutoCloseable {
+    public class FencingTestContext implements AutoCloseable {
         private final Retry.RetryAndThrowConditionally newInstanceRetry =
                 Retry.withExpBackoff(20, 2, 20, TIMEOUT.toMillis() / 10)
                      .retryWhen(ex -> Exceptions.unwrap(ex) instanceof DataLogWriterNotPrimaryException);
@@ -858,7 +858,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         /**
          * Gets a pointer to the active StreamSegmentStore.
          */
-        StreamSegmentStore getActiveStore() {
+        public StreamSegmentStore getActiveStore() {
             return this.activeStore.get();
         }
 
@@ -873,7 +873,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
          * Gets a CompletableFuture that, when completed, will indicate that all calls to createNewInstanceAsync() so far
          * will have completed (successfully or not).
          */
-        CompletableFuture<Void> awaitAllInitializations() {
+        public CompletableFuture<Void> awaitAllInitializations() {
             return this.newInstanceCompletions.get();
         }
 
@@ -893,7 +893,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
          * assume it's not the rightful survivor. A quick retry solves this problem, as there is no other kind of information
          * available to disambiguate this.
          */
-        void createNewInstance() {
+        public void createNewInstance() {
             this.newInstanceRetry.run(() -> {
                 int instanceId = getIteration() + 1;
                 log.info("Starting Instance {}.", instanceId);
@@ -910,7 +910,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //endregion
 
     @FunctionalInterface
-    private interface StoreRequest {
+    protected interface StoreRequest {
         CompletableFuture<Void> apply(StreamSegmentStore store);
     }
 }
