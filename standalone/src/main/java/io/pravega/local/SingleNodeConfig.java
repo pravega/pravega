@@ -28,10 +28,8 @@ public class SingleNodeConfig {
     public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
-    public final static Property<String> KEYSTORE_JKS = Property.named("singlenode.keyStoreJKS",
-            "../config/bookie.keystore.jks");
-    public final static Property<String> KEYSTORE_JKS_PASSWORD = Property.named("singlenode.keyStoreJKSPassowrd",
-            "../config/bookie.keystore.jks.passwd");
+    public final static Property<String> KEYSTORE_JKS = Property.named("singlenode.keyStoreJKS", "");
+    public final static Property<String> KEYSTORE_JKS_PASSWORD = Property.named("singlenode.keyStoreJKSPassword", "");
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
