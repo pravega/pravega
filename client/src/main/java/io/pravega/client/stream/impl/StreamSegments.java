@@ -84,12 +84,29 @@ public class StreamSegments {
         return new StreamSegments(result, delegationToken);
     }
     
-    private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
-        for (Entry<Long, List<SegmentWithRange>> entry : replacementRanges.getReplacementRanges().entrySet()) {
-            double upperRange = entry.getValue().stream().mapToDouble(range -> range.getHigh()).max().orElseThrow(IllegalStateException::new);
-            Segment segment = segments.get(upperRange);
-            Preconditions.checkState(segment != null && segment.getSegmentId() == entry.getKey(),
-                                     "Incorrect upper range {} for segment being replaced {}", upperRange, segment);
+    /**
+     * Checks that replacementSegments provided are consistent with the segments that currently being used.
+     * @param replacementSegments The StreamSegmentsWithPredecessors to verify
+     */
+    private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementSegments) {
+        Map<Long, List<SegmentWithRange>> replacementRanges = replacementSegments.getReplacementRanges();
+        for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
+            double lowerReplacementRange = 1;
+            double upperReplacementRange = 0;
+            for (SegmentWithRange range : ranges.getValue()) {
+                upperReplacementRange = Math.max(upperReplacementRange, range.getHigh());
+                lowerReplacementRange = Math.min(lowerReplacementRange, range.getLow());
+            }
+            Entry<Double, Segment> upperReplacedSegment = segments.floorEntry(upperReplacementRange);
+            Entry<Double, Segment> lowerReplacedSegment =  segments.higherEntry(lowerReplacementRange);
+            Preconditions.checkArgument(upperReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+            Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+            Preconditions.checkArgument(replacementRanges.containsKey(upperReplacedSegment.getValue().getSegmentId()),
+                                        "Inconsistant replaced replacement segments %s", replacementSegments);
+            Preconditions.checkArgument(replacementRanges.containsKey(lowerReplacedSegment.getValue().getSegmentId()),
+                                        "Inconsistant replaced replacement segments %s", replacementSegments);
         }
     }
 
