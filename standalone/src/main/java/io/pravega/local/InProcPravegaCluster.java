@@ -332,10 +332,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .tokenSigningKey("secret")
                 .build();
 
-        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
-                .host("0.0.0.0")
-                .port(this.restServerPort)
-                .build();
+        RESTServerConfig restServerConfig = null;
+        if (this.startRestServer) {
+            restServerConfig = RESTServerConfigImpl.builder()
+                    .host("0.0.0.0")
+                    .port(this.restServerPort)
+                    .build();
+        }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
@@ -345,7 +348,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.of(restServerConfig))
+                .restServerConfig(Optional.ofNullable(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
