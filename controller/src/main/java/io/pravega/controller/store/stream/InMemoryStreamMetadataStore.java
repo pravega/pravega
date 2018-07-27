@@ -46,6 +46,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Map<String, InMemoryStream> streams = new HashMap<>();
 
     @GuardedBy("$lock")
+    private final Map<String, Integer> deletedStreams = new HashMap<>();
+
+    @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
     @GuardedBy("$lock")
@@ -97,19 +100,19 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<CreateStreamResponse> createStream(final String scopeName, final String streamName,
-                                                                final int startingSegmentNumber,
                                                                 final StreamConfiguration configuration,
                                                                 final long timeStamp,
                                                                 final OperationContext context,
                                                                 final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
-            return stream.create(configuration, timeStamp, startingSegmentNumber)
+            return getSafeStartingSegmentNumberFor(scopeName, streamName)
+                    .thenCompose(startingSegmentNumber -> stream.create(configuration, timeStamp, startingSegmentNumber)
                     .thenApply(x -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);
                         scopes.get(scopeName).addStreamToScope(streamName);
                         return x;
-                    });
+                    }));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
@@ -121,6 +124,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
         return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
+    }
+
+    @Override
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
+        return CompletableFuture.completedFuture(deletedStreams.getOrDefault(scopedStreamName(scopeName, streamName), 0));
     }
 
     @Override
@@ -316,6 +324,15 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         } else {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
+    }
+
+    @Override
+    @Synchronized
+    CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,
+                                                    OperationContext context, final Executor executor) {
+        Integer oldLastActiveSegment = deletedStreams.put(getScopedStreamName(scope, stream), lastActiveSegment);
+        Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
+        return CompletableFuture.completedFuture(null);
     }
 
     private String scopedStreamName(final String scopeName, final String streamName) {

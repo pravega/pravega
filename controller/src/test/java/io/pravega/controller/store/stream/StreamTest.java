@@ -148,7 +148,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
-        final int startingSegmentNumber = 0;
+
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
         String scopeName = "test";
@@ -162,7 +162,7 @@ public class StreamTest {
                 .scalingPolicy(policy)
                 .build();
 
-        store.createStream(scopeName, streamName, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
         ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));

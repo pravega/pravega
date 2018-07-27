@@ -705,7 +705,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> checkScopeExists() throws StoreException {
-        System.err.println("checkScopeExists inmemorystream");
         return CompletableFuture.completedFuture(null);
     }
 

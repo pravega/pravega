@@ -82,7 +82,6 @@ public class TimeoutServiceTest {
     public TimeoutServiceTest() throws Exception {
 
         final String hostId = "host";
-        final int startingSegmentNumber = 0;
 
         // Instantiate test ZK service.
         zkTestServer = new TestingServerStarter().start();
@@ -124,7 +123,7 @@ public class TimeoutServiceTest {
                 .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
-        streamStore.createStream(SCOPE, STREAM, startingSegmentNumber, streamConfiguration, System.currentTimeMillis(), null, executor)
+        streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
                 .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
     }
 

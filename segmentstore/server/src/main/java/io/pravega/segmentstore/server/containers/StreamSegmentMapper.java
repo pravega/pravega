@@ -224,7 +224,7 @@ public class StreamSegmentMapper extends SegmentStateMapper {
         if (isValidStreamSegmentId(streamSegmentId)) {
             // Looks like the Segment is active and we have it in our Metadata. Return the result from there.
             SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
-            if (sm.isMerged()) {
+            if (sm.isDeleted() || sm.isMerged()) {
                 result = Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
                 result = CompletableFuture.completedFuture(sm.getSnapshot());

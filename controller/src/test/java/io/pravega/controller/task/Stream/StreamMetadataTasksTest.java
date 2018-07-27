@@ -111,7 +111,6 @@ public class StreamMetadataTasksTest {
     private static final String SCOPE = "scope";
     protected boolean authEnabled = false;
     private final String stream1 = "stream1";
-    private final int startingSegmentNumber = 0;
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private ControllerService consumer;
@@ -166,7 +165,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.createScope(SCOPE).join();
 
         long start = System.currentTimeMillis();
-        streamStorePartialMock.createStream(SCOPE, stream1, startingSegmentNumber, configuration1, start, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
@@ -290,7 +289,7 @@ public class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
@@ -410,7 +409,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
@@ -501,7 +500,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(streamName).scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, streamName, startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, streamName).get().size());
@@ -866,7 +865,7 @@ public class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(streamWithTxn).scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, streamWithTxn, startingSegmentNumber, config, start, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, streamWithTxn, config, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
@@ -968,7 +967,7 @@ public class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
@@ -999,7 +998,7 @@ public class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);

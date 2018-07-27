@@ -35,6 +35,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -141,24 +142,25 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<CreateStreamResponse> createStream(final String scope,
                                                    final String name,
-                                                   final int startingSegmentNumber,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
-        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
-                .thenApply(result -> {
-                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
-                        CREATE_STREAM.reportSuccessValue(1);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                                configuration.getScalingPolicy().getMinNumSegments());
-                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-                    }
+        return getSafeStartingSegmentNumberFor(scope, name)
+                .thenCompose(startingSegmentNumber ->
+                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
+                    .thenApply(result -> {
+                        if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                            CREATE_STREAM.reportSuccessValue(1);
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                    configuration.getScalingPolicy().getMinNumSegments());
+                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                        }
 
-                    return result;
-                });
+                        return result;
+                    }));
     }
 
     @Override
@@ -166,8 +168,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final String name,
                                                 final OperationContext context,
                                                 final Executor executor) {
-        return withCompletion(getStream(scope, name, context).delete(), executor)
-                .thenAccept(r -> cache.invalidate(new ImmutablePair<>(scope, name)))
+        Stream s = getStream(scope, name, context);
+        return s.getActiveSegments()
+                .thenApply(activeSegments -> activeSegments.stream().map(StreamSegmentNameUtils::getSegmentNumber)
+                                                                    .reduce(Integer::max).get())
+                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(v -> withCompletion(s.delete(), executor))
+                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)))
                 .thenApply(result -> {
                     DELETE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
@@ -765,6 +772,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     abstract Stream newStream(final String scope, final String name);
+
+    abstract CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,
+                                                             OperationContext context, final Executor executor);
 
     abstract CompletableFuture<Int96> getNextCounter();
 

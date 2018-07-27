@@ -173,10 +173,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void listStreamsWithInactiveStream() throws Exception {
         // list stream in scope
         store.createScope("Scope").get();
-        store.createStream("Scope", stream1, startingSegmentNumber, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
 
-        store.createStream("Scope", stream2, startingSegmentNumber, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
 
         List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
@@ -188,7 +188,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
         store.createScope(scope).get();
-        store.createStream(scope, stream1, startingSegmentNumber, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream1, State.CREATING, null, executor).get();
 
         AssertExtensions.assertThrows("Should throw IllegalStateException",
@@ -229,7 +229,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void testScaleMetadata() throws Exception {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
-        final int startingSegmentNumber = 0;
         ScalingPolicy policy = ScalingPolicy.fixed(3);
         StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.0, 0.5);
@@ -237,7 +236,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         List<SimpleEntry<Double, Double>> newRanges = Arrays.asList(segment1, segment2);
 
         store.createScope(scope).get();
-        store.createStream(scope, stream, startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
@@ -272,13 +271,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void testSplitsMerges() throws Exception {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
-        final int startingSegmentNumber = 0;
         ScalingPolicy policy = ScalingPolicy.fixed(2);
         StreamConfiguration configuration = StreamConfiguration.builder().
                 scope(scope).streamName(stream).scalingPolicy(policy).build();
 
         store.createScope(scope).get();
-        store.createStream(scope, stream, startingSegmentNumber, configuration, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         // Case: Initial state, splits = 0, merges = 0

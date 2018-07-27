@@ -57,7 +57,6 @@ import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -578,10 +577,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
                                                                           StreamConfiguration config, long timestamp) {
-        //AtomicInteger startingSegmentNumberAtomic = new AtomicInteger();
-        return findSafeStartingSegmentNumber(scope, stream)
-                .thenComposeAsync(safeStartingSegmentNumber -> this.streamMetadataStore.createStream(scope, stream,
-                        safeStartingSegmentNumber, config, timestamp, null, executor), executor)
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
                     log.info("{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
@@ -590,8 +586,11 @@ public class StreamMetadataTasks extends TaskBase {
                     if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
                             response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
                         final int startingSegmentNumber = response.getStartingSegmentNumber();
-                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + response.getConfiguration().getScalingPolicy()
-                                .getMinNumSegments()).boxed().map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0)).collect(Collectors.toList());
+                        final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
+                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                                           .boxed()
+                                                           .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
+                                                           .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
@@ -627,43 +626,6 @@ public class StreamMetadataTasks extends TaskBase {
                         return result;
                     }
                 });
-    }
-
-    private CompletableFuture<Integer> findSafeStartingSegmentNumber(String scope, String stream) {
-        final AtomicInteger safeStartingNumber = new AtomicInteger(0);
-        final AtomicBoolean isSafeStartSegmentNumber = new AtomicBoolean(false);
-        final int safeNumberSearchMultiplier = 10;
-        return streamMetadataStore.checkStreamExists(scope, stream)
-                    .thenCompose(streamExists -> Futures.loop(
-                            () -> !streamExists && !isSafeStartSegmentNumber.get(),
-                            () -> segmentHelper.getSegmentInfo(scope, stream, safeStartingNumber.get(), hostControllerStore, connectionFactory, retrieveDelegationToken())
-                                   .handleAsync((si, ex) -> {
-                                       // If there is no exception this means that the segment exists, despite we are
-                                       // creating a stream. Thus, we are facing a stream re-creation, which calls for
-                                       // start creating segment ids not from 0, but from a safe id to avoid collisions.
-                                       if (ex == null && si.isDeleted() && isValidStreamSegmentInfo(si)) {
-                                           log.debug("Unsafe starting segment number {} possibly due to a stream {}/{} re-creation.", safeStartingNumber.get(), scope, stream);
-                                           if (safeStartingNumber.get() == 0) {
-                                               safeStartingNumber.set(1);
-                                           } else {
-                                               log.debug("Increased safe starting segment number to {}.", safeStartingNumber.updateAndGet(x -> x * safeNumberSearchMultiplier));
-                                           }
-                                       } else {
-                                           log.info("Safe starting segment number {} for stream {}/{}.", safeStartingNumber.get(), scope, stream);
-                                           isSafeStartSegmentNumber.set(true);
-                                       }
-
-                                       return null;
-                                   }, executor), executor))
-                    .handleAsync((v, ex) -> {
-                        // If an unexpected exception occurs while looking for a safe starting segment number, use default.
-                        if (ex != null) {
-                            log.warn("Falling back to default starting segment number (0) due to unexpected exception during search: {}.", ex);
-                            safeStartingNumber.set(0);
-                        }
-                        return null;
-                    })
-                    .thenApply(v -> safeStartingNumber.get());
     }
 
     private CreateStreamStatus.Status translate(CreateStreamResponse.CreateStatus status) {
@@ -858,9 +820,5 @@ public class StreamMetadataTasks extends TaskBase {
         } else {
             return "";
         }
-    }
-
-    private boolean isValidStreamSegmentInfo(WireCommands.StreamSegmentInfo streamSegmentInfo) {
-        return streamSegmentInfo.getLastModified() > 0L;
     }
 }

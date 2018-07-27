@@ -80,7 +80,6 @@ public abstract class StreamMetadataStoreTest {
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
     protected final String stream2 = "stream2";
-    protected final int startingSegmentNumber = 0;
     protected final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     protected final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
     protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
@@ -102,11 +101,11 @@ public abstract class StreamMetadataStoreTest {
 
         // region createStream
         store.createScope(scope).get();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
-        store.createStream(scope, stream1, startingSegmentNumber, configuration1, start, null, executor).get();
+        store.createStream(scope, stream1, configuration1, start, null, executor).get();
         store.setState(scope, stream1, State.ACTIVE, null, executor).get();
-        store.createStream(scope, stream2, startingSegmentNumber, configuration2, start, null, executor).get();
+        store.createStream(scope, stream2, configuration2, start, null, executor).get();
         store.setState(scope, stream2, State.ACTIVE, null, executor).get();
 
         assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
@@ -224,12 +223,11 @@ public abstract class StreamMetadataStoreTest {
 
     @Test
     public void listStreamsInScope() throws Exception {
-        final int startingSegmentNumber = 0;
         // list stream in scope
         store.createScope("Scope").get();
-        store.createStream("Scope", stream1, startingSegmentNumber, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
-        store.createStream("Scope", stream2, startingSegmentNumber, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream2, State.ACTIVE, null, executor).get();
         List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
@@ -349,11 +347,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamScale";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         // region idempotent
@@ -485,11 +483,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamScale";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         // region concurrent start scale
@@ -579,11 +577,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamUpdate";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
@@ -617,11 +615,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamDelete";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
         assertTrue(store.checkStreamExists(scope, stream).join());
 
@@ -637,11 +635,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamScaleWithTx";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         long scaleTs = System.currentTimeMillis();
@@ -773,11 +771,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamScaleWithTx";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
@@ -831,11 +829,11 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "ScopeTruncate";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         Map<Long, Long> truncation = new HashMap<>();
@@ -878,11 +876,11 @@ public abstract class StreamMetadataStoreTest {
                 .build();
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         AtomicReference<BucketChangeListener.StreamNotification> notificationRef = new AtomicReference<>();
@@ -939,11 +937,11 @@ public abstract class StreamMetadataStoreTest {
                 .retentionParam(100L).build();
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
-        final int startingSegmentNumber = 0;
+
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
-        store.createStream(scope, stream, startingSegmentNumber, configuration, start, null, executor).get();
+        store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();

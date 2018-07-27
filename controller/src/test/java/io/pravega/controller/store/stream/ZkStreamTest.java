@@ -87,13 +87,13 @@ public class ZkStreamTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final String streamName = "testfail";
-        final int startingSegmentNumber = 0;
+
         final StreamConfiguration streamConfig = StreamConfiguration.builder().scope(streamName).streamName(streamName).scalingPolicy(policy).build();
 
         zkTestServer.stop();
 
         try {
-            storePartialMock.createStream(SCOPE, streamName, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+            storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         } catch (ExecutionException e) {
             assert e.getCause() instanceof StoreException.StoreConnectionException;
         }
@@ -106,7 +106,6 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testfail";
-        final int startingSegmentNumber = 0;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                 .scope(streamName)
@@ -115,7 +114,7 @@ public class ZkStreamTest {
                 .build();
 
         store.createScope(SCOPE).get();
-        store.createStream(SCOPE, streamName, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
 
         try {
             store.getConfiguration(SCOPE, streamName, null, executor).get();
@@ -131,7 +130,6 @@ public class ZkStreamTest {
         // create new scope test
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
-        final int startingSegmentNumber = 0;
         CompletableFuture<CreateScopeStatus> createScopeStatus = store.createScope(scopeName);
 
         // createScope returns null on success, and exception on failure
@@ -151,9 +149,9 @@ public class ZkStreamTest {
         StreamConfiguration streamConfig2 =
                 StreamConfiguration.builder().scope(scopeName).streamName(streamName2).scalingPolicy(policy).build();
 
-        store.createStream(scopeName, streamName1, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName1, State.ACTIVE, null, executor).get();
-        store.createStream(scopeName, streamName2, startingSegmentNumber, streamConfig2, System.currentTimeMillis(), null, executor).get();
+        store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName2, State.ACTIVE, null, executor).get();
 
         List<StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
@@ -167,7 +165,6 @@ public class ZkStreamTest {
         // create new scope
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String scopeName = "Scope1";
-        final int startingSegmentNumber = 0;
         store.createScope(scopeName).get();
 
         // Delete empty scope Scope1
@@ -184,7 +181,7 @@ public class ZkStreamTest {
         final StreamConfiguration streamConfig =
                 StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
 
-        store.createStream("Scope3", "Stream3", startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope3", "Stream3", State.ACTIVE, null, executor).get();
 
         CompletableFuture<DeleteScopeStatus> deleteScopeStatus3 = store.deleteScope("Scope3");
@@ -235,7 +232,6 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "test";
-        final int startingSegmentNumber = 0;
         store.createScope(SCOPE).get();
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
@@ -244,7 +240,7 @@ public class ZkStreamTest {
                 .scalingPolicy(policy)
                 .build();
 
-        store.createStream(SCOPE, streamName, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
         OperationContext context = store.createContext(SCOPE, streamName);
 
@@ -435,7 +431,6 @@ public class ZkStreamTest {
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
         final String streamName = "testTx";
-        final int startingSegmentNumber = 0;
         store.createScope(SCOPE).get();
         final Predicate<Throwable> operationNotAllowedPredicate =
                 ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException;
@@ -446,7 +441,7 @@ public class ZkStreamTest {
                 .scalingPolicy(policy)
                 .build();
 
-        store.createStream(SCOPE, streamName, startingSegmentNumber, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
         OperationContext context = store.createContext(ZkStreamTest.SCOPE, streamName);
