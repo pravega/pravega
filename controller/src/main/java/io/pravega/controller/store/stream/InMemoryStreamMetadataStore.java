@@ -334,6 +334,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                     OperationContext context, final Executor executor) {
         Integer oldLastActiveSegment = deletedStreams.put(getScopedStreamName(scope, stream), lastActiveSegment);
         Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
+        log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
         return CompletableFuture.completedFuture(null);
     }
 

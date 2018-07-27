@@ -418,7 +418,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment, OperationContext context, final Executor executor) {
+    CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
+                                                    OperationContext context, final Executor executor) {
         final String deletePath = String.format(ZKStoreHelper.DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
@@ -431,6 +432,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                               }
                           })
                           .thenCompose(data -> {
+                              log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                               if (data == null) {
                                   return storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes);
                               } else {
