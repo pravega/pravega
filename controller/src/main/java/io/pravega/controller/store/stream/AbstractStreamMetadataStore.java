@@ -771,10 +771,34 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-    abstract Stream newStream(final String scope, final String name);
+    /**
+     * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
+     * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
+     * same name has been recently deleted, this method will provide as a safe starting segment number the last segment
+     * number of the previously deleted stream + 1. This will avoid potential segment naming collisions with segments
+     * being asynchronously deleted from the segment store.
+     *
+     * @param scopeName scope
+     * @param streamName stream
+     * @return CompletableFuture with a safe starting segment number for this stream.
+     */
+    abstract CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName);
 
+    /**
+     * This method stores the last active segment for a stream upon its deletion. Persistently storing this value is
+     * necessary in the case of a stream re-creation for picking an appropriate starting segment number.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param lastActiveSegment segment with highest number for a stream
+     * @param context context
+     * @param executor executor
+     * @return CompletableFuture which indicates the task completion related to persistently store lastActiveSegment.
+     */
     abstract CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,
                                                              OperationContext context, final Executor executor);
+
+    abstract Stream newStream(final String scope, final String name);
 
     abstract CompletableFuture<Int96> getNextCounter();
 

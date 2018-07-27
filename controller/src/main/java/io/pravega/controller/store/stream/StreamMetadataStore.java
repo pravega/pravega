@@ -968,7 +968,7 @@ public interface StreamMetadataStore {
     CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor);
 
     /**
-     * Delete existing waiting request processor if the name of the existing matches supplied processor name.
+     * Delete existing waiting request processor if the name of the existing matches suppied processor name.
      *
      * @param scope scope
      * @param stream stream
@@ -978,17 +978,4 @@ public interface StreamMetadataStore {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
-
-    /**
-     * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
-     * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
-     * same name has been recently deleted, this method will provide as a safe starting segment number the last segment
-     * number of the previously deleted stream + 1. This will avoid potential segment naming collisions with segments
-     * being asynchronously deleted from the segment store.
-     *
-     * @param scopeName scope
-     * @param streamName stream
-     * @return CompletableFuture with a safe starting segment number for this stream.
-     */
-    CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName);
 }

@@ -1030,7 +1030,7 @@ public abstract class StreamMetadataStoreTest {
         store.createScope(scope).join();
 
         for (int i = 0; i < 10; i++) {
-            assertEquals(i * policy.getMinNumSegments(), (int) store.getSafeStartingSegmentNumberFor(scope, stream).join());
+            assertEquals(i * policy.getMinNumSegments(), (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
             store.createStream(scope, stream, configuration, start, null, executor).join();
             store.setState(scope, stream, State.ACTIVE, null, executor).join();
             store.setSealed(scope, stream, null, executor).join();
@@ -1045,8 +1045,7 @@ public abstract class StreamMetadataStoreTest {
 
         for (int i = 0; i < 10; i++) {
             ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
-            assertEquals(i + 1, (int) store.getSafeStartingSegmentNumberFor(scope, stream).join());
+            assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
         }
     }
 }
-
