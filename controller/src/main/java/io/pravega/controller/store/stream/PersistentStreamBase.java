@@ -424,9 +424,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                                         segmentIndex.getData(),
                                                                         segmentTable.getData(),
                                                                         truncationRecord,
-                                                                        startingSegmentNumber
-                                                                        ))
-                                                )))));
+                                                                        startingSegmentNumber)))))));
     }
 
     @Override
