@@ -62,7 +62,6 @@ public class ZookeeperDockerService extends DockerBasedService {
 
         String cmd1 = "CMD-SHELL";
         String cmd2 = "netstat -plnt | grep "+ ZKSERVICE_ZKPORT;
-
         List<String> cmdList = new ArrayList<>();
         cmdList.add(cmd1);
         cmdList.add(cmd2);

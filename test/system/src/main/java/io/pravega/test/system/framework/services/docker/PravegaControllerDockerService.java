@@ -95,7 +95,6 @@ public class PravegaControllerDockerService extends DockerBasedService {
         String cmd1 = "CMD-SHELL";
         String cmd2 = "ss -l | grep "+controllerPort;
         String cmd3 = "ss -l | grep "+restPort;
-
         List<String> cmdList = new ArrayList<>();
         cmdList.add(cmd1);
         cmdList.add(cmd2);

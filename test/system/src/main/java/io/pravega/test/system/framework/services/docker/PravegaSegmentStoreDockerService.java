@@ -106,7 +106,6 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
         String cmd1 = "CMD-SHELL";
         String cmd2 = "ss -l | grep "+SEGMENTSTORE_PORT;
-
         List<String> cmdList = new ArrayList<>();
         cmdList.add(cmd1);
         cmdList.add(cmd2);
