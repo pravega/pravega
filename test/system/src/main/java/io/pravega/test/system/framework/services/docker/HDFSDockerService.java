@@ -62,11 +62,20 @@ public class HDFSDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
         String env1 = "SSH_PORT=2222";
         String env2 = "HDFS_HOST=" + serviceName;
+
+
+        String cmd1 = "CMD-SHELL";
+        String cmd2 = "ss -l | grep 8020";
+
+        List<String> cmdList = new ArrayList<>();
+        cmdList.add(cmd1);
+        cmdList.add(cmd2);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(cmdList).build())
                         .mounts(mount)
                         .labels(labels)
                         .hostname(serviceName)

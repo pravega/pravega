@@ -22,7 +22,9 @@ import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
@@ -58,13 +60,19 @@ public class ZookeeperDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.service.name", serviceName);
 
+        String cmd1 = "CMD-SHELL";
+        String cmd2 = "netstat -plnt | grep "+ ZKSERVICE_ZKPORT;
+
+        List<String> cmdList = new ArrayList<>();
+        cmdList.add(cmd1);
+        cmdList.add(cmd2);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null,
-                                Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3)).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(cmdList).build()).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())

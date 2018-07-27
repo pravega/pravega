@@ -21,9 +21,10 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import static io.pravega.test.system.framework.Utils.ALTERNATIVE_CONTROLLER_PORT;
@@ -90,11 +91,21 @@ public class PravegaControllerDockerService extends DockerBasedService {
         String env2 = "JAVA_OPTS=-Xmx512m";
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", serviceName);
+
+        String cmd1 = "CMD-SHELL";
+        String cmd2 = "ss -l | grep "+controllerPort;
+        String cmd3 = "ss -l | grep "+restPort;
+
+        List<String> cmdList = new ArrayList<>();
+        cmdList.add(cmd1);
+        cmdList.add(cmd2);
+        cmdList.add(cmd3);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(cmdList).build())
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
                         .labels(labels)
