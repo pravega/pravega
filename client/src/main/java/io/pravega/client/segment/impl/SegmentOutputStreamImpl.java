@@ -50,6 +50,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
@@ -309,10 +311,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            state.failConnection(new NoSuchSegmentException(noSuchSegment.getSegment()));
-            log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
-                    noSuchSegment.getSegment(), writerId);
-            invokeResendCallBack(noSuchSegment);
+            final String segment = noSuchSegment.getSegment();
+            if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
+                log.info("Transaction Segment: {} no longer exists since the txn is aborted", noSuchSegment.getSegment());
+                //close the connection and update the exception to SegmentSealed.
+                state.failConnection(new SegmentSealedException(segment));
+            } else {
+                state.failConnection(new NoSuchSegmentException(segment));
+                log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
+                        noSuchSegment.getSegment(), writerId);
+                invokeResendCallBack(noSuchSegment);
+            }
         }
 
         @Override
@@ -489,7 +498,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            if (state.needSuccessors.get()) {
+            if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
         }
