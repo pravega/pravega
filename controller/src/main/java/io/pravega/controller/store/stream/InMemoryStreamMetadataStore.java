@@ -127,8 +127,10 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return CompletableFuture.completedFuture(deletedStreams.getOrDefault(scopedStreamName(scopeName, streamName), 0));
+        final Integer safeStartingSegmentNumber = deletedStreams.get(scopedStreamName(scopeName, streamName));
+        return CompletableFuture.completedFuture((safeStartingSegmentNumber != null) ? safeStartingSegmentNumber + 1 : 0);
     }
 
     @Override
