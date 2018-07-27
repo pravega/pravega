@@ -468,16 +468,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(historyTable -> getSegmentIndexFromStore()
                                 .thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                        .thenCompose(segmentTable -> {
-                                            if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
-                                                    segmentTable.getData())) {
-                                                log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
-                                                throw new EpochTransitionOperationExceptions.InputInvalidException();
-                                            }
+                                        .thenCompose(segmentTable -> getStartingSegmentNumber()
+                                                .thenCompose(startingSegmentNumber -> {
+                                                    if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
+                                                            segmentTable.getData(), startingSegmentNumber)) {
+                                                        log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
+                                                        throw new EpochTransitionOperationExceptions.InputInvalidException();
+                                                    }
 
-                                            return startScale(segmentsToSeal, newRanges, scaleTimestamp, runOnlyIfStarted, historyIndex,
-                                                    historyTable, segmentIndex, segmentTable);
-                                        })))));
+                                                    return startScale(segmentsToSeal, newRanges, scaleTimestamp, runOnlyIfStarted, historyIndex,
+                                                            historyTable, segmentIndex, segmentTable);
+                                                }))))));
     }
 
     private CompletableFuture<EpochTransitionRecord> startScale(List<Long> segmentsToSeal, List<SimpleEntry<Double, Double>> newRanges,
@@ -560,7 +561,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> {
                     return getHistoryIndexFromStore().thenCompose(historyIndex -> getHistoryTableFromStore()
                             .thenCompose(historyTable -> getSegmentIndexFromStore().thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                    .thenCompose(segmentTable -> getEpochTransition().thenCompose(epochTransition -> {
+                                .thenCompose(segmentTable -> getStartingSegmentNumber()
+                                    .thenCompose(startingSegmentNumber -> getEpochTransition().thenCompose(epochTransition -> {
                                         if (isManualScale) {
                                             // The epochTransitionNode is the barrier that prevents concurrent scaling.
                                             // State is the barrier to ensure only one work happens at a time.
@@ -593,18 +595,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                     epochTransition);
                                         } else {
                                             return discardInconsistentEpochTransition(historyIndex, historyTable, segmentIndex,
-                                                    segmentTable, epochTransition);
+                                                    segmentTable, epochTransition, startingSegmentNumber);
                                         }
-                                    })))));
+                                    }))))));
                 });
     }
 
     private CompletableFuture<Void> discardInconsistentEpochTransition(Data<T> historyIndex, Data<T> historyTable,
                                                                        Data<T> segmentIndex, Data<T> segmentTable,
-                                                                       EpochTransitionRecord epochTransition) {
+                                                                       EpochTransitionRecord epochTransition,
+                                                                       int startingSegmentNumber) {
         // verify that epoch transition is consistent with segments in the table.
-        if (TableHelper.isEpochTransitionConsistent(epochTransition, historyIndex.getData(), historyTable.getData(),
-                segmentIndex.getData(), segmentTable.getData())) {
+        if (TableHelper.isEpochTransitionConsistent(epochTransition, startingSegmentNumber, historyIndex.getData(),
+                historyTable.getData(), segmentIndex.getData(), segmentTable.getData())) {
             log.debug("CreateNewSegments step for stream {}/{} is idempotent, " +
                     "segments are already present in segment table.", scope, name);
             return CompletableFuture.completedFuture(null);

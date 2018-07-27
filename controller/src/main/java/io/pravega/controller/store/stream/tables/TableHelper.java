@@ -691,6 +691,7 @@ public class TableHelper {
      * if the partial state corresponds to supplied input.
      *
      * @param epochTransitionRecord epoch transition record
+     * @param startingSegmentNumber starting segment number for the stream
      * @param historyIndex history index
      * @param historyTable history table
      * @param segmentIndex segment index
@@ -698,6 +699,7 @@ public class TableHelper {
      * @return true if input matches partial state, false otherwise
      */
     public static boolean isEpochTransitionConsistent(final EpochTransitionRecord epochTransitionRecord,
+                                                      final int startingSegmentNumber,
                                                       final byte[] historyIndex,
                                                       final byte[] historyTable,
                                                       final byte[] segmentIndex,
@@ -707,7 +709,8 @@ public class TableHelper {
         // verify that epoch transition record is consistent with segment table
         if (latest.getCreationEpoch() == epochTransitionRecord.getNewEpoch()) { // if segment table is updated
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
-                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentWithRange.getKey()));
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable,
+                        getSegmentNumber(segmentWithRange.getKey()) - startingSegmentNumber);
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
@@ -891,18 +894,20 @@ public class TableHelper {
      * @param newRanges      new ranges to create
      * @param segmentTable   segment table
      * @param segmentIndex   segment index
+     * @param startingSegmentNumber starting segment number for the stream
      * @return true if scale input is valid, false otherwise.
      */
     public static boolean isScaleInputValid(final List<Long> segmentsToSeal,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final byte[] segmentIndex,
-                                            final byte[] segmentTable) {
+                                            final byte[] segmentTable,
+                                            final int startingSegmentNumber) {
         boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() &&
                 x.getKey() >= 0 && x.getValue() > 0);
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentId)).map(x ->
-                        new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
+                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentId) - startingSegmentNumber)
+                                               .map(x -> new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
