@@ -239,6 +239,7 @@ class RocksDBCache implements Cache {
     private Options createDatabaseOptions() {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
                 .setBlockSize(cacheBlockSizeKB * 1024L)
+                .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
                 .setCacheIndexAndFilterBlocks(true);
 
         return new Options()
@@ -252,8 +253,7 @@ class RocksDBCache implements Cache {
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(true)
-                .setRowCache(new ClockCache(readCacheSizeMB * 1024L * 1024L, -1, true));
+                .setUseDirectReads(true);
     }
 
     private void clear(boolean recreateDirectory) {
