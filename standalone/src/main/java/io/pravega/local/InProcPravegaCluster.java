@@ -110,7 +110,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String zkUrl;
 
     @Builder.Default
-    private boolean startRestServer = true;
+    private boolean enableRestServer = true;
     private String userName;
     private String passwd;
     private String certFile;
@@ -139,7 +139,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, passwdFile);
         }
     }
 
@@ -333,7 +333,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .build();
 
         RESTServerConfig restServerConfig = null;
-        if (this.startRestServer) {
+        if (this.enableRestServer) {
             restServerConfig = RESTServerConfigImpl.builder()
                     .host("0.0.0.0")
                     .port(this.restServerPort)
