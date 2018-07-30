@@ -498,6 +498,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
+            /* SegmentSealedException is thrown if either of the below conditions are true
+                 - resendToSuccessorsCallback has been invoked.
+                 - the segment corresponds to an aborted Transaction.
+             */
             if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }

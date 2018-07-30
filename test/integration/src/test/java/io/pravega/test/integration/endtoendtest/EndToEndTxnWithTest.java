@@ -153,7 +153,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertEquals("txntest2", event.getEvent());
     }
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 30000)
     public void testTxnWithErrors() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope(SCOPE)
@@ -172,11 +172,14 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
         Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
+        //abort the transaction to simulate a txn abort due to a missing ping request.
         controller.abortTransaction(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
         TimeUnit.SECONDS.sleep(10);
+        //check the status of the transaction.
         Transaction.Status status = controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
-        assertEquals(Transaction.Status.ABORTED, status);
+        assertEquals("Transaction status should be Aborted", Transaction.Status.ABORTED, status);
         transaction.writeEvent("0", "txntest2");
+        //verify that commit fails with TxnFailedException.
         AssertExtensions.assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
     }
 
