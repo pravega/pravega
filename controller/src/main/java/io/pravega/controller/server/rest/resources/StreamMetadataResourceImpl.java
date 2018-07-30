@@ -472,15 +472,22 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
 
         controllerService.listScopes()
-                .thenApply(scopesList -> {
-                    ScopesList scopes = new ScopesList();
-                    scopesList.forEach(scope -> scopes.addScopesItem(new ScopeProperty().scopeName(scope)));
-                    return Response.status(Status.OK).entity(scopes).build();
-                }).exceptionally(exception -> {
-                        log.warn("listScopes failed with exception: " + exception);
-                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-                }).thenApply(asyncResponse::resume)
-                .thenAccept(x ->  LoggerHelpers.traceLeave(log, "listScopes", traceId));
+                         .thenApply(scopesList -> {
+                             ScopesList scopes = new ScopesList();
+                             scopesList.forEach(scope -> {
+                                 try {
+                                     authenticate(scope, READ);
+                                     scopes.addScopesItem(new ScopeProperty().scopeName(scope));
+                                 } catch (AuthException e) {
+                                     log.warn("Not adding {} to list because authentication exception {}", scope, e);
+                                 }
+                             });
+                             return Response.status(Status.OK).entity(scopes).build();
+                         }).exceptionally(exception -> {
+            log.warn("listScopes failed with exception: " + exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenApply(asyncResponse::resume)
+                         .thenAccept(x -> LoggerHelpers.traceLeave(log, "listScopes", traceId));
     }
 
     /**
