@@ -462,6 +462,15 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void listScopes(final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listScopes");
 
+        try {
+            authenticate("/", READ);
+        } catch (AuthException e) {
+            log.warn("Get scopes failed due to authentication failure.");
+            asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, "listScopes", traceId);
+            return;
+        }
+
         controllerService.listScopes()
                 .thenApply(scopesList -> {
                     ScopesList scopes = new ScopesList();
