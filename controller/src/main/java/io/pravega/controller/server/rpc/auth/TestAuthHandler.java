@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.sun.security.auth.UnixPrincipal;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
+import java.security.Principal;
 
 public class TestAuthHandler implements AuthHandler {
 
@@ -23,13 +25,13 @@ public class TestAuthHandler implements AuthHandler {
     }
 
     @Override
-    public boolean authenticate(String token) {
-        return true;
+    public Principal authenticate(String token) {
+        return new UnixPrincipal(token);
     }
 
     @Override
-    public Permissions authorize(String resource, String token) {
-        if (token.contains(DUMMY_USER)) {
+    public Permissions authorize(String resource, Principal principal) {
+        if (principal.getName().contains(DUMMY_USER)) {
             return Permissions.NONE;
         } else {
             return Permissions.READ_UPDATE;

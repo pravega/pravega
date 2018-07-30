@@ -180,6 +180,7 @@ project('client') {
 
         compile project(':common')
         compile project(':shared')
+        compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
         testCompile project(':test:testcommon')

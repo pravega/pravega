@@ -12,15 +12,18 @@ package io.pravega.controller.server.rpc.auth;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.sun.security.auth.UnixPrincipal;
+import io.pravega.auth.AuthConstants;
+import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.ServerConfig;
-import io.pravega.common.auth.AuthConstants;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
+import java.security.Principal;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -71,23 +74,25 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     @Override
-    public boolean authenticate(String token) {
+    public Principal authenticate(String token) throws AuthException {
         String[] parts = parseToken(token);
         String userName = parts[0];
         String password = parts[1];
 
         try {
-            return userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword);
+            if (userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword)) {
+                return new UnixPrincipal(userName);
+            }
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             log.warn("Excpetion during password authentication", e);
-            return false;
+            throw new AuthenticationException(e);
         }
+        return null;
     }
 
     @Override
-    public Permissions authorize(String resource, String token) {
-        String[] parts = parseToken(token);
-        String userName = parts[0];
+    public Permissions authorize(String resource, Principal principal) {
+        String userName = principal.getName();
 
         if (Strings.isNullOrEmpty(userName) || !userMap.containsKey(userName)) {
             throw new CompletionException(new AuthenticationException(userName));

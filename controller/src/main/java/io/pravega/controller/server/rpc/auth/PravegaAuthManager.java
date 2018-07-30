@@ -11,9 +11,11 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import io.grpc.ServerBuilder;
+import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
-import io.pravega.common.auth.AuthenticationException;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -69,12 +71,15 @@ public class PravegaAuthManager {
             String token = parts[1];
             AuthHandler handler = getHandler(method);
             assert handler != null;
-            if (!handler.authenticate(token)) {
+            Principal principal;
+            if ((principal = handler.authenticate(token)) == null) {
                 throw new AuthenticationException("Authentication failure");
             }
-            retVal = handler.authorize(resource, token).ordinal() >= level.ordinal();
+            retVal = handler.authorize(resource, principal).ordinal() >= level.ordinal();
         } catch (RuntimeException e) {
             throw new AuthenticationException(e);
+        } catch (AuthException e) {
+            throw new AuthenticationException("Authentication failure");
         }
         return retVal;
     }

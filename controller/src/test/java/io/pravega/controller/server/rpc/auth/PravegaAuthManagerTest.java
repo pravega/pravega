@@ -10,14 +10,14 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
+import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.common.auth.AuthConstants;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
