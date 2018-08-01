@@ -204,9 +204,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     }
 
     List<String> healthCheck(String cmd1, String cmd2) {
-        commonHealthCheck();
         healthCheck(cmd1);
-        healthCheck(cmd2);
+        commandList.add(cmd2);
         return commandList;
     }
 
