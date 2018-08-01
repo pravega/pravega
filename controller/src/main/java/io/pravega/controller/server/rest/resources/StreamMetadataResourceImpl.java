@@ -523,7 +523,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                          .exceptionally(exception -> {
                              log.warn("listScopes failed with exception: ", exception);
                              return Response.status(Status.INTERNAL_SERVER_ERROR).build(); })
-                         .thenApply((response) -> {
+                         .thenApply(response -> {
                              asyncResponse.resume(response);
                              LoggerHelpers.traceLeave(log, "listScopes", traceId);
                              return response;
