@@ -68,6 +68,7 @@ public class StreamSegments {
     }
     
     public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+        verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
@@ -83,6 +84,32 @@ public class StreamSegments {
         return new StreamSegments(result, delegationToken);
     }
     
+    /**
+     * Checks that replacementSegments provided are consistent with the segments that currently being used.
+     * @param replacementSegments The StreamSegmentsWithPredecessors to verify
+     */
+    private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementSegments) {
+        Map<Long, List<SegmentWithRange>> replacementRanges = replacementSegments.getReplacementRanges();
+        for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
+            double lowerReplacementRange = 1;
+            double upperReplacementRange = 0;
+            for (SegmentWithRange range : ranges.getValue()) {
+                upperReplacementRange = Math.max(upperReplacementRange, range.getHigh());
+                lowerReplacementRange = Math.min(lowerReplacementRange, range.getLow());
+            }
+            Entry<Double, Segment> upperReplacedSegment = segments.floorEntry(upperReplacementRange);
+            Entry<Double, Segment> lowerReplacedSegment =  segments.higherEntry(lowerReplacementRange);
+            Preconditions.checkArgument(upperReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+            Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+            Preconditions.checkArgument(replacementRanges.containsKey(upperReplacedSegment.getValue().getSegmentId()),
+                                        "Inconsistant replaced replacement segments %s", replacementSegments);
+            Preconditions.checkArgument(replacementRanges.containsKey(lowerReplacedSegment.getValue().getSegmentId()),
+                                        "Inconsistant replaced replacement segments %s", replacementSegments);
+        }
+    }
+
     @Override
     public String toString() {
         return "StreamSegments:" + segments.toString();

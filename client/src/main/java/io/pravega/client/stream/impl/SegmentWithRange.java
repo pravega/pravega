@@ -30,6 +30,7 @@ public class SegmentWithRange implements Serializable {
         Preconditions.checkNotNull(segment);
         Preconditions.checkArgument(rangeLow >= 0.0 && rangeLow <= 1.0);
         Preconditions.checkArgument(rangeHigh >= 0.0 && rangeHigh <= 1.0);
+        Preconditions.checkArgument(rangeLow <= rangeHigh);
         this.segment = segment;
         this.low = rangeLow;
         this.high = rangeHigh;
