@@ -499,6 +499,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         Principal principal;
         try {
             principal = authenticate();
+            authorize("/", principal, READ);
         } catch (AuthException e) {
             log.warn("Get scopes failed due to authentication failure.");
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
