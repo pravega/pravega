@@ -9,7 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -20,8 +23,10 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -67,7 +73,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @GuardedBy("txnsLock")
     private final Map<String, Data<Integer>> activeTxns = new HashMap<>();
     @GuardedBy("txnsLock")
-    private final Map<String, Data<Integer>> completedTxns = new HashMap<>();
+    private final Cache<String, Data<Integer>> completedTxns;
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
     private final Map<Long, Data<Integer>> markers = new HashMap<>();
@@ -80,7 +86,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
 
     InMemoryStream(String scope, String name) {
+        this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
+    }
+
+    @VisibleForTesting
+    InMemoryStream(String scope, String name, long completedTxnTTL) {
         super(scope, name);
+        completedTxns = CacheBuilder.newBuilder()
+                                    .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
     }
 
     @Override
@@ -570,11 +583,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getCompletedTx(UUID txId) {
         Preconditions.checkNotNull(txId);
         synchronized (txnsLock) {
-            if (!completedTxns.containsKey(txId.toString())) {
+            Data<Integer> value = completedTxns.getIfPresent(txId.toString());
+            if (value == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             }
-            return CompletableFuture.completedFuture(copy(completedTxns.get(txId.toString())));
+            return CompletableFuture.completedFuture(copy(value));
         }
     }
 
@@ -601,7 +615,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
-            completedTxns.putIfAbsent(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
+            Data<Integer> value = completedTxns.getIfPresent(txId.toString());
+            if (value == null) {
+                completedTxns.put(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
