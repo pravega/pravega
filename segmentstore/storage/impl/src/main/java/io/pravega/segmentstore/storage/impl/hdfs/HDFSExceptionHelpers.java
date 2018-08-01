@@ -13,7 +13,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import java.io.EOFException;
 import java.io.FileNotFoundException;
 import lombok.Lombok;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
@@ -42,8 +41,6 @@ final class HDFSExceptionHelpers {
             return new StreamSegmentNotExistsException(segmentName, e);
         } else if (e instanceof FileAlreadyExistsException) {
             return new StreamSegmentExistsException(segmentName, e);
-        } else if (e instanceof EOFException) {
-            throw new ArrayIndexOutOfBoundsException(segmentName);
         } else if (e instanceof AclException) {
             return new StreamSegmentSealedException(segmentName, e);
         } else {

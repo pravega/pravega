@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -640,6 +641,9 @@ class HDFSStorage implements SyncStorage {
         FileStatus currentFile = findStatusForSegment(handle.getSegmentName(), true);
         try (FSDataInputStream stream = this.fileSystem.open(currentFile.getPath())) {
             stream.readFully(offset, buffer, bufferOffset, length);
+        } catch (EOFException e) {
+            log.warn("End of file reached before reading the data.", e);
+            return 0;
         }
         return length;
     }
