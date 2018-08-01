@@ -23,12 +23,11 @@ public interface SegmentOutputStreamFactory {
      *
      * @param segment The segment the transaction belongs to.
      * @param txId    The transaction id.
-     * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @param config  The configuration for the writer
      * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config, String delegationToken);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
