@@ -642,8 +642,7 @@ class HDFSStorage implements SyncStorage {
         try (FSDataInputStream stream = this.fileSystem.open(currentFile.getPath())) {
             stream.readFully(offset, buffer, bufferOffset, length);
         } catch (EOFException e) {
-            log.warn("End of file reached before reading the data.", e);
-            return 0;
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the current size of segment.", offset));
         }
         return length;
     }
