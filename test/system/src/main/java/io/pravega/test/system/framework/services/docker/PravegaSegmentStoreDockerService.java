@@ -103,19 +103,13 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         envList.add(env4);
         envList.add(env5);
 
-        String cmd1 = "CMD-SHELL";
-        String cmd2 = "ss -l | grep "+SEGMENTSTORE_PORT;
-        List<String> cmdList = new ArrayList<>();
-        cmdList.add(cmd1);
-        cmdList.add(cmd2);
-
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(cmdList).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(healthCheck("ss -l | grep "+SEGMENTSTORE_PORT+" || exit 1")).build())
                         .mounts(Arrays.asList(mount))
                         .env(envList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()

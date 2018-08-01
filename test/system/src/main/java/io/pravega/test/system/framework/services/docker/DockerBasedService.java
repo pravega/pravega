@@ -49,6 +49,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private List<String> commandList = new ArrayList<>();
 
     DockerBasedService(final String serviceName) {
         this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();
@@ -187,6 +188,26 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         } catch (Exception e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to create service", e);
         }
+    }
+
+    void commonHealthCheck() {
+        String command1 = "CMD-SHELL";
+        String command2 = "hostname | grep "+serviceName+" || exit 1";
+        commandList.add(command1);
+        commandList.add(command2);
+    }
+
+    List<String> healthCheck(String cmd1) {
+        commonHealthCheck();
+        commandList.add(cmd1);
+        return commandList;
+    }
+
+    List<String> healthCheck(String cmd1, String cmd2) {
+        commonHealthCheck();
+        healthCheck(cmd1);
+        healthCheck(cmd2);
+        return commandList;
     }
 
     long setNanoCpus(final double cpu) {

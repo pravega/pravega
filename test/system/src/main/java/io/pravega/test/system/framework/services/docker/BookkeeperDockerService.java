@@ -80,19 +80,13 @@ public class BookkeeperDockerService extends DockerBasedService {
         stringList.add(env3);
         stringList.add(env4);
 
-        String cmd1 = "CMD-SHELL";
-        String cmd2 = "ss -l | grep "+BK_PORT;
-        List<String> cmdList = new ArrayList<>();
-        cmdList.add(cmd1);
-        cmdList.add(cmd2);
-
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(cmdList).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(healthCheck("ss -l | grep "+BK_PORT+" || exit 1")).build())
                         .mounts(Arrays.asList(mount1, mount2))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
