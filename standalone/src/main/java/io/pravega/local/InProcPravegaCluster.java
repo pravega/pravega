@@ -110,7 +110,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String zkUrl;
 
     @Builder.Default
-    private boolean startRestServer = true;
+    private boolean enableRestServer = true;
     private String userName;
     private String passwd;
     private String certFile;
@@ -139,7 +139,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, passwdFile);
         }
     }
 
@@ -332,10 +332,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .tokenSigningKey("secret")
                 .build();
 
-        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
-                .host("0.0.0.0")
-                .port(this.restServerPort)
-                .build();
+        RESTServerConfig restServerConfig = null;
+        if (this.enableRestServer) {
+            restServerConfig = RESTServerConfigImpl.builder()
+                    .host("0.0.0.0")
+                    .port(this.restServerPort)
+                    .build();
+        }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
@@ -345,7 +348,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.of(restServerConfig))
+                .restServerConfig(Optional.ofNullable(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
