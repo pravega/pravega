@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
@@ -143,7 +144,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             assert credentials != null;
 
             if (!pravegaAuthManager.authenticateAuthorize(resourceName, credentials, level)) {
-                throw new AuthorizationException("Auth failed for " + resourceName, 403);
+                throw new AuthorizationException("Auth failed for " + resourceName, Status.FORBIDDEN.getStatusCode());
             }
         }
     }
@@ -173,10 +174,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
 
             String credentials = authParams.get(0);
-            assert credentials != null;
+            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
 
             if (!pravegaAuthManager.authorize(resourceName, principal, credentials, level)) {
-                throw new AuthorizationException("Auth failed for " + resourceName, 403);
+                throw new AuthorizationException("Auth failed for " + resourceName, Status.FORBIDDEN.getStatusCode());
             }
         }
     }
@@ -501,7 +502,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             principal = authenticate();
             authorize("/", principal, READ);
         } catch (AuthException e) {
-            log.warn("Get scopes failed due to authentication failure.");
+            log.warn("Get scopes failed due to authentication failure.", e);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
             LoggerHelpers.traceLeave(log, "listScopes", traceId);
             return;
@@ -515,15 +516,18 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                      authorize(scope, principal, READ);
                                      scopes.addScopesItem(new ScopeProperty().scopeName(scope));
                                  } catch (AuthException e) {
-                                     log.warn("Not adding {} to list because authentication exception {}", scope, e);
+                                     log.warn("Not adding {} to list because authentication exception.", scope, e);
                                  }
                              });
-                             return Response.status(Status.OK).entity(scopes).build();
-                         }).exceptionally(exception -> {
-            log.warn("listScopes failed with exception: " + exception);
-            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-        }).thenApply(asyncResponse::resume)
-                         .thenAccept(x -> LoggerHelpers.traceLeave(log, "listScopes", traceId));
+                             return Response.status(Status.OK).entity(scopes).build(); })
+                         .exceptionally(exception -> {
+                             log.warn("listScopes failed with exception: ", exception);
+                             return Response.status(Status.INTERNAL_SERVER_ERROR).build(); })
+                         .thenApply((response) -> {
+                             asyncResponse.resume(response);
+                             LoggerHelpers.traceLeave(log, "listScopes", traceId);
+                             return response;
+                         });
     }
 
     /**

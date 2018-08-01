@@ -88,7 +88,8 @@ public class PravegaAuthManager {
      *
      * API to authenticate a given credential.
      * @param credentials  Credentials used for authentication.
-     * @return         Returns the Principal if the entity represented by credentials is authenticated.
+     *
+     * @return Returns the Principal if the entity represented by credentials is authenticated.
      * @throws AuthException if an authentication failure occurred.
      */
     public Principal authenticate(String credentials) throws AuthException {
@@ -101,7 +102,7 @@ public class PravegaAuthManager {
         String method = parts[0];
         String token = parts[1];
         AuthHandler handler = getHandler(method);
-        assert handler != null;
+        Preconditions.checkNotNull( handler, "Can not find handler.");
         return handler.authenticate(token);
     }
 
@@ -110,8 +111,8 @@ public class PravegaAuthManager {
      * API to authorize a given principal and credential.
      *
      * @param resource The resource identifier for which the access needs to be controlled.
-     * @param credentials  Credentials used for authentication.
-     * @param level    Expected level of access.
+     * @param credentials Credentials used for authentication.
+     * @param level Expected level of access.
      * @param principal Principal associated with the credentials.
      *
      * @return Returns true if the entity represented by the credentials has given level of access to the resource.
@@ -127,7 +128,7 @@ public class PravegaAuthManager {
         }
         String method = parts[0];
         AuthHandler handler = getHandler(method);
-        assert handler != null;
+        Preconditions.checkNotNull( handler, "Can not find handler.");
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
