@@ -101,47 +101,47 @@ public class PravegaAuthManagerTest {
 
         //Malformed authorization header.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticate("hi", "", AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("hi", "", AuthHandler.Permissions.READ));
 
         //Non existent interceptor method.
         assertThrows(AuthenticationException.class, () ->
-        manager.authenticate("hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
+        manager.authenticateAuthorize("hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
 
         //Specify a valid method but malformed parameters for password interceptor.
         assertThrows(AuthenticationException.class, () ->
-        manager.authenticate("hi", credentials(AuthConstants.BASIC, ""), AuthHandler.Permissions.READ));
+        manager.authenticateAuthorize("hi", credentials(AuthConstants.BASIC, ""), AuthHandler.Permissions.READ));
 
         //Specify a valid method but incorrect password for password interceptor.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticate("hi", basic("dummy3", "wrong"), AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("hi", basic("dummy3", "wrong"), AuthHandler.Permissions.READ));
 
         //Specify a valid method and parameters but invalid resource for default interceptor.
         assertFalse("Not existent resource should return false",
-                manager.authenticate("invalid", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("invalid", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Valid parameters for default interceptor
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Stream/scope access should be extended to segment.
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource/segment", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("readresource/segment", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Levels of access
         assertFalse("Write access for read resource should return false",
-                manager.authenticate("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
 
         assertTrue("Read access for write resource should return true",
-                manager.authenticate("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                manager.authenticateAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
 
         //Check the wildcard access
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", basic("dummy4", "password"), AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAuthorize("totalaccess", basic("dummy4", "password"), AuthHandler.Permissions.READ_UPDATE));
 
-        assertTrue("Test handler should be called", manager.authenticate("any", testHandler(), AuthHandler.Permissions.READ));
+        assertTrue("Test handler should be called", manager.authenticateAuthorize("any", testHandler(), AuthHandler.Permissions.READ));
 
         assertThrows(RetriesExhaustedException.class, () -> controllerClient.createScope("hi").join());
     }

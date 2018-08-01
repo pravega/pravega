@@ -87,7 +87,7 @@ public class PasswordAuthHandler implements AuthHandler {
             log.warn("Excpetion during password authentication", e);
             throw new AuthenticationException(e);
         }
-        return null;
+        throw new AuthenticationException("User authentication exception");
     }
 
     @Override

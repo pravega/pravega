@@ -59,7 +59,7 @@ public class PravegaAuthManager {
      *                 Returns false if the entity does not have access. 
      * @throws AuthenticationException if an authentication failure occurred.
      */
-    public boolean authenticate(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
+    public boolean authenticateAuthorize(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
         Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
         try {
@@ -82,6 +82,53 @@ public class PravegaAuthManager {
             throw new AuthenticationException("Authentication failure");
         }
         return retVal;
+    }
+
+    /**
+     *
+     * API to authenticate a given credential.
+     * @param credentials  Credentials used for authentication.
+     * @return         Returns the Principal if the entity represented by credentials is authenticated.
+     * @throws AuthenticationException if an authentication failure occurred.
+     */
+    public Principal authenticate(String credentials) throws AuthException {
+        Preconditions.checkNotNull(credentials, "credentials");
+        boolean retVal = false;
+        String[] parts = credentials.split("\\s+", 2);
+        if (parts.length != 2) {
+            throw new AuthenticationException("Malformed request");
+        }
+        String method = parts[0];
+        String token = parts[1];
+        AuthHandler handler = getHandler(method);
+        assert handler != null;
+        return handler.authenticate(token);
+    }
+
+    /**
+     *
+     * API to authorize a given principal and credential.
+     *
+     * @param resource The resource identifier for which the access needs to be controlled.
+     * @param credentials  Credentials used for authentication.
+     * @param level    Expected level of access.
+     * @param principal Principal associated with the credentials.
+     *
+     * @return Returns true if the entity represented by the credentials has given level of access to the resource.
+     *      Returns false if the entity does not have access.
+     * @throws AuthenticationException if an authentication failure occurred.
+     */
+    public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level) throws AuthException {
+        Preconditions.checkNotNull(credentials, "credentials");
+        boolean retVal = false;
+        String[] parts = credentials.split("\\s+", 2);
+        if (parts.length != 2) {
+            throw new AuthenticationException("Malformed request");
+        }
+        String method = parts[0];
+        AuthHandler handler = getHandler(method);
+        assert handler != null;
+        return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
     /**
@@ -113,4 +160,6 @@ public class PravegaAuthManager {
             log.warn("Exception while loading the auth handlers", e);
         }
     }
+
+
 }
