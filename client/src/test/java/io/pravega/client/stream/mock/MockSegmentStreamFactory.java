@@ -30,7 +30,6 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
-                                                                Consumer<Segment> segmentSealedCallback,
                                                                 EventWriterConfig config, String delegationToken) {
         throw new UnsupportedOperationException();
     }
