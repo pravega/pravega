@@ -17,8 +17,6 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
-import java.io.File;
-import java.nio.file.Files;
 import org.junit.After;
 import org.junit.Before;
 

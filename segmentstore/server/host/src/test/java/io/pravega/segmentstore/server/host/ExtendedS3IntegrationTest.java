@@ -29,8 +29,6 @@ import io.pravega.storage.extendeds3.S3FileSystemImpl;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
-import java.nio.file.Files;
-import java.util.concurrent.ScheduledExecutorService;
 import org.junit.After;
 import org.junit.Before;
 

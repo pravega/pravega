@@ -18,8 +18,6 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
-import java.io.File;
-import java.nio.file.Files;
 import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
