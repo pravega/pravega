@@ -9,8 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Metric;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -37,6 +35,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -188,7 +187,7 @@ public class MetricsTest {
                 }
             }
 
-            long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter");
+            long initialCount = MetricRegistryUtils.getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -212,7 +211,7 @@ public class MetricsTest {
                 }
             }
 
-            long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter");
+            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -254,7 +253,7 @@ public class MetricsTest {
                 }
             }
 
-            long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter");
+            long countFromSecondSegment = MetricRegistryUtils.getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").getCount();
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
 
@@ -275,15 +274,5 @@ public class MetricsTest {
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
-    }
-
-    private long getCounter(String metricsName) {
-        Metric metric = MetricsProvider.getMetric(metricsName);
-        if (metric == null) {
-            log.info("No metric reported");
-            return 0;
-        }
-        Counter counter = (Counter) metric;
-        return counter.getCount();
     }
 }
