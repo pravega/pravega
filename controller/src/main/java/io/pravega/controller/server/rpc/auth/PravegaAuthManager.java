@@ -89,7 +89,7 @@ public class PravegaAuthManager {
      * API to authenticate a given credential.
      * @param credentials  Credentials used for authentication.
      * @return         Returns the Principal if the entity represented by credentials is authenticated.
-     * @throws AuthenticationException if an authentication failure occurred.
+     * @throws AuthException if an authentication failure occurred.
      */
     public Principal authenticate(String credentials) throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
@@ -116,7 +116,7 @@ public class PravegaAuthManager {
      *
      * @return Returns true if the entity represented by the credentials has given level of access to the resource.
      *      Returns false if the entity does not have access.
-     * @throws AuthenticationException if an authentication failure occurred.
+     * @throws AuthException if an authentication failure occurred.
      */
     public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level) throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
