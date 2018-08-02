@@ -20,15 +20,12 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Factory for ExtendedS3 Storage adapters.
  */
 public class ExtendedS3StorageFactory implements StorageFactory {
-    @GuardedBy("$this")
     private AtomicReference<ExtendedS3StorageConfig> config;
-    @GuardedBy("$this")
     private AtomicReference<ExecutorService> executor;
 
     /**

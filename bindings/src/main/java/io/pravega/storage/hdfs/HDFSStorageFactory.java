@@ -18,15 +18,12 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Factory for HDFS Storage adapters.
  */
 public class HDFSStorageFactory implements StorageFactory {
-    @GuardedBy("$this")
     private AtomicReference<HDFSStorageConfig> config;
-    @GuardedBy("$this")
     private AtomicReference<Executor> executor;
 
     /**
