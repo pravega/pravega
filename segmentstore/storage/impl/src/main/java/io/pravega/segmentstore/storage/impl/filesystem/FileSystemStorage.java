@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -24,6 +23,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,19 +40,12 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileAttribute;
-import java.nio.file.attribute.PosixFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-
-import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 /**
  * Storage adapter for file system based storage.
@@ -78,33 +71,21 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 public class FileSystemStorage implements SyncStorage {
     //region members
 
-    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
-
-    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_WRITE,
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
-
     private final FileSystemStorageConfig config;
     private final AtomicBoolean closed;
 
     //endregion
 
-    //region constructor
+    //region Constructor
 
     /**
      * Creates a new instance of the FileSystemStorage class.
      *
-     * @param config   The configuration to use.
+     * @param config The configuration to use.
      */
-    public FileSystemStorage(FileSystemStorageConfig config) {
+    FileSystemStorage(FileSystemStorageConfig config) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.closed = new AtomicBoolean(false);
-
     }
 
     //endregion
@@ -176,7 +157,6 @@ public class FileSystemStorage implements SyncStorage {
         execute(handle.getSegmentName(), () -> doDelete(handle));
     }
 
-
     @Override
     public void truncate(SegmentHandle handle, long offset) {
         throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
@@ -198,7 +178,7 @@ public class FileSystemStorage implements SyncStorage {
 
     //endregion
 
-    //region private sync implementation
+    //region Sync implementation
 
     private SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
@@ -217,7 +197,7 @@ public class FileSystemStorage implements SyncStorage {
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
-        } else if (Files.isWritable(path)) {
+        } else if (isWritable(path)) {
             LoggerHelpers.traceLeave(log, "openWrite", traceId);
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
@@ -257,14 +237,14 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
-                PosixFileAttributes.class);
+        File f = Paths.get(config.getRoot(), streamSegmentName).toFile();
+        checkFileExists(f);
         StreamSegmentInformation information = StreamSegmentInformation.builder()
-                .name(streamSegmentName)
-                .length(attrs.size())
-                .sealed(!(attrs.permissions().contains(OWNER_WRITE)))
-                .lastModified(new ImmutableDate(attrs.creationTime().toMillis()))
-                .build();
+                                                                       .name(streamSegmentName)
+                                                                       .length(f.length())
+                                                                       .sealed(!f.canWrite())
+                                                                       .lastModified(new ImmutableDate(f.lastModified()))
+                                                                       .build();
 
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return information;
@@ -276,11 +256,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentProperties doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
-
-        Path path = Paths.get(config.getRoot(), streamSegmentName);
-        Files.createDirectories(path.getParent());
-        Files.createFile(path, fileAttributes);
+        createFile(Paths.get(config.getRoot(), streamSegmentName));
         LoggerHelpers.traceLeave(log, "create", traceId);
         return this.doGetStreamSegmentInfo(streamSegmentName);
     }
@@ -297,7 +273,7 @@ public class FileSystemStorage implements SyncStorage {
 
         // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
-        if (!isWritableFile(path)) {
+        if (!isWritable(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
@@ -325,25 +301,20 @@ public class FileSystemStorage implements SyncStorage {
         }
     }
 
-    private boolean isWritableFile(Path path) throws IOException {
-        PosixFileAttributes attrs = Files.readAttributes(path, PosixFileAttributes.class);
-        return attrs.permissions().contains(OWNER_WRITE);
-    }
-
     private Void doSeal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_ONLY_PERMISSION);
+        setReadOnly(Paths.get(config.getRoot(), handle.getSegmentName()));
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void doUnseal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_WRITE_PERMISSION);
+        setReadWrite(Paths.get(config.getRoot(), handle.getSegmentName()));
         LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }
@@ -367,7 +338,7 @@ public class FileSystemStorage implements SyncStorage {
         long length = Files.size(sourcePath);
         try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
-            if (isWritableFile(sourcePath)) {
+            if (isWritable(sourcePath)) {
                 throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
             while (length > 0) {
@@ -375,14 +346,15 @@ public class FileSystemStorage implements SyncStorage {
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }
-            Files.delete(sourcePath);
-            LoggerHelpers.traceLeave(log, "concat", traceId);
-            return null;
         }
+
+        deleteFile(sourcePath);
+        LoggerHelpers.traceLeave(log, "concat", traceId);
+        return null;
     }
 
     private Void doDelete(SegmentHandle handle) throws IOException {
-        Files.delete(Paths.get(config.getRoot(), handle.getSegmentName()));
+        deleteFile(Paths.get(config.getRoot(), handle.getSegmentName()));
         return null;
     }
 
@@ -390,9 +362,9 @@ public class FileSystemStorage implements SyncStorage {
      * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
      * StreamSegmentExceptions.
      *
-     * @param segmentName   Full name of the StreamSegment.
-     * @param operation     The function to execute.
-     * @param <R>           Return type of the operation.
+     * @param segmentName Full name of the StreamSegment.
+     * @param operation   The function to execute.
+     * @param <R>         Return type of the operation.
      * @return Instance of the return type of the operation.
      */
     private <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
@@ -424,6 +396,53 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         throw Lombok.sneakyThrow(e);
+    }
+
+    //endregion
+
+    //region File System Abstractions
+
+    @SneakyThrows(FileNotFoundException.class)
+    private boolean isWritable(Path path) {
+        File f = path.toFile();
+        checkFileExists(f);
+        return f.canWrite();
+    }
+
+    private void setReadOnly(Path p) throws FileNotFoundException {
+        File f = p.toFile();
+        checkFileExists(f);
+        f.setWritable(false, true);
+    }
+
+    private void setReadWrite(Path p) throws FileNotFoundException {
+        File f = p.toFile();
+        checkFileExists(f);
+        f.setWritable(true, true);
+    }
+
+    private void createFile(Path p) throws IOException {
+        Files.createDirectories(p.getParent());
+        File f = Files.createFile(p).toFile();
+        f.setReadable(true, false);
+        f.setExecutable(false, false);
+        f.setWritable(false, false); // All users.
+        f.setWritable(true, true); // This user only.
+    }
+
+    private void deleteFile(Path p) throws IOException {
+        try {
+            Files.delete(p);
+        } catch (AccessDeniedException ex) {
+            setReadWrite(p);
+            Files.delete(p);
+        }
+    }
+
+    private void checkFileExists(File f) throws FileNotFoundException {
+        if (!f.exists()) {
+            throw new FileNotFoundException(f.getAbsolutePath());
+        }
     }
 
     //endregion

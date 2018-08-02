@@ -40,13 +40,19 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     private final AtomicReference<File> tmpDir = new AtomicReference<>();
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         stop();
 
         File t = this.tmpDir.getAndSet(null);
         if (t != null) {
             log.info("Cleaning up " + t);
-            FileUtils.deleteDirectory(t);
+            try {
+                FileUtils.deleteDirectory(t);
+            } catch (IOException ex) {
+                // There is an exception thrown when run under Windows only. As this is not critical to our execution,
+                // ignore it and log a warning.
+                log.warn("Unable to delete temp directory '{}'.", t, ex);
+            }
         }
     }
 
@@ -118,7 +124,6 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + zkPort;
         return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
     }
-
 
     /**
      * Main method that can be used to start ZooKeeper out-of-process using BookKeeperServiceRunner.

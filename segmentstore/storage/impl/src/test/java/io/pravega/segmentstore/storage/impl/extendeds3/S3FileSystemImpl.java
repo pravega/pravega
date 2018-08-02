@@ -29,11 +29,14 @@ import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.common.io.StreamHelpers;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -75,7 +78,7 @@ public class S3FileSystemImpl extends S3ImplBase {
             Files.createDirectories(path.getParent());
             Files.createFile(path);
         } catch (IOException e) {
-            throw new S3Exception(e.getMessage(), 0, e);
+            throw convertIOException(e, request.getKey());
         }
         PutObjectResult retVal = new PutObjectResult();
         if (request.getAcl() != null) {
@@ -107,7 +110,7 @@ public class S3FileSystemImpl extends S3ImplBase {
             AclSize aclKey = aclMap.get(key);
             aclMap.put(key, aclKey.withSize(range.getLast() + 1));
         } catch (IOException e) {
-            throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+            throw convertIOException(e, key);
         }
     }
 
@@ -116,7 +119,7 @@ public class S3FileSystemImpl extends S3ImplBase {
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
         AclSize retVal = aclMap.get(key);
         if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
+            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
         }
         aclMap.put(key, retVal.withAcl(acl));
     }
@@ -126,7 +129,7 @@ public class S3FileSystemImpl extends S3ImplBase {
     public void setObjectAcl(SetObjectAclRequest request) {
         AclSize retVal = aclMap.get(request.getKey());
         if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
+            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
         }
         aclMap.put(request.getKey(), retVal.withAcl(request.getAcl()));
     }
@@ -135,7 +138,7 @@ public class S3FileSystemImpl extends S3ImplBase {
     public AccessControlList getObjectAcl(String bucketName, String key) {
         AclSize retVal = aclMap.get(key);
         if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
+            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
         }
         return retVal.getAcl();
     }
@@ -159,7 +162,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         try {
             Files.delete(path);
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
+            throw convertIOException(e, key);
         }
     }
 
@@ -187,7 +190,7 @@ public class S3FileSystemImpl extends S3ImplBase {
                 }
             }
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
+            throw convertIOException(e, path.toString());
         }
         result.setObjects(list);
         return result;
@@ -210,9 +213,7 @@ public class S3FileSystemImpl extends S3ImplBase {
     public InputStream readObjectStream(String bucketName, String key, Range range) {
         byte[] bytes = new byte[Math.toIntExact(range.getLast() + 1 - range.getFirst())];
         Path path = Paths.get(this.baseDir, bucketName, key);
-        FileInputStream returnStream;
-        try {
-            returnStream = new FileInputStream(path.toFile());
+        try (FileInputStream returnStream = new FileInputStream(path.toFile())) {
             if (range.getFirst() != 0) {
                 long bytesSkipped = 0;
                 do {
@@ -222,14 +223,19 @@ public class S3FileSystemImpl extends S3ImplBase {
             StreamHelpers.readAll(returnStream, bytes, 0, bytes.length);
             return new ByteArrayInputStream(bytes);
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
+            throw convertIOException(e, path.toString());
         }
     }
 
     //Adds a single file to the list as an object.
     private void addFileAsObjectToList(Path path, ArrayList<S3Object> list, String bucketName) {
         S3Object object = new S3Object();
-        object.setKey(path.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
+        String key = path.toString();
+        String prefix = Paths.get(this.baseDir, bucketName).toString();
+        if (key.startsWith(prefix)) {
+            key = key.substring(prefix.length());
+        }
+        object.setKey(key);
         list.add(object);
     }
 
@@ -259,7 +265,7 @@ public class S3FileSystemImpl extends S3ImplBase {
                         AclSize aclMap = this.aclMap.get(copyPart.getKey());
                         this.aclMap.put(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
                     } catch (IOException e) {
-                        throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                        throw convertIOException(e, "");
                     }
                 }
             });
@@ -276,6 +282,16 @@ public class S3FileSystemImpl extends S3ImplBase {
             return new GetObjectResult<>();
         } else {
             return null;
+        }
+    }
+
+    private S3Exception convertIOException(IOException e, String key) {
+        if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
+            return new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
+        } else if (e instanceof FileAlreadyExistsException) {
+            return new S3Exception("PreconditionFailed", HttpStatus.SC_PRECONDITION_FAILED, "PreconditionFailed", key);
+        } else {
+            return new S3Exception(e.getMessage(), HttpStatus.SC_INTERNAL_SERVER_ERROR, e);
         }
     }
 }
