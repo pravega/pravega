@@ -141,7 +141,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
 
             String credentials = authParams.get(0);
-            assert credentials != null;
+            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
 
             if (!pravegaAuthManager.authenticateAuthorize(resourceName, credentials, level)) {
                 throw new AuthorizationException("Auth failed for " + resourceName, Status.FORBIDDEN.getStatusCode());
@@ -158,7 +158,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             }
 
             String credentials = authParams.get(0);
-            assert credentials != null;
+            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
 
             return pravegaAuthManager.authenticate(credentials);
         }
