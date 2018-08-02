@@ -109,7 +109,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(healthCheck("ss -l | grep "+SEGMENTSTORE_PORT+" || exit 1")).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(SEGMENTSTORE_PORT)).build())
                         .mounts(Arrays.asList(mount))
                         .env(envList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()

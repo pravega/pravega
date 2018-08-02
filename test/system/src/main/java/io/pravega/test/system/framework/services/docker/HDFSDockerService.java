@@ -65,7 +65,7 @@ public class HDFSDockerService extends DockerBasedService {
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(healthCheck("ss -l | grep 8020 || exit 1")).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(8020)).build())
                         .mounts(mount)
                         .labels(labels)
                         .hostname(serviceName)

@@ -46,10 +46,10 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
+    private static final String CMD_SHELL = "CMD-SHELL"; // Docker Instruction used to run a health check command.
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
-    private List<String> commandList = new ArrayList<>();
 
     DockerBasedService(final String serviceName) {
         this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();
@@ -190,22 +190,16 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         }
     }
 
-    void commonHealthCheck() {
-        String command1 = "CMD-SHELL";
-        String command2 = "hostname | grep "+serviceName+" || exit 1";
-        commandList.add(command1);
-        commandList.add(command2);
+    // Default Health Check which uses Socket Statistics command to ensure the service is  up and running.
+    List<String> defaultHealthCheck(int port) {
+        return  customHealthCheck("ss -l | grep "+port+" || exit 1");
     }
 
-    List<String> healthCheck(String cmd1) {
-        commonHealthCheck();
-        commandList.add(cmd1);
-        return commandList;
-    }
-
-    List<String> healthCheck(String cmd1, String cmd2) {
-        healthCheck(cmd1);
-        commandList.add(cmd2);
+    //Custom Health check with the command provided by the service.
+    List<String> customHealthCheck(final String cmd) {
+        final List<String> commandList = new ArrayList<>(2);
+        commandList.add(CMD_SHELL);
+        commandList.add(cmd);
         return commandList;
     }
 
