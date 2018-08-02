@@ -70,7 +70,7 @@ public class PravegaAuthManager {
             String method = parts[0];
             String token = parts[1];
             AuthHandler handler = getHandler(method);
-            assert handler != null;
+            Preconditions.checkNotNull( handler, "Can not find handler.");
             Principal principal;
             if ((principal = handler.authenticate(token)) == null) {
                 throw new AuthenticationException("Authentication failure");
