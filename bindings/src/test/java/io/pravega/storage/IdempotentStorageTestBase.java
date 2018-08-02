@@ -149,8 +149,8 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
             for (int j = 0; j < appendCount; j++) {
                 ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
                 ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
-                CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
-                CompletableFuture f2 = s2.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+                CompletableFuture<Void> f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
+                CompletableFuture<Void> f2 = s2.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
                 assertMayThrow("Write expected to complete OR throw BadOffsetException." +
                                 "threw an unexpected exception.",
                         () -> CompletableFuture.allOf(f1, f2),
