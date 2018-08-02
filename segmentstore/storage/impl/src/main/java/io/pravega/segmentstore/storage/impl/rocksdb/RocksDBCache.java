@@ -66,9 +66,9 @@ class RocksDBCache implements Cache {
     private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
-    private final Integer writeBufferSizeMB;
-    private final Integer readCacheSizeMB;
-    private final Integer cacheBlockSizeKB;
+    private final int writeBufferSizeMB;
+    private final int readCacheSizeMB;
+    private final int cacheBlockSizeKB;
 
     //endregion
 

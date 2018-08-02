@@ -42,14 +42,14 @@ public class RocksDBConfig {
      * process of writes to disk. This parameter bounds the maximum amount of memory devoted to absorb writes.
      */
     @Getter
-    private final Integer writeBufferSizeMB;
+    private final int writeBufferSizeMB;
 
     /**
      * RocksDB caches (uncompressed) data blocks in memory to serve read requests with high performance in case of a
      * cache hit. This parameter bounds the maximum amount of memory devoted to cache uncompressed data blocks.
      */
     @Getter
-    private final Integer readCacheSizeMB;
+    private final int readCacheSizeMB;
 
     /**
      * RocksDB stores data in memory related to internal indexes (e.g., it may range between 5% to 30% of the total
@@ -58,7 +58,7 @@ public class RocksDBConfig {
      * of blocks will decrease, so the index size will also reduce linearly (but increasing read amplification).
      */
     @Getter
-    private final Integer cacheBlockSizeKB;
+    private final int cacheBlockSizeKB;
 
     //endregion
 
