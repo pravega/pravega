@@ -63,10 +63,7 @@ public class PravegaAuthManager {
         Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
         try {
-            String[] parts = credentials.split("\\s+", 2);
-            if (parts.length != 2) {
-                throw new AuthenticationException("Malformed request");
-            }
+            String[] parts = extractMethodAndToken(credentials);
             String method = parts[0];
             String token = parts[1];
             AuthHandler handler = getHandler(method);
@@ -95,15 +92,20 @@ public class PravegaAuthManager {
     public Principal authenticate(String credentials) throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
-        String[] parts = credentials.split("\\s+", 2);
-        if (parts.length != 2) {
-            throw new AuthenticationException("Malformed request");
-        }
+        String[] parts = extractMethodAndToken(credentials);
         String method = parts[0];
         String token = parts[1];
         AuthHandler handler = getHandler(method);
         Preconditions.checkNotNull( handler, "Can not find handler.");
         return handler.authenticate(token);
+    }
+
+    private String[] extractMethodAndToken(String credentials) throws AuthenticationException {
+        String[] parts = credentials.split("\\s+", 2);
+        if (parts.length != 2) {
+            throw new AuthenticationException("Malformed request");
+        }
+        return parts;
     }
 
     /**
@@ -121,11 +123,7 @@ public class PravegaAuthManager {
      */
     public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level) throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
-        boolean retVal = false;
-        String[] parts = credentials.split("\\s+", 2);
-        if (parts.length != 2) {
-            throw new AuthenticationException("Malformed request");
-        }
+        String[] parts = extractMethodAndToken(credentials);
         String method = parts[0];
         AuthHandler handler = getHandler(method);
         Preconditions.checkNotNull( handler, "Can not find handler.");
