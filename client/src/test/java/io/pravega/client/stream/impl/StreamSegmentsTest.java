@@ -21,6 +21,7 @@ import java.util.TreeMap;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -123,6 +124,99 @@ public class StreamSegmentsTest {
         assertEquals(0, counts[4]);
         assertEquals(0, counts[5]);
         assertEquals(20, counts[6]);
+    }
+
+    /*
+      Segment map used by the test.
+               ^
+               |
+        1.0    +---------------------------------------------
+               |               |
+               |    1          |    5
+        0.75   |               +--------+--------------------
+               |               |    4   |
+               |               |        |
+        0.5    +---------+-----+--------+        8
+               |         |              |
+               |         |     3        |
+               |         |              |
+       0.25    |   0     +----------+---+--------------------
+               |         |          |   7
+               |         |     2    +--------------+---------
+               |         |          |   6
+       0.0  +------------+----------+--------------------------
+               |
+               0         1     2    3   4
+     */
+    @Test
+    public void testRangeReplaceMergeMix() {
+        TreeMap<Double, Segment> segments = new TreeMap<>();
+        segments.put(0.5, getSegment(0, 0));
+        segments.put(1.0, getSegment(1, 0));
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        //simulate fetch successors of segment 0.
+        Map<SegmentWithRange, List<Long>> newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(2, 1), 0, 0.25), ImmutableList.of(computeSegmentId(0, 0)));
+        newRange.put(new SegmentWithRange(getSegment(3, 1), 0.25, 0.5), ImmutableList.of(computeSegmentId(0, 0)));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
+
+        assertEquals(getSegment(2, 1), streamSegments.getSegmentForKey(0.1));
+        assertEquals(getSegment(3, 1), streamSegments.getSegmentForKey(0.3));
+        assertEquals(getSegment(1, 0), streamSegments.getSegmentForKey(0.6));
+
+        //simulate fetch successors for segment 2.
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(6, 3), 0, 0.125), ImmutableList.of(computeSegmentId(2, 1)));
+        newRange.put(new SegmentWithRange(getSegment(7, 3), 0.125, 0.25), ImmutableList.of(computeSegmentId(2, 1)));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
+
+        assertEquals(getSegment(6, 3), streamSegments.getSegmentForKey(0.1));
+        assertEquals(getSegment(7, 3), streamSegments.getSegmentForKey(0.24));
+        assertEquals(getSegment(3, 1), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(1, 0), streamSegments.getSegmentForKey(0.7));
+
+        // simulate fetch successors for segment 3.
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(8, 4), 0.25, 0.75),
+                ImmutableList.of(computeSegmentId(3, 1), computeSegmentId(4, 2)));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
+
+        assertEquals(getSegment(6, 3), streamSegments.getSegmentForKey(0.1));
+        assertEquals(getSegment(7, 3), streamSegments.getSegmentForKey(0.24));
+        assertEquals(getSegment(8, 4), streamSegments.getSegmentForKey(0.4));
+        //this should not return segment 8 as segment 4 is never updated.
+        assertEquals(getSegment(1, 0), streamSegments.getSegmentForKey(0.7));
+
+        // simulate fetch successors for segment 1.
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(4, 2), 0.5, 0.75), ImmutableList.of(computeSegmentId(1, 0)));
+        newRange.put(new SegmentWithRange(getSegment(5, 2), 0.75, 1.0), ImmutableList.of(computeSegmentId(1, 0)));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
+
+        assertEquals(getSegment(6, 3), streamSegments.getSegmentForKey(0.1));
+        assertEquals(getSegment(7, 3), streamSegments.getSegmentForKey(0.24));
+        assertEquals(getSegment(8, 4), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 2), streamSegments.getSegmentForKey(0.7)); //this should now return segment 4 and not segment 1.
+        assertEquals(getSegment(5, 2), streamSegments.getSegmentForKey(0.9)); //this should now return segment 5 and not segment 1.
+
+        // simulate fetch successors for segment 4.
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(8, 4), 0.25, 0.75),
+                ImmutableList.of(computeSegmentId(3, 1), computeSegmentId(4, 2)));
+        streamSegments = streamSegments.withReplacementRange(new StreamSegmentsWithPredecessors(newRange, ""));
+
+        assertEquals(getSegment(6, 3), streamSegments.getSegmentForKey(0.1));
+        assertEquals(getSegment(7, 3), streamSegments.getSegmentForKey(0.24));
+        assertEquals(getSegment(8, 4), streamSegments.getSegmentForKey(0.4));
+        // this should now return segment 8 and not segment 4
+        assertEquals(getSegment(8, 4), streamSegments.getSegmentForKey(0.7));
+        assertEquals(getSegment(5, 2), streamSegments.getSegmentForKey(0.9));
+
+    }
+
+    private Segment getSegment(int segmentNumber, int epoch) {
+        return new Segment(scope, streamName, computeSegmentId(segmentNumber, epoch));
     }
     
     @Test

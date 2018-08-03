@@ -19,11 +19,13 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * The successor segments of a given segment.
  */
 @EqualsAndHashCode
+@ToString
 public class StreamSegmentsWithPredecessors {
     private final Map<Segment, List<Long>> segmentWithPredecessors;
     private final Map<Long, List<SegmentWithRange>> replacementRanges;

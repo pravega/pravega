@@ -19,13 +19,17 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+
+import io.pravega.common.util.ToStringUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The segments that within a stream at a particular point in time.
  */
 @EqualsAndHashCode
+@Slf4j
 public class StreamSegments {
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
     private final NavigableMap<Double, Segment> segments;
@@ -71,13 +75,20 @@ public class StreamSegments {
         verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
-        for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
-            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentId());
+        for (Entry<Double, Segment> existingSegment : segments.entrySet()) {
+            List<SegmentWithRange> replacements = replacedRanges.get(existingSegment.getValue().getSegmentId());
             if (replacements == null || replacements.isEmpty()) {
-                result.put(exitingSegment.getKey(), exitingSegment.getValue());
+                result.put(existingSegment.getKey(), existingSegment.getValue());
             } else {
                 for (SegmentWithRange replacement : replacements) {
-                    result.put(replacement.getHigh(), replacement.getSegment());
+                    /*
+                      In case of a segment merge the replacement segment's high key can be greater than or equal to the
+                      existing segment high key. In this scenario the existing segment's high key should be used.
+
+                      In case of a segment split the replacement segment's high key will be less than or equal to the
+                      existing segment's high key. In this scenario the replacement segments' high key should be used.
+                     */
+                    result.put(Math.min(replacement.getHigh(), existingSegment.getKey()), replacement.getSegment());
                 }
             }
         }
@@ -89,6 +100,8 @@ public class StreamSegments {
      * @param replacementSegments The StreamSegmentsWithPredecessors to verify
      */
     private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementSegments) {
+        log.debug("Verification of replacement segments {} with the current segments {}",
+                replacementSegments, ToStringUtils.mapToString(segments));
         Map<Long, List<SegmentWithRange>> replacementRanges = replacementSegments.getReplacementRanges();
         for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
             double lowerReplacementRange = 1;
@@ -103,10 +116,7 @@ public class StreamSegments {
                                         replacementSegments);
             Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
                                         replacementSegments);
-            Preconditions.checkArgument(replacementRanges.containsKey(upperReplacedSegment.getValue().getSegmentId()),
-                                        "Inconsistant replaced replacement segments %s", replacementSegments);
-            Preconditions.checkArgument(replacementRanges.containsKey(lowerReplacedSegment.getValue().getSegmentId()),
-                                        "Inconsistant replaced replacement segments %s", replacementSegments);
+            // Note: replacedSegments can be already present in the current segment mapping in a scale down / merge scenario.
         }
     }
 
