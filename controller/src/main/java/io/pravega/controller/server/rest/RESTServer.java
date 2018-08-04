@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.ssl.SSLContextConfigurator;
@@ -100,7 +101,7 @@ public class RESTServer extends AbstractIdleService {
             return "";
         }
         try {
-            return new String(FileUtils.readFileToByteArray(passwdFile)).trim();
+            return new String(FileUtils.readFileToByteArray(passwdFile), Charsets.UTF_8).trim();
         } catch (IOException e) {
             log.warn("Could not read the password from file.", e);
             return "";
