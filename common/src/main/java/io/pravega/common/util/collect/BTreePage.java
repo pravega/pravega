@@ -108,13 +108,12 @@ class BTreePage {
     //region Constructor
 
     /**
-     * Creates a new instance of the BTreePage class representing a blank page that can fit a number of items.
+     * Creates a new instance of an empty BTreePage class..
      *
      * @param config Page Configuration.
-     * @param count  The number of items to fit.
      */
-    BTreePage(Config config, int count) {
-        this(config, new ByteArraySegment(new byte[DATA_OFFSET + count * config.entryLength + FOOTER_LENGTH]), false);
+    BTreePage(Config config) {
+        this(config, new ByteArraySegment(new byte[DATA_OFFSET + FOOTER_LENGTH]), false);
         formatHeaderAndFooter(count, ID_GENERATOR.nextInt());
     }
 
@@ -182,7 +181,7 @@ class BTreePage {
         // Header.
         this.header.set(VERSION_OFFSET, CURRENT_VERSION);
         this.header.set(FLAGS_OFFSET, getFlags(this.config.isIndexPage ? FLAG_INDEX_PAGE : FLAG_NONE));
-        BitConverter.writeInt(this.header, ID_OFFSET, id);
+        setHeaderId(id);
         setCount(itemCount);
 
         // Matching footer.
@@ -321,7 +320,7 @@ class BTreePage {
         val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
         while (entryIterator.hasNext()) {
             val e = entryIterator.next();
-            Preconditions.checkArgument(e.getLeft().getLength() == this.config.getKeyLength() && e.getRight().getLength() == this.config.getValueLength(),
+            Preconditions.checkArgument(e.getKey().getLength() == this.config.getKeyLength() && e.getValue().getLength() == this.config.getValueLength(),
                     "Found an entry with unexpected Key or Value length.");
 
             // Figure out if this entry exists already.
@@ -382,6 +381,7 @@ class BTreePage {
         this.data = newPage.data;
         this.contents = newPage.contents;
         this.footer = newPage.footer;
+        this.count = newPage.count;
     }
 
     /**
@@ -394,7 +394,7 @@ class BTreePage {
      *
      * @param keys A Collection of Keys to remove. The Keys need not be sorted.
      */
-    void delete(Collection<byte[]> keys) {
+    void delete(Collection<ByteArraySegment> keys) {
         if (keys.isEmpty()) {
             // Nothing to do.
             return;
@@ -404,9 +404,9 @@ class BTreePage {
         int lastPos = 0;
         int initialCount = getCount();
         val removedPositions = new ArrayList<Integer>();
-        val keyIterator = keys.stream().sorted(KEY_COMPARATOR).iterator();
+        val keyIterator = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
         while (keyIterator.hasNext() && removedPositions.size() < initialCount) {
-            val key = new ByteArraySegment(keyIterator.next());
+            val key = keyIterator.next();
             Preconditions.checkArgument(key.getLength() == this.config.getKeyLength(), "Found a key with unexpected length.");
             val sr = search(key, lastPos);
             if (!sr.exactMatch) {
@@ -442,7 +442,7 @@ class BTreePage {
 
             // Trim away the data buffer, move the footer back and trim the contents buffer.
             assert writeIndex == (initialCount - removedPositions.size() + 1) * this.config.entryLength : "unexpected number of bytes remaining";
-            downsize(newCount);
+            shrink(newCount);
         }
     }
 
@@ -468,7 +468,7 @@ class BTreePage {
         // Positions here are not indices into "source", rather they are entry positions, which is why we always need
         // to adjust by using entryLength.
         int endPos = getCount();
-        Preconditions.checkElementIndex(startPos, getCount(), "pos must be non-negative and smaller than the number of items.");
+        Preconditions.checkArgument(startPos <= endPos, "startPos must be non-negative and smaller than the number of items.");
         while (startPos < endPos) {
             // Locate the Key in the middle.
             int midPos = startPos + (endPos - startPos) / 2;
@@ -521,7 +521,7 @@ class BTreePage {
     /**
      * Gets the number of items in this BTreePage as reflected in its header.
      */
-    private int getCount() {
+    int getCount() {
         return this.count;
     }
 

@@ -158,8 +158,8 @@ public class BTreePageTests {
             // Lookup the keys and values by position.
             val key = page.getKeyAt(i);
             val value = page.getValueAt(i);
-            assertEquals("Unexpected key at position " + i, sortedEntries.get(i).getLeft(), key);
-            assertEquals("Unexpected value at position " + i, sortedEntries.get(i).getRight(), value);
+            assertEquals("Unexpected key at position " + i, sortedEntries.get(i).getKey(), key);
+            assertEquals("Unexpected value at position " + i, sortedEntries.get(i).getValue(), value);
 
             // Lookup using search.
             val sr = page.search(key, 0);
@@ -174,38 +174,38 @@ public class BTreePageTests {
         }
     }
 
-    private List<ArrayTuple> serialize(Map<Integer, Long> entries, boolean sorted) {
+    private List<PageEntry> serialize(Map<Integer, Long> entries, boolean sorted) {
         val t1 = entries.entrySet().stream()
-                        .map(e -> new ArrayTuple(serializeInt(e.getKey()), serializeLong(e.getValue())));
+                        .map(e -> new PageEntry(serializeInt(e.getKey()), serializeLong(e.getValue())));
 
         if (sorted) {
-            return t1.sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getLeft(), e2.getLeft()))
+            return t1.sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
                      .collect(Collectors.toList());
         } else {
             return t1.collect(Collectors.toList());
         }
     }
 
-    private List<byte[]> serialize(Collection<Integer> keys, boolean sorted) {
+    private List<ByteArraySegment> serialize(Collection<Integer> keys, boolean sorted) {
         val t1 = keys.stream().map(this::serializeInt);
 
         if (sorted) {
-            return t1.sorted(KEY_COMPARATOR).collect(Collectors.toList());
+            return t1.sorted(KEY_COMPARATOR::compare).collect(Collectors.toList());
         } else {
             return t1.collect(Collectors.toList());
         }
     }
 
-    private byte[] serializeInt(int value) {
+    private ByteArraySegment serializeInt(int value) {
         byte[] r = new byte[Integer.BYTES];
         BitConverter.writeInt(r, 0, value);
-        return r;
+        return new ByteArraySegment(r);
     }
 
-    private byte[] serializeLong(long value) {
+    private ByteArraySegment serializeLong(long value) {
         byte[] r = new byte[Long.BYTES];
         BitConverter.writeLong(r, 0, value);
-        return r;
+        return new ByteArraySegment(r);
     }
 
     private int pickUnusedKey(int maxValue, HashSet<Integer> pickedKeys) {

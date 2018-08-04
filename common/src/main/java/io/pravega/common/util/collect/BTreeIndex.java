@@ -19,7 +19,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,15 +35,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 public class BTreeIndex<K, V> {
+    private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     private final DataSource dataSource;
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
-    private final BTreePageLayout.Index indexLayout;
-    private final BTreePageLayout.Leaf leafLayout;
+    private final BTreePage.Config indexPageConfig;
+    private final BTreePage.Config leafPageConfig;
     private final Executor executor;
 
     public BTreeIndex(int maxPageSize, DataSource dataSource, Serializer<K> keySerializer, Serializer<V> valueSerializer, Executor executor) {
@@ -52,20 +53,20 @@ public class BTreeIndex<K, V> {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
         this.executor = executor;
-        this.indexLayout = new BTreePageLayout.Index(this.keySerializer.length, maxPageSize);
-        this.leafLayout = new BTreePageLayout.Leaf(this.keySerializer.length, this.valueSerializer.length, maxPageSize);
+        this.indexPageConfig = new BTreePage.Config(this.keySerializer.length, INDEX_VALUE_LENGTH, maxPageSize, true);
+        this.leafPageConfig = new BTreePage.Config(this.keySerializer.length, this.valueSerializer.length, maxPageSize, false);
     }
 
     public CompletableFuture<V> get(K key, Duration timeout) {
         // Serialize the Key.
-        byte[] serializedKey = serializeKey(key);
+        ByteArraySegment serializedKey = serializeKey(key);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Lookup the page where the Key should exist (if at all).
         return locatePage(serializedKey, new PageCollection(), timer)
                 .thenApplyAsync(page -> {
                     // Found the eligible page. Return the value, if it exists.
-                    val value = this.leafLayout.getValue(serializedKey, page.getPage());
+                    val value = page.getPage().getValue(serializedKey);
                     return value == null ? null : this.valueSerializer.deserialize.apply(value, 0);
                 }, this.executor);
     }
@@ -89,12 +90,12 @@ public class BTreeIndex<K, V> {
     private CompletableFuture<PageCollection> deleteFromPages(Collection<K> keys, TimeoutTimer timer) {
         val toDelete = keys.stream()
                            .map(this::serializeKey)
-                           .sorted(KEY_COMPARATOR)
+                           .sorted(KEY_COMPARATOR::compare)
                            .iterator();
 
         PageCollection pageCollection = new PageCollection();
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageKeys = new ArrayList<byte[]>();
+        val lastPageKeys = new ArrayList<ByteArraySegment>();
         return Futures.loop(toDelete::hasNext,
                 () -> {
                     // Locate the page where the key is to be removed from. Do not yet delete it as it is more efficient
@@ -133,14 +134,14 @@ public class BTreeIndex<K, V> {
     private CompletableFuture<PageCollection> insertIntoPages(Map<K, V> entries, TimeoutTimer timer) {
         // Serialize Entries and order them by Key.
         val toInsert = entries.entrySet().stream()
-                              .map(e -> new AbstractMap.SimpleImmutableEntry<>(serializeKey(e.getKey()), serializeValue(e.getValue())))
+                              .map(e -> new PageEntry(serializeKey(e.getKey()), serializeValue(e.getValue())))
                               .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
                               .iterator();
 
         PageCollection pageCollection = new PageCollection();
 
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageEntries = new ArrayList<ArrayTuple>();
+        val lastPageEntries = new ArrayList<PageEntry>();
         return Futures.loop(toInsert::hasNext,
                 () -> {
                     // Locate the page where the entry is to be inserted. Do not yet insert it as it is more efficient
@@ -163,7 +164,7 @@ public class BTreeIndex<K, V> {
                                 }
 
                                 // Record the current entry.
-                                lastPageEntries.add(new ArrayTuple(entry.getKey(), entry.getValue()));
+                                lastPageEntries.add(new PageEntry(entry.getKey(), entry.getValue()));
                             });
                 },
                 this.executor)
@@ -187,7 +188,7 @@ public class BTreeIndex<K, V> {
         while (!currentBatch.isEmpty()) {
             val parents = new HashSet<Long>();
             for (PageWrapper p : currentBatch) {
-                val newChildPointers = new ArrayList<BTreePagePointer>();
+                val newChildPointers = new ArrayList<PagePointer>();
                 val splitResult = p.getPage().splitIfNecessary();
                 if (splitResult != null) {
                     // This Page must be split.
@@ -202,12 +203,12 @@ public class BTreeIndex<K, V> {
                             newOffset = p.getAssignedOffset();
                         } else {
                             PageWrapper newPage = new PageWrapper(page, p.getParent(),
-                                    new BTreePagePointer(pageKey, -1, page.getLength()), p.isIndexPage() ? this.indexLayout : this.leafLayout);
+                                    new PagePointer(pageKey, -1, page.getLength()));
                             pageCollection.insert(newPage);
                             newOffset = newPage.getAssignedOffset();
                         }
 
-                        newChildPointers.add(new BTreePagePointer(pageKey, newOffset, page.getLength()));
+                        newChildPointers.add(new PagePointer(pageKey, newOffset, page.getLength()));
                     }
                 } else {
                     // This page has been modified. Assign it a new virtual offset so that we can add a proper pointer
@@ -219,14 +220,17 @@ public class BTreeIndex<K, V> {
                 PageWrapper parentPage = p.getParent();
                 if (parentPage == null && newChildPointers.size() > 1) {
                     // There was a split. Make sure that if this was the root, we create a new root.
-                    val newRootContents = this.indexLayout.createEmptyRoot();
-                    parentPage = new PageWrapper(newRootContents, null, null, this.indexLayout);
+                    val newRootContents = createEmptyIndexRoot();
+                    parentPage = new PageWrapper(newRootContents, null, null);
                     pageCollection.insert(parentPage);
                 }
 
                 if (parentPage != null) {
                     // Update child pointers for the parent.
-                    this.indexLayout.updatePointers(newChildPointers, parentPage.getPage());
+                    val toUpdate = newChildPointers.stream()
+                                                   .map(cp -> new PageEntry(cp.key, serializePointer(cp)))
+                                                   .collect(Collectors.toList());
+                    parentPage.getPage().update(toUpdate);
 
                     // Then queue up the parent for processing.
                     parents.add(parentPage.getAssignedOffset());
@@ -241,7 +245,7 @@ public class BTreeIndex<K, V> {
         return pageCollection;
     }
 
-    private CompletableFuture<PageWrapper> locatePage(byte[] key, PageCollection pageCollection, TimeoutTimer timer) {
+    private CompletableFuture<PageWrapper> locatePage(ByteArraySegment key, PageCollection pageCollection, TimeoutTimer timer) {
         return this.dataSource
                 .getState(timer.getRemaining())
                 .thenCompose(state -> {
@@ -253,10 +257,10 @@ public class BTreeIndex<K, V> {
 
                     if (state.getRootPageOffset() < 0) {
                         // No data. Return an empty (leaf) page, which will serve as the root for now.
-                        return CompletableFuture.completedFuture(new PageWrapper(this.leafLayout.createEmptyRoot(), null, null, this.leafLayout));
+                        return CompletableFuture.completedFuture(new PageWrapper(createEmptyLeafRoot(), null, null));
                     }
 
-                    AtomicReference<BTreePagePointer> toFetch = new AtomicReference<>(new BTreePagePointer(null, state.getRootPageOffset(), state.getRootPageLength()));
+                    AtomicReference<PagePointer> toFetch = new AtomicReference<>(new PagePointer(null, state.getRootPageOffset(), state.getRootPageLength()));
                     CompletableFuture<PageWrapper> result = new CompletableFuture<>();
                     AtomicReference<PageWrapper> previous = new AtomicReference<>(null);
                     Futures.loop(
@@ -265,7 +269,7 @@ public class BTreeIndex<K, V> {
                                     .thenAccept(page -> {
                                         if (page.isIndexPage()) {
                                             // TODO: sanity checks.
-                                            val value = this.indexLayout.getPagePointer(key, page.getPage());
+                                            val value = getPagePointer(key, page.getPage());
                                             toFetch.set(value);
                                             previous.set(page);
                                         } else {
@@ -282,63 +286,96 @@ public class BTreeIndex<K, V> {
                 });
     }
 
-    private CompletableFuture<PageWrapper> fetchPage(BTreePagePointer pagePointer, PageWrapper parentPage, PageCollection pageCollection, Duration timeout) {
-        PageWrapper fromCache = pageCollection.get(pagePointer.getOffset());
+    private CompletableFuture<PageWrapper> fetchPage(PagePointer pagePointer, PageWrapper parentPage, PageCollection pageCollection, Duration timeout) {
+        PageWrapper fromCache = pageCollection.get(pagePointer.offset);
         if (fromCache != null) {
             return CompletableFuture.completedFuture(fromCache);
         }
 
         return this.dataSource
-                .readPage(pagePointer.getOffset(), pagePointer.getLength(), timeout)
+                .readPage(pagePointer.offset, pagePointer.length, timeout)
                 .thenApply(data -> {
-                    ByteArraySegment pageContents = new ByteArraySegment(data);
-                    BTreePageLayout layout = BTreePage.isIndexPage(pageContents) ? this.indexLayout : this.leafLayout;
-                    PageWrapper wrapper = new PageWrapper(layout.parse(pageContents), parentPage, pagePointer, layout.isIndexLayout() ? this.indexLayout : this.leafLayout);
+                    PageWrapper wrapper = new PageWrapper(parsePage(data), parentPage, pagePointer);
                     pageCollection.insert(wrapper);
                     return wrapper;
                 });
     }
 
-    private byte[] serializeKey(K key) {
+    private BTreePage parsePage(byte[] pageData) {
+        ByteArraySegment pageContents = new ByteArraySegment(pageData);
+        val pageConfig = BTreePage.isIndexPage(pageContents) ? this.indexPageConfig : this.leafPageConfig;
+        return new BTreePage(pageConfig, pageContents);
+    }
+
+    private BTreePage createEmptyLeafRoot() {
+        return new BTreePage(this.leafPageConfig);
+    }
+
+    private BTreePage createEmptyIndexRoot() {
+        return new BTreePage(this.indexPageConfig);
+    }
+
+    private ByteArraySegment serializeKey(K key) {
         byte[] result = new byte[this.keySerializer.length];
-        this.keySerializer.serialize.accept(result, 0, key);
-        return result;
+        this.keySerializer.serialize.accept(key, result, 0);
+        return new ByteArraySegment(result);
     }
 
-    private byte[] serializeValue(V value) {
+    private ByteArraySegment serializeValue(V value) {
         byte[] result = new byte[this.valueSerializer.length];
-        this.valueSerializer.serialize.accept(result, 0, value);
+        this.valueSerializer.serialize.accept(value, result, 0);
+        return new ByteArraySegment(result);
+    }
+
+    private PagePointer getPagePointer(ByteArraySegment key, BTreePage page) {
+        val pos = page.search(key, 0);
+        assert pos.getPosition() >= 0;
+        return deserializePointer(page.getValueAt(pos.getPosition()), page.getKeyAt(pos.getPosition()));
+    }
+
+    private ByteArraySegment serializePointer(PagePointer pointer) {
+        ByteArraySegment result = new ByteArraySegment(new byte[Long.BYTES + Integer.BYTES]);
+        BitConverter.writeLong(result, 0, pointer.offset);
+        BitConverter.writeInt(result, Long.BYTES, pointer.length);
         return result;
     }
 
+    private PagePointer deserializePointer(ByteArraySegment source, ByteArraySegment searchKey) {
+        long pageOffset = BitConverter.readLong(source, 0);
+        int pageLength = BitConverter.readInt(source, Long.BYTES);
+        return new PagePointer(searchKey, pageOffset, pageLength);
+    }
     //endregion
 
     //region PageCollection
+    @RequiredArgsConstructor
+    private static class PagePointer {
+        final ByteArraySegment key;
+        final long offset;
+        final int length;
+    }
 
     private static class PageWrapper {
         private final AtomicReference<BTreePage> page;
         @Getter
         private final PageWrapper parent;
         @Getter
-        private final BTreePagePointer pointer;
+        private final PagePointer pointer;
         private final AtomicLong assignedOffset;
-        @Getter
-        private final BTreePageLayout layout;
 
-        PageWrapper(BTreePage page, PageWrapper parent, BTreePagePointer pointer, BTreePageLayout layout) {
+        PageWrapper(BTreePage page, PageWrapper parent, PagePointer pointer) {
             this.page = new AtomicReference<>(page);
             this.parent = parent;
             this.pointer = pointer;
-            this.assignedOffset = new AtomicLong(this.pointer == null ? -1 : this.pointer.getOffset());
-            this.layout = layout;
-        }
-
-        boolean isIndexPage() {
-            return this.layout.isIndexLayout();
+            this.assignedOffset = new AtomicLong(this.pointer == null ? -1 : this.pointer.offset);
         }
 
         BTreePage getPage() {
             return this.page.get();
+        }
+
+        boolean isIndexPage() {
+            return getPage().getConfig().isIndexPage();
         }
 
         void setPage(BTreePage page) {
@@ -442,7 +479,7 @@ public class BTreeIndex<K, V> {
 
         @FunctionalInterface
         public interface Serialize<T> {
-            void accept(byte[] target, int targetOffset, T toSerialize);
+            void accept(T toSerialize, byte[] target, int targetOffset);
         }
 
         @FunctionalInterface
