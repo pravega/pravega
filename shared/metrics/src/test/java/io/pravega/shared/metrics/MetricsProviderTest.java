@@ -11,11 +11,11 @@ package io.pravega.shared.metrics;
 
 import io.pravega.common.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
-import io.pravega.shared.MetricRegistryUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
 
 /**

@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -46,6 +47,16 @@ class RocksDBCache implements Cache {
      */
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
+    /**
+     * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
+     */
+    private static final int MAX_WRITE_BUFFER_NUMBER = 4;
+
+    /**
+     * Minimum number of in-memory write buffers (memtables) to be merged before flushing to storage.
+     */
+    private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
+
     @Getter
     private final String id;
     private final Options databaseOptions;
@@ -55,6 +66,9 @@ class RocksDBCache implements Cache {
     private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
+    private final int writeBufferSizeMB;
+    private final int readCacheSizeMB;
+    private final int cacheBlockSizeKB;
 
     //endregion
 
@@ -77,6 +91,10 @@ class RocksDBCache implements Cache {
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
         this.database = new AtomicReference<>();
+        // The total write buffer space is divided into the number of buffers.
+        this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
+        this.readCacheSizeMB = config.getReadCacheSizeMB();
+        this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -218,12 +236,23 @@ class RocksDBCache implements Cache {
     }
 
     private Options createDatabaseOptions() {
+        BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
+                .setBlockSize(cacheBlockSizeKB * 1024L)
+                .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
+                .setCacheIndexAndFilterBlocks(true);
+
         return new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
+                .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
+                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
+                .setTableFormatConfig(tableFormatConfig)
+                .setOptimizeFiltersForHits(true)
+                .setUseDirectReads(true);
     }
 
     private void clear(boolean recreateDirectory) {

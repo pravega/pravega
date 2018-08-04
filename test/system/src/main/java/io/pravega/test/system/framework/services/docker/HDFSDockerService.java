@@ -20,14 +20,12 @@ import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
-import java.time.Duration;
+import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
 @Slf4j
@@ -62,11 +60,12 @@ public class HDFSDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
         String env1 = "SSH_PORT=2222";
         String env2 = "HDFS_HOST=" + serviceName;
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(8020)).build())
                         .mounts(mount)
                         .labels(labels)
                         .hostname(serviceName)
