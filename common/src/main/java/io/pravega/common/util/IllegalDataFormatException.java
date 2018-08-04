@@ -7,14 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util;
 
-import io.pravega.common.util.ByteArraySegment;
-import lombok.Data;
-
-@Data
-class BTreePagePointer {
-    private final ByteArraySegment key;
-    private final long offset;
-    private final int length;
+/**
+ * Exception that is thrown whenever a data formatting error was detected.
+ */
+public class IllegalDataFormatException extends IllegalArgumentException {
+    public IllegalDataFormatException(String message, Object... args) {
+        super(String.format(message, args));
+    }
 }
