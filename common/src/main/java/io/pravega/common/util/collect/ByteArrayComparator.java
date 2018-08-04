@@ -16,7 +16,7 @@ class ByteArrayComparator implements Comparator<byte[]> {
     @Override
     public int compare(byte[] b1, byte[] b2) {
         assert b1.length == b2.length;
-        return compare(b1, 0, b2, 2, b1.length);
+        return compare(b1, 0, b2, 0, b1.length);
     }
 
     int compare(ByteArraySegment b1, ByteArraySegment b2) {
@@ -27,7 +27,7 @@ class ByteArrayComparator implements Comparator<byte[]> {
     int compare(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
         int r;
         for (int i = 0; i < length; i++) {
-            r = b1[offset1 + i] - b2[offset2 + i];
+            r = Byte.compare(b1[offset1 + i], b2[offset2 + i]);
             if (r != 0) {
                 return r;
             }

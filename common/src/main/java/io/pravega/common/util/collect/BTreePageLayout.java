@@ -12,7 +12,6 @@ package io.pravega.common.util.collect;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Collection;
-import java.util.List;
 import java.util.stream.Collectors;
 import lombok.val;
 
@@ -25,7 +24,6 @@ import lombok.val;
 abstract class BTreePageLayout {
     //region Members
 
-    private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     protected final BTreePage.Config pageConfig;
 
     //endregion
@@ -46,20 +44,8 @@ abstract class BTreePageLayout {
         return this.pageConfig.getMaxPageSize();
     }
 
-    List<ArrayTuple> splitIfNecessary(ByteArraySegment pageContents) {
-        val p = new BTreePage(this.pageConfig, pageContents);
-        val result = p.splitIfNecessary();
-        if (result.size() == 1) {
-            return null;
-        }
-
-        return result.stream()
-                     .map(sp -> new ArrayTuple(sp.getKeyAt(0), sp.getContents()))
-                     .collect(Collectors.toList());
-    }
-
     BTreePage createEmptyRoot() {
-        return new BTreePage(this.pageConfig, 0);
+        return new BTreePage(this.pageConfig);
     }
 
     protected abstract boolean isIndexLayout();
@@ -74,13 +60,13 @@ abstract class BTreePageLayout {
         }
 
         BTreePagePointer getPagePointer(byte[] key, BTreePage page) {
-            val pos = page.search(key);
-            assert pos.getValue() >= 0;
+            val sr = page.search(key);
+            assert sr.getPosition() >= 0;
 
-            ByteArraySegment ptr = page.getValueAt(pos.getValue());
+            ByteArraySegment ptr = page.getValueAt(sr.getPosition());
             long pageOffset = BitConverter.readLong(ptr, 0);
             int pageLength = BitConverter.readInt(ptr, Long.BYTES);
-            return new BTreePagePointer(page.getKeyAt(pos.getValue()), pageOffset, pageLength);
+            return new BTreePagePointer(page.getKeyAt(sr.getPosition()), pageOffset, pageLength);
         }
 
         ByteArraySegment serializePointer(BTreePagePointer pointer) {
@@ -118,13 +104,13 @@ abstract class BTreePageLayout {
         }
 
         ByteArraySegment getValue(byte[] key, BTreePage page) {
-            val pos = page.search(key);
-            if (!pos.isExactMatch()) {
+            val sr = page.search(key);
+            if (!sr.isExactMatch()) {
                 // Nothing found
                 return null;
             }
 
-            return page.getValueAt(pos.getValue());
+            return page.getValueAt(sr.getPosition());
         }
     }
 
