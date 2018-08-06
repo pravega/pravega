@@ -10,19 +10,33 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.InetAddress;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Cleanup;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
+import org.apache.bookkeeper.util.MathUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
+import org.apache.zookeeper.server.NettyServerCnxnFactory;
+import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -122,7 +136,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
 
     public void stop() {
         try {
-            NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+            ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
             if (sf != null) {
                 sf.closeAll();
                 sf.shutdown();
@@ -220,19 +234,20 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     }
 
     private static TrustManagerFactory getTrustManager(String trustStore) throws IOException, CertificateException, NoSuchAlgorithmException, KeyStoreException {
-        FileInputStream myKeys = new FileInputStream(trustStore);
+        try (FileInputStream myKeys = new FileInputStream(trustStore)) {
 
-        // Do the same with your trust store this time
-        // Adapt how you load the keystore to your needs
-        KeyStore myTrustStore = KeyStore.getInstance("JKS");
-        myTrustStore.load(myKeys, "1111_aaaa".toCharArray());
+            // Do the same with your trust store this time
+            // Adapt how you load the keystore to your needs
+            KeyStore myTrustStore = KeyStore.getInstance("JKS");
+            myTrustStore.load(myKeys, "1111_aaaa".toCharArray());
 
-        myKeys.close();
+            myKeys.close();
 
-        TrustManagerFactory tmf = TrustManagerFactory
-                .getInstance("SunX509");
-        tmf.init(myTrustStore);
-        return tmf;
+            TrustManagerFactory tmf = TrustManagerFactory
+                    .getInstance("SunX509");
+            tmf.init(myTrustStore);
+            return tmf;
+        }
     }
 
     /**
