@@ -80,6 +80,11 @@ public final class Config {
     public static final long MIN_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.minLeaseValue");
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
 
+    // Completed Transaction TTL
+    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = CONFIG.getInt("config.controller.server.transaction.completed.ttlInHours");
+    public static final boolean DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY =
+            CONFIG.getBoolean("config.controller.server.transaction.completed.disableBackwardCompatiblity");
+
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
     public static final int BUCKET_COUNT = CONFIG.getInt("config.controller.server.retention.bucketCount");

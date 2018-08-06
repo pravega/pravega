@@ -22,6 +22,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private int controllerPort;
     private int segmentStorePort;
     private int restServerPort;
+    private boolean enableRestServer;
     private boolean enableAuth;
     private boolean enableTls;
     private String certFile;
@@ -47,8 +48,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .isInProcSegmentStore(true)
                     .segmentStoreCount(1)
                     .containerCount(4)
-                    .startRestServer(true)
                     .restServerPort(restServerPort)
+                    .enableRestServer(enableRestServer)
                     .enableMetrics(false)
                     .enableAuth(enableAuth)
                     .enableTls(enableTls)
@@ -60,8 +61,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
-            return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableAuth, enableTls,
-                    certFile, passwd, userName, passwdFile, keyFile, inProcPravegaCluster);
+            return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
+                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, inProcPravegaCluster);
         }
     }
 
@@ -79,6 +80,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .segmentStorePort(conf.getSegmentStorePort())
                     .zkPort(conf.getZkPort())
                     .restServerPort(conf.getRestServerPort())
+                    .enableRestServer(conf.isEnableRestServer())
                     .enableAuth(conf.isEnableAuth())
                     .enableTls(conf.isEnableTls())
                     .certFile(conf.getCertFile())

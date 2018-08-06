@@ -22,8 +22,10 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.Collections;
@@ -31,7 +33,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +48,7 @@ import java.util.stream.Collectors;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
+@Slf4j
 class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
@@ -59,6 +66,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
+    // region Backward compatibility
+    // TODO 2755 retire code in this region 
+    private static final String STREAM_COMPLETED_TX_PATH_OLD_SCHEME = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
+    // endregion
+    private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
+
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
     private final ZKStoreHelper store;
@@ -76,15 +90,21 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String waitingRequestProcessorPath;
     private final String sealedSegmentsPath;
     private final String activeTxRoot;
-    private final String completedTxPath;
+    private final String completedTxPathOldScheme;
     private final String markerPath;
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
 
     private final Cache<Integer> cache;
+    private final Supplier<Integer> currentBatchSupplier;
 
+    @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
+        this(scopeName, streamName, storeHelper, () -> 0);
+    }
+
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -100,13 +120,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
         retentionPath = String.format(RETENTION_PATH, scopeName, streamName);
         epochTransitionPath = String.format(EPOCH_TRANSITION_PATH, scopeName, streamName);
         sealedSegmentsPath = String.format(SEALED_SEGMENTS_PATH, scopeName, streamName);
-        activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
-        completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
+        activeTxRoot = String.format(STREAM_ACTIVE_TX_PATH, scopeName, streamName);
+        completedTxPathOldScheme = String.format(STREAM_COMPLETED_TX_PATH_OLD_SCHEME, scopeName, streamName);
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
+        this.currentBatchSupplier = currentBatchSupplier;
     }
 
     // region overrides
@@ -408,11 +429,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
-        return cache.getCachedData(getCompletedTxPath(txId.toString()));
-    }
-
-    @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
@@ -422,12 +438,71 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
-        final String completedTxPath = getCompletedTxPath(txId.toString());
-        return store.createZNodeIfNotExist(completedTxPath,
-                new CompletedTxnRecord(timestamp, complete).toByteArray())
-                .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+        String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
+        String path = ZKPaths.makePath(root, txId.toString());
+
+        CompletableFuture<Void> createZnodeFuture = store.createZNodeIfNotExist(path,
+                        new CompletedTxnRecord(timestamp, complete).toByteArray())
+                        .whenComplete((r, e) -> cache.invalidateCache(path));
+
+        // region Backward Compatibility
+        // TODO 2755 retire code in this region 
+        // We will continue to write to old path for backward compatibility.
+        // This should eventually be removed.
+        if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
+            final String completedTxPath = getOldSchemeCompletedTxPath(txId.toString());
+
+            CompletableFuture<Void> createOldSchemeFuture = store.createZNodeIfNotExist(completedTxPath,
+                    new CompletedTxnRecord(timestamp, complete).toByteArray())
+                                                   .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
+
+            return CompletableFuture.allOf(createZnodeFuture, createOldSchemeFuture);
+        } else {
+            return createZnodeFuture;
+        }
+        // endregion
     }
 
+
+    @Override
+    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
+        return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenCompose(children -> {
+                    return Futures.allOfWithResults(children.stream().map(child -> {
+                                String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(child), getScope(), getName());
+                                String path = ZKPaths.makePath(root, txId.toString());
+
+                                return cache.getCachedData(path)
+                                        .exceptionally(e -> {
+                                            if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                                                return null;
+                                            } else {
+                                                log.error("Exception while trying to fetch completed transaction status", e);
+                                                throw new CompletionException(e);
+                                            }
+                                        });
+                            }).collect(Collectors.toList()));
+                        })
+                .thenCompose(result -> {
+                    Optional<Data<Integer>> any = result.stream().filter(Objects::nonNull).findFirst();
+                    if (any.isPresent()) {
+                        return CompletableFuture.completedFuture(any.get());
+                    } else {
+                        // also look in old path
+                        // region Backward Compatibility
+                        // TODO 2755 retire code in this region
+                        // We will continue to read from old path for backward compatibility.
+                        // This should eventually be removed.
+                        if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
+                            return cache.getCachedData(getOldSchemeCompletedTxPath(txId.toString()));
+                        }
+                        // endregion
+
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Completed Txn not found");
+                    }
+                });
+    }
+    
     @Override
     public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamTruncationRecord truncationRecord) {
         return store.createZNodeIfNotExist(truncationPath, truncationRecord.toByteArray())
@@ -603,7 +678,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
     }
 
-    private String getCompletedTxPath(final String txId) {
-        return ZKPaths.makePath(completedTxPath, txId);
+    // region Backward Compatibility
+    // TODO 2755 retire this method once we remove backward compatibility hooks for supporting old scheme.
+    private String getOldSchemeCompletedTxPath(final String txId) {
+        return ZKPaths.makePath(completedTxPathOldScheme, txId);
     }
+    // endregion
 }

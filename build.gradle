@@ -348,6 +348,7 @@ project('test:integration') {
         testCompile project(path:':shared:protocol', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
+        testCompile project(path:':shared:metrics', configuration:'testRuntime')
 
         // Workaround for intellij issue, since we cannot add both the compile dependency and the testRuntime
         // dependency of the client project into the compile scope of the integration tests

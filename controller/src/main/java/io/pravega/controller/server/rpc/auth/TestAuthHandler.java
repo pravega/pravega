@@ -11,9 +11,11 @@ package io.pravega.controller.server.rpc.auth;
 
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
-import java.util.Map;
 
 public class TestAuthHandler implements AuthHandler {
+
+    public static final String DUMMY_USER = "dummy";
+    public static final String ADMIN_USER = "admin";
 
     @Override
     public String getHandlerName() {
@@ -21,13 +23,13 @@ public class TestAuthHandler implements AuthHandler {
     }
 
     @Override
-    public boolean authenticate(Map<String, String> headers) {
+    public boolean authenticate(String token) {
         return true;
     }
 
     @Override
-    public Permissions authorize(String resource, Map<String, String> headers) {
-        if (headers.get("username").equals("dummy")) {
+    public Permissions authorize(String resource, String token) {
+        if (token.contains(DUMMY_USER)) {
             return Permissions.NONE;
         } else {
             return Permissions.READ_UPDATE;
@@ -37,5 +39,9 @@ public class TestAuthHandler implements AuthHandler {
     @Override
     public void initialize(ServerConfig serverConfig) {
 
+    }
+
+    public static String testAuthToken(String userName) {
+        return String.format("testHandler %s", userName);
     }
 }

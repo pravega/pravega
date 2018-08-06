@@ -10,33 +10,20 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManagerFactory;
+import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
-import org.apache.bookkeeper.util.MathUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
-import org.apache.zookeeper.server.NettyServerCnxnFactory;
-import org.apache.zookeeper.server.ServerCnxnFactory;
+import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 /**
@@ -134,15 +121,29 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     }
 
     public void stop() {
-        ZooKeeperServer zs = this.server.getAndSet(null);
-        if (zs != null) {
-            zs.shutdown();
+        try {
+            NIOServerCnxnFactory sf = this.serverFactory.getAndSet(null);
+            if (sf != null) {
+                sf.closeAll();
+                sf.shutdown();
+            }
+        } catch (Throwable e) {
+            log.warn("Unable to cleanly shutdown ZooKeeper connection factory", e);
         }
 
-        ServerCnxnFactory sf = this.serverFactory.getAndSet(null);
-        if (sf != null) {
-            sf.closeAll();
-            sf.shutdown();
+        try {
+            ZooKeeperServer zs = this.server.getAndSet(null);
+            if (zs != null) {
+                zs.shutdown();
+                ZKDatabase zkDb = zs.getZKDatabase();
+                if (zkDb != null) {
+                    // make ZK server close its log files
+                    zkDb.close();
+                }
+            }
+
+        } catch (Throwable e) {
+            log.warn("Unable to cleanly shutdown ZooKeeper server", e);
         }
     }
 
