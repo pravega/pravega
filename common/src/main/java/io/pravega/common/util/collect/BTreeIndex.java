@@ -66,7 +66,7 @@ public class BTreeIndex<K, V> {
         return locatePage(serializedKey, new PageCollection(), timer)
                 .thenApplyAsync(page -> {
                     // Found the eligible page. Return the value, if it exists.
-                    val value = page.getPage().getValue(serializedKey);
+                    val value = page.getPage().searchExact(serializedKey);
                     return value == null ? null : this.valueSerializer.deserialize.apply(value, 0);
                 }, this.executor);
     }

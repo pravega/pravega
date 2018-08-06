@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -112,7 +113,7 @@ class BTreePage {
      *
      * @param config Page Configuration.
      */
-    BTreePage(Config config) {
+    BTreePage(@Nonnull Config config) {
         this(config, new ByteArraySegment(new byte[DATA_OFFSET + FOOTER_LENGTH]), false);
         formatHeaderAndFooter(count, ID_GENERATOR.nextInt());
     }
@@ -125,7 +126,7 @@ class BTreePage {
      *                 this ByteArraySegment.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format.
      */
-    BTreePage(Config config, ByteArraySegment contents) {
+    BTreePage(@Nonnull Config config, @Nonnull ByteArraySegment contents) {
         this(config, contents, true);
     }
 
@@ -137,7 +138,7 @@ class BTreePage {
      * @param data   A ByteArraySegment containing a list of Key-Value pairs to include. The contents of this ByteArraySegment
      *               will be copied into a new buffer, so changes to this BTreePage will not affect it.
      */
-    private BTreePage(Config config, int count, ByteArraySegment data) {
+    private BTreePage(@Nonnull Config config, int count, @Nonnull ByteArraySegment data) {
         this(config, new ByteArraySegment(new byte[DATA_OFFSET + data.getLength() + FOOTER_LENGTH]), false);
         Preconditions.checkArgument(count * config.entryLength == data.getLength(), "Unexpected data length given the count.");
         formatHeaderAndFooter(count, ID_GENERATOR.nextInt());
@@ -153,7 +154,7 @@ class BTreePage {
      * @param validate If true, will perform validation.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format and validate == true.
      */
-    private BTreePage(Config config, ByteArraySegment contents, boolean validate) {
+    private BTreePage(@Nonnull Config config, @Nonnull ByteArraySegment contents, boolean validate) {
         Preconditions.checkArgument(!contents.isReadOnly(), "Cannot wrap a read-only ByteArraySegment.");
         this.config = Preconditions.checkNotNull(config, "config");
         this.contents = Preconditions.checkNotNull(contents, "contents");
@@ -199,7 +200,7 @@ class BTreePage {
      * @return True if Index Page, False if Leaf page.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format.
      */
-    static boolean isIndexPage(ByteArraySegment pageContents) {
+    static boolean isIndexPage(@Nonnull ByteArraySegment pageContents) {
         // Check ID match.
         int headerId = BitConverter.readInt(pageContents, ID_OFFSET);
         int footerId = BitConverter.readInt(pageContents, pageContents.getLength() - FOOTER_LENGTH);
@@ -218,22 +219,6 @@ class BTreePage {
      */
     int getLength() {
         return this.contents.getLength();
-    }
-
-    /**
-     * Gets a ByteArraySegment representing the value mapped to the given Key.
-     *
-     * @param key The Key to search.
-     * @return A ByteArraySegment mapped to the given Key, or null if the Key does not exist.
-     */
-    ByteArraySegment getValue(ByteArraySegment key) {
-        val pos = search(key, 0);
-        if (!pos.isExactMatch()) {
-            // Nothing found.
-            return null;
-        }
-
-        return getValueAt(pos.getPosition());
     }
 
     /**
@@ -277,22 +262,31 @@ class BTreePage {
             return null;
         }
 
-        ArrayList<BTreePage> result = new ArrayList<>();
-        int readIndex = 0;
-        int dataLength = this.data.getLength();
-        while (readIndex < dataLength) {
-            // Make sure we don't request more data than we need (for the last page).
-            int splitLength = Math.min(this.config.getSplitSize(), dataLength - readIndex);
-            assert splitLength % this.config.getEntryLength() == 0 : "entry misaligned";
+        // Calculate how many pages to split into. While doing so, take care to account that we may only have whole entries
+        // in each page, and not partial ones.
+        int maxDataLength = (this.config.getMaxPageSize() - this.header.getLength() - this.footer.getLength()) / this.config.entryLength * this.config.entryLength;
+        int remainingPageCount = (int) Math.ceil((double) this.data.getLength() / maxDataLength);
 
-            // Fetch data and compose new page.
-            ByteArraySegment splitPageData = this.data.subSegment(readIndex, splitLength);
-            int splitPageCount = splitPageData.getLength() / this.config.getEntryLength();
-            BTreePage splitPage = new BTreePage(this.config, splitPageCount, splitPageData);
-            result.add(splitPage);
-            readIndex += splitLength;
+        ArrayList<BTreePage> result = new ArrayList<>(remainingPageCount);
+        int readIndex = 0;
+        int remainingItems = getCount();
+        while (remainingPageCount > 0) {
+            // Calculate how many items to include in this split page. This is the average of the remaining items over
+            // the remaining page count (this helps smooth out cases when the original getCount() is not divisible by
+            // the calculated number of splits).
+            int itemsPerPage = remainingItems / remainingPageCount;
+
+            // Copy data over to the new page.
+            ByteArraySegment splitPageData = this.data.subSegment(readIndex, itemsPerPage * this.config.entryLength);
+            result.add(new BTreePage(this.config, itemsPerPage, splitPageData));
+
+            // Update pointers.
+            readIndex += splitPageData.getLength();
+            remainingPageCount--;
+            remainingItems -= itemsPerPage;
         }
 
+        assert readIndex == this.data.getLength() : "did not copy everything";
         return result;
     }
 
@@ -306,7 +300,7 @@ class BTreePage {
      *
      * @param entries The Entries to insert or update. This collection need not be sorted.
      */
-    void update(Collection<PageEntry> entries) {
+    void update(@Nonnull Collection<PageEntry> entries) {
         if (entries.isEmpty()) {
             // Nothing to do.
             return;
@@ -320,8 +314,9 @@ class BTreePage {
         val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
         while (entryIterator.hasNext()) {
             val e = entryIterator.next();
-            Preconditions.checkArgument(e.getKey().getLength() == this.config.getKeyLength() && e.getValue().getLength() == this.config.getValueLength(),
-                    "Found an entry with unexpected Key or Value length.");
+            if (e.getKey().getLength() != this.config.keyLength || e.getValue().getLength() != this.config.valueLength) {
+                throw new IllegalDataFormatException("Found an entry with unexpected Key or Value length.");
+            }
 
             // Figure out if this entry exists already.
             val searchResult = search(e.getKey(), lastPos);
@@ -331,7 +326,7 @@ class BTreePage {
             } else {
                 // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
                 // binary search returned the position where it should have been.
-                int dataIndex = searchResult.getPosition() * this.config.getEntryLength();
+                int dataIndex = searchResult.getPosition() * this.config.entryLength;
                 newEntries.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
             }
 
@@ -394,7 +389,7 @@ class BTreePage {
      *
      * @param keys A Collection of Keys to remove. The Keys need not be sorted.
      */
-    void delete(Collection<ByteArraySegment> keys) {
+    void delete(@Nonnull Collection<ByteArraySegment> keys) {
         if (keys.isEmpty()) {
             // Nothing to do.
             return;
@@ -407,7 +402,10 @@ class BTreePage {
         val keyIterator = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
         while (keyIterator.hasNext() && removedPositions.size() < initialCount) {
             val key = keyIterator.next();
-            Preconditions.checkArgument(key.getLength() == this.config.getKeyLength(), "Found a key with unexpected length.");
+            if (key.getLength() != this.config.keyLength) {
+                throw new IllegalDataFormatException("Found a key with unexpected length.");
+            }
+
             val sr = search(key, lastPos);
             if (!sr.exactMatch) {
                 // Key does not exist.
@@ -447,24 +445,30 @@ class BTreePage {
     }
 
     /**
-     * Searches for the given Key in this BTreePage.
+     * Gets a ByteArraySegment representing the value mapped to the given Key.
      *
-     * @param key The Key to search for.
-     * @return A SearchResult for the lookup.
+     * @param key The Key to search.
+     * @return A ByteArraySegment mapped to the given Key, or null if the Key does not exist.
      */
-    SearchResult search(byte[] key) {
-        return search(new ByteArraySegment(key), 0);
+    ByteArraySegment searchExact(@Nonnull ByteArraySegment key) {
+        val pos = search(key, 0);
+        if (!pos.isExactMatch()) {
+            // Nothing found.
+            return null;
+        }
+
+        return getValueAt(pos.getPosition());
     }
 
     /**
-     * Performs a (binary) search for the given Key in this BTreePage.
+     * Performs a (binary) search for the given Key in this BTreePage and returns its position.
      *
      * @param key      A ByteArraySegment that represents the key to search.
      * @param startPos The starting position (not array index) to begin the search at. Any positions prior to this one
      *                 will be ignored.
      * @return A SearchResult instance with the result of the search.
      */
-    SearchResult search(ByteArraySegment key, int startPos) {
+    SearchResult search(@Nonnull ByteArraySegment key, int startPos) {
         // Positions here are not indices into "source", rather they are entry positions, which is why we always need
         // to adjust by using entryLength.
         int endPos = getCount();
@@ -609,10 +613,6 @@ class BTreePage {
          */
         private final int maxPageSize;
         /**
-         * The maximum length, in bytes, of a BTreePage that is the result of a split.
-         */
-        private final int splitSize;
-        /**
          * Whether this is an Index Page or not.
          */
         private final boolean isIndexPage;
@@ -635,16 +635,6 @@ class BTreePage {
             this.entryLength = this.keyLength + this.valueLength;
             this.maxPageSize = maxPageSize;
             this.isIndexPage = isIndexPage;
-            this.splitSize = calculateSplitSize();
-        }
-
-        private int calculateSplitSize() {
-            // Calculate the maximum number of elements that fit in a full page.
-            int maxCount = (this.maxPageSize - DATA_OFFSET) / this.entryLength;
-
-            // A Split page will have about half the original number of elements. Also make sure it is aligned to an
-            // entry boundary.
-            return (maxCount / 2 + 1) * this.entryLength;
         }
     }
 
@@ -667,6 +657,11 @@ class BTreePage {
          * position refers to the location just before where the sought key would have been.
          */
         private final boolean exactMatch;
+
+        @Override
+        public String toString() {
+            return String.format("%s (%s)", this.position, this.exactMatch ? "E" : "NE");
+        }
     }
 
     //endregion

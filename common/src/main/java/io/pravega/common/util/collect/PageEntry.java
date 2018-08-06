@@ -38,4 +38,9 @@ class PageEntry {
         this.key = Preconditions.checkNotNull(key, "key");
         this.value = Preconditions.checkNotNull(value, "value");
     }
+
+    @Override
+    public String toString() {
+        return String.format("KeyLength = %s, ValueLength = %s", this.key.getLength(), this.value.getLength());
+    }
 }

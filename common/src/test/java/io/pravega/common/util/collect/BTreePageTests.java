@@ -11,13 +11,16 @@ package io.pravega.common.util.collect;
 
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.test.common.AssertExtensions;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -26,6 +29,7 @@ import org.junit.Test;
  * Unit test for the BTreePage class.
  */
 public class BTreePageTests {
+    private static final int ITEM_COUNT = 1000;
     private static final BTreePage.Config CONFIG = new BTreePage.Config(Integer.BYTES, Long.BYTES, 512, true);
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     private final Random rnd = new Random(0);
@@ -35,10 +39,9 @@ public class BTreePageTests {
      */
     @Test
     public void testUpdate() {
-        int maxCount = 1000;
         val page = new BTreePage(CONFIG);
         val entries = new HashMap<Integer, Long>();
-        while (entries.size() < maxCount) {
+        while (entries.size() < ITEM_COUNT) {
             val updateKeys = new HashSet<Integer>();
             int half = entries.size() / 2;
 
@@ -71,12 +74,8 @@ public class BTreePageTests {
      */
     @Test
     public void testDelete() {
-        int initialCount = 1000;
         val page = new BTreePage(CONFIG);
-        val remainingEntries = new HashMap<Integer, Long>();
-        for (int i = 0; i < initialCount; i++) {
-            remainingEntries.put(i, (long) (i + 1) * (i + 1));
-        }
+        val remainingEntries = IntStream.range(0, ITEM_COUNT).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
 
         // Initial page population.
         page.update(serialize(remainingEntries, false));
@@ -88,10 +87,10 @@ public class BTreePageTests {
             val deleteKeys = new HashSet<Integer>();
             if (deleteCount % 3 == 0) {
                 // Every now and then, try to delete inexistent keys.
-                deleteKeys.add(initialCount + 1);
+                deleteKeys.add(ITEM_COUNT + 1);
             } else {
                 for (int i = 0; i < deleteCount; i++) {
-                    deleteKeys.add(pickUnusedKey(initialCount, deleteKeys));
+                    deleteKeys.add(pickUnusedKey(ITEM_COUNT, deleteKeys));
                 }
             }
 
@@ -106,52 +105,182 @@ public class BTreePageTests {
     }
 
     /**
-     * Tests the ability to use search() to look up entries.
+     * Tests the ability to use search() and searchExact() to look up entries.
      */
     @Test
     public void testSearch() {
-        int initialCount = 1000;
         val page = new BTreePage(CONFIG);
-        val entries = new HashMap<Integer, Long>();
-        int maxKey = 0;
-        for (int i = 0; i < initialCount; i++) {
-            maxKey = i * 2;
-            entries.put(maxKey, (long) (i + 1) * (i + 1));
-        }
 
         // Populate the page.
+        // Need to make all keys even. This helps with searching for inexistent keys (see below).
+        val entries = IntStream.range(0, ITEM_COUNT).boxed().collect(Collectors.toMap(i -> i * 2, i -> (long) (i + 1) * (i + 1)));
         page.update(serialize(entries, false));
 
-        // TODO: figure out a way to search both keys that exist and keys that do not exist.
+        // Serialize the keys, and THEN sort them (the tree page sorts byte arrays, not numbers).
+        val searchKeys = serialize(entries.keySet(), true);
+        for (int pos = 0; pos < searchKeys.size(); pos++) {
+            // We only expect an exact search if the key exists in the page.
+            val key = searchKeys.get(pos);
+            val sr = page.search(key, 0);
+            val existingKey = deserializeInt(searchKeys.get(pos));
+            Assert.assertTrue("Expected exact match for key " + existingKey, sr.isExactMatch());
+            Assert.assertEquals("Unexpected position for key " + existingKey, pos, sr.getPosition());
+            long valueAt = deserializeLong(page.getValueAt(sr.getPosition()));
+            Assert.assertEquals("Unexpected value for key " + existingKey, (long) entries.get(existingKey), valueAt);
+
+            // Do the same lookup but with searchExact().
+            long value = deserializeLong(page.searchExact(key));
+            Assert.assertEquals("Unexpected result from searchExact() for key " + existingKey, valueAt, value);
+
+            // All of our keys are serializations of even numbers, which means all their serializations have their last
+            // bit set to 0. Since searching for inexistent keys returns the index where that inexistent key would have
+            // been in the page, in order to test this feature we need to fetch the previous key in the list and flip its
+            // last bit to 1. That will produce a search key that is larger than the previous key but smaller than the
+            // current one.
+            if (pos > 0) {
+                // Get the last key and flip its last bit to 1.
+                val inexistentKey = new ByteArraySegment(searchKeys.get(pos - 1).getCopy());
+                inexistentKey.set(inexistentKey.getLength() - 1, (byte) (inexistentKey.get(inexistentKey.getLength() - 1) | 1));
+
+                // Execute the search and verify the result (inexact match, and index the same as our existing key).
+                val sr2 = page.search(inexistentKey, 0);
+                Assert.assertFalse("Expected inexact match for key " + inexistentKey, sr2.isExactMatch());
+                Assert.assertEquals("Unexpected position for inexistent key " + inexistentKey, sr.getPosition(), sr2.getPosition());
+                Assert.assertNull("Not expecting a searchExact() value for inexistent key " + key, page.searchExact(inexistentKey));
+            }
+        }
     }
 
+    /**
+     * Tests the getKeyAt() and getValueAt() methods.
+     */
     @Test
-    public void testValueAt() {
+    public void testKeyValueAt() {
+        int count = 1000;
+        val page = new BTreePage(CONFIG);
 
+        // Populate the page.
+        val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
+        page.update(serialize(entries, false));
+
+        // Search.
+        val sortedEntries = serialize(entries, true);
+        for (int pos = 0; pos < sortedEntries.size(); pos++) {
+            val e = sortedEntries.get(pos);
+            val keyAt = page.getKeyAt(pos);
+            val valueAt = page.getValueAt(pos);
+            assertEquals("Unexpected key at position " + pos, e.getKey(), keyAt);
+            assertEquals("Unexpected value at position " + pos, e.getValue(), valueAt);
+        }
+
+        // Bad arguments.
+        AssertExtensions.assertThrows(
+                "getKeyAt allowed negative argument",
+                () -> page.getKeyAt(-1),
+                ex -> ex instanceof IndexOutOfBoundsException);
+        AssertExtensions.assertThrows(
+                "getKeyAt allowed overflow argument",
+                () -> page.getKeyAt(page.getCount()),
+                ex -> ex instanceof IndexOutOfBoundsException);
+        AssertExtensions.assertThrows(
+                "getValueAt allowed negative argument",
+                () -> page.getValueAt(-1),
+                ex -> ex instanceof IndexOutOfBoundsException);
+        AssertExtensions.assertThrows(
+                "getValueAt allowed overflow argument",
+                () -> page.getValueAt(page.getCount()),
+                ex -> ex instanceof IndexOutOfBoundsException);
     }
 
-    @Test
-    public void testKeyAt() {
-
-    }
-
+    /**
+     * Tests the ability to split as the page grows.
+     */
     @Test
     public void testSplit() {
+        int count = 1000;
+        val page = new BTreePage(CONFIG);
+        for (int item = 0; item < count; item++) {
+            // Add one more entry to the page.
+            page.update(Collections.singleton(new PageEntry(serializeInt(item), serializeLong((long) (item + 1)))));
+            if (item < 82) {
+                //continue;
+            }
+            boolean expectedSplit = page.getLength() > CONFIG.getMaxPageSize();
+            val splitResult = page.splitIfNecessary();
+            if (expectedSplit) {
+                // Verify that the entries in the split pages are in the same order as in the original page.
+                int originalPos = 0;
+                int minLength = Integer.MAX_VALUE;
+                int maxLength = -1;
+                for (BTreePage sp : splitResult) {
+                    minLength = Math.min(minLength, sp.getLength());
+                    maxLength = Math.min(maxLength, sp.getLength());
+                    AssertExtensions.assertLessThanOrEqual("Split page size too large.", CONFIG.getMaxPageSize(), sp.getContents().getLength());
+                    AssertExtensions.assertGreaterThan("Split page size too small.", CONFIG.getMaxPageSize() / 2, sp.getContents().getLength());
+                    AssertExtensions.assertGreaterThan("Not expecting any empty pages.", 0, sp.getCount());
+                    for (int si = 0; si < sp.getCount(); si++) {
+                        val expectedKey = page.getKeyAt(originalPos);
+                        val expectedValue = page.getValueAt(originalPos);
+                        val actualKey = sp.getKeyAt(si);
+                        val actualValue = sp.getValueAt(si);
+                        assertEquals("Unexpected split page key.", expectedKey, actualKey);
+                        assertEquals("Unexpected split page value.", expectedValue, actualValue);
+                        originalPos++;
+                    }
+                }
 
+                AssertExtensions.assertLessThanOrEqual("Too much page length variation.", CONFIG.getEntryLength(), maxLength - minLength);
+            } else {
+                Assert.assertNull("Not expecting any split result", splitResult);
+            }
+        }
     }
 
+    /**
+     * Tests the default constructor (empty page) and copy constructor.
+     */
     @Test
     public void testConstructor() {
-        // Config + count.
-        // Config + contents.
+        int count = 1000;
+
+        // Empty page.
+        val page1 = new BTreePage(CONFIG);
+        Assert.assertEquals("Expecting an empty page.", 0, page1.getCount());
+        Assert.assertNull("Not expecting any items.", page1.searchExact(new ByteArraySegment(new byte[CONFIG.getKeyLength()])));
+        val sr = page1.search(new ByteArraySegment(new byte[CONFIG.getKeyLength()]), 0);
+        Assert.assertFalse("Expecting inexact match.", sr.isExactMatch());
+        Assert.assertEquals("Unexpected position for empty page.", 0, sr.getPosition());
+
+        // Populate page.
+        val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
+        page1.update(serialize(entries, false));
+
+        // Copy constructor.
+        val page2 = new BTreePage(CONFIG, page1.getContents());
+        checkPage(page2, entries);
+
+        // Update the second page with new data.
+        val entries2 = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1)));
+        page2.update(serialize(entries2, false));
+        checkPage(page2, entries2);
+
+        // In this particular case (since we did not allocate a new buffer - same count) we expect the first page's buffer
+        // to be reused, hence the first page should also be updated.
+        checkPage(page1, entries2);
     }
 
+    /**
+     * Tests the static method isIndexPage().
+     */
     @Test
     public void testIsIndexPage() {
-
+        val indexPage = new BTreePage(new BTreePage.Config(Integer.BYTES, Long.BYTES, 512, true));
+        Assert.assertTrue("Unexpected isIndexPage.", BTreePage.isIndexPage(indexPage.getContents()));
+        val nonIndexPage = new BTreePage(new BTreePage.Config(Integer.BYTES, Long.BYTES, 512, false));
+        Assert.assertFalse("Unexpected isIndexPage.", BTreePage.isIndexPage(nonIndexPage.getContents()));
     }
 
-    private void checkPage(BTreePage page, HashMap<Integer, Long> expectedValues) {
+    private void checkPage(BTreePage page, Map<Integer, Long> expectedValues) {
         Assert.assertEquals("Unexpected count.", expectedValues.size(), page.getCount());
         val sortedEntries = serialize(expectedValues, true);
         for (int i = 0; i < sortedEntries.size(); i++) {
@@ -208,6 +337,14 @@ public class BTreePageTests {
         return new ByteArraySegment(r);
     }
 
+    private int deserializeInt(ByteArraySegment serialized) {
+        return BitConverter.readInt(serialized, 0);
+    }
+
+    private long deserializeLong(ByteArraySegment serialized) {
+        return BitConverter.readLong(serialized, 0);
+    }
+
     private int pickUnusedKey(int maxValue, HashSet<Integer> pickedKeys) {
         int key;
         do {
@@ -217,3 +354,4 @@ public class BTreePageTests {
         return key;
     }
 }
+
