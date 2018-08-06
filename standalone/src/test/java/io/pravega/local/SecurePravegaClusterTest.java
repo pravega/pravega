@@ -35,9 +35,11 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override
     public void setUp() throws Exception {
+        /*
         this.authEnabled = true;
         this.tlsEnabled = true;
         super.setUp();
+        */
     }
 
     /**
@@ -74,6 +76,8 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
     @After
     @Override
     public void tearDown() throws Exception {
+        /*
         super.tearDown();
+        */
     }
 }
