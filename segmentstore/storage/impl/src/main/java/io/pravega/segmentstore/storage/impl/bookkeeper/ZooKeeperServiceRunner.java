@@ -22,8 +22,10 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -89,6 +91,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
             //TODO: Read these from the config/parameter files..
             System.setProperty("zookeeper.ssl.keyStore.password", loadPasswdFromFile(this.keyStorePasswd));
+            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
+            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
         }
     }
 
@@ -129,7 +133,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         this.serverFactory.get().configure(new InetSocketAddress("localhost", this.zkPort), 1000, secureZK);
         this.serverFactory.get().startup(s);
 
-        if (!waitForServerUp(this.zkPort, this.secureZK, this.trustStore)) {
+        if (!waitForServerUp(this.zkPort, this.secureZK, this.trustStore, this.keyStore)) {
             throw new IllegalStateException("ZooKeeper server failed to start");
         }
     }
@@ -167,18 +171,19 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      * @param zkPort The ZooKeeper Port.
      * @param secureZk Flag to notify whether the ZK is secure.
      * @param trustStore Location of the trust store.
+     * @param keyStore Location of the key store.
      * @return True if ZooKeeper started within a specified timeout, false otherwise.
      */
-    public static boolean waitForServerUp(int zkPort, boolean secureZk, String trustStore) {
+    public static boolean waitForServerUp(int zkPort, boolean secureZk, String trustStore, String keyStore) {
         val address = "localhost:" + zkPort;
         if (secureZk) {
-            return waitForSSLServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT, trustStore);
+            return waitForSSLServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT, trustStore, keyStore);
         } else {
             return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
         }
     }
 
-    private static boolean waitForSSLServerUp(String address, long timeout, String trustStore) {
+    private static boolean waitForSSLServerUp(String address, long timeout, String trustStore, String keyStore) {
         //TODO: Create a ZK client to ensure that the server is up.
         long start = MathUtils.now();
         String[] split = address.split(":");
@@ -189,8 +194,9 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             try {
                 SSLContext context = SSLContext.getInstance("TLS");
                 TrustManagerFactory trustManager = getTrustManager(trustStore);
+                KeyManagerFactory keyFactory = getKeyManager(keyStore);
 
-                context.init(null, trustManager.getTrustManagers(), null);
+                context.init(keyFactory.getKeyManagers(), trustManager.getTrustManagers(), null);
                 SSLSocketFactory factory = context.getSocketFactory();
 
                 Socket sock = context.getSocketFactory().createSocket(new Socket(host, port), host, port, true);
@@ -216,7 +222,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
                         reader.close();
                     }
                 }
-            } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException e) {
+            } catch (IOException | CertificateException | NoSuchAlgorithmException | KeyStoreException | KeyManagementException | UnrecoverableKeyException e) {
                 // ignore as this is expected
                 log.info("server " + address + " not up " + e);
             }
@@ -247,6 +253,21 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
                     .getInstance("SunX509");
             tmf.init(myTrustStore);
             return tmf;
+        }
+    }
+
+    private static KeyManagerFactory getKeyManager(String keyStore) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException, UnrecoverableKeyException {
+        KeyManagerFactory kmf = null;
+
+        try (FileInputStream myKeys = new FileInputStream(keyStore)) {
+            KeyStore myKeyStore = KeyStore.getInstance("JKS");
+             myKeyStore.load(myKeys, "1111_aaaa".toCharArray());
+
+            myKeys.close();
+            kmf = KeyManagerFactory.getInstance("SunX509");
+            kmf.init(myKeyStore, "1111_aaaa".toCharArray());
+
+            return kmf;
         }
     }
 

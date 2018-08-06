@@ -14,18 +14,24 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for secure standalone cluster.
  */
 @Slf4j
 public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
+
     @Before
     @Override
     public void setUp() throws Exception {
