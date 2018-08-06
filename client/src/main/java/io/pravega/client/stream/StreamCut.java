@@ -10,8 +10,13 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
+import io.pravega.common.io.SerializationException;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+
+import static io.pravega.common.io.SerializationHelpers.deserializeBase64;
+import static io.pravega.common.io.SerializationHelpers.serializeBase64;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -32,7 +37,12 @@ public interface StreamCut extends Serializable {
         public ByteBuffer toBytes() {
             return ByteBuffer.allocate(0);
         }
-        
+
+        @Override
+        public String asText() throws SerializationException {
+            return serializeBase64(this);
+        }
+
         @Override
         public StreamCutInternal asImpl() {
             return null;
@@ -54,6 +64,17 @@ public interface StreamCut extends Serializable {
      * Serializes the cut to a compact byte array.
      */
     ByteBuffer toBytes();
+
+    /**
+     * Serializes the cut to a compact base64 string representation.
+     */
+
+    /**
+     * Serializes the cut to a compact base64 string representation.
+     * @return Base64 representation of the StreamCut.
+     * @throws SerializationException Exception during serialization.
+     */
+    String asText() throws SerializationException;
     
     /**
      * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
@@ -67,4 +88,15 @@ public interface StreamCut extends Serializable {
         }
         return StreamCutInternal.fromBytes(cut);
     }
+
+    /**
+     * Deserializes a Base64 representation of the StreamCut obtained via {@link StreamCut#asText()}.
+     * @param base64String Base64 representation of StreamCut obtained using {@link StreamCut#asText()}
+     * @return The StreamCut object
+     * @throws SerializationException Exception during deserialization.
+     */
+    static StreamCut of(String base64String) throws SerializationException {
+        return deserializeBase64(base64String);
+    }
+
 }
