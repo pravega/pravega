@@ -20,7 +20,6 @@ import java.io.ObjectOutputStream;
 import lombok.Cleanup;
 import org.junit.Test;
 
-import static io.pravega.common.io.SerializationHelpers.serializeBase64;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -33,7 +32,7 @@ public class StreamCutTest {
                         new Segment("scope", "stream", 1), 20L));
 
         byte[] buf = serialize(sc);
-        String base64 = serializeBase64(sc);
+        String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));
         assertEquals(sc, StreamCut.of(base64));
@@ -43,7 +42,7 @@ public class StreamCutTest {
     public void testUnboundedStreamCutSerialization() throws Exception {
         StreamCut sc = StreamCut.UNBOUNDED;
         final byte[] buf = serialize(sc);
-        String base64 = serializeBase64(sc);
+        String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
         assertNull(deSerializeStreamCut(buf).asImpl());
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));

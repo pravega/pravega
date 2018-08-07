@@ -31,16 +31,19 @@ public final class SerializationHelpers {
      * @param object Object to be serialized to Base64
      * @param <T> Type of object.
      * @return String representing the object.
-     * @throws IOException Exception thrown by the underlying OutputStream.
+     * @throws SerializationException Exception thrown during serialization of object.
      * @throws NullPointerException If object is null.
      */
     public static <T extends Serializable> String serializeBase64(final T object) throws SerializationException {
         Preconditions.checkNotNull(object, "object");
         final byte[] bytes;
         try {
-            @Cleanup final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            @Cleanup final GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
-            @Cleanup final ObjectOutputStream objectOutputStream = new ObjectOutputStream(gzipOutputStream);
+            @Cleanup
+            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            @Cleanup
+            final GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
+            @Cleanup
+            final ObjectOutputStream objectOutputStream = new ObjectOutputStream(gzipOutputStream);
             objectOutputStream.writeObject(object);
             objectOutputStream.close();
             bytes = byteArrayOutputStream.toByteArray();
@@ -63,11 +66,14 @@ public final class SerializationHelpers {
         Exceptions.checkNotNullOrEmpty(base64String, "base64String");
         try {
             byte[] dataBytes = Base64.getDecoder().decode(base64String);
-            @Cleanup final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(dataBytes);
-            @Cleanup final GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+            @Cleanup
+            final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(dataBytes);
+            @Cleanup
+            final GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+            @Cleanup
             final ObjectInputStream objectInputStream = new ObjectInputStream(gzipInputStream);
-
-            @SuppressWarnings({"unchecked"}) final T object = (T) objectInputStream.readObject();
+            @SuppressWarnings({"unchecked"})
+            final T object = (T) objectInputStream.readObject();
             objectInputStream.close();
             return object;
         } catch (IOException | ClassNotFoundException ex) {
