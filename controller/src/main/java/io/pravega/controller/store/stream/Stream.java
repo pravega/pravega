@@ -170,6 +170,13 @@ interface Stream {
     CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
 
     /**
+     * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
+     * @param streamCut stream cut to validate.
+     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
+     */
+    CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
+
+    /**
      * @return currently active segments
      */
     CompletableFuture<List<Long>> getActiveSegments();

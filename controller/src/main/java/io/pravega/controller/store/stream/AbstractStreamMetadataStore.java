@@ -398,6 +398,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Boolean> isStreamCutValid(final String scope,
+                                                final String streamName,
+                                                final Map<Long, Long> streamCut,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.isStreamCutValid(streamCut), executor);
+    }
+
+
+    @Override
     public CompletableFuture<EpochTransitionRecord> startScale(final String scope,
                                                                final String name,
                                                                final List<Long> sealedSegments,
