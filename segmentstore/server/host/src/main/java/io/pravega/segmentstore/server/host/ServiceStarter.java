@@ -139,6 +139,12 @@ public final class ServiceStarter {
                 segmentStatsFactory.close();
             }
 
+            if (this.serviceConfig.isSecureZK()) {
+                System.clearProperty("zookeeper.client.secure");
+                System.clearProperty("zookeeper.clientCnxnSocket");
+                System.clearProperty("zookeeper.ssl.trustStore.location");
+                System.clearProperty("zookeeper.ssl.trustStore.password");
+            }
             this.closed = true;
         }
     }
