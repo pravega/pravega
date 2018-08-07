@@ -59,7 +59,7 @@ public class PravegaAuthManager {
      *                 Returns false if the entity does not have access. 
      * @throws AuthenticationException if an authentication failure occurred.
      */
-    public boolean authenticateAuthorize(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
+    public boolean authenticateAndAuthorize(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
         Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
         try {
