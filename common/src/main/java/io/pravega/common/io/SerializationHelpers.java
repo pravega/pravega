@@ -32,6 +32,7 @@ public final class SerializationHelpers {
      * @param <T> Type of object.
      * @return String representing the object.
      * @throws IOException Exception thrown by the underlying OutputStream.
+     * @throws NullPointerException If object is null.
      */
     public static <T extends Serializable> String serializeBase64(final T object) throws SerializationException {
         Preconditions.checkNotNull(object, "object");
@@ -44,7 +45,7 @@ public final class SerializationHelpers {
             objectOutputStream.close();
             bytes = byteArrayOutputStream.toByteArray();
         } catch (IOException ex) {
-            throw new SerializationException("Exception while serializing object to base64", ex);
+            throw new SerializationException("Exception while serializing object to base64 representation.", ex);
         }
         return Base64.getEncoder().encodeToString(bytes);
     }
@@ -56,7 +57,7 @@ public final class SerializationHelpers {
      * @return The deserialized object.
      * @throws SerializationException Exception thrown during deserialization of base64 representation of an object.
      * @throws NullPointerException If base64String is null.
-     * @throws IllegalArgumentException If base64String is not null, but has a length of zero.
+     * @throws IllegalArgumentException If base64String is not null, but has a length of zero or if the string has illegal base64 character.
      */
     public static <T extends Serializable> T deserializeBase64(final String base64String) throws SerializationException {
         Exceptions.checkNotNullOrEmpty(base64String, "base64String");
@@ -70,7 +71,7 @@ public final class SerializationHelpers {
             objectInputStream.close();
             return object;
         } catch (IOException | ClassNotFoundException ex) {
-            throw new SerializationException("Exception while deserialization a base64 representation", ex);
+            throw new SerializationException("Exception during deserializataion.", ex);
         }
     }
 }

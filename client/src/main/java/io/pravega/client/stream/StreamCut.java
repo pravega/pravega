@@ -67,10 +67,6 @@ public interface StreamCut extends Serializable {
 
     /**
      * Serializes the cut to a compact base64 string representation.
-     */
-
-    /**
-     * Serializes the cut to a compact base64 string representation.
      * @return Base64 representation of the StreamCut.
      * @throws SerializationException Exception during serialization.
      */
