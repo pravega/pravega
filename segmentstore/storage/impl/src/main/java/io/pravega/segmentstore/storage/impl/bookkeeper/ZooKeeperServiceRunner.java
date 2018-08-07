@@ -91,12 +91,12 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
             //TODO: Read these from the config/parameter files..
             System.setProperty("zookeeper.ssl.keyStore.password", loadPasswdFromFile(this.keyStorePasswd));
-            System.setProperty("zookeeper.ssl.trustStore.location", "../config/bookie.truststore.jks");
-            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+            System.setProperty("zookeeper.ssl.trustStore.location", this.trustStore);
+            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(this.keyStorePasswd));
         }
     }
 
-    private String loadPasswdFromFile(String keyStorePasswd) {
+    private static String loadPasswdFromFile(String keyStorePasswd) {
         byte[] pwd;
         File passwdFile = new File(keyStorePasswd);
         if (passwdFile.length() == 0) {
