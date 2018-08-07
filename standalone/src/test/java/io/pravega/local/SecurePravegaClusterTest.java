@@ -14,32 +14,24 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.rules.Timeout;
+import org.junit.Test;
 
 /**
  * Unit tests for secure standalone cluster.
  */
 @Slf4j
 public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
-    @Rule
-    public Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
-
     @Before
     @Override
     public void setUp() throws Exception {
-        /*
         this.authEnabled = true;
         this.tlsEnabled = true;
         super.setUp();
-        */
     }
 
     /**
@@ -47,7 +39,7 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
      *
      * @throws Exception on any errors.
      */
-    @Ignore
+    @Test
     public void failingCreateTestStream()
             throws Exception {
         Assert.assertNotNull("Pravega not initialized", localPravega);
@@ -67,17 +59,9 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
                 () -> streamManager.createScope(scope));
     }
 
-    @Ignore
-    @Override
-    public void createTestStream() {
-
-    }
-
     @After
     @Override
     public void tearDown() throws Exception {
-        /*
         super.tearDown();
-        */
     }
 }

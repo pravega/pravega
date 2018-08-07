@@ -18,7 +18,7 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
+import org.junit.Test;
 
 /**
  * Unit tests for secure standalone cluster.
@@ -37,7 +37,7 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
      *
      * @throws Exception on any errors.
      */
-    @Ignore
+    @Test
     public void failingCreateTestStream() throws Exception {
         Assert.assertNotNull("Pravega not initialized", localPravega);
         String scope = "Scope";
@@ -53,12 +53,6 @@ public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
 
         AssertExtensions.assertThrows(RuntimeException.class,
                 () -> streamManager.createScope(scope));
-    }
-
-    @Ignore
-    @Override
-    public void createTestStream() {
-
     }
 
     @After

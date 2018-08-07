@@ -33,7 +33,7 @@ import org.junit.Test;
  */
 @Slf4j
 public class InProcPravegaClusterTest {
-    boolean restEnabled = false;
+    boolean restEnabled = true;
     boolean authEnabled = false;
     boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
