@@ -25,7 +25,6 @@ import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.util.Config;
 
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.Arrays;
@@ -44,7 +43,6 @@ import java.util.stream.Collectors;
 public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
-    private final AtomicInteger startingSegmentNumber = new AtomicInteger(0);
     private final Object lock = new Object();
     @GuardedBy("lock")
     private Data<Integer> configuration;
@@ -922,17 +920,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             this.waitingRequestNode = null;
         }
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    CompletableFuture<Void> createStartingSegmentNumberNode(int providedSegmentNumber) {
-        startingSegmentNumber.compareAndSet(0, providedSegmentNumber);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    CompletableFuture<Integer> getStartingSegmentNumberNode() {
-        return CompletableFuture.completedFuture(startingSegmentNumber.get());
     }
 
     private Data<Integer> copy(Data<Integer> input) {

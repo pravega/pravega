@@ -66,13 +66,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
-    private static final String STARTING_SEGMENT_NUMBER_PATH = STREAM_PATH + "/startingSegmentNumber";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     // region Backward compatibility
     // TODO 2755 retire code in this region 
     private static final String STREAM_COMPLETED_TX_PATH_OLD_SCHEME = ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH + "/%s/%s";
     // endregion
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
+
     private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
 
     private final ZKStoreHelper store;
@@ -92,7 +92,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String activeTxRoot;
     private final String completedTxPathOldScheme;
     private final String markerPath;
-    private final String startingSegmentNumberPath;
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
@@ -126,7 +125,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
-        startingSegmentNumberPath = String.format(STARTING_SEGMENT_NUMBER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
         this.currentBatchSupplier = currentBatchSupplier;
@@ -666,20 +664,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
-    }
-
-    @Override
-    CompletableFuture<Void> createStartingSegmentNumberNode(int startingSegmentNumber) {
-        byte[] b = new byte[Integer.BYTES];
-        BitConverter.writeInt(b, 0, startingSegmentNumber);
-
-        return store.createZNodeIfNotExist(startingSegmentNumberPath, b)
-                    .thenApply(x -> cache.invalidateCache(startingSegmentNumberPath));
-    }
-
-    @Override
-    public CompletableFuture<Integer> getStartingSegmentNumberNode() {
-        return cache.getCachedData(startingSegmentNumberPath).thenApply(data -> BitConverter.readInt(data.getData(), 0));
     }
 
     // endregion

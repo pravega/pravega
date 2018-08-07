@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -24,6 +25,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,16 +55,15 @@ public class TableHelper {
      * Segment Table records are indexed and and it is O(constant) operation to get segment offset given segmentIndex.
      *
      * @param segmentId    segment id
-     * @param startingSegmentNumber starting segment number
      * @param segmentIndex segment table index
      * @param segmentTable segment table
      * @param historyIndex history index
      * @param historyTable history table
      * @return Segment object
      */
-    public static Segment getSegment(final long segmentId, final int startingSegmentNumber, final byte[] segmentIndex,
-                                     final byte[] segmentTable, final byte[] historyIndex, final byte[] historyTable) {
-        int segmentNumber = getSegmentNumber(segmentId) - startingSegmentNumber;
+    public static Segment getSegment(final long segmentId, final byte[] segmentIndex, final byte[] segmentTable,
+                                     final byte[] historyIndex, final byte[] historyTable) {
+        int segmentNumber = getSegmentNumber(segmentId);
         Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, segmentNumber);
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
@@ -104,7 +105,9 @@ public class TableHelper {
     public static int getSegmentCount(final byte[] segmentIndex, final byte[] segmentTable) {
         Optional<SegmentRecord> segmentRecord = SegmentRecord.readLatest(segmentIndex, segmentTable);
         assert segmentRecord.isPresent();
-        return segmentRecord.get().getSegmentNumber() + 1;
+        final int startingSegmentNumber = getStartingSegmentNumber(segmentIndex);
+        // The count should take into account both the segment number and the starting segment number for the stream.
+        return segmentRecord.get().getSegmentNumber() - startingSegmentNumber + 1;
     }
 
     /**
@@ -133,12 +136,11 @@ public class TableHelper {
      * @param segmentIndex     segment index
      * @param segmentTable     segment table
      * @param truncationRecord truncation record
-     * @param startingSegmentNumber starting segment number
      * @return list of active segments.
      */
     public static Map<Long, Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
                                                final byte[] segmentIndex, final byte[] segmentTable,
-                                               final StreamTruncationRecord truncationRecord, final int startingSegmentNumber) {
+                                               final StreamTruncationRecord truncationRecord) {
         final HistoryRecord record = findRecordInHistoryTable(timestamp, historyIndex, historyTable);
 
         Map<Long, Long> segments;
@@ -169,8 +171,8 @@ public class TableHelper {
                 // put remaining segments as those that dont overlap with ones taken from streamCut.
                 // Note: we will use the head of these segments, basically offset = 0
                 record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
-                        getSegment(x, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable)
-                                .overlaps(getSegment(y, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable))))
+                        getSegment(x, segmentIndex, segmentTable, historyIndex, historyTable)
+                                .overlaps(getSegment(y, segmentIndex, segmentTable, historyIndex, historyTable))))
                         .forEach(x -> segments.put(x, 0L));
             }
         }
@@ -201,14 +203,12 @@ public class TableHelper {
      * @param segmentTable             segment table
      * @param streamCut                stream cut to truncate at.
      * @param previousTruncationRecord the current truncation record that identifies truncation point.
-     * @param startingSegmentNumber starting segment number
      * @return Returns new truncation record with updating flag set to true.
      */
     public static StreamTruncationRecord computeTruncationRecord(final byte[] historyIndex, final byte[] historyTable,
                                                                  final byte[] segmentIndex, final byte[] segmentTable,
                                                                  final Map<Long, Long> streamCut,
-                                                                 final StreamTruncationRecord previousTruncationRecord,
-                                                                 final int startingSegmentNumber) {
+                                                                 final StreamTruncationRecord previousTruncationRecord) {
         Preconditions.checkNotNull(streamCut);
         Preconditions.checkNotNull(historyIndex);
         Preconditions.checkNotNull(historyTable);
@@ -216,16 +216,16 @@ public class TableHelper {
         Preconditions.checkNotNull(segmentTable);
         Preconditions.checkArgument(!streamCut.isEmpty());
 
-        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut, startingSegmentNumber);
-        Map<Segment, Integer> cutMapSegments = transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap, startingSegmentNumber);
+        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
+        Map<Segment, Integer> cutMapSegments = transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap);
 
-        Map<Segment, Integer> previousCutMapSegment = transform(segmentIndex, segmentTable, historyIndex, historyTable, previousTruncationRecord.getCutEpochMap(), startingSegmentNumber);
+        Map<Segment, Integer> previousCutMapSegment = transform(segmentIndex, segmentTable, historyIndex, historyTable, previousTruncationRecord.getCutEpochMap());
 
         Exceptions.checkArgument(greaterThan(cutMapSegments, previousCutMapSegment, streamCut, previousTruncationRecord.getStreamCut()),
                 "streamCut", "stream cut has to be strictly ahead of previous stream cut");
 
         Set<Long> toDelete = computeToDelete(cutMapSegments, historyIndex, historyTable, segmentIndex, segmentTable,
-                previousTruncationRecord.getDeletedSegments(), startingSegmentNumber);
+                previousTruncationRecord.getDeletedSegments());
         return new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), ImmutableMap.copyOf(epochCutMap),
                 previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete), true);
     }
@@ -238,19 +238,18 @@ public class TableHelper {
      * @param segmentTable             segment table
      * @param from                     stream cut to truncate at.
      * @param to                       stream cut to truncate at.
-     * @param startingSegmentNumber    starting segment number
      * @return returns segments that fall between given stream cuts
      */
     public static List<Segment> findSegmentsBetweenStreamCuts(final byte[] historyIndex, final byte[] historyTable,
-                                                              final byte[] segmentIndex, final byte[] segmentTable,
-                                                              final Map<Long, Long> from, final Map<Long, Long> to,
-                                                              final int startingSegmentNumber) {
+                                                                 final byte[] segmentIndex, final byte[] segmentTable,
+                                                                 final Map<Long, Long> from,
+                                                                 final Map<Long, Long> to) {
         Preconditions.checkArgument(!(from.isEmpty() && to.isEmpty()));
         // 1. compute epoch cut map for from and to
         Map<Segment, Integer> fromEpochCutMap = from.isEmpty() ? Collections.emptyMap() :
-                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, from, startingSegmentNumber);
+                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, from);
         Map<Segment, Integer> toEpochCutMap = to.isEmpty() ? Collections.emptyMap() :
-                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, to, startingSegmentNumber);
+                computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, to);
         Preconditions.checkArgument(greaterThan(toEpochCutMap, fromEpochCutMap, to, from));
 
         Set<Long> segments = new HashSet<>();
@@ -276,7 +275,7 @@ public class TableHelper {
                 // 3. for each segment in epoch.segments, find overlaps in from and to
                 epochRecord.getSegments().stream().filter(x -> !segments.contains(x)).forEach(segmentId -> {
                     // 4. if segment.number >= from.segmentNumber && segment.number <= to.segmentNumber include segment.number
-                    Segment epochSegment = getSegment(segmentId, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
+                    Segment epochSegment = getSegment(segmentId, segmentIndex, segmentTable, historyIndex, historyTable);
                     boolean greatThanFrom = fromEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
                             .allMatch(x -> x.segmentId() <= epochSegment.segmentId());
                     boolean lessThanTo = toEpochCutMap.keySet().stream().filter(x -> x.overlaps(epochSegment))
@@ -288,7 +287,7 @@ public class TableHelper {
             }
         }
 
-        return segments.stream().map(segmentId -> getSegment(segmentId, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable))
+        return segments.stream().map(segmentId -> getSegment(segmentId, segmentIndex, segmentTable, historyIndex, historyTable))
                 .collect(Collectors.toList());
     }
 
@@ -303,19 +302,18 @@ public class TableHelper {
      * @param segmentTable segment table for the stream
      * @param streamCut stream cut to compute size till
      * @param sealedSegmentsRecord record for all the sealed segments for the given stream.
-     * @param startingSegmentNumber starting segment number for the stream.
      * @return size (in bytes) of stream till the given stream cut.
      */
     public static long getSizeTillStreamCut(final byte[] historyIndex, final byte[] historyTable, final byte[] segmentIndex,
                                             final byte[] segmentTable, final Map<Long, Long> streamCut,
-                                            final SealedSegmentsRecord sealedSegmentsRecord, final int startingSegmentNumber) {
+                                            final SealedSegmentsRecord sealedSegmentsRecord) {
         Preconditions.checkNotNull(streamCut);
         Preconditions.checkNotNull(historyIndex);
         Preconditions.checkNotNull(historyTable);
         Preconditions.checkNotNull(sealedSegmentsRecord);
         Preconditions.checkNotNull(segmentTable);
         Preconditions.checkArgument(!streamCut.isEmpty());
-        Map<Segment, Integer> epochCutMap = computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, streamCut, startingSegmentNumber);
+        Map<Segment, Integer> epochCutMap = computeEpochCutMapWithSegment(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
         AtomicLong size = new AtomicLong();
         Map<Long, Long> sealedSegmentSizeMap = sealedSegmentsRecord.getSealedSegmentsSizeMap();
 
@@ -331,7 +329,7 @@ public class TableHelper {
             int epoch = historyRecord.getEpoch();
 
             size.addAndGet(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
-                Segment epochSegment = getSegment(epochSegmentNumber, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
+                Segment epochSegment = getSegment(epochSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
                 return epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().segmentId() == epochSegment.segmentId() ||
                         (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).map(sealedSegmentSizeMap::get).reduce((x, y) -> x + y).orElse(0L));
@@ -492,10 +490,9 @@ public class TableHelper {
                                                                             final byte[] segmentTable,
                                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                                             final long timeStamp) {
-
         // if startingSegmentNumber was already previously indexed, overwrite the index
         int segmentIndexOffset = SegmentIndexRecord.readRecord(segmentIndex, startingSegmentNumber)
-                .map(index -> index.getIndexOffset()).orElse(segmentIndex.length);
+                .map(SegmentIndexRecord::getIndexOffset).orElse(segmentIndex.length);
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
         indexStream.write(segmentIndex, 0, segmentIndexOffset);
@@ -515,10 +512,18 @@ public class TableHelper {
                         x -> {
                             try {
                                 int offset = segmentStream.size();
-                                ArrayView arrayView = new SegmentRecord(startingSegmentNumber + x, timeStamp,
-                                        newEpoch, newRanges.get(x).getKey(), newRanges.get(x).getValue()).toArrayView();
+                                ArrayView arrayView = new SegmentRecord(startingSegmentNumber + x,
+                                        timeStamp, newEpoch, newRanges.get(x).getKey(), newRanges.get(x).getValue())
+                                        .toArrayView();
                                 segmentStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
-                                indexStream.write(new SegmentIndexRecord(startingSegmentNumber + x, offset).toByteArray());
+
+                                // If we create a new segment index, its first element is the startingSegmentNumber for
+                                // this stream. This avoids storing this value in a separate metadata item.
+                                if (indexStream.size() == 0) {
+                                    indexStream.write(ByteBuffer.allocate(SegmentIndexRecord.INDEX_RECORD_SIZE).putInt(startingSegmentNumber).array());
+                                }
+
+                                indexStream.write(new SegmentIndexRecord(startingSegmentNumber + x, offset, startingSegmentNumber).toByteArray());
                             } catch (IOException e) {
                                 throw Lombok.sneakyThrow(e);
                             }
@@ -691,7 +696,6 @@ public class TableHelper {
      * if the partial state corresponds to supplied input.
      *
      * @param epochTransitionRecord epoch transition record
-     * @param startingSegmentNumber starting segment number for the stream
      * @param historyIndex history index
      * @param historyTable history table
      * @param segmentIndex segment index
@@ -699,7 +703,6 @@ public class TableHelper {
      * @return true if input matches partial state, false otherwise
      */
     public static boolean isEpochTransitionConsistent(final EpochTransitionRecord epochTransitionRecord,
-                                                      final int startingSegmentNumber,
                                                       final byte[] historyIndex,
                                                       final byte[] historyTable,
                                                       final byte[] segmentIndex,
@@ -709,8 +712,7 @@ public class TableHelper {
         // verify that epoch transition record is consistent with segment table
         if (latest.getCreationEpoch() == epochTransitionRecord.getNewEpoch()) { // if segment table is updated
             epochTransitionRecord.newSegmentsWithRange.entrySet().forEach(segmentWithRange -> {
-                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable,
-                        getSegmentNumber(segmentWithRange.getKey()) - startingSegmentNumber);
+                Optional<SegmentRecord> segmentOpt = SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentWithRange.getKey()));
                 isConsistent.compareAndSet(true, segmentOpt.isPresent() &&
                         segmentOpt.get().getCreationEpoch() == epochTransitionRecord.getNewEpoch() &&
                         segmentOpt.get().getRoutingKeyStart() == segmentWithRange.getValue().getKey() &&
@@ -894,20 +896,18 @@ public class TableHelper {
      * @param newRanges      new ranges to create
      * @param segmentTable   segment table
      * @param segmentIndex   segment index
-     * @param startingSegmentNumber starting segment number for the stream
      * @return true if scale input is valid, false otherwise.
      */
     public static boolean isScaleInputValid(final List<Long> segmentsToSeal,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final byte[] segmentIndex,
-                                            final byte[] segmentTable,
-                                            final int startingSegmentNumber) {
+                                            final byte[] segmentTable) {
         boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() &&
                 x.getKey() >= 0 && x.getValue() > 0);
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentId) - startingSegmentNumber)
-                                               .map(x -> new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
+                .map(segmentId -> SegmentRecord.readRecord(segmentIndex, segmentTable, getSegmentNumber(segmentId)).map(x ->
+                        new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
@@ -918,10 +918,9 @@ public class TableHelper {
     /**
      * Method to transform epoch cut map with segment id to epoch cut map with Segment object.
      */
-    private static Map<Segment, Integer> transform(byte[] segmentIndex, byte[] segmentTable, byte[] historyIndex,
-                                                   byte[] historyTable, Map<Long, Integer> epochStreamCutMap, int startingSegmentNumber) {
+    private static Map<Segment, Integer> transform(byte[] segmentIndex, byte[] segmentTable, byte[] historyIndex, byte[] historyTable, Map<Long, Integer> epochStreamCutMap) {
         return epochStreamCutMap.entrySet().stream()
-                .collect(Collectors.toMap(entry -> getSegment(entry.getKey(), startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable),
+                .collect(Collectors.toMap(entry -> getSegment(entry.getKey(), segmentIndex, segmentTable, historyIndex, historyTable),
                         Map.Entry::getValue));
     }
 
@@ -939,24 +938,25 @@ public class TableHelper {
      */
     public static EpochTransitionRecord computeEpochTransition(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
                                                                byte[] segmentTable, List<Long> segmentsToSeal,
-                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                               long scaleTimestamp) {
         HistoryRecord activeEpoch = getActiveEpoch(historyIndex, historyTable);
         Preconditions.checkState(activeEpoch.getSegments().containsAll(segmentsToSeal), "Invalid epoch transition request");
 
         int newEpoch = activeEpoch.getEpoch() + 1;
         int segmentCount = getSegmentCount(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
-        IntStream.range(0, newRanges.size()).forEach(x -> {
-            newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
-        });
+        final int startingSegmentNumber = getStartingSegmentNumber(segmentIndex);
+        IntStream.range(0, newRanges.size()).forEach(x ->
+            newSegments.put(computeSegmentId(startingSegmentNumber + segmentCount + x, newEpoch), newRanges.get(x)));
         return new EpochTransitionRecord(activeEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));
     }
 
     private static Map<Segment, Integer> computeEpochCutMapWithSegment(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
-                                                                       byte[] segmentTable, Map<Long, Long> streamCut, int startingSegmentNumber) {
-        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut, startingSegmentNumber);
-        return transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap, startingSegmentNumber);
+                                                                       byte[] segmentTable, Map<Long, Long> streamCut) {
+        Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
+        return transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap);
     }
 
     /**
@@ -978,11 +978,11 @@ public class TableHelper {
      * {0/3, 3/1, 6/3, 7/3}
      */
     private static Map<Long, Integer> computeEpochCutMap(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
-                                                         byte[] segmentTable, Map<Long, Long> streamCut, int startingSegmentNumber) {
+                                                                              byte[] segmentTable, Map<Long, Long> streamCut) {
         Map<Long, Integer> epochStreamCutMap = new HashMap<>();
 
         Long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-        Segment mostRecentSegment = getSegment(mostRecent, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
+        Segment mostRecentSegment = getSegment(mostRecent, segmentIndex, segmentTable, historyIndex, historyTable);
 
         final Optional<HistoryRecord> highEpochRecord = HistoryRecord.readRecord(mostRecentSegment.getEpoch(), historyIndex,
                 historyTable, false);
@@ -1004,7 +1004,7 @@ public class TableHelper {
     }
 
     private static Set<Long> computeToDelete(Map<Segment, Integer> epochCutMap, byte[] historyIndex, byte[] historyTable,
-                                             byte[] segmentIndex, byte[] segmentTable, Set<Long> deletedSegments, int startingSegmentNumber) {
+                                                                  byte[] segmentIndex, byte[] segmentTable, Set<Long> deletedSegments) {
         Set<Long> toDelete = new HashSet<>();
         int highestEpoch = epochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
 
@@ -1016,7 +1016,7 @@ public class TableHelper {
             int epoch = historyRecord.getEpoch();
 
             toDelete.addAll(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
-                Segment epochSegment = getSegment(epochSegmentNumber, startingSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
+                Segment epochSegment = getSegment(epochSegmentNumber, segmentIndex, segmentTable, historyIndex, historyTable);
                 // ignore already deleted segments from todelete
                 // toDelete.add(epoch.segment overlaps cut.segment && epoch < cut.segment.epoch)
                 return !deletedSegments.contains(epochSegmentNumber) &&
@@ -1099,5 +1099,9 @@ public class TableHelper {
      */
     public static long generalizedSegmentId(long segmentId, UUID txId) {
         return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
+    }
+
+    public static int getStartingSegmentNumber(byte[] segmentIndex) {
+        return BitConverter.readInt(segmentIndex, SegmentIndexRecord.STARTING_SEGMENT_NUMBER_POSITION);
     }
 }

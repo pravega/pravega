@@ -20,7 +20,9 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -118,10 +120,22 @@ public class StreamRecreationTest {
             ClientFactory clientFactory = ClientFactory.withScope(myScope, controllerURI);
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
-            writer.writeEvent(eventContent).join();
+
+            // Write events regularly and with transactions.
+            if (i % 2 == 0) {
+                writer.writeEvent(eventContent).join();
+            } else {
+                Transaction<String> myTransaction = writer.beginTxn();
+                myTransaction.writeEvent(eventContent);
+                myTransaction.commit();
+                while (myTransaction.checkStatus() != Transaction.Status.COMMITTED) {
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
+                }
+            }
+
             writer.close();
 
-            // Read the event
+            // Read the event.
             readerGroupManager.createReaderGroup(myReaderGroup, readerGroupConfig);
             readerGroupManager.getReaderGroup(myReaderGroup).resetReaderGroup(readerGroupConfig);
             @Cleanup
@@ -131,6 +145,7 @@ public class StreamRecreationTest {
             do {
                 readResult = reader.readNextEvent(1000).getEvent();
             } while (readResult == null);
+
             assertEquals("Wrong event read in re-created stream", eventContent, readResult);
 
             // Delete the stream.

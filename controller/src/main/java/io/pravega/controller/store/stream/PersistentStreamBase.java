@@ -114,7 +114,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(createStreamResponse.getConfiguration())))
                         .thenCompose((Void v) -> createTruncationDataIfAbsent(StreamTruncationRecord.EMPTY))
                         .thenCompose((Void v) -> createStateIfAbsent(State.CREATING))
-                        .thenCompose((Void v) -> createStartingSegmentNumberNode(createStreamResponse.getStartingSegmentNumber()))
                         .thenCompose((Void v) -> createNewSegmentTableWithIndex(createStreamResponse.getConfiguration(),
                                 createStreamResponse.getTimestamp(), createStreamResponse.getStartingSegmentNumber()))
                         .thenCompose((Void v) -> createHistoryIndexIfAbsent(new Data<>(
@@ -178,9 +177,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(history -> getSegmentIndexFromStore()
                                 .thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                        .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                                .thenApply(startingSegmentNumber -> TableHelper.computeTruncationRecord(historyIndex.getData(), history.getData(),
-                                                        segmentIndex.getData(), segmentTable.getData(), streamCut, truncationRecord, startingSegmentNumber))))));
+                                        .thenApply(segmentTable -> TableHelper.computeTruncationRecord(historyIndex.getData(), history.getData(),
+                                                segmentIndex.getData(), segmentTable.getData(), streamCut, truncationRecord)))));
     }
 
     @Override
@@ -416,15 +414,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose(historyIndex -> getHistoryTable()
                                 .thenCompose(historyTable -> getSegmentIndex()
                                         .thenCompose(segmentIndex -> getSegmentTable()
-                                                .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                                        .thenApply(startingSegmentNumber ->
-                                                                TableHelper.getActiveSegments(timestamp,
-                                                                        historyIndex.getData(),
-                                                                        historyTable.getData(),
-                                                                        segmentIndex.getData(),
-                                                                        segmentTable.getData(),
-                                                                        truncationRecord,
-                                                                        startingSegmentNumber)))))));
+                                                .thenApply(segmentTable ->
+                                                        TableHelper.getActiveSegments(timestamp,
+                                                                historyIndex.getData(),
+                                                                historyTable.getData(),
+                                                                segmentIndex.getData(),
+                                                                segmentTable.getData(),
+                                                                truncationRecord))
+                                        ))));
     }
 
     @Override
@@ -440,10 +437,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTable()
                         .thenCompose(historyTable -> getSegmentIndex()
                                 .thenCompose(segmentIndex -> getSegmentTable()
-                                        .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                                .thenApply(startingSegmentNumber ->
-                                                        TableHelper.findSegmentsBetweenStreamCuts(historyIndex.getData(), historyTable.getData(),
-                                                                segmentIndex.getData(), segmentTable.getData(), from, to, startingSegmentNumber))))));
+                                        .thenApply(segmentTable ->
+                                                TableHelper.findSegmentsBetweenStreamCuts(historyIndex.getData(), historyTable.getData(),
+                                                        segmentIndex.getData(), segmentTable.getData(), from, to)))));
     }
 
     /**
@@ -466,17 +462,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(historyTable -> getSegmentIndexFromStore()
                                 .thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                        .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                                .thenCompose(startingSegmentNumber -> {
-                                                    if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
-                                                            segmentTable.getData(), startingSegmentNumber)) {
-                                                        log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
-                                                        throw new EpochTransitionOperationExceptions.InputInvalidException();
-                                                    }
+                                        .thenCompose(segmentTable -> {
+                                            if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
+                                                    segmentTable.getData())) {
+                                                log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
+                                                throw new EpochTransitionOperationExceptions.InputInvalidException();
+                                            }
 
-                                                    return startScale(segmentsToSeal, newRanges, scaleTimestamp, runOnlyIfStarted, historyIndex,
-                                                            historyTable, segmentIndex, segmentTable);
-                                                }))))));
+                                            return startScale(segmentsToSeal, newRanges, scaleTimestamp, runOnlyIfStarted, historyIndex,
+                                                    historyTable, segmentIndex, segmentTable);
+                                        })))));
     }
 
     private CompletableFuture<EpochTransitionRecord> startScale(List<Long> segmentsToSeal, List<SimpleEntry<Double, Double>> newRanges,
@@ -559,8 +554,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(x -> {
                     return getHistoryIndexFromStore().thenCompose(historyIndex -> getHistoryTableFromStore()
                             .thenCompose(historyTable -> getSegmentIndexFromStore().thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                    .thenCompose(startingSegmentNumber -> getEpochTransition().thenCompose(epochTransition -> {
+                                    .thenCompose(segmentTable -> getEpochTransition().thenCompose(epochTransition -> {
                                         if (isManualScale) {
                                             // The epochTransitionNode is the barrier that prevents concurrent scaling.
                                             // State is the barrier to ensure only one work happens at a time.
@@ -593,19 +587,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                     epochTransition);
                                         } else {
                                             return discardInconsistentEpochTransition(historyIndex, historyTable, segmentIndex,
-                                                    segmentTable, epochTransition, startingSegmentNumber);
+                                                    segmentTable, epochTransition);
                                         }
-                                    }))))));
+                                    })))));
                 });
     }
 
     private CompletableFuture<Void> discardInconsistentEpochTransition(Data<T> historyIndex, Data<T> historyTable,
                                                                        Data<T> segmentIndex, Data<T> segmentTable,
-                                                                       EpochTransitionRecord epochTransition,
-                                                                       int startingSegmentNumber) {
+                                                                       EpochTransitionRecord epochTransition) {
         // verify that epoch transition is consistent with segments in the table.
-        if (TableHelper.isEpochTransitionConsistent(epochTransition, startingSegmentNumber, historyIndex.getData(),
-                historyTable.getData(), segmentIndex.getData(), segmentTable.getData())) {
+        if (TableHelper.isEpochTransitionConsistent(epochTransition, historyIndex.getData(), historyTable.getData(),
+                segmentIndex.getData(), segmentTable.getData())) {
             log.debug("CreateNewSegments step for stream {}/{} is idempotent, " +
                     "segments are already present in segment table.", scope, name);
             return CompletableFuture.completedFuture(null);
@@ -1223,10 +1216,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose(historyTable -> getSegmentIndex()
                                 .thenCompose(segmentIndex -> getSegmentTable()
                                         .thenCompose(segmentTable -> getSealedSegmentsRecord()
-                                                .thenCompose(sealedData -> getStartingSegmentNumber()
-                                                        .thenApply(startingSegmentNumber -> TableHelper.getSizeTillStreamCut(historyIndex.getData(),
-                                                            historyTable.getData(), segmentIndex.getData(), segmentTable.getData(), streamCut,
-                                                            SealedSegmentsRecord.parse(sealedData.getData()), startingSegmentNumber)))))));
+                                                .thenApply(sealedData -> TableHelper.getSizeTillStreamCut(historyIndex.getData(),
+                                                        historyTable.getData(), segmentIndex.getData(), segmentTable.getData(), streamCut,
+                                                        SealedSegmentsRecord.parse(sealedData.getData())))))));
     }
 
     @Override
@@ -1338,7 +1330,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Integer> getStartingSegmentNumber() {
-        return getStartingSegmentNumberNode();
+        return getSegmentIndex().thenApply(segmentIndex -> TableHelper.getStartingSegmentNumber(segmentIndex.getData()));
     }
 
     private CompletableFuture<Void> checkState(Predicate<State> predicate) {
@@ -1401,9 +1393,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyIndex -> getHistoryTable()
                         .thenCompose(historyTable -> getSegmentIndex()
                                 .thenCompose(segmentIndex -> getSegmentTable()
-                                        .thenCompose(segmentTable -> getStartingSegmentNumber()
-                                                .thenApply(startingSegmentNumber -> TableHelper.getSegment(number, startingSegmentNumber, segmentIndex.getData(),
-                                                        segmentTable.getData(), historyIndex.getData(), historyTable.getData()))))));
+                                        .thenApply(segmentTable -> TableHelper.getSegment(number, segmentIndex.getData(),
+                                                segmentTable.getData(), historyIndex.getData(), historyTable.getData())))));
     }
 
     protected int getTransactionEpoch(UUID txId) {
@@ -1534,9 +1525,4 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Data<T>> getWaitingRequestNode();
 
     abstract CompletableFuture<Void> deleteWaitingRequestNode();
-
-    abstract CompletableFuture<Void> createStartingSegmentNumberNode(int startingSegmentNumber);
-
-    abstract CompletableFuture<Integer> getStartingSegmentNumberNode();
-
 }

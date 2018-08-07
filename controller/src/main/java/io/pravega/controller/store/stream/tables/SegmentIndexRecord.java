@@ -21,26 +21,45 @@ import java.util.Optional;
  */
 @Data
 public class SegmentIndexRecord {
-    private static final int INDEX_RECORD_SIZE = Integer.BYTES;
+    // The first (integer) record of this table contains the starting segment number for this stream. All the segments
+    // in this stream will contain ids starting from the the value stored in the first record of this table.
+    static final int STARTING_SEGMENT_NUMBER_POSITION = 0;
+    static final int INDEX_RECORD_SIZE = Integer.BYTES;
     private final int segmentNumber;
     private final int segmentOffset;
+    private final int startingSegmentNumber;
 
     public static Optional<SegmentIndexRecord> readRecord(final byte[] indexTable, final int segmentNumber) {
-        if ((segmentNumber + 1) * INDEX_RECORD_SIZE > indexTable.length || segmentNumber < 0) {
+        // To get the appropriate index for segmentNumber, we need to subtract the starting segment number for this
+        // stream and add 1 to take into account the storage space of the starting segment number value (first element).
+        final int actualSegmentIndex = fromSegmentNumberToTableIndex(indexTable, segmentNumber);
+
+        // Note that the segment index has now an extra header integer to store the starting segment number.
+        if ((actualSegmentIndex + 1) * INDEX_RECORD_SIZE > indexTable.length || actualSegmentIndex < 0) {
             return Optional.empty();
         } else {
-            return Optional.of(parse(indexTable, segmentNumber));
+            return Optional.of(parse(indexTable, actualSegmentIndex));
         }
     }
 
     public static Optional<SegmentIndexRecord> readLatestRecord(final byte[] indexTable) {
-        return readRecord(indexTable, indexTable.length / INDEX_RECORD_SIZE - 1);
+        final int startingSegmentNumber = BitConverter.readInt(indexTable, STARTING_SEGMENT_NUMBER_POSITION);
+        return readRecord(indexTable, startingSegmentNumber + indexTable.length / INDEX_RECORD_SIZE - 2);
     }
 
-    private static SegmentIndexRecord parse(final byte[] bytes, int segmentNumber) {
-        int offset = segmentNumber * INDEX_RECORD_SIZE;
+    private static SegmentIndexRecord parse(final byte[] bytes, int segmentIndexInTable) {
+        int offset = segmentIndexInTable * INDEX_RECORD_SIZE;
         final int segmentOffset = BitConverter.readInt(bytes, offset);
-        return new SegmentIndexRecord(segmentNumber, segmentOffset);
+        final int startingSegmentNumber = BitConverter.readInt(bytes, STARTING_SEGMENT_NUMBER_POSITION);
+        return new SegmentIndexRecord(fromTableIndexToSegmentNumber(bytes, segmentIndexInTable), segmentOffset, startingSegmentNumber);
+    }
+
+    private static int fromSegmentNumberToTableIndex(final byte[] indexTable, final int segmentNumber) {
+        return segmentNumber - BitConverter.readInt(indexTable, STARTING_SEGMENT_NUMBER_POSITION) + 1;
+    }
+
+    private static int fromTableIndexToSegmentNumber(final byte[] indexTable, final int segmentIndexInTable) {
+        return segmentIndexInTable + BitConverter.readInt(indexTable, STARTING_SEGMENT_NUMBER_POSITION) - 1;
     }
 
     public byte[] toByteArray() {
@@ -51,6 +70,6 @@ public class SegmentIndexRecord {
     }
 
     int getIndexOffset() {
-        return segmentNumber * INDEX_RECORD_SIZE;
+        return (segmentNumber - startingSegmentNumber) * INDEX_RECORD_SIZE;
     }
 }

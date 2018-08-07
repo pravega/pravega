@@ -257,7 +257,15 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
         return storeHelper.getData(String.format(ZKStoreHelper.DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
-                          .handleAsync((data, ex) -> (ex == null) ? BitConverter.readInt(data.getData(), 0) + 1 : 0);
+                          .handleAsync((data, ex) -> {
+                              if (ex == null) {
+                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                              } else if (ex instanceof StoreException.DataNotFoundException) {
+                                  return 0;
+                              } else {
+                                  throw new CompletionException(ex);
+                              }
+                          });
     }
 
     @Override
