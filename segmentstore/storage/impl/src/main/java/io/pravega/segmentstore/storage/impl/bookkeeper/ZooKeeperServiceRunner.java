@@ -163,6 +163,14 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         } catch (Throwable e) {
             log.warn("Unable to cleanly shutdown ZooKeeper server", e);
         }
+
+        if (secureZK) {
+            System.clearProperty("zookeeper.serverCnxnFactory");
+            System.clearProperty("zookeeper.ssl.keyStore.location");
+            System.clearProperty("zookeeper.ssl.keyStore.password");
+            System.clearProperty("zookeeper.ssl.trustStore.location");
+            System.clearProperty("zookeeper.ssl.trustStore.password");
+        }
     }
 
     /**
