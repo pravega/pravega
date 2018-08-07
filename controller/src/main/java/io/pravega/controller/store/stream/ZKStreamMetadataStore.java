@@ -263,6 +263,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                               } else if (ex instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
+                                  log.error("Problem found while getting a safe starting segment number for {}: {}.",
+                                          getScopedStreamName(scopeName, streamName), ex);
                                   throw new CompletionException(ex);
                               }
                           });
