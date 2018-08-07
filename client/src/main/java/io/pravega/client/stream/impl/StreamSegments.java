@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.TreeMap;
 
 import io.pravega.common.util.ToStringUtils;
@@ -71,26 +72,28 @@ public class StreamSegments {
         return segments.values();
     }
     
-    public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+    public StreamSegments withReplacementRange(Segment replacedSegment, StreamSegmentsWithPredecessors replacementRanges) {
         verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
-        for (Entry<Double, Segment> existingSegment : segments.entrySet()) {
-            List<SegmentWithRange> replacements = replacedRanges.get(existingSegment.getValue().getSegmentId());
-            if (replacements == null || replacements.isEmpty()) {
-                result.put(existingSegment.getKey(), existingSegment.getValue());
-            } else {
-                for (SegmentWithRange replacement : replacements) {
-                    /*
-                      In case of a segment merge the replacement segment's high key can be greater than or equal to the
-                      existing segment high key. In this scenario the existing segment's high key should be used.
-
-                      In case of a segment split the replacement segment's high key will be less than or equal to the
-                      existing segment's high key. In this scenario the replacement segments' high key should be used.
-                     */
-                    result.put(Math.min(replacement.getHigh(), existingSegment.getKey()), replacement.getSegment());
-                }
+        Optional<List<SegmentWithRange>> replacements = Optional.ofNullable(replacedRanges.get(replacedSegment.getSegmentId()));
+        Segment lastSegmentValue = null;
+        for (Entry<Double, Segment> exitingEntry : segments.descendingMap().entrySet()) { //iterate from the highest key.
+            final Segment exitingSegment = exitingEntry.getValue();
+            if (exitingSegment.equals(lastSegmentValue)) {
+                //last value was the same same segment, it can be consolidated.
+                continue;
             }
+            if (exitingSegment.equals(replacedSegment)) {
+                //segment needs to be replaced.
+                replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
+                        result.put(Math.min(segmentWithRange.getHigh(), exitingEntry.getKey()),
+                                segmentWithRange.getSegment())));
+            } else {
+                //update remaining values.
+                result.put(exitingEntry.getKey(), exitingEntry.getValue());
+            }
+            lastSegmentValue = exitingSegment; // update lastSegmentValue to reduce number of entries in the map.
         }
         return new StreamSegments(result, delegationToken);
     }
@@ -116,8 +119,7 @@ public class StreamSegments {
                                         replacementSegments);
             Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
                                         replacementSegments);
-            // Note: replacedSegments can be already present in the current segment mapping in a scale down / merge scenario.
-        }
+         }
     }
 
     @Override
