@@ -18,7 +18,7 @@ import lombok.NonNull;
  * A Key-Value pair of ByteArraySegments that represent an entry in a B+Tree Page.
  */
 @Getter
-class PageEntry {
+public class PageEntry {
     /**
      * The Key.
      */
@@ -34,7 +34,7 @@ class PageEntry {
      * @param key   The Key.
      * @param value The Value.
      */
-    PageEntry(@NonNull ByteArraySegment key, @NonNull ByteArraySegment value) {
+    public PageEntry(@NonNull ByteArraySegment key, @NonNull ByteArraySegment value) {
         this.key = Preconditions.checkNotNull(key, "key");
         this.value = Preconditions.checkNotNull(value, "value");
     }

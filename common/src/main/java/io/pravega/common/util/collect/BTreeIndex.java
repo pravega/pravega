@@ -12,9 +12,9 @@ package io.pravega.common.util.collect;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.IllegalDataFormatException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -33,52 +33,63 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
-public class BTreeIndex<K, V> {
+public class BTreeIndex {
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     private final DataSource dataSource;
-    private final Serializer<K> keySerializer;
-    private final Serializer<V> valueSerializer;
     private final BTreePage.Config indexPageConfig;
     private final BTreePage.Config leafPageConfig;
     private final Executor executor;
 
-    public BTreeIndex(int maxPageSize, DataSource dataSource, Serializer<K> keySerializer, Serializer<V> valueSerializer, Executor executor) {
-        this.dataSource = dataSource;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
-        this.executor = executor;
-        this.indexPageConfig = new BTreePage.Config(this.keySerializer.length, INDEX_VALUE_LENGTH, maxPageSize, true);
-        this.leafPageConfig = new BTreePage.Config(this.keySerializer.length, this.valueSerializer.length, maxPageSize, false);
+    @Builder
+    public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull Read read, @NonNull Write write,
+                      @NonNull GetLength getLength, @NonNull Executor executor) {
+        // DataSource validates arguments.
+        this.dataSource = new DataSource(read, write, getLength);
+        this.executor = Preconditions.checkNotNull(executor, "executor");
+
+        // BTreePage.Config validates the arguments so we don't need to.
+        this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
+        this.leafPageConfig = new BTreePage.Config(keyLength, valueLength, maxPageSize, false);
     }
 
-    public CompletableFuture<V> get(K key, Duration timeout) {
-        // Serialize the Key.
-        ByteArraySegment serializedKey = serializeKey(key);
+    public CompletableFuture<ByteArraySegment> get(ByteArraySegment key, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Lookup the page where the Key should exist (if at all).
-        return locatePage(serializedKey, new PageCollection(), timer)
-                .thenApplyAsync(page -> {
-                    // Found the eligible page. Return the value, if it exists.
-                    val value = page.getPage().searchExact(serializedKey);
-                    return value == null ? null : this.valueSerializer.deserialize.apply(value, 0);
-                }, this.executor);
+        return locatePage(key, new PageCollection(), timer)
+                .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor);
     }
 
-    public CompletableFuture<Void> insert(Map<K, V> entries, Duration timeout) {
+    public CompletableFuture<Map<ByteArraySegment, ByteArraySegment>> get(Collection<ByteArraySegment> keys, Duration timeout) {
+        if (keys.size() == 1) {
+            ByteArraySegment key = keys.stream().findFirst().orElse(null);
+            return get(key, timeout).thenApply(value -> Collections.singletonMap(key, value));
+        }
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+
+        PageCollection pageCollection = new PageCollection();
+        return Futures.allOfWithResults(keys.stream().collect(Collectors.toMap(
+                key -> key,
+                key -> locatePage(key, pageCollection, timer).thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))));
+    }
+
+    public CompletableFuture<Void> insert(Collection<PageEntry> entries, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return insertIntoPages(entries, timer)
                 .thenApply(this::processModifiedPages)
                 .thenComposeAsync(pageCollection -> this.dataSource.writePages(pageCollection, timer.getRemaining()), this.executor);
     }
 
-    public CompletableFuture<Void> delete(Collection<K> keys, Duration timeout) {
+    public CompletableFuture<Void> delete(Collection<ByteArraySegment> keys, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return deleteFromPages(keys, timer)
                 .thenApply(this::processModifiedPages)
@@ -87,16 +98,16 @@ public class BTreeIndex<K, V> {
 
     //region Helpers
 
-    private CompletableFuture<PageCollection> deleteFromPages(Collection<K> keys, TimeoutTimer timer) {
-        val toDelete = keys.stream()
-                           .map(this::serializeKey)
-                           .sorted(KEY_COMPARATOR::compare)
-                           .iterator();
+    private CompletableFuture<PageCollection> deleteFromPages(Collection<ByteArraySegment> keys, TimeoutTimer timer) {
+        // Process the keys in sorted order; this makes the operation more efficient as we can batch-delete keys belonging
+        // to the same page.
+        val toDelete = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
 
         PageCollection pageCollection = new PageCollection();
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageKeys = new ArrayList<ByteArraySegment>();
-        return Futures.loop(toDelete::hasNext,
+        return Futures.loop(
+                toDelete::hasNext,
                 () -> {
                     // Locate the page where the key is to be removed from. Do not yet delete it as it is more efficient
                     // to bulk-delete multiple at once. Collect all keys for each Page, and only delete them
@@ -122,27 +133,27 @@ public class BTreeIndex<K, V> {
                             });
                 },
                 this.executor)
-                      .thenApply(v -> {
-                          // We need not forget to delete the last batch of keys from the last page.
-                          if (lastPage.get() != null) {
-                              lastPage.get().getPage().delete(lastPageKeys);
-                          }
-                          return pageCollection;
-                      });
+                .thenApply(v -> {
+                    // We need not forget to delete the last batch of keys from the last page.
+                    if (lastPage.get() != null) {
+                        lastPage.get().getPage().delete(lastPageKeys);
+                    }
+                    return pageCollection;
+                });
     }
 
-    private CompletableFuture<PageCollection> insertIntoPages(Map<K, V> entries, TimeoutTimer timer) {
-        // Serialize Entries and order them by Key.
-        val toInsert = entries.entrySet().stream()
-                              .map(e -> new PageEntry(serializeKey(e.getKey()), serializeValue(e.getValue())))
+    private CompletableFuture<PageCollection> insertIntoPages(Collection<PageEntry> entries, TimeoutTimer timer) {
+        // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-insert
+        // entries belonging to the same page.
+        val toInsert = entries.stream()
                               .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
                               .iterator();
 
         PageCollection pageCollection = new PageCollection();
-
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageEntries = new ArrayList<PageEntry>();
-        return Futures.loop(toInsert::hasNext,
+        return Futures.loop(
+                toInsert::hasNext,
                 () -> {
                     // Locate the page where the entry is to be inserted. Do not yet insert it as it is more efficient
                     // to bulk-insert multiple at once. Collect all entries for each Page, and only insert them
@@ -168,13 +179,13 @@ public class BTreeIndex<K, V> {
                             });
                 },
                 this.executor)
-                      .thenApply(v -> {
-                          // We need not forget to insert the last batch of entries into the last page.
-                          if (lastPage.get() != null) {
-                              lastPage.get().getPage().update(lastPageEntries);
-                          }
-                          return pageCollection;
-                      });
+                .thenApply(v -> {
+                    // We need not forget to insert the last batch of entries into the last page.
+                    if (lastPage.get() != null) {
+                        lastPage.get().getPage().update(lastPageEntries);
+                    }
+                    return pageCollection;
+                });
     }
 
     private PageCollection processModifiedPages(PageCollection pageCollection) {
@@ -295,16 +306,11 @@ public class BTreeIndex<K, V> {
         return this.dataSource
                 .readPage(pagePointer.offset, pagePointer.length, timeout)
                 .thenApply(data -> {
-                    PageWrapper wrapper = new PageWrapper(parsePage(data), parentPage, pagePointer);
+                    val pageConfig = BTreePage.isIndexPage(data) ? this.indexPageConfig : this.leafPageConfig;
+                    PageWrapper wrapper = new PageWrapper(new BTreePage(pageConfig, data), parentPage, pagePointer);
                     pageCollection.insert(wrapper);
                     return wrapper;
                 });
-    }
-
-    private BTreePage parsePage(byte[] pageData) {
-        ByteArraySegment pageContents = new ByteArraySegment(pageData);
-        val pageConfig = BTreePage.isIndexPage(pageContents) ? this.indexPageConfig : this.leafPageConfig;
-        return new BTreePage(pageConfig, pageContents);
     }
 
     private BTreePage createEmptyLeafRoot() {
@@ -315,17 +321,6 @@ public class BTreeIndex<K, V> {
         return new BTreePage(this.indexPageConfig);
     }
 
-    private ByteArraySegment serializeKey(K key) {
-        byte[] result = new byte[this.keySerializer.length];
-        this.keySerializer.serialize.accept(key, result, 0);
-        return new ByteArraySegment(result);
-    }
-
-    private ByteArraySegment serializeValue(V value) {
-        byte[] result = new byte[this.valueSerializer.length];
-        this.valueSerializer.serialize.accept(value, result, 0);
-        return new ByteArraySegment(result);
-    }
 
     private PagePointer getPagePointer(ByteArraySegment key, BTreePage page) {
         val pos = page.search(key, 0);
@@ -347,7 +342,8 @@ public class BTreeIndex<K, V> {
     }
     //endregion
 
-    //region PageCollection
+    //region Page Wrappers
+
     @RequiredArgsConstructor
     private static class PagePointer {
         final ByteArraySegment key;
@@ -464,47 +460,21 @@ public class BTreeIndex<K, V> {
 
     //endregion
 
-    //region Serializer
-
-    public static class Serializer<T> {
-        private final int length;
-        private final Serialize<T> serialize;
-        private final Deserialize<T> deserialize;
-
-        public Serializer(int length, Serialize<T> serialize, Deserialize<T> deserialize) {
-            this.length = length;
-            this.serialize = Preconditions.checkNotNull(serialize, "serialize");
-            this.deserialize = Preconditions.checkNotNull(deserialize, "deserialize");
-        }
-
-        @FunctionalInterface
-        public interface Serialize<T> {
-            void accept(T toSerialize, byte[] target, int targetOffset);
-        }
-
-        @FunctionalInterface
-        public interface Deserialize<T> {
-            T apply(ArrayView target, int targetOffset);
-        }
-    }
-
-    //endregion
-
-    public static class DataSource {
+    private static class DataSource {
         private static final int FOOTER_LENGTH = Long.BYTES;
         private final Read read;
         private final Write write;
         private final GetLength getLength;
         private final AtomicReference<State> state;
 
-        public DataSource(Read read, Write write, GetLength getLength) {
+        DataSource(@NonNull Read read, @NonNull Write write, @NonNull GetLength getLength) {
             this.read = Preconditions.checkNotNull(read, "read");
             this.write = Preconditions.checkNotNull(write, "write");
             this.getLength = Preconditions.checkNotNull(getLength, "getLength");
             this.state = new AtomicReference<>();
         }
 
-        CompletableFuture<byte[]> readPage(long offset, int length, Duration timeout) {
+        CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
             return this.read.apply(offset, length, timeout);
         }
 
@@ -565,8 +535,11 @@ public class BTreeIndex<K, V> {
             return new ByteArrayInputStream(result);
         }
 
-        private long getRootPageOffset(byte[] footer) {
-            Preconditions.checkArgument(footer.length == FOOTER_LENGTH, "Unexpected footer length.");
+        private long getRootPageOffset(ByteArraySegment footer) {
+            if (footer.getLength() != FOOTER_LENGTH) {
+                throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
+            }
+
             return BitConverter.readLong(footer, 0);
         }
 
@@ -576,21 +549,21 @@ public class BTreeIndex<K, V> {
             private final long rootPageOffset;
             private final int rootPageLength;
         }
+    }
 
-        @FunctionalInterface
-        public interface GetLength {
-            CompletableFuture<Long> apply(Duration timeout);
-        }
+    @FunctionalInterface
+    public interface GetLength {
+        CompletableFuture<Long> apply(Duration timeout);
+    }
 
-        @FunctionalInterface
-        public interface Read {
-            CompletableFuture<byte[]> apply(long offset, int length, Duration timeout);
-        }
+    @FunctionalInterface
+    public interface Read {
+        CompletableFuture<ByteArraySegment> apply(long offset, int length, Duration timeout);
+    }
 
-        @FunctionalInterface
-        public interface Write {
-            CompletableFuture<Void> apply(long expectedOffset, InputStream data, int length, Duration timeout);
-        }
+    @FunctionalInterface
+    public interface Write {
+        CompletableFuture<Void> apply(long expectedOffset, InputStream data, int length, Duration timeout);
     }
 }
 
