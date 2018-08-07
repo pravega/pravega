@@ -248,7 +248,7 @@ class BookKeeperAdapter extends StoreAdapter {
                 .stdOut(ProcessBuilder.Redirect.to(new File(config.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(config.getComponentErrLogPath("bk", 0))))
                 .start();
-        ZooKeeperServiceRunner.waitForServerUp(config.getZkPort(), false, "", "");
+        ZooKeeperServiceRunner.waitForServerUp(config.getZkPort(), false, "", "", "", "");
         TestLogger.log(logId, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
                 config.getZkPort(), config.getBkPort(0), config.getBkPort(bookieCount - 1));
         return p;
