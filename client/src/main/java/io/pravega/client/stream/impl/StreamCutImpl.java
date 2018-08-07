@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.SerializationException;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -31,8 +30,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
-
-import static io.pravega.common.io.SerializationHelpers.serializeBase64;
 
 /**
  * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
@@ -130,12 +127,7 @@ public class StreamCutImpl extends StreamCutInternal {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-
-    @Override
-    public String asText() throws SerializationException {
-        return serializeBase64(this);
-    }
-
+    
     @SneakyThrows(IOException.class)
     public static StreamCutInternal fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));

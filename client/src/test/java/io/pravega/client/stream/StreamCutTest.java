@@ -35,7 +35,7 @@ public class StreamCutTest {
         String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));
-        assertEquals(sc, StreamCut.of(base64));
+        assertEquals(sc, StreamCut.from(base64));
     }
 
     @Test
@@ -46,7 +46,7 @@ public class StreamCutTest {
         assertEquals(sc, deSerializeStreamCut(buf));
         assertNull(deSerializeStreamCut(buf).asImpl());
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));
-        assertEquals(sc, StreamCut.of(base64));
+        assertEquals(sc, StreamCut.from(base64));
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {

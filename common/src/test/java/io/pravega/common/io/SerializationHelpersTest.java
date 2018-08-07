@@ -9,7 +9,6 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.test.common.AssertExtensions;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import org.junit.Test;

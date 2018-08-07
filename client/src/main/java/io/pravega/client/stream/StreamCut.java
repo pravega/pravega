@@ -39,11 +39,6 @@ public interface StreamCut extends Serializable {
         }
 
         @Override
-        public String asText() throws SerializationException {
-            return serializeBase64(this);
-        }
-
-        @Override
         public StreamCutInternal asImpl() {
             return null;
         }
@@ -70,19 +65,8 @@ public interface StreamCut extends Serializable {
      * @return Base64 representation of the StreamCut.
      * @throws SerializationException Exception during serialization.
      */
-    String asText() throws SerializationException;
-    
-    /**
-     * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
-     * 
-     * @param cut A serialized position.
-     * @return The StreamCut object.
-     */
-    static StreamCut fromBytes(ByteBuffer cut) {
-        if (!cut.hasRemaining()) {
-            return UNBOUNDED;
-        }
-        return StreamCutInternal.fromBytes(cut);
+    default String asText() throws SerializationException {
+        return serializeBase64(this);
     }
 
     /**
@@ -91,8 +75,21 @@ public interface StreamCut extends Serializable {
      * @return The StreamCut object
      * @throws SerializationException Exception during deserialization.
      */
-    static StreamCut of(String base64String) throws SerializationException {
+    static StreamCut from(String base64String) throws SerializationException {
         return deserializeBase64(base64String);
+    }
+
+    /**
+     * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
+     *
+     * @param cut A serialized position.
+     * @return The StreamCut object.
+     */
+    static StreamCut fromBytes(ByteBuffer cut) {
+        if (!cut.hasRemaining()) {
+            return UNBOUNDED;
+        }
+        return StreamCutInternal.fromBytes(cut);
     }
 
 }
