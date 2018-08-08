@@ -25,7 +25,7 @@ import lombok.ToString;
  * The successor segments of a given segment.
  */
 @EqualsAndHashCode
-@ToString
+@ToString(exclude = "delegationToken")
 public class StreamSegmentsWithPredecessors {
     private final Map<Segment, List<Long>> segmentWithPredecessors;
     private final Map<Long, List<SegmentWithRange>> replacementRanges;

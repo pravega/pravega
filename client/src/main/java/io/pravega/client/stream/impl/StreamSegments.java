@@ -21,7 +21,6 @@ import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
 
-import io.pravega.common.util.ToStringUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -103,8 +102,7 @@ public class StreamSegments {
      * @param replacementSegments The StreamSegmentsWithPredecessors to verify
      */
     private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementSegments) {
-        log.debug("Verification of replacement segments {} with the current segments {}",
-                replacementSegments, ToStringUtils.mapToString(segments));
+        log.debug("Verification of replacement segments {} with the current segments {}", replacementSegments, segments);
         Map<Long, List<SegmentWithRange>> replacementRanges = replacementSegments.getReplacementRanges();
         for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
             double lowerReplacementRange = 1;
