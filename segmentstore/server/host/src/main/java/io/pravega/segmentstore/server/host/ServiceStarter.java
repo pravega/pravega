@@ -44,6 +44,11 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
+import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_LOCATION;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
+
 /**
  * Starts the Pravega Service.
  */
@@ -140,10 +145,10 @@ public final class ServiceStarter {
             }
 
             if (this.serviceConfig.isSecureZK()) {
-                System.clearProperty("zookeeper.client.secure");
-                System.clearProperty("zookeeper.clientCnxnSocket");
-                System.clearProperty("zookeeper.ssl.trustStore.location");
-                System.clearProperty("zookeeper.ssl.trustStore.password");
+                System.clearProperty(SECURE_CLIENT);
+                System.clearProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET);
+                System.clearProperty(SSL_TRUSTSTORE_LOCATION);
+                System.clearProperty(SSL_TRUSTSTORE_PASSWD);
             }
             this.closed = true;
         }
@@ -197,10 +202,10 @@ public final class ServiceStarter {
 
     private CuratorFramework createZKClient() {
         if (this.serviceConfig.isSecureZK()) {
-            System.setProperty("zookeeper.client.secure", Boolean.toString(this.serviceConfig.isSecureZK()));
-            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", this.serviceConfig.getZkTrustStore());
-            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+            System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
+            System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
+            System.setProperty(SSL_TRUSTSTORE_PASSWD, loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()

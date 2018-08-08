@@ -104,6 +104,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         try {
             pwd = FileUtils.readFileToByteArray(passwdFile);
         } catch (IOException e) {
+            log.warn("Exception during reading password from file. Returning empty password.", e);
             return "";
         }
         return new String(pwd).trim();
