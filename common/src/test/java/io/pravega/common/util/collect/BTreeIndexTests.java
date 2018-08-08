@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.val;
@@ -46,7 +47,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method sequentially making sure we do not split the root page.
      */
     @Test
-    public void testInsertSequentialNoSplit() {
+    public void testInsertNoSplitSequential() {
         final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
         testInsert(count, false, false);
     }
@@ -55,9 +56,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method using bulk-loading making sure we do not split the root page.
      */
     @Test
-    public void testInsertBulkNoSplit() {
+    public void testInsertNoSplitBulk() {
         final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
-        // TODO: this fails. Fix first.
         testInsert(count, false, true);
     }
 
@@ -65,8 +65,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method sequentially using already sorted entries.
      */
     @Test
-    public void testInsertSequentialSorted() {
-        // TODO: these all fail.
+    public void testInsertSortedSequential() {
         testInsert(10000, true, false);
     }
 
@@ -74,7 +73,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method sequentially using unsorted entries.
      */
     @Test
-    public void testInsertSequentialRandom() {
+    public void testInsertRandomSequential() {
         testInsert(10000, false, false);
     }
 
@@ -82,7 +81,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method using bulk-loading with sorted entries.
      */
     @Test
-    public void testInsertBulkSorted() {
+    public void testInsertSortedBulk() {
         testInsert(10000, true, true);
     }
 
@@ -90,7 +89,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      * Tests the insert() method using bulk-loading with unsorted entries.
      */
     @Test
-    public void testInsertBulkRandom() {
+    public void testInsertRandomBulk() {
         testInsert(10000, false, true);
     }
 
@@ -139,9 +138,16 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     private void check(String message, BTreeIndex index, List<PageEntry> entries){
-        for(val e: entries){
-            val value = index.get(e.getKey(), TIMEOUT).join();
-            assertEquals(message+": value mismatch", e.getValue(), value);
+        // Use bulk-get since it's faster.
+        val keys = entries.stream().map(PageEntry::getKey).collect(Collectors.toList());
+        val actualValues = index.get(keys, TIMEOUT).join();
+
+        // Bulk-get returns a list of values in the same order as the keys, so we need to match up on the indices.
+        Assert.assertEquals("Unexpected key count.", keys.size(), actualValues.size());
+        for (int i = 0; i < keys.size(); i++) {
+            val av = actualValues.get(i);
+            val expectedValue = entries.get(i).getValue();
+            assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
         }
 
         // TODO: once listKeys is implemented, verify no other keys.
