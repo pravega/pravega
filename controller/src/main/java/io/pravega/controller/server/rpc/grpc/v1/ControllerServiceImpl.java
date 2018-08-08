@@ -71,7 +71,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
         log.info("getControllerServerList called.");
         authenticateExecuteAndProcessResults(aVoid -> true,
-                (context) -> controllerService.getControllerServerList()
+                context -> controllerService.getControllerServerList()
                                      .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
                 responseObserver);
     }
@@ -82,7 +82,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
+                context -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver);
     }
 
@@ -92,7 +92,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
+                context -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
@@ -101,7 +101,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.truncateStream(request.getStreamInfo().getScope(),
+                context -> controllerService.truncateStream(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
     }
 
@@ -110,7 +110,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("sealStream called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
+                context -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
@@ -118,7 +118,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("deleteStream called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
+                context -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
@@ -126,7 +126,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
+                context -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                        .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                                                                 .addAllSegmentRanges(segmentRanges)
                                                                                 .setDelegationToken(getCurrentDelegationToken(context))
@@ -140,7 +140,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
+                context -> controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTimestamp())
                                        .thenApply(segments -> {
@@ -163,7 +163,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
         authenticateExecuteAndProcessResults(v -> checkAuthorization(segmentId.getStreamInfo().getScope() + "/" +
                         segmentId.getStreamInfo().getStream(), AuthHandler.Permissions.READ),
-                (context) -> controllerService.getSegmentsImmediatelyFollowing(segmentId)
+                context -> controllerService.getSegmentsImmediatelyFollowing(segmentId)
                                        .thenApply(ModelHelper::createSuccessorResponse)
                                        .thenApply(response -> {
                                            response.setDelegationToken(getCurrentDelegationToken(context));
@@ -178,7 +178,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
         authenticateExecuteAndProcessResults(v -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
-                (context) -> controllerService.getSegmentsBetweenStreamCuts(request)
+                context -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
                                 segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
                                         .collect(Collectors.toList()), getCurrentDelegationToken(context))),
@@ -191,7 +191,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.scale(request.getStreamInfo().getScope(),
+                context -> controllerService.scale(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getSealedSegmentsList(),
                         request.getNewKeyRangesList().stream().collect(Collectors.toMap(
@@ -206,7 +206,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
+                context -> controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                         request.getEpoch()), responseObserver);
     }
 
@@ -216,7 +216,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.getURI(request),
+                context -> controllerService.getURI(request),
                 responseObserver);
     }
 
@@ -227,7 +227,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
+                context -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getSegmentId())
                                        .thenApply(bRes -> SegmentValidityResponse.newBuilder().setResponse(bRes).build()),
@@ -240,7 +240,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.createTransaction(request.getStreamInfo().getScope(),
+                context -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getLease())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
@@ -257,7 +257,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
+                context -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
                 responseObserver);
@@ -269,7 +269,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
+                context -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
                 responseObserver);
@@ -281,7 +281,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ),
-                (context) -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
+                context -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId(),
                         request.getLease()),
@@ -294,7 +294,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
+                context -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
                 responseObserver);
@@ -305,7 +305,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             StreamObserver<CreateScopeStatus> responseObserver) {
         log.info("createScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.createScope(request.getScope()),
+                context -> controllerService.createScope(request.getScope()),
                 responseObserver);
     }
 
@@ -314,7 +314,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             StreamObserver<DeleteScopeStatus> responseObserver) {
         log.info("deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(v -> checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> controllerService.deleteScope(request.getScope()),
+                context -> controllerService.deleteScope(request.getScope()),
                 responseObserver);
     }
 
@@ -325,7 +325,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStream());
         authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                (context) -> CompletableFuture.completedFuture(Controller.DelegationToken
+                context -> CompletableFuture.completedFuture(Controller.DelegationToken
                         .newBuilder()
                         .setDelegationToken(getCurrentDelegationToken(context))
                         .build()),
