@@ -41,7 +41,7 @@ public class Main {
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
-                    .secureZK(Config.SECURE_ZK)
+                    .connectionToZooKeeperSecure(Config.SECURE_ZK)
                     .namespace("pravega/" + Config.CLUSTER_NAME)
                     .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                     .maxRetries(Config.ZK_MAX_RETRIES)

@@ -178,7 +178,6 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.client.secure", "true");
             System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
             System.setProperty("zookeeper.ssl.trustStore.location", this.tlsTrustStore);
-            //TODO: Read from a config parameter
             System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(this.tLSKeyStorePasswordPath));
         }
 

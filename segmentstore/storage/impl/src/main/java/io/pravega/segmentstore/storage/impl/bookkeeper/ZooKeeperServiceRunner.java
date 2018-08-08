@@ -89,7 +89,6 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.setProperty("zookeeper.serverCnxnFactory", "org.apache.zookeeper.server.NettyServerCnxnFactory");
 
             System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
-            //TODO: Read these from the config/parameter files..
             System.setProperty("zookeeper.ssl.keyStore.password", loadPasswdFromFile(this.keyStorePasswd));
             System.setProperty("zookeeper.ssl.trustStore.location", this.trustStore);
             System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(this.keyStorePasswd));
@@ -197,9 +196,12 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         }
     }
 
+    public static boolean waitForServerUp(int zkPort) {
+        return waitForServerUp(zkPort, false, "", "", "", "");
+    }
+
     private static boolean waitForSSLServerUp(String address, long timeout, String trustStore, String keyStore,
                                               String keyStorePasswdPath, String trustStorePasswordPath) {
-        //TODO: Create a ZK client to ensure that the server is up.
         long start = MathUtils.now();
         String[] split = address.split(":");
         String host = split[0];
@@ -249,7 +251,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
-                // ignore
+                throw new RuntimeException(e);
             }
         }
         return false;

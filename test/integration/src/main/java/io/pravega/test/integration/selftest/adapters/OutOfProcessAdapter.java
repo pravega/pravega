@@ -144,7 +144,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("zk", 0))))
                 .start());
 
-        if (!ZooKeeperServiceRunner.waitForServerUp(this.testConfig.getZkPort(), false, "", "", "", "")) {
+        if (!ZooKeeperServiceRunner.waitForServerUp(this.testConfig.getZkPort())) {
             throw new RuntimeException("Unable to start ZooKeeper at port " + this.testConfig.getZkPort());
         }
 

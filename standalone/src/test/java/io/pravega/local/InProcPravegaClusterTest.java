@@ -56,6 +56,8 @@ public class InProcPravegaClusterTest {
                                            .enableTls(tlsEnabled)
                                            .certFile("../config/cert.pem")
                                            .keyFile("../config/key.pem")
+                                           .trustFile("../config/bookie.truststore.jks")
+                                           .keyPasswordFile("../config/bookie.keystore.jks.passwd")
                                            .passwdFile("../config/passwd")
                                            .userName("admin")
                                            .passwd("1111_aaaa")

@@ -50,7 +50,7 @@ public interface ZKClientConfig {
     /**
      * Fetches whether the connection is secure.
      */
-    boolean isSecureZK();
+    boolean isConnectionToZooKeeperSecure();
 
     /**
      * Fetches the trust store location.
