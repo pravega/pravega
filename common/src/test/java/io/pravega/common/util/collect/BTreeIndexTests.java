@@ -43,39 +43,55 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the insert() method using already sorted values.
+     * Tests the insert() method sequentially making sure we do not split the root page.
      */
     @Test
-    public void testInsertSorted() {
-        final int count = 10000;
-
-        // TODO: from here.
-
-        val ds = new DataSource();
-        val index = defaultBuilder(ds).build();
-        val entries = generate(count);
-        sort(entries);
-        for (val e : entries) {
-            index.insert(Collections.singleton(e), TIMEOUT).join();
-        }
-
-        // Verify index.
-        check("after insert", index, entries);
-
-        // Verify index after a full recovery.
-        val recoveredIndex = defaultBuilder(ds).build();
-        check("after recovery", recoveredIndex, entries);
-
+    public void testInsertSequentialNoSplit() {
+        final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
+        testInsert(count, false, false);
     }
 
+    /**
+     * Tests the insert() method using bulk-loading making sure we do not split the root page.
+     */
     @Test
-    public void testInsertRandom() {
-
+    public void testInsertBulkNoSplit() {
+        final int count = MAX_PAGE_SIZE / (KEY_LENGTH + VALUE_LENGTH) - 2;
+        // TODO: this fails. Fix first.
+        testInsert(count, false, true);
     }
 
+    /**
+     * Tests the insert() method sequentially using already sorted entries.
+     */
     @Test
-    public void testInsertBulk() {
+    public void testInsertSequentialSorted() {
+        // TODO: these all fail.
+        testInsert(10000, true, false);
+    }
 
+    /**
+     * Tests the insert() method sequentially using unsorted entries.
+     */
+    @Test
+    public void testInsertSequentialRandom() {
+        testInsert(10000, false, false);
+    }
+
+    /**
+     * Tests the insert() method using bulk-loading with sorted entries.
+     */
+    @Test
+    public void testInsertBulkSorted() {
+        testInsert(10000, true, true);
+    }
+
+    /**
+     * Tests the insert() method using bulk-loading with unsorted entries.
+     */
+    @Test
+    public void testInsertBulkRandom() {
+        testInsert(10000, false, true);
     }
 
     @Test
@@ -96,6 +112,30 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testGetBulk() {
 
+    }
+
+    private void testInsert(int count, boolean sorted, boolean bulk) {
+        val ds = new DataSource();
+        val index = defaultBuilder(ds).build();
+        val entries = generate(count);
+        if (sorted) {
+            sort(entries);
+        }
+
+        if (bulk) {
+            index.insert(entries, TIMEOUT).join();
+        } else {
+            for (val e : entries) {
+                index.insert(Collections.singleton(e), TIMEOUT).join();
+            }
+        }
+
+        // Verify index.
+        check("after insert", index, entries);
+
+        // Verify index after a full recovery.
+        val recoveredIndex = defaultBuilder(ds).build();
+        check("after recovery", recoveredIndex, entries);
     }
 
     private void check(String message, BTreeIndex index, List<PageEntry> entries){
@@ -162,7 +202,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         CompletableFuture<ByteArraySegment> read(long offset, int length, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
-                    return this.data.getData().subSegment((int) offset, length, true);
+                    return new ByteArraySegment(this.data.getData().subSegment((int) offset, length).getCopy());
 
                 }
             }, executorService());
@@ -175,11 +215,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     try {
                         byte[] buffer = new byte[1024];
                         int totalBytesCopied = 0;
-                        while (totalBytesCopied < length && toWrite.available() > 0) {
+                        while (totalBytesCopied < length) {
                             int copied = toWrite.read(buffer);
                             if (copied > 0) {
                                 this.data.write(buffer, 0, copied);
+                            } else {
+                                break;
                             }
+                            totalBytesCopied += copied;
                         }
                         Preconditions.checkArgument(totalBytesCopied == length, "not enough data to copy");
                     } catch (Exception ex) {

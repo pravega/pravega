@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -210,12 +209,11 @@ public class BTreeIndex {
                         if (i == 0) {
                             // The original page will get the first split. Nothing changes about its pointer key.
                             p.setPage(page);
-                            pageCollection.assignNewOffset(p);
+                            pageCollection.pageUpdated(p);
                             newOffset = p.getAssignedOffset();
                         } else {
-                            PageWrapper newPage = new PageWrapper(page, p.getParent(),
-                                    new PagePointer(pageKey, -1, page.getLength()));
-                            pageCollection.insert(newPage);
+                            PageWrapper newPage = new PageWrapper(page, p.getParent(), new PagePointer(pageKey, -1, page.getLength()));
+                            pageCollection.insertNew(newPage);
                             newOffset = newPage.getAssignedOffset();
                         }
 
@@ -224,16 +222,15 @@ public class BTreeIndex {
                 } else {
                     // This page has been modified. Assign it a new virtual offset so that we can add a proper pointer
                     // to it from its parent.
-                    pageCollection.assignNewOffset(p);
+                    pageCollection.pageUpdated(p);
                 }
 
                 // Make sure we process its parent as well.
                 PageWrapper parentPage = p.getParent();
                 if (parentPage == null && newChildPointers.size() > 1) {
                     // There was a split. Make sure that if this was the root, we create a new root.
-                    val newRootContents = createEmptyIndexRoot();
-                    parentPage = new PageWrapper(newRootContents, null, null);
-                    pageCollection.insert(parentPage);
+                    parentPage = new PageWrapper(createEmptyIndexRoot(), null, null);
+                    pageCollection.insertNew(parentPage);
                 }
 
                 if (parentPage != null) {
@@ -261,17 +258,19 @@ public class BTreeIndex {
                 .getState(timer.getRemaining())
                 .thenCompose(state -> {
                     if (pageCollection.isInitialized()) {
-                        Preconditions.checkArgument(pageCollection.getIndexLength() == state.getLength(), "Unexpected length.");
+                        Preconditions.checkArgument(pageCollection.getIndexLength() == state.length, "Unexpected length.");
                     } else {
-                        pageCollection.initialize(state.getLength());
+                        pageCollection.initialize(state.length);
                     }
 
-                    if (state.getRootPageOffset() < 0) {
+                    if (state.rootPageOffset < 0) {
                         // No data. Return an empty (leaf) page, which will serve as the root for now.
-                        return CompletableFuture.completedFuture(new PageWrapper(createEmptyLeafRoot(), null, null));
+                        PageWrapper result = new PageWrapper(createEmptyLeafRoot(), null, null);
+                        pageCollection.insertExisting(result);
+                        return CompletableFuture.completedFuture(result);
                     }
 
-                    AtomicReference<PagePointer> toFetch = new AtomicReference<>(new PagePointer(null, state.getRootPageOffset(), state.getRootPageLength()));
+                    AtomicReference<PagePointer> toFetch = new AtomicReference<>(new PagePointer(null, state.rootPageOffset, state.rootPageLength));
                     CompletableFuture<PageWrapper> result = new CompletableFuture<>();
                     AtomicReference<PageWrapper> previous = new AtomicReference<>(null);
                     Futures.loop(
@@ -279,20 +278,19 @@ public class BTreeIndex {
                             () -> fetchPage(toFetch.get(), previous.get(), pageCollection, timer.getRemaining())
                                     .thenAccept(page -> {
                                         if (page.isIndexPage()) {
-                                            // TODO: sanity checks.
                                             val value = getPagePointer(key, page.getPage());
                                             toFetch.set(value);
                                             previous.set(page);
                                         } else {
                                             // Leaf (data) page. We are done.
-                                    result.complete(page);
+                                            result.complete(page);
                                         }
                                     }),
                             this.executor)
-                           .exceptionally(ex -> {
-                               result.completeExceptionally(ex);
-                               return null;
-                           });
+                            .exceptionally(ex -> {
+                                result.completeExceptionally(ex);
+                                return null;
+                            });
                     return result;
                 });
     }
@@ -308,7 +306,7 @@ public class BTreeIndex {
                 .thenApply(data -> {
                     val pageConfig = BTreePage.isIndexPage(data) ? this.indexPageConfig : this.leafPageConfig;
                     PageWrapper wrapper = new PageWrapper(new BTreePage(pageConfig, data), parentPage, pagePointer);
-                    pageCollection.insert(wrapper);
+                    pageCollection.insertExisting(wrapper);
                     return wrapper;
                 });
     }
@@ -383,7 +381,16 @@ public class BTreeIndex {
         }
 
         void setAssignedOffset(long value) {
+            if (hasNewOffset()){
+                // We have already assigned an offset to this.
+                throw new IllegalStateException("Cannot assign offset more than once.");
+            }
+
             this.assignedOffset.set(value);
+        }
+
+        boolean hasNewOffset(){
+            return this.pointer != null && this.assignedOffset.get() != this.pointer.offset;
         }
     }
 
@@ -420,20 +427,21 @@ public class BTreeIndex {
             return this.pageByOffset.getOrDefault(offset, null);
         }
 
-        void assignNewOffset(PageWrapper page) {
+        void pageUpdated(PageWrapper page) {
             PageWrapper existing = this.pageByOffset.remove(page.getAssignedOffset());
             assert existing != null : "page not registered";
-            page.setAssignedOffset(-1);
-            insert(page);
+
+            insertNew(page);
         }
 
-        void insert(PageWrapper page) {
-            if (page.getAssignedOffset() < 0) {
-                // This is a new page, ready to be written. We need to assign an offset.
-                long newOffset = this.indexLength.getAndAdd(page.getPage().getLength());
-                page.setAssignedOffset(newOffset);
-            }
+        void insertExisting(PageWrapper page) {
+            this.pageByOffset.put(page.getAssignedOffset(), page);
+        }
 
+        void insertNew(PageWrapper page) {
+            // Figure out a new offset, assign it, and then re-insert it.
+            long newOffset = this.indexLength.getAndAdd(page.getPage().getLength());
+            page.setAssignedOffset(newOffset);
             this.pageByOffset.put(page.getAssignedOffset(), page);
         }
 
@@ -479,6 +487,9 @@ public class BTreeIndex {
         }
 
         CompletableFuture<Void> writePages(PageCollection pageCollection, Duration timeout) {
+            State state = this.state.get();
+            Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
+
             // Collect the data to be written.
             val streams = new ArrayList<InputStream>();
             long offset = -1;
@@ -496,15 +507,17 @@ public class BTreeIndex {
             }
 
             // Write a footer with information about locating the root page.
-            assert lastPage != null && lastPage.getParent() == null : "last page to be written is not the root page";
+            Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
+            Preconditions.checkArgument(pageCollection.getIndexLength() == state.length + length.get(), "IndexLength mismatch.");
             streams.add(getFooter(lastPage.getAssignedOffset()));
+            length.addAndGet(FOOTER_LENGTH);
 
             // Write it.
             val toWrite = new SequenceInputStream(Collections.enumeration(streams));
             long lastPageOffset = lastPage.getAssignedOffset();
             int lastPageLength = lastPage.getPage().getContents().getLength();
-            return this.write.apply(pageCollection.getIndexLength(), toWrite, length.get(), timeout)
-                             .thenRun(() -> this.state.set(new State(pageCollection.getIndexLength() + length.get(), lastPageOffset, lastPageLength)));
+            return this.write.apply(this.state.get().length, toWrite, length.get(), timeout)
+                    .thenRun(() -> this.state.set(new State(state.length + length.get(), lastPageOffset, lastPageLength)));
         }
 
         CompletableFuture<State> getState(Duration timeout) {
@@ -517,14 +530,18 @@ public class BTreeIndex {
                     .apply(timer.getRemaining())
                     .thenCompose(length -> {
                         if (length <= FOOTER_LENGTH) {
-                            return CompletableFuture.completedFuture(new State(length, -1, 0));
+                            State s = new State(length, -1, 0);
+                            this.state.set(s);
+                            return CompletableFuture.completedFuture(s);
                         }
 
                         return this.read
                                 .apply(length - FOOTER_LENGTH, FOOTER_LENGTH, timer.getRemaining())
                                 .thenApply(footer -> {
                                     long rootPageOffset = getRootPageOffset(footer);
-                                    return new State(length, rootPageOffset, (int) (length - FOOTER_LENGTH - rootPageOffset));
+                                    State s = new State(length, rootPageOffset, (int) (length - FOOTER_LENGTH - rootPageOffset));
+                                    this.state.set(s);
+                                    return s;
                                 });
                     });
         }
@@ -543,11 +560,16 @@ public class BTreeIndex {
             return BitConverter.readLong(footer, 0);
         }
 
-        @Data
+        @RequiredArgsConstructor
         static class State {
             private final long length;
             private final long rootPageOffset;
             private final int rootPageLength;
+
+            @Override
+            public String toString() {
+                return String.format("Length = %s, RootOffset = %s, RootLength = %s", this.length, this.rootPageOffset, this.rootPageLength);
+            }
         }
     }
 
