@@ -73,6 +73,7 @@ public class StreamSegments {
     }
     
     public StreamSegments withReplacementRange(Segment replacedSegment, StreamSegmentsWithPredecessors replacementRanges) {
+        Preconditions.checkState(segments.containsValue(replacedSegment), "Segment to be replaced should be present in the segment list");
         verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
@@ -87,8 +88,7 @@ public class StreamSegments {
             if (exitingSegment.equals(replacedSegment)) {
                 //segment needs to be replaced.
                 replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
-                        result.put(Math.min(segmentWithRange.getHigh(), exitingEntry.getKey()),
-                                segmentWithRange.getSegment())));
+                        result.put(Math.min(segmentWithRange.getHigh(), exitingEntry.getKey()), segmentWithRange.getSegment())));
             } else {
                 //update remaining values.
                 result.put(exitingEntry.getKey(), exitingEntry.getValue());
