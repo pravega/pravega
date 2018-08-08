@@ -115,10 +115,11 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String passwd;
     private String certFile;
     private String keyFile;
-    private String trustFile;
+    private String jksTrustFile;
     private String passwdFile;
     private boolean secureZK;
     private String keyPasswordFile;
+    private String jksKeyFile;
 
     public static final class InProcPravegaClusterBuilder {
         public InProcPravegaCluster build() {
@@ -142,7 +143,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, trustFile, passwdFile, secureZK, keyPasswordFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
         }
     }
 
@@ -193,7 +194,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, keyFile, keyPasswordFile, trustFile);
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, jksKeyFile, keyPasswordFile, jksTrustFile);
         zkService.initialize();
         zkService.start();
     }
@@ -211,7 +212,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         if (secureZK) {
             System.setProperty("zookeeper.client.secure", "true");
             System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", trustFile);
+            System.setProperty("zookeeper.ssl.trustStore.location", jksTrustFile);
             System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
         }
 
@@ -261,7 +262,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                         .with(ServiceConfig.SECURE_ZK, this.secureZK)
-                        .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, trustFile)
+                        .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, jksTrustFile)
                         .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, keyPasswordFile)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
@@ -316,7 +317,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .maxRetries(1)
                 .sessionTimeoutMs(10 * 1000)
                 .connectionToZooKeeperSecure(this.secureZK)
-                .trustStorePath(trustFile)
+                .trustStorePath(jksTrustFile)
                 .trustStorePasswordPath(keyPasswordFile)
                 .build();
 
