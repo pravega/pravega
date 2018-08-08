@@ -96,7 +96,6 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     private String getDelegationToken() {
-        Context context = Context.current();
         return DELEGATION_CONTEXT_TOKEN.get();
     }
 
