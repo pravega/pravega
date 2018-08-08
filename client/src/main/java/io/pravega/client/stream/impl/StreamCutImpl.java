@@ -10,8 +10,10 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -30,6 +32,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
+
+import static io.pravega.common.util.ToStringUtils.stringToMap;
 
 /**
  * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
@@ -64,7 +68,7 @@ public class StreamCutImpl extends StreamCutInternal {
     public StreamCutInternal asImpl() {
         return this;
     }
-    
+
     @Override
     public String toString() {
         return stream.getScopedName() + ":"
@@ -72,6 +76,18 @@ public class StreamCutImpl extends StreamCutInternal {
                                                      .stream()
                                                      .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                                e -> e.getValue())));
+    }
+
+    public static StreamCutInternal from(String textualRepresentation) {
+        Exceptions.checkNotNullOrEmpty(textualRepresentation, "textualRepresentation");
+        String[] split = textualRepresentation.split(":", 2);
+        Preconditions.checkArgument(split.length == 2, "Invalid string representation of StreamCut");
+
+        final Stream stream = Stream.of(split[0]);
+        final Map<Segment, Long> positions = stringToMap(split[1],
+                                                         s -> new Segment(stream.getScope(), stream.getStreamName(), Long.valueOf(s)),
+                                                         Long::valueOf);
+        return new StreamCutImpl(stream, positions);
     }
 
     @VisibleForTesting
@@ -84,10 +100,10 @@ public class StreamCutImpl extends StreamCutInternal {
 
         return true;
     }
-    
+
     private static class StreamCutBuilder implements ObjectBuilder<StreamCutInternal> {
     }
-    
+
     public static class StreamCutSerializer extends VersionedSerializer.WithBuilder<StreamCutInternal, StreamCutBuilder> {
         @Override
         protected StreamCutBuilder newBuilder() {
@@ -127,17 +143,17 @@ public class StreamCutImpl extends StreamCutInternal {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-    
+
     @SneakyThrows(IOException.class)
     public static StreamCutInternal fromBytes(ByteBuffer buff) {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
     }
-    
+
     @SneakyThrows(IOException.class)
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedForm(SERIALIZER.serialize(this).getCopy());
     }
-    
+
     @Data
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -147,5 +163,5 @@ public class StreamCutImpl extends StreamCutInternal {
             return SERIALIZER.deserialize(new ByteArraySegment(value));
         }
     }
-    
+
 }

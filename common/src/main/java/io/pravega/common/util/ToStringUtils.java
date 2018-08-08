@@ -12,8 +12,21 @@ package io.pravega.common.util;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
+import lombok.Cleanup;
+import org.apache.commons.io.IOUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -61,6 +74,45 @@ public class ToStringUtils {
         return map.entrySet()
                   .stream()
                   .collect(toMap(e -> keyMaker.apply(e.getKey()), e -> valueMaker.apply(e.getValue())));
+    }
+
+    /**
+     * Convert the given string to its compressed base64 representation.
+     * @param string String to be compressed to base64.
+     * @return String Compressed Base64 representation of the input string.
+     * @throws IOException If an I/O exception occurs.
+     * @throws NullPointerException If string is null.
+     */
+    public static String compressToBase64(final String string) throws IOException {
+        Preconditions.checkNotNull(string, "string");
+        final byte[] bytes;
+        @Cleanup
+        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        @Cleanup
+        final GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
+        gzipOutputStream.write(string.getBytes(StandardCharsets.UTF_8));
+        gzipOutputStream.close();
+        bytes = byteArrayOutputStream.toByteArray();
+
+        return Base64.getEncoder().encodeToString(bytes);
+    }
+
+    /**
+     * Get the original string from its compressed base64 representation.
+     * @param base64CompressedString Compressed Base64 representation of the string.
+     * @return The original string.
+     * @throws IOException If an I/O exception occurs.
+     * @throws NullPointerException If base64CompressedString is null.
+     * @throws IllegalArgumentException If base64CompressedString is not null, but has a length of zero or if the string has illegal base64 character.
+     */
+    public static String decompressFromBase64(final String base64CompressedString) throws IOException {
+        Exceptions.checkNotNullOrEmpty(base64CompressedString, "base64CompressedString");
+        byte[] dataBytes = Base64.getDecoder().decode(base64CompressedString);
+        @Cleanup
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(dataBytes);
+        @Cleanup
+        final GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
+        return IOUtils.toString(gzipInputStream, StandardCharsets.UTF_8);
     }
 
 }

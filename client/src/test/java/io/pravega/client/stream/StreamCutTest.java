@@ -17,9 +17,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+
 import lombok.Cleanup;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -28,8 +30,10 @@ public class StreamCutTest {
     @Test
     public void testStreamCutSerialization() throws Exception {
         StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"),
-                ImmutableMap.of(new Segment("scope", "stream", 0), 10L,
-                        new Segment("scope", "stream", 1), 20L));
+                ImmutableMap.of(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L,
+                        new Segment("scope", "stream", computeSegmentId(2, 1)), 20L,
+                        new Segment("scope", "stream", computeSegmentId(3, 1)), 30L,
+                        new Segment("scope", "stream", computeSegmentId(4, 1)), 40L));
 
         byte[] buf = serialize(sc);
         String base64 = sc.asText();

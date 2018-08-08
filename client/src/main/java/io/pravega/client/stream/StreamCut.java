@@ -10,13 +10,14 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
-import io.pravega.common.io.SerializationException;
+import lombok.SneakyThrows;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-import static io.pravega.common.io.SerializationHelpers.deserializeBase64;
-import static io.pravega.common.io.SerializationHelpers.serializeBase64;
+import static io.pravega.common.util.ToStringUtils.compressToBase64;
+import static io.pravega.common.util.ToStringUtils.decompressFromBase64;
 
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
@@ -32,7 +33,7 @@ public interface StreamCut extends Serializable {
      */
     public static final StreamCut UNBOUNDED = new StreamCut() {
         private static final long serialVersionUID = 1L;
-        
+
         @Override
         public ByteBuffer toBytes() {
             return ByteBuffer.allocate(0);
@@ -41,6 +42,11 @@ public interface StreamCut extends Serializable {
         @Override
         public StreamCutInternal asImpl() {
             return null;
+        }
+
+        @Override
+        public String toString() {
+            return "UNBOUNDED";
         }
         
         private Object readResolve() {
@@ -61,22 +67,27 @@ public interface StreamCut extends Serializable {
     ByteBuffer toBytes();
 
     /**
-     * Serializes the cut to a compact base64 string representation.
+     * Obtains the compact base64 string representation of StreamCut.
+     *
      * @return Base64 representation of the StreamCut.
-     * @throws SerializationException Exception during serialization.
      */
-    default String asText() throws SerializationException {
-        return serializeBase64(this);
+    @SneakyThrows(IOException.class)
+    default String asText() {
+        return compressToBase64(this.toString());
     }
 
     /**
-     * Deserializes a Base64 representation of the StreamCut obtained via {@link StreamCut#asText()}.
+     * Obtains the a StreamCut object from its Base64 representation obtained via {@link StreamCut#asText()}.
+     *
      * @param base64String Base64 representation of StreamCut obtained using {@link StreamCut#asText()}
      * @return The StreamCut object
-     * @throws SerializationException Exception during deserialization.
      */
-    static StreamCut from(String base64String) throws SerializationException {
-        return deserializeBase64(base64String);
+    @SneakyThrows(IOException.class)
+    static StreamCut from(String base64String) {
+        if (base64String.equals(UNBOUNDED.asText())) {
+            return UNBOUNDED;
+        }
+        return StreamCutInternal.from(decompressFromBase64(base64String));
     }
 
     /**
