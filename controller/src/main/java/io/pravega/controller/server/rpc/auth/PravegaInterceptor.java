@@ -27,7 +27,6 @@ import java.util.Map;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.grpc.Context.ROOT;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
@@ -99,7 +98,6 @@ public class PravegaInterceptor implements ServerInterceptor {
      * Throws an error if this is called from a grpc context.
      */
     public static String retrieveMastertoken(String tokenSigningKey) {
-        Preconditions.checkArgument(Context.current() == ROOT, "Getting master token from a grpc context.");
         Map<String, Object> claims = new HashMap<>();
 
         claims.put("*", String.valueOf(READ_UPDATE));
