@@ -79,12 +79,13 @@ public class PravegaInterceptor implements ServerInterceptor {
 
     /**
      * Retrieves the current delegation token if one exists.
+     * @param context The `grpc` context for the call.
      * @return The current delegation token. Empty string if a token does not exist.
      */
-    public static String retrieveDelegationToken() {
-        PravegaInterceptor interceptor = INTERCEPTOR_OBJECT.get();
+    public static String retrieveDelegationToken(Context context) {
+        PravegaInterceptor interceptor = INTERCEPTOR_OBJECT.get(context);
         if (interceptor != null) {
-            return interceptor.getDelegationToken();
+            return interceptor.getDelegationToken(context);
         } else {
             return "";
         }
@@ -109,8 +110,8 @@ public class PravegaInterceptor implements ServerInterceptor {
                    .compact();
     }
 
-    private String getDelegationToken() {
-        return DELEGATION_CONTEXT_TOKEN.get();
+    private String getDelegationToken(Context context) {
+        return DELEGATION_CONTEXT_TOKEN.get(context);
     }
 
     public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
