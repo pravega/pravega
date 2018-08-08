@@ -101,7 +101,6 @@ public class PravegaAuthManager {
                     } catch (Exception e) {
                         log.warn("Exception while initializing auth handler {}", handler, e);
                     }
-
                 }
             }
         } catch (Throwable e) {
