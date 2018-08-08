@@ -40,6 +40,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 public class BTreeIndex {
+    //region Members
+
     private static final long NO_OFFSET = -1L;
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
@@ -47,6 +49,10 @@ public class BTreeIndex {
     private final BTreePage.Config indexPageConfig;
     private final BTreePage.Config leafPageConfig;
     private final Executor executor;
+
+    //endregion
+
+    //region Constructor
 
     @Builder
     public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull Read read, @NonNull Write write,
@@ -60,6 +66,10 @@ public class BTreeIndex {
         this.leafPageConfig = new BTreePage.Config(keyLength, valueLength, maxPageSize, false);
     }
 
+    //endregion
+
+    //region Operations
+
     public CompletableFuture<ByteArraySegment> get(@NonNull ByteArraySegment key, @NonNull Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -71,12 +81,14 @@ public class BTreeIndex {
 
     public CompletableFuture<List<ByteArraySegment>> get(@NonNull List<ByteArraySegment> keys, @NonNull Duration timeout) {
         if (keys.size() == 1) {
+            // Shortcut for single key.
             return get(keys.get(0), timeout).thenApply(Collections::singletonList);
         }
 
+        // Lookup all the keys in parallel, and make sure to apply their resulting values in the same order that their keys
+        // where provided to us.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         PageCollection pageCollection = new PageCollection();
-        // TODO: do something smarter, like sorting the keys and batch-looking for values within the same page.
         return Futures.allOfWithResults(
                 keys.stream()
                     .map(key -> locatePage(key, pageCollection, timer).thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
@@ -96,6 +108,8 @@ public class BTreeIndex {
                 .thenApply(this::processModifiedPages)
                 .thenComposeAsync(pageCollection -> this.dataSource.writePages(pageCollection, timer.getRemaining()), this.executor);
     }
+
+    //endregion
 
     //region Helpers
 
@@ -246,7 +260,7 @@ public class BTreeIndex {
                         PagePointer cp = updatedChildPointers.get(i);
                         ByteArraySegment key = cp.key;
                         if (i == 0 && parentPage.getPage().getCount() == 0) {
-                            key = getMinKey();
+                            key = generateMinKey();
                         }
                         PageEntry pe = new PageEntry(key, serializePointer(cp));
                         toUpdate.add(pe);
@@ -267,16 +281,10 @@ public class BTreeIndex {
         return pageCollection;
     }
 
-    private ByteArraySegment getMinKey() {
-        byte[] result = new byte[this.indexPageConfig.getKeyLength()];
-        Arrays.fill(result, Byte.MIN_VALUE);
-        return new ByteArraySegment(result);
-    }
-
     private CompletableFuture<PageWrapper> locatePage(ByteArraySegment key, PageCollection pageCollection, TimeoutTimer timer) {
         return this.dataSource
                 .getState(timer.getRemaining())
-                .thenCompose(state -> {
+                .thenComposeAsync(state -> {
                     if (pageCollection.isInitialized()) {
                         Preconditions.checkArgument(pageCollection.getIndexLength() == state.length, "Unexpected length.");
                     } else {
@@ -310,7 +318,7 @@ public class BTreeIndex {
                                 return null;
                             });
                     return result;
-                });
+                }, this.executor);
     }
 
     private CompletableFuture<PageWrapper> fetchPage(PagePointer pagePointer, PageWrapper parentPage, PageCollection pageCollection, Duration timeout) {
@@ -354,6 +362,13 @@ public class BTreeIndex {
         int pageLength = BitConverter.readInt(source, Long.BYTES);
         return new PagePointer(searchKey, pageOffset, pageLength);
     }
+
+    private ByteArraySegment generateMinKey() {
+        byte[] result = new byte[this.indexPageConfig.getKeyLength()];
+        Arrays.fill(result, Byte.MIN_VALUE);
+        return new ByteArraySegment(result);
+    }
+
     //endregion
 
     //region Page Wrappers
@@ -463,8 +478,6 @@ public class BTreeIndex {
         PageWrapper insert(PageWrapper page) {
             Preconditions.checkArgument(this.incompleteNewPageOffset.get() == NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
             if (page.isNewPage()) {
-                //                long newOffset = this.indexLength.get();
-                //                page.setAssignedOffset(newOffset);
                 this.incompleteNewPageOffset.set(page.getAssignedOffset());
             }
 
@@ -479,10 +492,8 @@ public class BTreeIndex {
             this.incompleteNewPageOffset.set(NO_OFFSET);
             long pageOffset = this.indexLength.getAndAdd(page.getPage().getLength());
             this.pageByOffset.remove(page.getAssignedOffset());
-            //if(!page.isNewPage()) {
             page.setAssignedOffset(pageOffset);
             this.pageByOffset.put(page.getAssignedOffset(), page);
-            //}
         }
 
         void collectLeafPages(Collection<PageWrapper> target) {
@@ -507,6 +518,8 @@ public class BTreeIndex {
     }
 
     //endregion
+
+    //region DataSource
 
     private static class DataSource {
         private static final int FOOTER_LENGTH = Long.BYTES;
@@ -617,6 +630,10 @@ public class BTreeIndex {
         }
     }
 
+    //endregion
+
+    //region Functional Interfaces
+
     @FunctionalInterface
     public interface GetLength {
         CompletableFuture<Long> apply(Duration timeout);
@@ -631,5 +648,7 @@ public class BTreeIndex {
     public interface Write {
         CompletableFuture<Void> apply(long expectedOffset, InputStream data, int length, Duration timeout);
     }
+
+    //endregion
 }
 
