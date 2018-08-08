@@ -32,7 +32,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +42,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
@@ -381,7 +379,7 @@ public class LocalController implements Controller {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
         } else {
             return StringUtils.EMPTY;
         }
@@ -391,7 +389,7 @@ public class LocalController implements Controller {
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         String retVal = "";
         if (authorizationEnabled) {
-            retVal = PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            retVal = PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
     }

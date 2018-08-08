@@ -57,9 +57,6 @@ import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -78,6 +75,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
@@ -812,7 +811,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     public String retrieveDelegationToken() {
         if (authEnabled) {
-            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
         } else {
             return "";
         }

@@ -21,13 +21,13 @@ import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
+import io.pravega.common.auth.AuthConstants;
 import java.util.HashMap;
 import java.util.Map;
-
-import io.pravega.common.auth.AuthConstants;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.grpc.Context.ROOT;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
@@ -79,22 +79,37 @@ public class PravegaInterceptor implements ServerInterceptor {
         return this.handler.authorize(resource, AUTH_CONTEXT_TOKEN.get());
     }
 
-    public static String retrieveDelegationToken(String tokenSigningKey) {
+    /**
+     * Retrieves the current delegation token if one exists.
+     * @return The current delegation token. Empty string if a token does not exist.
+     */
+    public static String retrieveDelegationToken() {
         PravegaInterceptor interceptor = INTERCEPTOR_OBJECT.get();
         if (interceptor != null) {
             return interceptor.getDelegationToken();
         } else {
-            Map<String, Object> claims = new HashMap<>();
+            return "";
+        }
+    }
 
-            claims.put("*", String.valueOf(READ_UPDATE));
+    /**
+     * Retrieves a master token for internal controller to segmentstore communication.
+     * @param tokenSigningKey Signing key for the JWT token.
+     * @return A new master token which has highest privileges.
+     * Throws an error if this is called from a grpc context.
+     */
+    public static String retrieveMastertoken(String tokenSigningKey) {
+        Preconditions.checkArgument(Context.current() == ROOT, "Getting master token from a grpc context.");
+        Map<String, Object> claims = new HashMap<>();
 
-            return Jwts.builder()
-                       .setSubject("segmentstoreresource")
-                       .setAudience("segmentstore")
-                       .setClaims(claims)
-                       .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                       .compact();
-            }
+        claims.put("*", String.valueOf(READ_UPDATE));
+
+        return Jwts.builder()
+                   .setSubject("segmentstoreresource")
+                   .setAudience("segmentstore")
+                   .setClaims(claims)
+                   .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                   .compact();
     }
 
     public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {

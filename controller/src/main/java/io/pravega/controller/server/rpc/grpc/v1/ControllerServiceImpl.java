@@ -395,7 +395,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private String getCurrentDelegationToken() {
         if (isAuthEnabled) {
-            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            return PravegaInterceptor.retrieveDelegationToken();
         } else {
             return "";
         }
