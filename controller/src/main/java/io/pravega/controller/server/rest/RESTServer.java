@@ -42,6 +42,8 @@ import org.glassfish.jersey.server.ServerProperties;
 @Slf4j
 public class RESTServer extends AbstractIdleService {
 
+    private static final long MAX_PASSWORD_LENGTH = 4 * 1024 * 1024;
+
     private final String objectId;
     private final RESTServerConfig restServerConfig;
     private final URI baseUri;
@@ -91,21 +93,25 @@ public class RESTServer extends AbstractIdleService {
 
     private String loadPasswordFromFile(String keyFilePasswordPath) {
         // In case the path is not specified, return empty string. This means the password is not used.
-        // In case of error, return empty password. Which will fail the SSL connection if the password is expected.
+        // In case of error (including very large password file), return empty password.
+        // Which will fail the SSL connection if the password is expected.
 
-        if (Strings.isNullOrEmpty(keyFilePasswordPath)) {
-            return "";
+        String password = "";
+        if (!Strings.isNullOrEmpty(keyFilePasswordPath)) {
+            File passwordFile = new File(keyFilePasswordPath);
+            if (passwordFile.length() != 0) {
+                if (passwordFile.length() > MAX_PASSWORD_LENGTH) {
+                    log.warn("Very large password file. Not parsing.");
+                } else {
+                    try {
+                        password = new String(FileUtils.readFileToByteArray(passwordFile), Charsets.UTF_8).trim();
+                    } catch (IOException e) {
+                        log.warn("Could not read the password from file.", e);
+                    }
+                }
+            }
         }
-        File passwdFile = new File(keyFilePasswordPath);
-        if (passwdFile.length() == 0) {
-            return "";
-        }
-        try {
-            return new String(FileUtils.readFileToByteArray(passwdFile), Charsets.UTF_8).trim();
-        } catch (IOException e) {
-            log.warn("Could not read the password from file.", e);
-            return "";
-        }
+        return password;
     }
 
     /**
