@@ -91,7 +91,6 @@ public class PravegaAuthManager {
      */
     public Principal authenticate(String credentials) throws AuthException {
         Preconditions.checkNotNull(credentials, "credentials");
-        boolean retVal = false;
         String[] parts = extractMethodAndToken(credentials);
         String method = parts[0];
         String token = parts[1];
@@ -152,13 +151,10 @@ public class PravegaAuthManager {
                     } catch (Exception e) {
                         log.warn("Exception while initializing auth handler {}", handler, e);
                     }
-
                 }
             }
         } catch (Throwable e) {
             log.warn("Exception while loading the auth handlers", e);
         }
     }
-
-
 }
