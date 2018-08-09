@@ -19,13 +19,15 @@ import org.apache.commons.io.IOUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Base64;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toMap;
 
 public class ToStringUtils {
@@ -83,16 +85,15 @@ public class ToStringUtils {
      */
     public static String compressToBase64(final String string) throws IOException {
         Preconditions.checkNotNull(string, "string");
-        final byte[] bytes;
         @Cleanup
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         @Cleanup
-        final GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
-        gzipOutputStream.write(string.getBytes(StandardCharsets.UTF_8));
+        final OutputStream base64OutputStream = Base64.getEncoder().wrap(byteArrayOutputStream);
+        @Cleanup
+        final GZIPOutputStream gzipOutputStream = new GZIPOutputStream(base64OutputStream);
+        gzipOutputStream.write(string.getBytes(UTF_8));
         gzipOutputStream.close();
-        bytes = byteArrayOutputStream.toByteArray();
-
-        return Base64.getEncoder().encodeToString(bytes);
+        return byteArrayOutputStream.toString(UTF_8.name());
     }
 
     /**
@@ -101,16 +102,17 @@ public class ToStringUtils {
      * @return The original string.
      * @throws IOException If an I/O exception occurs.
      * @throws NullPointerException If base64CompressedString is null.
-     * @throws IllegalArgumentException If base64CompressedString is not null, but has a length of zero or if the string has illegal base64 character.
+     * @throws IllegalArgumentException If base64CompressedString is not null, but has a length of zero.
      */
     public static String decompressFromBase64(final String base64CompressedString) throws IOException {
         Exceptions.checkNotNullOrEmpty(base64CompressedString, "base64CompressedString");
-        byte[] dataBytes = Base64.getDecoder().decode(base64CompressedString);
         @Cleanup
-        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(dataBytes);
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(base64CompressedString.getBytes(UTF_8));
         @Cleanup
-        final GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
-        return IOUtils.toString(gzipInputStream, StandardCharsets.UTF_8);
+        final InputStream base64InputStream = Base64.getDecoder().wrap(byteArrayInputStream);
+        @Cleanup
+        final GZIPInputStream gzipInputStream = new GZIPInputStream(base64InputStream);
+        return IOUtils.toString(gzipInputStream, UTF_8);
     }
 
 }
