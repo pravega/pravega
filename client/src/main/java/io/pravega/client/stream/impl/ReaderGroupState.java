@@ -827,6 +827,17 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
+
+            // Update the offsets of segments with the current positions for this checkpoint.
+            for (Entry<Segment, Long> entry : positions.entrySet()) {
+                state.unassignedSegments.computeIfPresent(entry.getKey(), (k, v) -> positions.get(entry.getKey()));
+            }
+
+            for (String reader : state.assignedSegments.keySet()) {
+                for (Entry<Segment, Long> entry : positions.entrySet()) {
+                    state.assignedSegments.get(reader).computeIfPresent(entry.getKey(), (k, v) -> positions.get(entry.getKey()));
+                }
+            }
         }
         
         private static class CheckpointReaderBuilder implements ObjectBuilder<CheckpointReader> {
