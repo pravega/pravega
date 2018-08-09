@@ -68,6 +68,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     static final int COUNTER_RANGE = 10000;
     static final String COUNTER_PATH = "/counter";
+    static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String BUCKET_ROOT_PATH = "/buckets";
     private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
     private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
@@ -256,14 +257,14 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return storeHelper.getData(String.format(ZKStoreHelper.DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
                           .handleAsync((data, ex) -> {
                               if (ex == null) {
                                   return BitConverter.readInt(data.getData(), 0) + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
-                                  log.error("Problem found while getting a safe starting segment number for {}: {}.",
+                                  log.error("Problem found while getting a safe starting segment number for {}.",
                                           getScopedStreamName(scopeName, streamName), ex);
                                   throw new CompletionException(ex);
                               }
@@ -430,7 +431,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
                                                     OperationContext context, final Executor executor) {
-        final String deletePath = String.format(ZKStoreHelper.DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
+        final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
         return storeHelper.getData(deletePath)

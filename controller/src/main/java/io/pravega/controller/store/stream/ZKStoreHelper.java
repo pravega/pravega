@@ -31,8 +31,6 @@ import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
-
     @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;

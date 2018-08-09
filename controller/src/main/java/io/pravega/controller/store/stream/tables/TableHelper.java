@@ -14,7 +14,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -1101,7 +1100,14 @@ public class TableHelper {
         return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
     }
 
+    /**
+     * This method provides the starting segment number for this stream that is stored in the first position of the
+     * segment index.
+     *
+     * @param segmentIndex segment index
+     * @return starting segment number for this stream.
+     */
     public static int getStartingSegmentNumber(byte[] segmentIndex) {
-        return BitConverter.readInt(segmentIndex, SegmentIndexRecord.STARTING_SEGMENT_NUMBER_POSITION);
+        return SegmentIndexRecord.getStartingSegmentNumberFromIndex(segmentIndex);
     }
 }
