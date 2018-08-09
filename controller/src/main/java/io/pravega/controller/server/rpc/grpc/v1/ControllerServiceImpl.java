@@ -335,8 +335,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private static <T> void authenticateExecuteAndProcessResults(Predicate<Void> authenticator,
                                                                  Function<Context, CompletableFuture<T>> call, final StreamObserver<T> streamObserver) {
+        Context context = Context.current();
         if (authenticator.test(null)) {
-            CompletableFuture<T> result = call.apply(Context.current());
+            CompletableFuture<T> result = call.apply(context);
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);

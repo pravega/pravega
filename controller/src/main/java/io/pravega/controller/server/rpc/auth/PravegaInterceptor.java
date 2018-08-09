@@ -115,8 +115,8 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
+        Context context = Context.current();
         if (AUTH_ENABLED) {
-            Context context = Context.current();
             Map<String, Object> claims = new HashMap<>();
 
             claims.put(resource, String.valueOf(expectedLevel));
