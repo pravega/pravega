@@ -12,10 +12,9 @@ package io.pravega.controller.store.client;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import java.io.File;
-import java.io.IOException;
+import io.pravega.common.auth.JKSHelper;
 import lombok.Synchronized;
-import org.apache.commons.io.FileUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -27,6 +26,7 @@ import org.apache.zookeeper.ZooKeeper;
 /**
  * Factory method for store clients.
  */
+@Slf4j
 public class StoreClientFactory {
 
     public static StoreClient createStoreClient(final StoreClientConfig storeClientConfig) {
@@ -55,7 +55,7 @@ public class StoreClientFactory {
             System.setProperty("zookeeper.client.secure", "true");
             System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
             System.setProperty("zookeeper.ssl.trustStore.location", zkClientConfig.getTrustStorePath());
-            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(zkClientConfig.getTrustStorePasswordPath()));
+            System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
         //Create and initialize the curator client framework.
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
@@ -68,20 +68,6 @@ public class StoreClientFactory {
                 .build();
         zkClient.start();
         return zkClient;
-    }
-
-    private static String loadPasswdFromFile(String trustStorePasswordPath) {
-        byte[] pwd;
-        File passwdFile = new File(trustStorePasswordPath);
-        if (passwdFile.length() == 0) {
-            return "";
-        }
-        try {
-            pwd = FileUtils.readFileToByteArray(passwdFile);
-        } catch (IOException e) {
-            return "";
-        }
-        return new String(pwd).trim();
     }
 
     private static class ZKClientFactory implements ZookeeperFactory {

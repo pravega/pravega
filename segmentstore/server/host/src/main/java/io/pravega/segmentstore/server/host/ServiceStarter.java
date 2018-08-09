@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -35,11 +36,8 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import java.io.File;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -54,6 +52,7 @@ import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
  */
 @Slf4j
 public final class ServiceStarter {
+    private static final long MAX_FILE_LENGTH = 4 * 1024 * 1024;
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -205,7 +204,7 @@ public final class ServiceStarter {
             System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
             System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
             System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
-            System.setProperty(SSL_TRUSTSTORE_PASSWD, loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+            System.setProperty(SSL_TRUSTSTORE_PASSWD, JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
@@ -216,20 +215,6 @@ public final class ServiceStarter {
                 .build();
         zkClient.start();
         return zkClient;
-    }
-
-    private String loadPasswordFrom(String zkTrustStorePasswordPath) {
-        byte[] pwd;
-        File passwdFile = new File(zkTrustStorePasswordPath);
-        if (passwdFile.length() == 0) {
-            return "";
-        }
-        try {
-            pwd = FileUtils.readFileToByteArray(passwdFile);
-        } catch (IOException e) {
-            return "";
-        }
-        return new String(pwd).trim();
     }
 
     //endregion

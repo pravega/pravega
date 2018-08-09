@@ -282,8 +282,8 @@ public class ServiceConfig {
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
-        zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
-        zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
+        this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
+        this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);
