@@ -78,18 +78,18 @@ public class StreamSegments {
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         Optional<List<SegmentWithRange>> replacements = Optional.ofNullable(replacedRanges.get(replacedSegment.getSegmentId()));
         Segment lastSegmentValue = null;
-        for (Entry<Double, Segment> exitingEntry : segments.descendingMap().entrySet()) { //iterate from the highest key.
+        for (Entry<Double, Segment> exitingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final Segment exitingSegment = exitingEntry.getValue();
             if (exitingSegment.equals(lastSegmentValue)) {
-                //last value was the same same segment, it can be consolidated.
+                // last value was the same segment, it can be consolidated.
                 continue;
             }
             if (exitingSegment.equals(replacedSegment)) {
-                //segment needs to be replaced.
+                // segment needs to be replaced.
                 replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
                         result.put(Math.min(segmentWithRange.getHigh(), exitingEntry.getKey()), segmentWithRange.getSegment())));
             } else {
-                //update remaining values.
+                // update remaining values.
                 result.put(exitingEntry.getKey(), exitingEntry.getValue());
             }
             lastSegmentValue = exitingSegment; // update lastSegmentValue to reduce number of entries in the map.
