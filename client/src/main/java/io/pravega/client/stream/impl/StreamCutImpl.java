@@ -43,6 +43,7 @@ import static io.pravega.common.util.ToStringUtils.stringToMap;
 public class StreamCutImpl extends StreamCutInternal {
 
     static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
+    private static final char TO_STRING_VERSION = 0;
 
     private final Stream stream;
 
@@ -71,7 +72,7 @@ public class StreamCutImpl extends StreamCutInternal {
 
     @Override
     public String toString() {
-        return stream.getScopedName() + ":"
+        return stream.getScopedName() + ":" + TO_STRING_VERSION + ":"
                 + ToStringUtils.mapToString(positions.entrySet()
                                                      .stream()
                                                      .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
@@ -80,11 +81,11 @@ public class StreamCutImpl extends StreamCutInternal {
 
     public static StreamCutInternal from(String textualRepresentation) {
         Exceptions.checkNotNullOrEmpty(textualRepresentation, "textualRepresentation");
-        String[] split = textualRepresentation.split(":", 2);
-        Preconditions.checkArgument(split.length == 2, "Invalid string representation of StreamCut");
+        String[] split = textualRepresentation.split(":", 3);
+        Preconditions.checkArgument(split.length == 3, "Invalid string representation of StreamCut");
 
         final Stream stream = Stream.of(split[0]);
-        final Map<Segment, Long> positions = stringToMap(split[1],
+        final Map<Segment, Long> positions = stringToMap(split[2],
                                                          s -> new Segment(stream.getScope(), stream.getStreamName(), Long.valueOf(s)),
                                                          Long::valueOf);
         return new StreamCutImpl(stream, positions);
