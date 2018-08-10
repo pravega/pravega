@@ -9,10 +9,10 @@
  */
 package io.pravega.common.auth;
 
+import com.google.common.base.Charsets;
 import java.io.File;
 import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.Charsets;
 import org.apache.commons.io.FileUtils;
 
 /**
