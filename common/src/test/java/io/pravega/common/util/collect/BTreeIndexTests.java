@@ -99,7 +99,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDeleteSequential() {
-        testDelete(100, 1);
+        testDelete(1000, 1);
     }
 
     /**
@@ -107,7 +107,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDeleteBulk() {
-        testDelete(1000, 499);
+        testDelete(10000, 123);
     }
 
     /**
@@ -119,18 +119,29 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         testDelete(count, count);
     }
 
-    @Test
-    public void testConcurrentModification() {
-
-    }
-
+    /**
+     * Tests the get() method. getBulk() is already extensively tested in other tests, so we are not explicitly testing it here.
+     */
     @Test
     public void testGet() {
-
+        final int count = 500;
+        val ds = new DataSource();
+        val index = defaultBuilder(ds).build();
+        val entries = generate(count);
+        for (val e : entries) {
+            index.insert(Collections.singleton(e), TIMEOUT).join();
+            val value = index.get(e.getKey(), TIMEOUT).join();
+            assertEquals("Unexpected key.", e.getValue(), value);
+        }
     }
 
     @Test
     public void testGetBulk() {
+
+    }
+
+    @Test
+    public void testConcurrentModification() {
 
     }
 
@@ -147,21 +158,25 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             int batchSize = Math.min(deleteBatchSize, count - firstIndex);
             val toDelete = entries.subList(firstIndex, firstIndex + batchSize)
                     .stream().map(PageEntry::getKey).collect(Collectors.toList());
-            val remainingEntries = entries.subList(firstIndex + batchSize, entries.size());
             long retVal = index.delete(toDelete, TIMEOUT).join();
             AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
 
-            // TODO: also try to fetch ALL
             // Determine if it's time to check the index.
             if (firstIndex - lastCheck > checkEvery) {
-                check("after deleting " + (firstIndex + 1), index, remainingEntries);
+                // Search for all entries, and make sure only the ones we care about are still there.
+                check("after deleting " + (firstIndex + 1), index, entries, firstIndex + batchSize);
                 lastCheck = firstIndex;
             }
 
             firstIndex += batchSize;
         }
 
-        check("at the end", index, Collections.emptyList());
+        // Verify again, now that we have an empty index.
+        check("at the end", index, entries, entries.size());
+
+        // Verify again, after a full recovery.
+        val recoveredIndex = defaultBuilder(ds).build();
+        check("after recovery", recoveredIndex, entries, entries.size());
     }
 
     private void testInsert(int count, boolean sorted, boolean bulk) {
@@ -184,15 +199,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
 
         // Verify index.
-        check("after insert", index, entries);
+        check("after insert", index, entries, 0);
 
         // Verify index after a full recovery.
         val recoveredIndex = defaultBuilder(ds).build();
-        check("after recovery", recoveredIndex, entries);
+        check("after recovery", recoveredIndex, entries, 0);
     }
 
-    private void check(String message, BTreeIndex index, List<PageEntry> entries){
-        // Use bulk-get since it's faster.
+    private void check(String message, BTreeIndex index, List<PageEntry> entries, int firstValidEntryIndex) {
         val keys = entries.stream().map(PageEntry::getKey).collect(Collectors.toList());
         val actualValues = index.get(keys, TIMEOUT).join();
 
@@ -200,8 +214,12 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected key count.", keys.size(), actualValues.size());
         for (int i = 0; i < keys.size(); i++) {
             val av = actualValues.get(i);
-            val expectedValue = entries.get(i).getValue();
-            assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
+            if (i < firstValidEntryIndex) {
+                Assert.assertNull("Not expecting a result for index " + i, av);
+            } else {
+                val expectedValue = entries.get(i).getValue();
+                assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
+            }
         }
 
         // TODO: once iterateKeys is implemented, verify no other keys.

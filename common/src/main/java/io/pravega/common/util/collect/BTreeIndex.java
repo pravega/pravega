@@ -170,6 +170,7 @@ public class BTreeIndex {
     }
 
     public CompletableFuture<Long> getCount(@NonNull Duration timeout) {
+        // TODO: do we need this?
         throw new UnsupportedOperationException("not yet implemented");
     }
 
@@ -379,15 +380,21 @@ public class BTreeIndex {
      */
     private void processModifiedPage(PageModificationContext context) {
         PageWrapper page = context.getPageWrapper();
-        int entryCount = page.getPage().getCount();
+        boolean emptyPage = page.getPage().getCount() == 0;
         ByteArraySegment pageKey = page.getPageKey();
-        if (entryCount == 0 && page.parent != null) {
+        if (emptyPage && page.parent != null) {
             // This page is empty. Remove it from the PageCollection (so we don't write it back to our data source)
             // and remember its Page Key so we can delete its pointer from its parent page.
             context.getPageCollection().remove(page);
             context.setDeletedPageKey(pageKey);
         } else {
-            // This page needs to be kept around. Assign it a new offset and record its new Page Pointer.
+            // This page needs to be kept around.
+            if (emptyPage && page.getPage().getConfig().isIndexPage()) {
+                // We have an empty Index Root Page. We must convert this to a Leaf Page before moving on.
+                page.setPage(createEmptyLeafPage());
+            }
+
+            // Assign a new offset to the page and record its new Page Pointer.
             context.pageCollection.complete(page);
             context.updatePagePointer(new PagePointer(pageKey, page.getOffset(), page.getPage().getLength()));
         }
