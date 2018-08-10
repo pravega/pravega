@@ -88,14 +88,14 @@ public class ReaderGroupStreamCutUpdateTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void testStreamcutsUpdateInReaderGroup() throws Exception {
         final String scope = "testStreamcutsUpdateInReaderGroup";
-        final String stream = "myStream2";
+        final String stream = "myStream";
         final String readerGroupName = "testStreamcutsUpdateInReaderGroupRG";
         final int checkpointingIntervalMs = 2000;
         final int readerSleepInterval = 250;
-        final int numEvents = 200;
+        final int numEvents = 100;
 
         // First, create the stream.
         StreamManager streamManager = StreamManager.create(controllerURI);
@@ -132,6 +132,8 @@ public class ReaderGroupStreamCutUpdateTest {
         int assertionFrequency = checkpointingIntervalMs / readerSleepInterval;
         do {
             eventRead = reader.readNextEvent(5000);
+
+            // Check that the streamcuts are being updated periodically via automatic reader group checkpoints.
             if (iteration != lastIteration && iteration % assertionFrequency == 0) {
                 log.info("Comparing streamcuts: {} / {} in iteration {}.", currentStreamcuts, readerGroup.getStreamCuts(), iteration);
                 Assert.assertNotEquals(currentStreamcuts, readerGroup.getStreamCuts());
