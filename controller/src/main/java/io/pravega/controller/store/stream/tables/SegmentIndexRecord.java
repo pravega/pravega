@@ -24,6 +24,7 @@ public class SegmentIndexRecord {
     // The first (integer) record of this table contains the starting segment number for this stream. All the segments
     // in this stream will contain ids starting from the the value stored in the first record of this table.
     static final int INDEX_RECORD_SIZE = Integer.BYTES;
+    static final int STARTING_SEGMENT_NUMBER_RECORD_SIZE = Integer.BYTES;
     private static final int STARTING_SEGMENT_NUMBER_POSITION = 0;
     private final int segmentNumber;
     private final int segmentOffset;
@@ -44,7 +45,8 @@ public class SegmentIndexRecord {
 
     public static Optional<SegmentIndexRecord> readLatestRecord(final byte[] indexTable) {
         final int startingSegmentNumber = BitConverter.readInt(indexTable, STARTING_SEGMENT_NUMBER_POSITION);
-        return readRecord(indexTable, startingSegmentNumber + indexTable.length / INDEX_RECORD_SIZE - 2);
+        return readRecord(indexTable, startingSegmentNumber +
+                (indexTable.length - STARTING_SEGMENT_NUMBER_RECORD_SIZE) / INDEX_RECORD_SIZE - 1);
     }
 
     private static SegmentIndexRecord parse(final byte[] bytes, int segmentIndexInTable) {
