@@ -828,15 +828,9 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
 
-            // Update the offsets of segments with the current positions for this checkpoint.
+            // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
             for (Entry<Segment, Long> entry : positions.entrySet()) {
-                state.unassignedSegments.computeIfPresent(entry.getKey(), (k, v) -> positions.get(entry.getKey()));
-            }
-
-            for (String reader : state.assignedSegments.keySet()) {
-                for (Entry<Segment, Long> entry : positions.entrySet()) {
-                    state.assignedSegments.get(reader).computeIfPresent(entry.getKey(), (k, v) -> positions.get(entry.getKey()));
-                }
+                state.assignedSegments.get(readerId).computeIfPresent(entry.getKey(), (k, v) -> positions.get(entry.getKey()));
             }
         }
         
