@@ -121,10 +121,15 @@ public class BTreeIndex {
         // where provided to us.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         PageCollection pageCollection = new PageCollection();
-        return Futures.allOfWithResults(
-                keys.stream()
-                        .map(key -> locatePage(key, pageCollection, timer).thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
-                        .collect(Collectors.toList()));
+        return this.dataSource
+                .getState(timer.getRemaining())
+                .thenApplyAsync(state -> {
+                    pageCollection.initialize(state.length);
+                    return keys.stream()
+                            .map(key -> locatePage(key, pageCollection, timer).thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
+                            .collect(Collectors.toList());
+                }, this.executor)
+                .thenCompose(Futures::allOfWithResults);
     }
 
     /**
@@ -157,6 +162,14 @@ public class BTreeIndex {
         return deleteFromPages(keys, timer)
                 .thenApply(this::processModifiedPages)
                 .thenComposeAsync(pageCollection -> this.dataSource.writePages(pageCollection, timer.getRemaining()), this.executor);
+    }
+
+    public CompletableFuture<Long> getCount(@NonNull Duration timeout) {
+        throw new UnsupportedOperationException("not yet implemented");
+    }
+
+    public Object iterateKeys(@NonNull ByteArraySegment fromKey, boolean fromInclusive, @NonNull ByteArraySegment toKey, boolean toInclusive) {
+        throw new UnsupportedOperationException("not yet implemented");
     }
 
     //endregion
@@ -275,7 +288,7 @@ public class BTreeIndex {
      * When this method completes:
      * - All pages will have new offsets assigned (since they have all been touched).
      * - Any overflowing pages will be split into two or more pages (and their parents updated appropriately).
-     * - (TODO) Any empty pages will be removed (and their parents updated appropriately).
+     * - Any empty pages will be removed (and their parents updated appropriately).
      * - All non-leaf pages will be updated to point to the same leaf pages, but with new offsets.
      * - A new root (index) page may be created.
      *
@@ -283,46 +296,56 @@ public class BTreeIndex {
      * @return The PageCollection passed in.
      */
     private PageCollection processModifiedPages(PageCollection pageCollection) {
-        // Process all the pages, from bottom (leaf) up:
-        // * If it requires a split, do that (it may split into more than two).
-        // * TODO: remove empty pages (in lieu of merging)
-        // * Assign new offset.
-        // * Index pages need to be updated with new child page pointers.
         val currentBatch = new ArrayList<PageWrapper>();
         pageCollection.collectLeafPages(currentBatch);
         while (!currentBatch.isEmpty()) {
             val parents = new HashSet<Long>();
             for (PageWrapper p : currentBatch) {
                 val updatedChildPointers = new ArrayList<PagePointer>();
+                ByteArraySegment deletedPageKey = null;
                 val splitResult = p.getPage().splitIfNecessary();
                 if (splitResult != null) {
-                    // This Page must be split.
+                    // This Page must be split. The first split page will replace the existing page, while the rest will
+                    // need to be inserted as children into the parent.
                     for (int i = 0; i < splitResult.size(); i++) {
                         val page = splitResult.get(i);
-                        val pageKey = page.getKeyAt(0);
+                        ByteArraySegment newPageKey;
                         long newOffset;
                         if (i == 0) {
                             // The original page will get the first split. Nothing changes about its pointer key.
                             p.setPage(page);
+                            newPageKey = p.getPageKey();
                             pageCollection.complete(p);
                             newOffset = p.getOffset();
                         } else {
-                            // Insert the new pages and assign them new virtual offsets.
-                            PageWrapper newPage = PageWrapper.wrapNew(page, p.getParent(), new PagePointer(pageKey, NO_OFFSET, page.getLength()));
+                            // Insert the new pages and assign them new virtual offsets. Each page will use its first
+                            // Key as a Page Key.
+                            newPageKey = page.getKeyAt(0);
+                            PageWrapper newPage = PageWrapper.wrapNew(page, p.getParent(), new PagePointer(newPageKey, NO_OFFSET, page.getLength()));
                             pageCollection.insert(newPage);
                             pageCollection.complete(newPage);
                             newOffset = newPage.getOffset();
                         }
 
-                        updatedChildPointers.add(new PagePointer(pageKey, newOffset, page.getLength()));
+                        updatedChildPointers.add(new PagePointer(newPageKey, newOffset, page.getLength()));
                     }
                 } else {
-                    // This page has been modified. Assign it a new virtual offset so that we can add a proper pointer
-                    // to it from its parent. Do this to all pages except newly added index (root) pages, which have
-                    // already been processed.
-                    pageCollection.complete(p);
-                    updatedChildPointers.add(new PagePointer(p.getPage().getKeyAt(0), p.getOffset(), p.getPage().getLength()));
+                    // If this page became empty, we must remove it.
+                    // Otherwise, we need to update its pointer in the parent.
+                    int entryCount = p.getPage().getCount();
+                    ByteArraySegment pageKey = p.getPageKey();
+                    if (entryCount == 0 && p.parent != null) {
+                        // This page is empty. Remove it from the PageCollection (so we don't write to our data source)
+                        // and remember its Page Key so we can delete that from its parent.
+                        pageCollection.remove(p);
+                        deletedPageKey = pageKey;
+                    } else {
+                        // This page needs to be kept around.
+                        pageCollection.complete(p);
+                        updatedChildPointers.add(new PagePointer(pageKey, p.getOffset(), p.getPage().getLength()));
+                    }
                 }
+
 
                 // Make sure we process its parent as well.
                 PageWrapper parentPage = p.getParent();
@@ -333,23 +356,28 @@ public class BTreeIndex {
                 }
 
                 if (parentPage != null) {
-                    // Update child pointers for the parent.
-                    val toUpdate = new ArrayList<PageEntry>(updatedChildPointers.size());
-                    for (int i = 0; i < updatedChildPointers.size(); i++) {
-                        PagePointer cp = updatedChildPointers.get(i);
-                        ByteArraySegment key = cp.key;
-                        if (i == 0 && parentPage.getPage().getCount() == 0) {
-                            // Special case for index nodes. Since each Page Pointer points to a Page which contains all Keys
-                            // larger than their Pointer Key (but smaller than the next Pointer Key), the first entry must
-                            // be the minimum possible Key, otherwise we will not be able to insert any values smaller than
-                            // this Pointer Key.
-                            key = generateMinKey();
+                    if (deletedPageKey != null) {
+                        parentPage.getPage().delete(Collections.singleton(deletedPageKey));
+                    } else {
+                        // Update child pointers for the parent.
+                        val toUpdate = new ArrayList<PageEntry>(updatedChildPointers.size());
+                        for (int i = 0; i < updatedChildPointers.size(); i++) {
+                            PagePointer cp = updatedChildPointers.get(i);
+                            ByteArraySegment key = cp.key;
+                            if (i == 0 && parentPage.getPage().getCount() == 0) {
+                                // Special case for index nodes. Since each Page Pointer points to a Page which contains all Keys
+                                // larger than their Pointer Key (but smaller than the next Pointer Key), the first entry must
+                                // be the minimum possible Key, otherwise we will not be able to insert any values smaller than
+                                // this Pointer Key.
+                                key = generateMinKey();
+                            }
+                            PageEntry pe = new PageEntry(key, serializePointer(cp));
+                            toUpdate.add(pe);
                         }
-                        PageEntry pe = new PageEntry(key, serializePointer(cp));
-                        toUpdate.add(pe);
-                    }
 
-                    parentPage.getPage().update(toUpdate);
+                        // Update parent page's child pointer for modified pages.
+                        parentPage.getPage().update(toUpdate);
+                    }
 
                     // Then queue up the parent for processing.
                     parents.add(parentPage.getOffset());
@@ -389,16 +417,16 @@ public class BTreeIndex {
                         return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
                     }
 
-                    AtomicReference<PagePointer> toFetch = new AtomicReference<>(new PagePointer(null, state.rootPageOffset, state.rootPageLength));
+                    AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, state.rootPageOffset, state.rootPageLength));
                     CompletableFuture<PageWrapper> result = new CompletableFuture<>();
                     AtomicReference<PageWrapper> parentPage = new AtomicReference<>(null);
                     Futures.loop(
                             () -> !result.isDone(),
-                            () -> fetchPage(toFetch.get(), parentPage.get(), pageCollection, timer.getRemaining())
+                            () -> fetchPage(pagePointer.get(), parentPage.get(), pageCollection, timer.getRemaining())
                                     .thenAccept(page -> {
                                         if (page.isIndexPage()) {
                                             PagePointer childPointer = getPagePointer(key, page.getPage());
-                                            toFetch.set(childPointer);
+                                            pagePointer.set(childPointer);
                                             parentPage.set(page);
                                         } else {
                                             // Leaf (data) page. We are done.
@@ -459,10 +487,10 @@ public class BTreeIndex {
         return result;
     }
 
-    private PagePointer deserializePointer(ByteArraySegment source, ByteArraySegment searchKey) {
-        long pageOffset = BitConverter.readLong(source, 0);
-        int pageLength = BitConverter.readInt(source, Long.BYTES);
-        return new PagePointer(searchKey, pageOffset, pageLength);
+    private PagePointer deserializePointer(ByteArraySegment serialization, ByteArraySegment pageKey) {
+        long pageOffset = BitConverter.readLong(serialization, 0);
+        int pageLength = BitConverter.readInt(serialization, Long.BYTES);
+        return new PagePointer(pageKey, pageOffset, pageLength);
     }
 
     private ByteArraySegment generateMinKey() {
@@ -478,11 +506,18 @@ public class BTreeIndex {
     /**
      * Pointer to a BTreePage.
      */
-    @RequiredArgsConstructor
     private static class PagePointer {
         final ByteArraySegment key;
         final long offset;
         final int length;
+
+        PagePointer(ByteArraySegment key, long offset, int length) {
+            // Make a copy of the key. ByteArraySegments are views into another array (of the BTreePage). As such, if the
+            // BTreePage is modified (in case the first key is deleted), this view may return a different set of bytes.
+            this.key = key == null ? null : new ByteArraySegment(key.getCopy());
+            this.offset = offset;
+            this.length = length;
+        }
 
         @Override
         public String toString() {
@@ -561,6 +596,14 @@ public class BTreeIndex {
         boolean isNewPage() {
             return this.pointer == null;
         }
+
+        ByteArraySegment getPageKey() {
+            ByteArraySegment r = this.pointer == null ? null : this.pointer.key;
+            if (r == null && getPage().getCount() > 0) {
+                r = getPage().getKeyAt(0);
+            }
+            return r;
+        }
     }
 
     /**
@@ -602,6 +645,12 @@ public class BTreeIndex {
 
             this.pageByOffset.put(page.getOffset(), page);
             return page;
+        }
+
+        void remove(PageWrapper page) {
+            this.pageByOffset.remove(page.getOffset());
+            this.incompleteNewPageOffset.compareAndSet(page.getOffset(), NO_OFFSET);
+            page.setOffset(NO_OFFSET);
         }
 
         void complete(PageWrapper page) {
@@ -671,7 +720,6 @@ public class BTreeIndex {
          * @return A CompletableFuture with a Long representing the current length of the index in the external data source.
          */
         CompletableFuture<Long> writePages(PageCollection pageCollection, Duration timeout) {
-            //System.out.println("WritePages");
             State state = this.state.get();
             Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 

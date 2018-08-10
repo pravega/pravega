@@ -115,7 +115,7 @@ class BTreePage {
      */
     BTreePage(@Nonnull Config config) {
         this(config, new ByteArraySegment(new byte[DATA_OFFSET + FOOTER_LENGTH]), false);
-        formatHeaderAndFooter(count, ID_GENERATOR.nextInt());
+        formatHeaderAndFooter(this.count, ID_GENERATOR.nextInt());
     }
 
     /**
@@ -225,7 +225,9 @@ class BTreePage {
      * Gets a ByteArraySegment representing the value at the given Position.
      *
      * @param pos The position to get the value at.
-     * @return A ByteArraySegment containing the value at the given Position.
+     * @return A ByteArraySegment containing the value at the given Position. Note that this is a view inside a larger array
+     * and any modifications to that array will be reflected in this. If this value needs to be held for
+     * longer then it is recommended to get a copy of it (use getCopy()).
      */
     ByteArraySegment getValueAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
@@ -236,10 +238,13 @@ class BTreePage {
      * Gets the Key at the given Position.
      *
      * @param pos The Position to get the Key at.
-     * @return A ByteArraySegment containing the Key at the given Position.
+     * @return A ByteArraySegment containing the Key at the given Position. Note that this is a view inside a larger array
+     * and any modifications to that array will be reflected in this. If this value needs to be held for
+     * longer then it is recommended to get a copy of it (use getCopy()).
      */
     ByteArraySegment getKeyAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
+        //return new ByteArraySegment(this.data.subSegment(pos * this.config.entryLength, this.config.keyLength).getCopy());
         return this.data.subSegment(pos * this.config.entryLength, this.config.keyLength);
     }
 
@@ -344,7 +349,7 @@ class BTreePage {
         // If we have extra entries: allocate new buffer of the correct size and start copying from the old one.
         // We cannot reuse the existing buffer because we need more space.
         val newPage = new BTreePage(this.config, new ByteArraySegment(new byte[DATA_OFFSET + newCount * this.config.entryLength + FOOTER_LENGTH]), false);
-        newPage.formatHeaderAndFooter(newCount, ID_GENERATOR.nextInt());
+        newPage.formatHeaderAndFooter(newCount, getHeaderId());
         int readIndex = 0;
         int writeIndex = 0;
         for (val e : newEntries) {
@@ -448,7 +453,9 @@ class BTreePage {
      * Gets a ByteArraySegment representing the value mapped to the given Key.
      *
      * @param key The Key to search.
-     * @return A ByteArraySegment mapped to the given Key, or null if the Key does not exist.
+     * @return A ByteArraySegment mapped to the given Key, or null if the Key does not exist. Note that this is a view
+     * inside a larger array and any modifications to that array will be reflected in this. If this value needs to be held
+     * for longer then it is recommended to get a copy of it (use getCopy()).
      */
     ByteArraySegment searchExact(@Nonnull ByteArraySegment key) {
         val pos = search(key, 0);
@@ -529,6 +536,15 @@ class BTreePage {
         return this.count;
     }
 
+    List<ByteArraySegment> getAllKeys() {
+        int count = getCount();
+        ArrayList<ByteArraySegment> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            result.add(getKeyAt(i));
+        }
+        return result;
+    }
+
     /**
      * Sets the Value at the given position.
      *
@@ -561,7 +577,7 @@ class BTreePage {
     /**
      * Gets this BTreePage's Id from its header.
      */
-    private int getHeaderId() {
+    int getHeaderId() {
         return BitConverter.readInt(this.header, ID_OFFSET);
     }
 
@@ -654,7 +670,7 @@ class BTreePage {
         private final int position;
         /**
          * Indicates whether an exact match for the sought key was found. If so, position refers to that key. If not,
-         * position refers to the location just before where the sought key would have been.
+         * position refers to the location where the key would have been.
          */
         private final boolean exactMatch;
 

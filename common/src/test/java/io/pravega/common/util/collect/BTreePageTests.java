@@ -40,6 +40,7 @@ public class BTreePageTests {
     @Test
     public void testUpdate() {
         val page = new BTreePage(CONFIG);
+        int headerId = page.getHeaderId();
         val entries = new HashMap<Integer, Long>();
         while (entries.size() < ITEM_COUNT) {
             val updateKeys = new HashSet<Integer>();
@@ -67,6 +68,8 @@ public class BTreePageTests {
             // Verify.
             checkPage(page, entries);
         }
+
+        Assert.assertEquals("Unexpected header id.", headerId, page.getHeaderId());
     }
 
     /**
@@ -75,6 +78,7 @@ public class BTreePageTests {
     @Test
     public void testDelete() {
         val page = new BTreePage(CONFIG);
+        int headerId = page.getHeaderId();
         val remainingEntries = IntStream.range(0, ITEM_COUNT).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
 
         // Initial page population.
@@ -102,6 +106,7 @@ public class BTreePageTests {
         }
 
         Assert.assertEquals("Not expecting any remaining entries.", 0, remainingEntries.size());
+        Assert.assertEquals("Unexpected header id.", headerId, page.getHeaderId());
     }
 
     /**
@@ -199,12 +204,11 @@ public class BTreePageTests {
     public void testSplit() {
         int count = 1000;
         val page = new BTreePage(CONFIG);
+        int headerId = page.getHeaderId();
         for (int item = 0; item < count; item++) {
             // Add one more entry to the page.
             page.update(Collections.singleton(new PageEntry(serializeInt(item), serializeLong((long) (item + 1)))));
-            if (item < 82) {
-                //continue;
-            }
+
             boolean expectedSplit = page.getLength() > CONFIG.getMaxPageSize();
             val splitResult = page.splitIfNecessary();
             if (expectedSplit) {
@@ -213,6 +217,7 @@ public class BTreePageTests {
                 int minLength = Integer.MAX_VALUE;
                 int maxLength = -1;
                 for (BTreePage sp : splitResult) {
+                    Assert.assertNotEquals("Expecting different header ids.", headerId, sp.getHeaderId());
                     minLength = Math.min(minLength, sp.getLength());
                     maxLength = Math.min(maxLength, sp.getLength());
                     AssertExtensions.assertLessThanOrEqual("Split page size too large.", CONFIG.getMaxPageSize(), sp.getContents().getLength());
@@ -234,6 +239,8 @@ public class BTreePageTests {
                 Assert.assertNull("Not expecting any split result", splitResult);
             }
         }
+
+        Assert.assertEquals("Unexpected header id.", headerId, page.getHeaderId());
     }
 
     /**
@@ -258,6 +265,7 @@ public class BTreePageTests {
         // Copy constructor.
         val page2 = new BTreePage(CONFIG, page1.getContents());
         checkPage(page2, entries);
+        Assert.assertEquals("Unexpected header id.", page1.getHeaderId(), page2.getHeaderId());
 
         // Update the second page with new data.
         val entries2 = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1)));

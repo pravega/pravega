@@ -12,6 +12,7 @@ package io.pravega.common.util.collect;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
 import java.time.Duration;
@@ -93,9 +94,29 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         testInsert(10000, false, true);
     }
 
+    /**
+     * Tests the delete() method sequentially.
+     */
     @Test
-    public void testDelete() {
+    public void testDeleteSequential() {
+        testDelete(100, 1);
+    }
 
+    /**
+     * Tests the delete() method using multiple keys at once..
+     */
+    @Test
+    public void testDeleteBulk() {
+        testDelete(1000, 499);
+    }
+
+    /**
+     * Tests the delete() method for all the keys at once.
+     */
+    @Test
+    public void testDeleteAll() {
+        final int count = 10000;
+        testDelete(count, count);
     }
 
     @Test
@@ -113,6 +134,36 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
     }
 
+    private void testDelete(int count, int deleteBatchSize) {
+        final int checkEvery = count / 10; // checking is very expensive; we don't want to do it every time.
+        val ds = new DataSource();
+        val index = defaultBuilder(ds).build();
+        val entries = generate(count);
+        long lastRetVal = index.insert(entries, TIMEOUT).join();
+
+        int firstIndex = 0;
+        int lastCheck = -1;
+        while (firstIndex < count) {
+            int batchSize = Math.min(deleteBatchSize, count - firstIndex);
+            val toDelete = entries.subList(firstIndex, firstIndex + batchSize)
+                    .stream().map(PageEntry::getKey).collect(Collectors.toList());
+            val remainingEntries = entries.subList(firstIndex + batchSize, entries.size());
+            long retVal = index.delete(toDelete, TIMEOUT).join();
+            AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
+
+            // TODO: also try to fetch ALL
+            // Determine if it's time to check the index.
+            if (firstIndex - lastCheck > checkEvery) {
+                check("after deleting " + (firstIndex + 1), index, remainingEntries);
+                lastCheck = firstIndex;
+            }
+
+            firstIndex += batchSize;
+        }
+
+        check("at the end", index, Collections.emptyList());
+    }
+
     private void testInsert(int count, boolean sorted, boolean bulk) {
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
@@ -124,8 +175,11 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         if (bulk) {
             index.insert(entries, TIMEOUT).join();
         } else {
+            long lastRetVal = 0;
             for (val e : entries) {
-                index.insert(Collections.singleton(e), TIMEOUT).join();
+                long retVal = index.insert(Collections.singleton(e), TIMEOUT).join();
+                AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
+                lastRetVal = retVal;
             }
         }
 
@@ -150,7 +204,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
         }
 
-        // TODO: once listKeys is implemented, verify no other keys.
+        // TODO: once iterateKeys is implemented, verify no other keys.
     }
 
     private ArrayList<PageEntry> generate(int count) {
@@ -176,8 +230,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                 .maxPageSize(MAX_PAGE_SIZE)
                 .keyLength(KEY_LENGTH)
                 .valueLength(VALUE_LENGTH)
-                .read(ds::read)
-                .write(ds::write)
+                .readPage(ds::read)
+                .writePages(ds::write)
                 .getLength(ds::getLength)
                 .executor(executorService());
     }

@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
@@ -199,7 +201,7 @@ public class ByteArraySegment implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
-        System.arraycopy(source.array, source.startOffset+sourceOffset, this.array, targetOffset + this.startOffset, length);
+        System.arraycopy(source.array, source.startOffset + sourceOffset, this.array, this.startOffset + targetOffset, length);
     }
 
     /**
@@ -282,6 +284,17 @@ public class ByteArraySegment implements ArrayView {
             return this;
         } else {
             return new ByteArraySegment(this.array, this.startOffset, this.length, true);
+        }
+    }
+
+    @Override
+    public String toString() {
+        if (getLength() > 128) {
+            return String.format("Length = %s", getLength());
+        } else {
+            return String.format("{%s}", IntStream.range(arrayOffset(), arrayOffset() + getLength()).boxed()
+                    .map(i -> Byte.toString(this.array[i]))
+                    .collect(Collectors.joining(",")));
         }
     }
 
