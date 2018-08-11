@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class Pinger implements AutoCloseable {
-    private static final double PING_INTERVAL_FACTOR = 0.25; //ping interval = factor * txn lease time.
+    private static final double PING_INTERVAL_FACTOR = 0.5; //ping interval = factor * txn lease time.
 
     private final Stream stream;
     private final Controller controller;
@@ -88,21 +88,21 @@ public class Pinger implements AutoCloseable {
      *  failure the particular transaction it is removed from the ping list.
      */
     private void pingTransactions() {
-        try {
-            log.info("Start sending transaction pings.");
-            txnList.stream().forEach(uuid -> {
+        log.info("Start sending transaction pings.");
+        txnList.stream().forEach(uuid -> {
+            try {
                 log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
                 controller.pingTransaction(stream, uuid, txnLeaseMillis)
-                          .exceptionally(e -> {
-                              log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
-                              return null;
-                          });
-            });
-            log.trace("Completed sending transaction pings.");
-        } catch (Exception e) {
-            // Suppressing exception to prevent future pings from not being executed. 
-            log.warn("Encountered exception when attepting to ping transactions", e);
-        }
+                .exceptionally(e -> {
+                    log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
+                    return null;
+                });
+            } catch (Exception e) {
+                // Suppressing exception to prevent future pings from not being executed. 
+                log.warn("Encountered exception when attepting to ping transactions", e);
+            }
+        });
+        log.trace("Completed sending transaction pings.");
     }
 
     @Override
