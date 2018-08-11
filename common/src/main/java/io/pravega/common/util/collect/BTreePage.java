@@ -19,10 +19,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -113,7 +113,7 @@ class BTreePage {
      *
      * @param config Page Configuration.
      */
-    BTreePage(@Nonnull Config config) {
+    BTreePage(Config config) {
         this(config, new ByteArraySegment(new byte[DATA_OFFSET + FOOTER_LENGTH]), false);
         formatHeaderAndFooter(this.count, ID_GENERATOR.nextInt());
     }
@@ -126,7 +126,7 @@ class BTreePage {
      *                 this ByteArraySegment.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format.
      */
-    BTreePage(@Nonnull Config config, @Nonnull ByteArraySegment contents) {
+    BTreePage(Config config, ByteArraySegment contents) {
         this(config, contents, true);
     }
 
@@ -138,7 +138,7 @@ class BTreePage {
      * @param data   A ByteArraySegment containing a list of Key-Value pairs to include. The contents of this ByteArraySegment
      *               will be copied into a new buffer, so changes to this BTreePage will not affect it.
      */
-    private BTreePage(@Nonnull Config config, int count, @Nonnull ByteArraySegment data) {
+    private BTreePage(Config config, int count, ByteArraySegment data) {
         this(config, new ByteArraySegment(new byte[DATA_OFFSET + data.getLength() + FOOTER_LENGTH]), false);
         Preconditions.checkArgument(count * config.entryLength == data.getLength(), "Unexpected data length given the count.");
         formatHeaderAndFooter(count, ID_GENERATOR.nextInt());
@@ -154,10 +154,10 @@ class BTreePage {
      * @param validate If true, will perform validation.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format and validate == true.
      */
-    private BTreePage(@Nonnull Config config, @Nonnull ByteArraySegment contents, boolean validate) {
+    private BTreePage(@NonNull Config config, @NonNull ByteArraySegment contents, boolean validate) {
         Preconditions.checkArgument(!contents.isReadOnly(), "Cannot wrap a read-only ByteArraySegment.");
-        this.config = Preconditions.checkNotNull(config, "config");
-        this.contents = Preconditions.checkNotNull(contents, "contents");
+        this.config = config;
+        this.contents = contents;
         this.header = contents.subSegment(0, DATA_OFFSET);
         this.data = contents.subSegment(DATA_OFFSET, contents.getLength() - DATA_OFFSET - FOOTER_LENGTH);
         this.footer = contents.subSegment(contents.getLength() - FOOTER_LENGTH, FOOTER_LENGTH);
@@ -200,7 +200,7 @@ class BTreePage {
      * @return True if Index Page, False if Leaf page.
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format.
      */
-    static boolean isIndexPage(@Nonnull ByteArraySegment pageContents) {
+    static boolean isIndexPage(@NonNull ByteArraySegment pageContents) {
         // Check ID match.
         int headerId = BitConverter.readInt(pageContents, ID_OFFSET);
         int footerId = BitConverter.readInt(pageContents, pageContents.getLength() - FOOTER_LENGTH);
@@ -305,7 +305,7 @@ class BTreePage {
      *
      * @param entries The Entries to insert or update. This collection need not be sorted.
      */
-    void update(@Nonnull Collection<PageEntry> entries) {
+    void update(@NonNull Collection<PageEntry> entries) {
         if (entries.isEmpty()) {
             // Nothing to do.
             return;
@@ -394,7 +394,7 @@ class BTreePage {
      *
      * @param keys A Collection of Keys to remove. The Keys need not be sorted.
      */
-    void delete(@Nonnull Collection<ByteArraySegment> keys) {
+    void delete(@NonNull Collection<ByteArraySegment> keys) {
         if (keys.isEmpty()) {
             // Nothing to do.
             return;
@@ -457,7 +457,7 @@ class BTreePage {
      * inside a larger array and any modifications to that array will be reflected in this. If this value needs to be held
      * for longer then it is recommended to get a copy of it (use getCopy()).
      */
-    ByteArraySegment searchExact(@Nonnull ByteArraySegment key) {
+    ByteArraySegment searchExact(@NonNull ByteArraySegment key) {
         val pos = search(key, 0);
         if (!pos.isExactMatch()) {
             // Nothing found.
@@ -475,7 +475,7 @@ class BTreePage {
      *                 will be ignored.
      * @return A SearchResult instance with the result of the search.
      */
-    SearchResult search(@Nonnull ByteArraySegment key, int startPos) {
+    SearchResult search(@NonNull ByteArraySegment key, int startPos) {
         // Positions here are not indices into "source", rather they are entry positions, which is why we always need
         // to adjust by using entryLength.
         int endPos = getCount();
@@ -499,7 +499,7 @@ class BTreePage {
             }
         }
 
-        // Return an inexact search result with the position for the key that is right before the sought key.
+        // Return an inexact search result with the position where the sought key would have been.
         return new SearchResult(startPos, false);
     }
 
@@ -536,6 +536,28 @@ class BTreePage {
         return this.count;
     }
 
+    /**
+     * Gets all the keys between the two indices.
+     *
+     * @param firstIndex The first index to get keys from (inclusive).
+     * @param lastIndex  The last index to get keys to (inclusive).
+     * @return A new List containing the desired result.
+     */
+    List<ByteArraySegment> getKeys(int firstIndex, int lastIndex) {
+        Preconditions.checkArgument(firstIndex <= lastIndex, "firstIndex must be smaller than or equal to lastIndex.");
+        ArrayList<ByteArraySegment> result = new ArrayList<>();
+        for (int i = firstIndex; i <= lastIndex; i++) {
+            result.add(getKeyAt(i));
+        }
+
+        return result;
+    }
+
+    /**
+     * Gets all the keys in this BTreePage instance.
+     *
+     * @return A new List containing all the Keys.
+     */
     List<ByteArraySegment> getAllKeys() {
         int count = getCount();
         ArrayList<ByteArraySegment> result = new ArrayList<>(count);

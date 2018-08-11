@@ -12,6 +12,7 @@ package io.pravega.common.util.collect;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,10 +75,10 @@ public class BTreeIndex {
     @Builder
     public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull WritePages writePages,
                       @NonNull GetLength getLength, @NonNull Executor executor) {
-        this.read = Preconditions.checkNotNull(readPage, "readPage");
-        this.write = Preconditions.checkNotNull(writePages, "writePages");
-        this.getLength = Preconditions.checkNotNull(getLength, "getLength");
-        this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.read = readPage;
+        this.write = writePages;
+        this.getLength = getLength;
+        this.executor = executor;
 
         // BTreePage.Config validates the arguments so we don't need to.
         this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
@@ -169,13 +171,22 @@ public class BTreeIndex {
                 .thenComposeAsync(pageCollection -> writePages(pageCollection, timer.getRemaining()), this.executor);
     }
 
-    public CompletableFuture<Long> getCount(@NonNull Duration timeout) {
-        // TODO: do we need this?
-        throw new UnsupportedOperationException("not yet implemented");
-    }
-
-    public Object iterateKeys(@NonNull ByteArraySegment fromKey, boolean fromInclusive, @NonNull ByteArraySegment toKey, boolean toInclusive) {
-        throw new UnsupportedOperationException("not yet implemented");
+    /**
+     * Returns an AsyncIterator that will iterate through all the keys within the specified bounds. All iterated keys will
+     * be returned in order (smallest to largest).
+     *
+     * @param firstKey          A ByteArraySegment representing the lower bound of the iteration.
+     * @param firstKeyInclusive If true, firstKey will be included in the iteration (if it exists in the index), otherwise
+     *                          it will not.
+     * @param lastKey           A ByteArraySegment representing the upper bound of the iteration.
+     * @param lastKeyInclusive  If true, lastKey will be included in the iteration (if it exists in the index), otherwise
+     *                          it will not.
+     * @param fetchTimeout      Timeout for each invocation of AsyncIterator.getNext().
+     * @return A new AsyncIterator instance.
+     */
+    public AsyncIterator<List<ByteArraySegment>> iterateKeys(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive,
+                                                             @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive, Duration fetchTimeout) {
+        return new KeyIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, fetchTimeout);
     }
 
     //endregion
@@ -846,9 +857,10 @@ public class BTreeIndex {
 
     //endregion
 
-    //region DataSource
+    //region IndexState
+
     @RequiredArgsConstructor
-    static class IndexState {
+    private static class IndexState {
         private final long length;
         private final long rootPageOffset;
         private final int rootPageLength;
@@ -858,6 +870,164 @@ public class BTreeIndex {
             return String.format("Length = %s, RootOffset = %s, RootLength = %s", this.length, this.rootPageOffset, this.rootPageLength);
         }
     }
+
+    //endregion
+
+    //region KeyIterator
+
+    /**
+     * Iterator for keys in a BTreeIndex.
+     */
+    private static class KeyIterator implements AsyncIterator<List<ByteArraySegment>> {
+        private final ByteArraySegment firstKey;
+        private final boolean firstKeyInclusive;
+        private final ByteArraySegment lastKey;
+        private final boolean lastKeyInclusive;
+        private final LocatePage locatePage;
+        private final Duration fetchTimeout;
+        private final AtomicBoolean finished;
+        private final PageCollection pageCollection;
+        private final AtomicReference<PageWrapper> lastPage;
+        private final AtomicInteger processedPageCount;
+
+        KeyIterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive, @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive,
+                    @NonNull LocatePage locatePage, @NonNull Duration fetchTimeout) {
+            // First, verify correctness.
+            int c = KEY_COMPARATOR.compare(firstKey, lastKey);
+            if (firstKeyInclusive && lastKeyInclusive) {
+                Preconditions.checkArgument(c <= 0, "firstKey must be smaller than or equal to lastKey.");
+            } else {
+                Preconditions.checkArgument(c < 0, "firstKey must be smaller than lastKey.");
+            }
+
+            // firstKey and firstKeyInclusive will change as we make progress in our iteration.
+            this.firstKey = firstKey;
+            this.firstKeyInclusive = firstKeyInclusive;
+            this.lastKey = lastKey;
+            this.lastKeyInclusive = lastKeyInclusive;
+            this.locatePage = locatePage;
+            this.fetchTimeout = fetchTimeout;
+            this.pageCollection = new PageCollection();
+            this.lastPage = new AtomicReference<>(null);
+            this.finished = new AtomicBoolean();
+            this.processedPageCount = new AtomicInteger();
+        }
+
+        public CompletableFuture<List<ByteArraySegment>> getNext() {
+            if (this.finished.get()) {
+                return CompletableFuture.completedFuture(null);
+            }
+
+            TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
+            return locateNextPage(timer)
+                    .thenApply(pageWrapper -> {
+                        // Remember this page (for next time).
+                        this.lastPage.set(pageWrapper);
+                        if (pageWrapper == null) {
+                            this.finished.set(true);
+                            return null;
+                        }
+
+                        // Extract the intermediate results from the page.
+                        List<ByteArraySegment> result = extractFromPage(pageWrapper);
+                        this.processedPageCount.incrementAndGet();
+
+                        // Check if we have reached the last page that could possibly contain some result.
+                        if (result == null) {
+                            this.finished.set(true);
+                        }
+
+                        return result;
+                    });
+        }
+
+        private CompletableFuture<PageWrapper> locateNextPage(TimeoutTimer timer) {
+            if (this.lastPage.get() == null) {
+                // This is our very first invocation. Find the page containing the first key.
+                return this.locatePage.apply(this.firstKey, this.pageCollection, timer);
+            } else {
+                // We already have a pointer to a page; find next page.
+                return getNextLeafPage(timer);
+            }
+        }
+
+        private CompletableFuture<PageWrapper> getNextLeafPage(TimeoutTimer timer) {
+            // Walk up the parent chain as long as the page's Key is the last key in that parent key list.
+            // Once we found a Page which has a next key, look up the first Leaf page that exists down that path.
+            PageWrapper lastPage = this.lastPage.get();
+            assert lastPage != null;
+            int pageKeyPos;
+            do {
+                PageWrapper parentPage = lastPage.getParent();
+                if (parentPage == null) {
+                    // We have reached the end. No more pages.
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Look up the current page's PageKey in the parent and make note of its position.
+                ByteArraySegment pageKey = lastPage.getPointer().key;
+                val pos = parentPage.getPage().search(pageKey, 0);
+                assert pos.isExactMatch() : "expecting exact match";
+                pageKeyPos = pos.getPosition() + 1;
+
+                // We no longer need this page. Remove it from the PageCollection.
+                this.pageCollection.remove(lastPage);
+                lastPage = parentPage;
+            } while (pageKeyPos == lastPage.getPage().getCount());
+
+            ByteArraySegment referenceKey = lastPage.getPage().getKeyAt(pageKeyPos);
+            return this.locatePage.apply(referenceKey, this.pageCollection, timer);
+        }
+
+        private List<ByteArraySegment> extractFromPage(PageWrapper pageWrapper) {
+            BTreePage page = pageWrapper.getPage();
+            assert !page.getConfig().isIndexPage() : "expecting leaf page";
+
+            // Search for the first and last keys' positions. Note that they may not exist in our Key collection.
+            int firstIndex;
+            if (this.processedPageCount.get() == 0) {
+                // This is the first page we are searching in. The first Key we are looking for may be in the middle.
+                val startPos = page.search(this.firstKey, 0);
+
+                // Adjust first index if we were requested not to include the first key. If we don't have an exact match,
+                // then this is already pointing to the next key.
+                firstIndex = startPos.getPosition();
+                if (startPos.isExactMatch() && !this.firstKeyInclusive) {
+                    firstIndex++;
+                }
+            } else {
+                // This is not the first page we are searching in. We should include any results from the very beginning.
+                firstIndex = 0;
+            }
+
+            // Adjust the last index if we were requested not to include the last key.
+            val endPos = page.search(this.lastKey, 0);
+            int lastIndex = endPos.getPosition();
+            if (!endPos.isExactMatch() || endPos.isExactMatch() && !this.lastKeyInclusive) {
+                lastIndex--;
+            }
+
+            if (firstIndex > lastIndex) {
+                // Either the first key is the last in this page but firstKeyInclusive is false or the first key would
+                // have belonged in this page but it is not. Return an empty list to indicate that we should continue
+                // iterating on next pages.
+                return Collections.emptyList();
+            } else if (lastIndex < 0) {
+                // The last key is not to be found in this page. We are done. Return null to indicate that we should stop.
+                return null;
+            } else {
+                // Construct the result. Based on firstIndex and lastIndex, this may turn out to be empty.
+                return page.getKeys(firstIndex, lastIndex);
+            }
+        }
+
+        @FunctionalInterface
+        interface LocatePage {
+            CompletableFuture<PageWrapper> apply(ByteArraySegment key, PageCollection pageCollection, TimeoutTimer timeout);
+        }
+    }
+
+    //endregion
 
     //region Functional Interfaces
 

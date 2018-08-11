@@ -198,6 +198,31 @@ public class BTreePageTests {
     }
 
     /**
+     * Tests the getKeys() and getAllKeys() method.
+     */
+    @Test
+    public void testGetKeys() {
+        int count = 20; // This test is doing O(count^2) array comparisons, so let's keep this small.
+        val page = new BTreePage(CONFIG);
+
+        // Populate the page.
+        val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
+        val serializedKeys = serialize(entries.keySet(), true);
+        page.update(serialize(entries, false));
+
+        val allKeys = page.getAllKeys();
+        AssertExtensions.assertListEquals("Unexpected result from getAllKeys().", serializedKeys, allKeys, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
+        for (int i = 0; i < count; i++) {
+            for (int j = i; j < count; j++) {
+                val keyRange = page.getKeys(i, j);
+                val expectedKeys = serializedKeys.subList(i, j + 1);
+                AssertExtensions.assertListEquals("Unexpected result from getKeys(" + i + ", " + j + ").",
+                        expectedKeys, keyRange, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
+            }
+        }
+    }
+
+    /**
      * Tests the ability to split as the page grows.
      */
     @Test

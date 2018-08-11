@@ -11,14 +11,13 @@ package io.pravega.common.util.collect;
 
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Comparator;
-import javax.annotation.Nonnull;
 
 /**
  * Compares two byte arrays of the same length.
  */
 class ByteArrayComparator implements Comparator<byte[]> {
     @Override
-    public int compare(@Nonnull byte[] b1, @Nonnull byte[] b2) {
+    public int compare(byte[] b1, byte[] b2) {
         assert b1.length == b2.length;
         return compare(b1, 0, b2, 0, b1.length);
     }
@@ -30,7 +29,7 @@ class ByteArrayComparator implements Comparator<byte[]> {
      * @param b2 Second instance.
      * @return -1 if b1 should be before b2, 0 if b1 equals b2 and 1 if b1 should be after b2.
      */
-    int compare(@Nonnull ByteArraySegment b1, @Nonnull ByteArraySegment b2) {
+    int compare(ByteArraySegment b1, ByteArraySegment b2) {
         assert b1.getLength() == b2.getLength();
         return compare(b1.array(), b1.arrayOffset(), b2.array(), b2.arrayOffset(), b1.getLength());
     }
@@ -45,7 +44,7 @@ class ByteArrayComparator implements Comparator<byte[]> {
      * @param length  The number of bytes to compare.
      * @return -1 if b1 should be before b2, 0 if b1 equals b2 and 1 if b1 should be after b2.
      */
-    int compare(@Nonnull byte[] b1, int offset1, @Nonnull byte[] b2, int offset2, int length) {
+    int compare(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
         int r;
         for (int i = 0; i < length; i++) {
             r = Byte.compare(b1[offset1 + i], b2[offset2 + i]);

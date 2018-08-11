@@ -17,11 +17,13 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -107,6 +109,12 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDeleteBulk() {
+        // TODO this fails with different setups
+        /*
+            private static final int KEY_LENGTH = 4;
+            private static final int VALUE_LENGTH = 2;
+            private static final int MAX_PAGE_SIZE = 128;
+         */
         testDelete(10000, 123);
     }
 
@@ -135,9 +143,47 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the ability to iterate through keys using iterateKeys().
+     */
     @Test
-    public void testGetBulk() {
+    public void testIterateKeys() {
+        final int count = 1000;
+        val ds = new DataSource();
+        val index = defaultBuilder(ds).build();
+        val entries = generate(count);
+        index.insert(entries, TIMEOUT).join();
+        val keys = entries.stream().map(PageEntry::getKey).sorted(KEY_COMPARATOR::compare).collect(Collectors.toList());
 
+        for (int i = 0; i < keys.size() / 2; i++) {
+            int startIndex = i;
+            int endIndex = keys.size() - i - 1;
+            ByteArraySegment firstKey = keys.get(startIndex);
+            ByteArraySegment lastKey = keys.get(endIndex);
+
+            // We make sure that throughout the test we check all possible combinations of firstInclusive & lastInclusive.
+            boolean firstInclusive = i % 2 == 0;
+            boolean lastInclusive = i % 4 < 2;
+            if (i == keys.size() / 2) {
+                // For same keys, they must both be inclusive.
+                firstInclusive = true;
+                lastInclusive = true;
+            }
+
+            val iterator = index.iterateKeys(firstKey, firstInclusive, lastKey, lastInclusive, TIMEOUT);
+            val actualKeys = new ArrayList<ByteArraySegment>();
+            iterator.processRemaining(actualKeys::addAll, executorService()).join();
+
+            // Determine expected keys.
+            if (!firstInclusive) {
+                startIndex++;
+            }
+            if (!lastInclusive) {
+                endIndex--;
+            }
+            val expectedKeys = keys.subList(startIndex, endIndex + 1);
+            AssertExtensions.assertListEquals("Wrong result for " + i + ".", expectedKeys, actualKeys, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
+        }
     }
 
     @Test
@@ -165,6 +211,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             if (firstIndex - lastCheck > checkEvery) {
                 // Search for all entries, and make sure only the ones we care about are still there.
                 check("after deleting " + (firstIndex + 1), index, entries, firstIndex + batchSize);
+                int keyCount = getKeyCount(index);
+                Assert.assertEquals("Unexpected index key count after deleting " + (firstIndex + 1),
+                        entries.size() - firstIndex - batchSize, keyCount);
                 lastCheck = firstIndex;
             }
 
@@ -173,10 +222,24 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         // Verify again, now that we have an empty index.
         check("at the end", index, entries, entries.size());
+        val finalKeyCount = getKeyCount(index);
+        Assert.assertEquals("Not expecting any keys after deleting everything.", 0, finalKeyCount);
 
         // Verify again, after a full recovery.
         val recoveredIndex = defaultBuilder(ds).build();
         check("after recovery", recoveredIndex, entries, entries.size());
+    }
+
+    private int getKeyCount(BTreeIndex index) {
+        val minKey = new byte[KEY_LENGTH];
+        Arrays.fill(minKey, Byte.MIN_VALUE);
+        val maxKey = new byte[KEY_LENGTH];
+        Arrays.fill(maxKey, Byte.MAX_VALUE);
+
+        val count = new AtomicInteger();
+        index.iterateKeys(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)
+             .processRemaining(k -> count.addAndGet(k.size()), executorService()).join();
+        return count.get();
     }
 
     private void testInsert(int count, boolean sorted, boolean bulk) {
@@ -221,8 +284,6 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                 assertEquals(message + ": value mismatch for entry index " + i, expectedValue, av);
             }
         }
-
-        // TODO: once iterateKeys is implemented, verify no other keys.
     }
 
     private ArrayList<PageEntry> generate(int count) {
