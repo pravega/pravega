@@ -36,9 +36,10 @@ import org.junit.Test;
  */
 public class BTreeIndexTests extends ThreadPooledTestSuite {
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
-    private static final int KEY_LENGTH = 16;
-    private static final int VALUE_LENGTH = 8;
-    private static final int MAX_PAGE_SIZE = 1024;
+    private static final int KEY_LENGTH = 4;
+    private static final int VALUE_LENGTH = 2;
+    private static final int MAX_PAGE_SIZE = 128;
+
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override
@@ -109,12 +110,6 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDeleteBulk() {
-        // TODO this fails with different setups
-        /*
-            private static final int KEY_LENGTH = 4;
-            private static final int VALUE_LENGTH = 2;
-            private static final int MAX_PAGE_SIZE = 128;
-         */
         testDelete(10000, 123);
     }
 

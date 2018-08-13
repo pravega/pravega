@@ -14,19 +14,24 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * A Collection of BTreePages, indexed by Offset. This can serve as a cache for any operation (but should not be used
  * cross-operations).
  */
+@ThreadSafe
 class PageCollection {
     //region Private
 
+    @GuardedBy("this")
     private final HashMap<Long, PageWrapper> pageByOffset = new HashMap<>();
-    private final AtomicLong incompleteNewPageOffset = new AtomicLong(PagePointer.NO_OFFSET);
-    private final AtomicLong indexLength = new AtomicLong(-1);
+    @GuardedBy("this")
+    private long incompleteNewPageOffset = PagePointer.NO_OFFSET;
+    @GuardedBy("this")
+    private long indexLength = -1;
 
     //endregion
 
@@ -37,10 +42,12 @@ class PageCollection {
      *
      * @param indexLength The Index Length (in bytes). This value will be used to assign offsets to new and modified Pages.
      */
-    void initialize(long indexLength) {
-        if (!this.indexLength.compareAndSet(-1, indexLength)) {
+    synchronized void initialize(long indexLength) {
+        if (isInitialized()) {
             throw new IllegalStateException("Already initialized.");
         }
+
+        this.indexLength = indexLength;
     }
 
     /**
@@ -48,8 +55,8 @@ class PageCollection {
      *
      * @return True if initialized, false otherwise.
      */
-    boolean isInitialized() {
-        return this.indexLength.get() >= 0;
+    synchronized boolean isInitialized() {
+        return this.indexLength >= 0;
     }
 
     /**
@@ -57,8 +64,8 @@ class PageCollection {
      *
      * @return The Length of the index, in bytes.
      */
-    long getIndexLength() {
-        return this.indexLength.get();
+    synchronized long getIndexLength() {
+        return this.indexLength;
     }
 
     /**
@@ -67,7 +74,7 @@ class PageCollection {
      *
      * @return The number of Pages in this PageCollection.
      */
-    int getCount() {
+    synchronized int getCount() {
         return this.pageByOffset.size();
     }
 
@@ -77,7 +84,7 @@ class PageCollection {
      * @param offset The offset to look up the page at.
      * @return A PageWrapper instance or null, if no such page is registered.
      */
-    PageWrapper get(long offset) {
+    synchronized PageWrapper get(long offset) {
         return this.pageByOffset.getOrDefault(offset, null);
     }
 
@@ -89,10 +96,10 @@ class PageCollection {
      * @throws IllegalArgumentException If this method was previously invoked with a PageWrapper having isNewPage() == true
      *                                  but complete() or remove() have not been called on that PageWrapper yet.
      */
-    PageWrapper insert(PageWrapper page) {
-        Preconditions.checkArgument(this.incompleteNewPageOffset.get() == PagePointer.NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
+    synchronized PageWrapper insert(PageWrapper page) {
+        Preconditions.checkArgument(this.incompleteNewPageOffset == PagePointer.NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
         if (page.isNewPage()) {
-            this.incompleteNewPageOffset.set(page.getOffset());
+            this.incompleteNewPageOffset = page.getOffset();
         }
 
         this.pageByOffset.put(page.getOffset(), page);
@@ -104,9 +111,12 @@ class PageCollection {
      *
      * @param page The PageWrapper to remove. This page will have its offset set to PagePointer.NO_OFFSET.
      */
-    void remove(PageWrapper page) {
+    synchronized void remove(PageWrapper page) {
         this.pageByOffset.remove(page.getOffset());
-        this.incompleteNewPageOffset.compareAndSet(page.getOffset(), PagePointer.NO_OFFSET);
+        if (this.incompleteNewPageOffset == page.getOffset()) {
+            this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
+        }
+
         page.setOffset(PagePointer.NO_OFFSET);
     }
 
@@ -116,12 +126,15 @@ class PageCollection {
      * @param page The PageWrapper that has been completed. This instance's offset will be adjusted to the current value
      *             of getIndexLength(), and the stored index length will be incremented by this PageWrapper's length.
      */
-    void complete(PageWrapper page) {
+    synchronized void complete(PageWrapper page) {
         Preconditions.checkArgument(this.pageByOffset.containsKey(page.getOffset()), "Given page is not registered.");
-        Preconditions.checkArgument(this.incompleteNewPageOffset.get() == PagePointer.NO_OFFSET || this.incompleteNewPageOffset.get() == page.getOffset(),
+        Preconditions.checkArgument(this.incompleteNewPageOffset == PagePointer.NO_OFFSET || this.incompleteNewPageOffset == page.getOffset(),
                 "Not expecting this page to be completed.");
-        this.incompleteNewPageOffset.set(PagePointer.NO_OFFSET);
-        long pageOffset = this.indexLength.getAndAdd(page.getPage().getLength());
+
+        this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
+        long pageOffset = this.indexLength;
+        this.indexLength += page.getPage().getLength();
+
         this.pageByOffset.remove(page.getOffset());
         page.setOffset(pageOffset);
         this.pageByOffset.put(page.getOffset(), page);
@@ -132,7 +145,7 @@ class PageCollection {
      *
      * @param target The Collection to collect into.
      */
-    void collectLeafPages(Collection<PageWrapper> target) {
+    synchronized void collectLeafPages(Collection<PageWrapper> target) {
         this.pageByOffset.values().stream().filter(p -> !p.isIndexPage()).forEach(target::add);
     }
 
@@ -142,7 +155,7 @@ class PageCollection {
      * @param offsets A Collection of offsets to collect PageWrappers for.
      * @param target  The Collection to collect into.
      */
-    void collectPages(Collection<Long> offsets, Collection<PageWrapper> target) {
+    synchronized void collectPages(Collection<Long> offsets, Collection<PageWrapper> target) {
         offsets.forEach(offset -> {
             PageWrapper p = this.pageByOffset.getOrDefault(offset, null);
             if (p != null) {
@@ -155,7 +168,7 @@ class PageCollection {
      * Gets a new List containing all the PageWrappers in this PageCollection, ordered by their offset.
      * @return The List.
      */
-    List<PageWrapper> getPagesSortedByOffset() {
+    synchronized List<PageWrapper> getPagesSortedByOffset() {
         return this.pageByOffset
                 .values().stream()
                 .sorted(Comparator.comparingLong(PageWrapper::getOffset))

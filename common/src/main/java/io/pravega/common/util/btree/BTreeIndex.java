@@ -314,6 +314,10 @@ public class BTreeIndex {
             val parents = new HashSet<Long>();
             for (PageWrapper p : currentBatch) {
                 val context = new PageModificationContext(p, pageCollection);
+                if (p.needsFirstKeyUpdate()) {
+                    updateFirstKey(context);
+                }
+
                 val splitResult = p.getPage().splitIfNecessary();
                 if (splitResult != null) {
                     processSplitPage(splitResult, context);
@@ -344,6 +348,22 @@ public class BTreeIndex {
         }
 
         return pageCollection;
+    }
+
+    /**
+     * Handles a special case for Index Nodes. Since each Page Pointer points to a Page which contains all Keys equal to
+     * or larger than their Pointer Key (but smaller than the next Pointer Key in the Page's parent), the first key in that
+     * Page must be the minimum possible key, otherwise we will not be able to insert any values smaller than this Pointer Key,
+     * but which would have to go in that Page.
+     *
+     * @param context Processing Context.
+     */
+    private void updateFirstKey(PageModificationContext context) {
+        BTreePage page = context.getPageWrapper().getPage();
+        assert page.getConfig().isIndexPage() : "expected index page";
+        if (page.getCount() > 0) {
+            page.setFirstKey(generateMinKey());
+        }
     }
 
     /**
@@ -417,25 +437,12 @@ public class BTreeIndex {
         if (context.getDeletedPageKey() != null) {
             // We have a deleted page. Remove its pointer from the parent.
             parentPage.getPage().delete(Collections.singleton(context.getDeletedPageKey()));
+            parentPage.markNeedsFirstKeyUpdate();
         } else {
-            // Update child pointers for the parent.
-            val upp = context.getUpdatedPagePointers();
-            val toUpdate = new ArrayList<PageEntry>(upp.size());
-            for (int i = 0; i < upp.size(); i++) {
-                PagePointer cp = upp.get(i);
-                ByteArraySegment key = cp.getKey();
-                if (i == 0 && parentPage.getPage().getCount() == 0) {
-                    // Special case for index nodes. Since each Page Pointer points to a Page which contains all Keys
-                    // larger than their Pointer Key (but smaller than the next Pointer Key), the first entry must
-                    // be the minimum possible Key, otherwise we will not be able to insert any values smaller than
-                    // this Pointer Key.
-                    key = generateMinKey();
-                }
-
-                toUpdate.add(new PageEntry(key, serializePointer(cp)));
-            }
-
             // Update parent page's child pointers for modified pages.
+            val toUpdate = context.getUpdatedPagePointers().stream()
+                                  .map(pp -> new PageEntry(pp.getKey(), serializePointer(pp)))
+                                  .collect(Collectors.toList());
             parentPage.getPage().update(toUpdate);
         }
     }

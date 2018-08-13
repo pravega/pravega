@@ -10,13 +10,16 @@
 package io.pravega.common.util.btree;
 
 import io.pravega.common.util.ByteArraySegment;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 
 /**
  * Wraps a BTreePage by adding additional metadata, such as parent information and offset.
  */
+@ThreadSafe
 class PageWrapper {
     //region Members
 
@@ -28,6 +31,7 @@ class PageWrapper {
     @Getter
     private final boolean newPage;
     private final AtomicLong offset;
+    private final AtomicBoolean needsFirstKeyUpdate;
 
     //endregion
 
@@ -39,6 +43,7 @@ class PageWrapper {
         this.pointer = pointer;
         this.newPage = newPage;
         this.offset = new AtomicLong(this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
+        this.needsFirstKeyUpdate = new AtomicBoolean(false);
     }
 
     /**
@@ -81,6 +86,23 @@ class PageWrapper {
      */
     boolean isIndexPage() {
         return getPage().getConfig().isIndexPage();
+    }
+
+    /**
+     * Gets a value indicating whether the wrapped BTreePage needs its Fist Key updated. Please refer to
+     * BTreeIndex.updateFirstKey() for more information.
+     *
+     * @return True if this is an Index Page and either the First Key Update marker was set or this is a new page. False otherwise.
+     */
+    boolean needsFirstKeyUpdate() {
+        return isIndexPage() && (this.needsFirstKeyUpdate.get() || isNewPage());
+    }
+
+    /**
+     * Indicates that the wrapped BTreePage must have its first key updated.
+     */
+    void markNeedsFirstKeyUpdate() {
+        this.needsFirstKeyUpdate.set(true);
     }
 
     /**

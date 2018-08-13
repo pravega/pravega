@@ -255,6 +255,21 @@ class BTreePage {
     }
 
     /**
+     * Updates the first PageEntry's key to the given value.
+     *
+     * @param newKey A ByteArraySegment representing the replacement value for the first key. This must be smaller than
+     *               or equal to the current value of the first key (using KEY_COMPARATOR).
+     */
+    void setFirstKey(ByteArraySegment newKey) {
+        Preconditions.checkState(getCount() > 0, "BTreePage is empty. Cannot set first key.");
+        Preconditions.checkArgument(newKey.getLength() == this.config.getKeyLength(), "Incorrect key length.");
+        Preconditions.checkArgument(KEY_COMPARATOR.compare(newKey, getKeyAt(0)) <= 0,
+                "Replacement first Key must be smaller than or equal to the existing first key.");
+
+        this.data.copyFrom(newKey, 0, newKey.getLength());
+    }
+
+    /**
      * Gets a PageEntry representing the entry (Key + Value) at the given Position.
      *
      * @param pos The position to get the value at.
