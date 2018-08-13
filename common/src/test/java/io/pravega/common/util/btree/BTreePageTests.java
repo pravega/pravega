@@ -198,6 +198,31 @@ public class BTreePageTests {
     }
 
     /**
+     * Tests the setFirstKey() method.
+     */
+    @Test
+    public void testSetFirstKey() {
+        int count = 10;
+        val page = new BTreePage(CONFIG);
+        val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
+        val serializedEntries = serialize(entries, true);
+        page.update(serializedEntries);
+
+        AssertExtensions.assertThrows(
+                "setFirstKey allowed larger key to be replaced.",
+                () -> page.setFirstKey(serializedEntries.get(1).getKey()),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Remove the first key.
+        page.delete(Collections.singleton(serializedEntries.get(0).getKey()));
+        assertEquals("First key was not removed.", serializedEntries.get(1).getKey(), page.getKeyAt(0));
+
+        // Replace the existing first key with the previously (removed) value.
+        page.setFirstKey(serializedEntries.get(0).getKey());
+        assertEquals("First key was not replaced.", serializedEntries.get(0).getKey(), page.getKeyAt(0));
+    }
+
+    /**
      * Tests the getEntries() method.
      */
     @Test

@@ -10,12 +10,15 @@
 package io.pravega.common.util.btree;
 
 import io.pravega.common.util.ByteArraySegment;
+import java.io.Serializable;
 import java.util.Comparator;
 
 /**
  * Compares two byte arrays of the same length.
  */
-class ByteArrayComparator implements Comparator<byte[]> {
+class ByteArrayComparator implements Comparator<byte[]>, Serializable {
+    private static final long serialVersionUID = 1L;
+
     @Override
     public int compare(byte[] b1, byte[] b2) {
         assert b1.length == b2.length;

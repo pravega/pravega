@@ -16,21 +16,20 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -38,6 +37,46 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.val;
 
+/**
+ * B+Tree Index with fixed-length Keys and fixed-length Values operating on an append-only storage medium.
+ *
+ * Structure:
+ * * The B+Tree Index is made up of Pages, not exceeding a specified length.
+ * * Pages can be Index Pages (contain pointers to other Pages) or Leaf pages.
+ * * Entries are made of Keys and Values, which are byte arrays, and the B+Tree index is oblivious to their meaning.
+ * * Entries are sorted internally by Key using a byte array comparator. This sorting order may differ from the sorting
+ * order of whatever the Keys represent externally.
+ * * If a particular Page (Index or Leaf) exceeds the maximum allowed length, it is split in 2 or more pages of approximately
+ * equal length, with the constraint that each new page will contain as many items as possible (i.e., split into the minimum
+ * number of possible pages while each page is within the allotted bounds).
+ * * If a particular Page becomes empty (as a result of an entry's deletion), the entire page will be deleted (except if
+ * it is the root page).
+ *
+ * Storing data:
+ * * Every modification to the B+Tree involves modifying one Leaf Page and all its parent Index Pages (up to, and including
+ * the root page). Each such modification will result in all these "touched" pages to be rewritten to the external data source.
+ * * Upon writing, the contents of the Index Pages will be updated to reflect the new offsets of their direct child pages.
+ * * Upon writing, a fixed-length "footer" is written at the very end which contains information about where the most recent
+ * root page is located. This eliminates the need for such a pointer to be stored externally or to have a fixed-length root
+ * page, which would be wasteful.
+ *
+ * Read-write consistency and concurrency:
+ * * Due to the append-only nature of the storage media, reads (including iterators) may occur concurrently with writes,
+ * without having to worry about consistency. This is because when a read is initiated, it caches the root page (along
+ * with any other sub-pages), which will always point to locations with smaller offsets (by construction). Any new writes
+ * (concurrent or not) will always operate on higher offsets, thus not interfering with any ongoing reads.
+ * * This implementation does not support concurrent writes. Writes will need to be serialized, either within the same
+ * instance or across multiple instances. Concurrent writes will be guarded by means of "appending-at-offset" within the
+ * external data source (when the BTreeIndex is first used, it gets a snapshot of the external data source which it then
+ * uses for conditionally writing modifications).
+ * * If two or more concurrent writes occur on the same BTreeIndex instance, only one will succeed (and the others may be
+ * retried).
+ * * If two or more concurrent writes occur on different BTreeIndex instances, only one will succeed. The "losing" instances
+ * will become unavailable for writing and will present an outdated view of the data for reading. This mechanism allows
+ * the caller to decide how to properly recover from the situation - the BTreeIndex has insufficient information to make
+ * such a decision.
+ */
+@NotThreadSafe
 public class BTreeIndex {
     //region Members
 
@@ -135,7 +174,7 @@ public class BTreeIndex {
     }
 
     /**
-     * Inserts the given Page Entries into the index.
+     * Inserts or updates the given Page Entries into the index.
      *
      * @param entries A Collection of Page Entries to insert. The collection need not be sorted.
      * @param timeout Timeout for the operation.
@@ -143,7 +182,7 @@ public class BTreeIndex {
      * successfully and will contain the current version of the index (any modifications to the index will result in a
      * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
-    public CompletableFuture<Long> insert(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
+    public CompletableFuture<Long> put(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return insertIntoPages(entries, timer)
                 .thenApply(this::processModifiedPages)
@@ -159,7 +198,7 @@ public class BTreeIndex {
      * successfully and will contain the current version of the index (any modifications to the index will result in a
      * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
-    public CompletableFuture<Long> delete(@NonNull Collection<ByteArraySegment> keys, @NonNull Duration timeout) {
+    public CompletableFuture<Long> remove(@NonNull Collection<ByteArraySegment> keys, @NonNull Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return deleteFromPages(keys, timer)
                 .thenApply(this::processModifiedPages)
@@ -230,13 +269,13 @@ public class BTreeIndex {
                             });
                 },
                 this.executor)
-                .thenApply(v -> {
-                    // We need not forget to delete the last batch of keys from the last page.
-                    if (lastPage.get() != null) {
-                        lastPage.get().getPage().delete(lastPageKeys);
-                    }
-                    return pageCollection;
-                });
+                      .thenApply(v -> {
+                          // We need not forget to delete the last batch of keys from the last page.
+                          if (lastPage.get() != null) {
+                              lastPage.get().getPage().delete(lastPageKeys);
+                          }
+                          return pageCollection;
+                      });
     }
 
     /**
@@ -250,8 +289,8 @@ public class BTreeIndex {
         // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-insert
         // entries belonging to the same page.
         val toInsert = entries.stream()
-                .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
-                .iterator();
+                              .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
+                              .iterator();
 
         PageCollection pageCollection = new PageCollection();
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
@@ -283,13 +322,13 @@ public class BTreeIndex {
                             });
                 },
                 this.executor)
-                .thenApply(v -> {
-                    // We need not forget to insert the last batch of entries into the last page.
-                    if (lastPage.get() != null) {
-                        lastPage.get().getPage().update(lastPageEntries);
-                    }
-                    return pageCollection;
-                });
+                      .thenApply(v -> {
+                          // We need not forget to insert the last batch of entries into the last page.
+                          if (lastPage.get() != null) {
+                              lastPage.get().getPage().update(lastPageEntries);
+                          }
+                          return pageCollection;
+                      });
     }
 
     /**
@@ -446,6 +485,7 @@ public class BTreeIndex {
             parentPage.getPage().update(toUpdate);
         }
     }
+
     /**
      * Locates the Leaf Page that contains or should contain the given Key.
      *
@@ -487,10 +527,10 @@ public class BTreeIndex {
                                         }
                                     }),
                             this.executor)
-                            .exceptionally(ex -> {
-                                result.completeExceptionally(ex);
-                                return null;
-                            });
+                           .exceptionally(ex -> {
+                               result.completeExceptionally(ex);
+                               return null;
+                           });
                     return result;
                 }, this.executor);
     }
@@ -513,10 +553,16 @@ public class BTreeIndex {
 
         return readPage(pagePointer.getOffset(), pagePointer.getLength(), timeout)
                 .thenApply(data -> {
+                    if (data.getLength() != pagePointer.getLength()) {
+                        throw new IllegalDataFormatException(String.format("Requested page of length %s from offset %s, got a page of length %s.",
+                                pagePointer.getLength(), pagePointer.getOffset(), data.getLength()));
+                    }
+
                     val pageConfig = BTreePage.isIndexPage(data) ? this.indexPageConfig : this.leafPageConfig;
                     return pageCollection.insert(PageWrapper.wrapExisting(new BTreePage(pageConfig, data), parentPage, pagePointer));
                 });
     }
+
     private BTreePage createEmptyLeafPage() {
         return new BTreePage(this.leafPageConfig);
     }
@@ -579,38 +625,29 @@ public class BTreeIndex {
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 
         // Collect the data to be written.
-        val streams = new ArrayList<InputStream>();
-        long offset = PagePointer.NO_OFFSET;
-        AtomicInteger length = new AtomicInteger();
+        val result = new ArrayList<Map.Entry<Long, ByteArraySegment>>();
+        long offset = state.length;
         PageWrapper lastPage = null;
         for (PageWrapper p : pageCollection.getPagesSortedByOffset()) {
             if (offset >= 0) {
                 Preconditions.checkArgument(p.getOffset() == offset, "Expecting Page offset %s, found %s.", offset, p.getOffset());
             }
 
-            streams.add(p.getPage().getContents().getReader());
+            result.add(new AbstractMap.SimpleImmutableEntry<>(offset, p.getPage().getContents()));
             offset = p.getOffset() + p.getPage().getLength();
-            length.addAndGet(p.getPage().getLength());
             lastPage = p;
         }
 
         // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
-        Preconditions.checkArgument(pageCollection.getIndexLength() == state.length + length.get(), "IndexLength mismatch.");
-        streams.add(getFooter(lastPage.getOffset()));
-        length.addAndGet(FOOTER_LENGTH);
+        Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
+        result.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset())));
 
         // Write it.
-        val toWrite = new SequenceInputStream(Collections.enumeration(streams));
         long lastPageOffset = lastPage.getOffset();
         int lastPageLength = lastPage.getPage().getContents().getLength();
-        return this.write
-                .apply(this.state.get().length, toWrite, length.get(), timeout)
-                .thenApply(v -> {
-                    long indexLength = state.length + length.get();
-                    setState(indexLength, lastPageOffset, lastPageLength);
-                    return indexLength;
-                });
+        return this.write.apply(result, timeout)
+                         .thenApply(indexLength -> setState(indexLength, lastPageOffset, lastPageLength).length);
     }
 
     /**
@@ -647,10 +684,10 @@ public class BTreeIndex {
         return s;
     }
 
-    private InputStream getFooter(long rootPageOffset) {
+    private ByteArraySegment getFooter(long rootPageOffset) {
         byte[] result = new byte[FOOTER_LENGTH];
         BitConverter.writeLong(result, 0, rootPageOffset);
-        return new ByteArrayInputStream(result);
+        return new ByteArraySegment(result);
     }
 
     private long getRootPageOffset(ByteArraySegment footer) {
@@ -712,6 +749,15 @@ public class BTreeIndex {
      */
     @FunctionalInterface
     public interface ReadPage {
+        /**
+         * Reads a single Page from an external data source.
+         *
+         * @param offset  The offset of the desired Page.
+         * @param length  The length of the desired Page.
+         * @param timeout Timeout for the operation.
+         * @return A CompletableFuture that, when completed, will contain a ByteArraySegment that represents the contents
+         * of the desired Page.
+         */
         CompletableFuture<ByteArraySegment> apply(long offset, int length, Duration timeout);
     }
 
@@ -720,7 +766,18 @@ public class BTreeIndex {
      */
     @FunctionalInterface
     public interface WritePages {
-        CompletableFuture<Void> apply(long expectedOffset, InputStream data, int length, Duration timeout);
+        /**
+         * Persists the contents of multiple, contiguous Pages to an external data source.
+         *
+         * @param pageContents An ordered List of Offset-ByteArraySegments pairs representing the contents of the individual
+         *                     pages mapped to their assigned Offsets. The list is ordered by Offset (Keys). All entries
+         *                     should be contiguous (an entry's offset is equal to the previous entry's offset + the previous
+         *                     entry's length).
+         * @param timeout      Timeout for the operation.
+         * @return A CompletableFuture that, when completed, will contain the current length (in bytes) of the index in the
+         * external data source.
+         */
+        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Duration timeout);
     }
 
     //endregion

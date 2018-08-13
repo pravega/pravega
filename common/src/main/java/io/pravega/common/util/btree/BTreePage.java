@@ -172,6 +172,7 @@ class BTreePage {
         // Cache the count value. It's used a lot.
         this.count = BitConverter.readInt(this.header, COUNT_OFFSET);
     }
+
     /**
      * Formats the Header and Footer of this BTreePage with the given information.
      *
