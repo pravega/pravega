@@ -7,13 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared;
+package io.pravega.shared.metrics;
 
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
-import io.pravega.shared.metrics.MetricsProvider;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

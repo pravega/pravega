@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.task.TxnResource;
@@ -24,18 +25,23 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
+import org.apache.curator.utils.ZKPaths;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.store.stream.ZKStreamMetadataStore.COUNTER_PATH;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -58,7 +64,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, 1, executor);
+        store = new ZKStreamMetadataStore(cli, 1, executor, Duration.ofSeconds(1));
     }
 
     @Override
@@ -115,7 +121,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         // set range in store to have lsb = Long.Max - 100
         Data<Integer> data = new Data<>(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(ZKStoreHelper.COUNTER_PATH);
+        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(COUNTER_PATH);
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh
@@ -341,6 +347,111 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
         assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
         assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
+    }
+
+    @Test
+    public void testCommittedTxnGc() {
+        String scope = "scopeGC";
+        String stream = "stream";
+        store.createScope(scope).join();
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(ScalingPolicy.fixed(1))
+                                                        .build();
+        store.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        ZKStreamMetadataStore zkStore = (ZKStreamMetadataStore) store;
+        ZKStoreHelper storeHelper = zkStore.getStoreHelper();
+        
+        UUID txnId = new UUID(0L, 0L);
+        createAndCommitTxn(txnId, scope, stream).join();
+        
+        // getTxnStatus
+        TxnStatus status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
+        // verify txns are created in a new batch
+        List<Integer> batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+                                        .stream().map(Integer::parseInt).collect(Collectors.toList());
+        assertEquals(1, batches.size());
+        int firstBatch = batches.get(0);
+
+        // region Backward Compatibility
+        // TODO 2755 retire code in this region
+        String streamOldPath = ZKPaths.makePath(ZKPaths.makePath(ZKStreamMetadataStore.COMPLETED_TX_ROOT_PATH, scope), stream);
+        List<UUID> oldSchemeTxns = storeHelper.getChildren(streamOldPath).join()
+                                              .stream().map(UUID::fromString).sorted().collect(Collectors.toList());
+        assertEquals(1, oldSchemeTxns.size());
+        assertEquals(txnId, oldSchemeTxns.get(0));
+        String txnOldPath = ZKPaths.makePath(streamOldPath, txnId.toString());
+        Data<Integer> oldSchemeTxnData = storeHelper.getData(txnOldPath).join();
+        assertEquals(TxnStatus.COMMITTED, CompletedTxnRecord.parse(oldSchemeTxnData.getData()).getCompletionStatus());
+        // explicitly delete from old scheme
+        storeHelper.deletePath(txnOldPath, false).join();
+        status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
+        // endregion
+        
+        // create another transaction after introducing a delay greater than gcperiod so that it gets created in a new batch 
+        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 1L), scope, stream), 
+                Duration.ofSeconds(2).toMillis(), executor).join();
+        // verify that this gets created in a new batch
+        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+        assertEquals(2, batches.size());
+        assertTrue(batches.contains(firstBatch));
+        int secondBatch = batches.stream().max(Integer::compare).get();
+        assertTrue(secondBatch > firstBatch);
+        
+        // region Backward Compatibility
+        // TODO: 2755 retire code in this region 
+        oldSchemeTxns = storeHelper.getChildren(streamOldPath).join()
+                                   .stream().map(UUID::fromString).sorted().collect(Collectors.toList());
+        // verify it is created in old path
+        assertEquals(1, oldSchemeTxns.size());
+        // endregion
+        
+        // let one more gc cycle run and verify that these two batches are not cleaned up. 
+        batches = Futures.delayedFuture(() -> storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH),
+                Duration.ofSeconds(2).toMillis(), executor).join()
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+        assertEquals(2, batches.size());
+
+        // create third transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
+        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 2L), scope, stream), 
+                Duration.ofSeconds(2).toMillis(), executor).join();
+        // Verify that a new batch is created here. 
+        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+
+        int thirdBatch = batches.stream().max(Long::compare).get();
+        assertTrue(thirdBatch > secondBatch);
+        
+        // wait for more than TTL, then do another getTxnStatus
+        status = Futures.delayedFuture(() -> store.transactionStatus(scope, stream, txnId, null, executor), 
+                Duration.ofSeconds(2).toMillis(), executor).join();
+        assertEquals(TxnStatus.UNKNOWN, status);
+
+        // verify that only 2 latest batches remain and that firstBatch has been GC'd
+        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+        assertEquals(2, batches.size());
+        assertFalse(batches.contains(firstBatch));
+        assertTrue(batches.contains(secondBatch));
+        assertTrue(batches.contains(thirdBatch));
+
+        // region Backward Compatibility
+        // TODO: 2755 retire code in this region
+        // verify that for transactions with data only on old path, getTransactionStatus returns correct value
+        storeHelper.createZNode(txnOldPath, oldSchemeTxnData.getData()).join();
+        status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+        assertEquals(TxnStatus.COMMITTED, status);
+        // endregion
+    }
+
+    private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
+        return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
+             .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
+             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
+             .thenCompose(x -> store.commitTransaction(scope, stream, txnId, null, executor));
     }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {
