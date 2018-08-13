@@ -24,7 +24,6 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -104,9 +103,7 @@ public class TableHelper {
     public static int getSegmentCount(final byte[] segmentIndex, final byte[] segmentTable) {
         Optional<SegmentRecord> segmentRecord = SegmentRecord.readLatest(segmentIndex, segmentTable);
         assert segmentRecord.isPresent();
-        final int startingSegmentNumber = getStartingSegmentNumber(segmentIndex);
-        // The count should take into account both the segment number and the starting segment number for the stream.
-        return segmentRecord.get().getSegmentNumber() - startingSegmentNumber + 1;
+        return segmentRecord.get().getSegmentNumber() + 1;
     }
 
     /**
@@ -489,9 +486,10 @@ public class TableHelper {
                                                                             final byte[] segmentTable,
                                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                                             final long timeStamp) {
+
         // if startingSegmentNumber was already previously indexed, overwrite the index
         int segmentIndexOffset = SegmentIndexRecord.readRecord(segmentIndex, startingSegmentNumber)
-                .map(SegmentIndexRecord::getIndexOffset).orElse(segmentIndex.length);
+                .map(index -> index.getIndexOffset()).orElse(segmentIndex.length);
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
         indexStream.write(segmentIndex, 0, segmentIndexOffset);
@@ -506,6 +504,12 @@ public class TableHelper {
                                                     long timeStamp,
                                                     ByteArrayOutputStream segmentStream,
                                                     ByteArrayOutputStream indexStream) {
+
+        // Initialize segment index in the case of a stream re-creation (startingSegmentNumber > 0).
+        if (indexStream.size() == 0 && startingSegmentNumber > 0) {
+            initializeTableAndIndexWithStatingSegmentNumber(startingSegmentNumber, indexStream);
+        }
+
         IntStream.range(0, newRanges.size())
                 .forEach(
                         x -> {
@@ -515,19 +519,34 @@ public class TableHelper {
                                         timeStamp, newEpoch, newRanges.get(x).getKey(), newRanges.get(x).getValue())
                                         .toArrayView();
                                 segmentStream.write(arrayView.array(), arrayView.arrayOffset(), arrayView.getLength());
-
-                                // If we create a new segment index, its first element is the startingSegmentNumber for
-                                // this stream. This avoids storing this value in a separate metadata item.
-                                if (indexStream.size() == 0) {
-                                    indexStream.write(ByteBuffer.allocate(SegmentIndexRecord.INDEX_RECORD_SIZE).putInt(startingSegmentNumber).array());
-                                }
-
-                                indexStream.write(new SegmentIndexRecord(startingSegmentNumber + x, offset, startingSegmentNumber).toByteArray());
+                                indexStream.write(new SegmentIndexRecord(startingSegmentNumber + x,
+                                        offset).toByteArray());
                             } catch (IOException e) {
                                 throw Lombok.sneakyThrow(e);
                             }
                         }
                 );
+    }
+
+    /**
+     * This method initializes the segment index for a starting segment number. This consists of creating
+     * startingSegmentNumber dummy entries in segment index to be able of creating segments from a specific starting
+     * segment number onwards, while keeping metadata compatibility with older versions where stream segments were
+     * supposed to start by 0.
+     *
+     * @param startingSegmentNumber Starting segment number for this stream.
+     * @param segmentIndex Segment index
+     */
+    private static void initializeTableAndIndexWithStatingSegmentNumber(int startingSegmentNumber,
+                                                                        ByteArrayOutputStream segmentIndex) {
+        IntStream.range(0, startingSegmentNumber)
+                 .forEach(x -> {
+                     try {
+                         segmentIndex.write(new SegmentIndexRecord(0, 0).toByteArray());
+                     } catch (IOException e) {
+                         throw Lombok.sneakyThrow(e);
+                     }
+                 });
     }
 
     /**
@@ -937,23 +956,22 @@ public class TableHelper {
      */
     public static EpochTransitionRecord computeEpochTransition(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
                                                                byte[] segmentTable, List<Long> segmentsToSeal,
-                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                               long scaleTimestamp) {
+                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         HistoryRecord activeEpoch = getActiveEpoch(historyIndex, historyTable);
         Preconditions.checkState(activeEpoch.getSegments().containsAll(segmentsToSeal), "Invalid epoch transition request");
 
         int newEpoch = activeEpoch.getEpoch() + 1;
         int segmentCount = getSegmentCount(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
-        final int startingSegmentNumber = getStartingSegmentNumber(segmentIndex);
-        IntStream.range(0, newRanges.size()).forEach(x ->
-            newSegments.put(computeSegmentId(startingSegmentNumber + segmentCount + x, newEpoch), newRanges.get(x)));
+        IntStream.range(0, newRanges.size()).forEach(x -> {
+            newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
+        });
         return new EpochTransitionRecord(activeEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));
     }
 
     private static Map<Segment, Integer> computeEpochCutMapWithSegment(byte[] historyIndex, byte[] historyTable, byte[] segmentIndex,
-                                                                       byte[] segmentTable, Map<Long, Long> streamCut) {
+                                                                              byte[] segmentTable, Map<Long, Long> streamCut) {
         Map<Long, Integer> epochCutMap = computeEpochCutMap(historyIndex, historyTable, segmentIndex, segmentTable, streamCut);
         return transform(segmentIndex, segmentTable, historyIndex, historyTable, epochCutMap);
     }
