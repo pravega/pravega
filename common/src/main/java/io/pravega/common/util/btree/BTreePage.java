@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BitConverter;
@@ -222,6 +222,13 @@ class BTreePage {
     }
 
     /**
+     * Gets the number of items in this BTreePage as reflected in its header.
+     */
+    int getCount() {
+        return this.count;
+    }
+
+    /**
      * Gets a ByteArraySegment representing the value at the given Position.
      *
      * @param pos The position to get the value at.
@@ -244,8 +251,39 @@ class BTreePage {
      */
     ByteArraySegment getKeyAt(int pos) {
         Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
-        //return new ByteArraySegment(this.data.subSegment(pos * this.config.entryLength, this.config.keyLength).getCopy());
         return this.data.subSegment(pos * this.config.entryLength, this.config.keyLength);
+    }
+
+    /**
+     * Gets a PageEntry representing the entry (Key + Value) at the given Position.
+     *
+     * @param pos The position to get the value at.
+     * @return A PageEntry containing the entry at the given Position. Note that the ByteArraySegments returned by this
+     * PageEntry's getKey() and getValue() are views inside a larger array and any modifications to that array will be
+     * reflected in them. If this value needs to be held for longer then it is recommended to get a copy of it (use getCopy()).
+     */
+    PageEntry getEntryAt(int pos) {
+        Preconditions.checkElementIndex(pos, getCount(), "pos must be non-negative and smaller than the number of items.");
+        return new PageEntry(
+                this.data.subSegment(pos * this.config.entryLength, this.config.keyLength),
+                this.data.subSegment(pos * this.config.entryLength + this.config.keyLength, this.config.valueLength));
+    }
+
+    /**
+     * Gets all the Page Entries between the two indices.
+     *
+     * @param firstIndex The first index to get Page Entries from (inclusive).
+     * @param lastIndex  The last index to get Page Entries to (inclusive).
+     * @return A new List containing the desired result.
+     */
+    List<PageEntry> getEntries(int firstIndex, int lastIndex) {
+        Preconditions.checkArgument(firstIndex <= lastIndex, "firstIndex must be smaller than or equal to lastIndex.");
+        ArrayList<PageEntry> result = new ArrayList<>();
+        for (int i = firstIndex; i <= lastIndex; i++) {
+            result.add(getEntryAt(i));
+        }
+
+        return result;
     }
 
     /**
@@ -527,44 +565,6 @@ class BTreePage {
     private void setCount(int itemCount) {
         BitConverter.writeInt(this.header, COUNT_OFFSET, itemCount);
         this.count = itemCount;
-    }
-
-    /**
-     * Gets the number of items in this BTreePage as reflected in its header.
-     */
-    int getCount() {
-        return this.count;
-    }
-
-    /**
-     * Gets all the keys between the two indices.
-     *
-     * @param firstIndex The first index to get keys from (inclusive).
-     * @param lastIndex  The last index to get keys to (inclusive).
-     * @return A new List containing the desired result.
-     */
-    List<ByteArraySegment> getKeys(int firstIndex, int lastIndex) {
-        Preconditions.checkArgument(firstIndex <= lastIndex, "firstIndex must be smaller than or equal to lastIndex.");
-        ArrayList<ByteArraySegment> result = new ArrayList<>();
-        for (int i = firstIndex; i <= lastIndex; i++) {
-            result.add(getKeyAt(i));
-        }
-
-        return result;
-    }
-
-    /**
-     * Gets all the keys in this BTreePage instance.
-     *
-     * @return A new List containing all the Keys.
-     */
-    List<ByteArraySegment> getAllKeys() {
-        int count = getCount();
-        ArrayList<ByteArraySegment> result = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            result.add(getKeyAt(i));
-        }
-        return result;
     }
 
     /**

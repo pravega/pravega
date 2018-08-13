@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
@@ -24,15 +24,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.Builder;
@@ -45,7 +41,6 @@ import lombok.val;
 public class BTreeIndex {
     //region Members
 
-    private static final long NO_OFFSET = -1L;
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
     private static final int FOOTER_LENGTH = Long.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
@@ -184,9 +179,9 @@ public class BTreeIndex {
      * @param fetchTimeout      Timeout for each invocation of AsyncIterator.getNext().
      * @return A new AsyncIterator instance.
      */
-    public AsyncIterator<List<ByteArraySegment>> iterateKeys(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive,
-                                                             @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive, Duration fetchTimeout) {
-        return new KeyIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, fetchTimeout);
+    public AsyncIterator<List<PageEntry>> iterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive,
+                                                   @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive, Duration fetchTimeout) {
+        return new EntryIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, fetchTimeout);
     }
 
     //endregion
@@ -374,7 +369,7 @@ public class BTreeIndex {
                 // Insert the new pages and assign them new virtual offsets. Each page will use its first
                 // Key as a Page Key.
                 newPageKey = page.getKeyAt(0);
-                PageWrapper newPage = PageWrapper.wrapNew(page, originalPage.getParent(), new PagePointer(newPageKey, NO_OFFSET, page.getLength()));
+                PageWrapper newPage = PageWrapper.wrapNew(page, originalPage.getParent(), new PagePointer(newPageKey, PagePointer.NO_OFFSET, page.getLength()));
                 context.getPageCollection().insert(newPage);
                 context.getPageCollection().complete(newPage);
                 newOffset = newPage.getOffset();
@@ -393,7 +388,7 @@ public class BTreeIndex {
         PageWrapper page = context.getPageWrapper();
         boolean emptyPage = page.getPage().getCount() == 0;
         ByteArraySegment pageKey = page.getPageKey();
-        if (emptyPage && page.parent != null) {
+        if (emptyPage && page.getParent() != null) {
             // This page is empty. Remove it from the PageCollection (so we don't write it back to our data source)
             // and remember its Page Key so we can delete its pointer from its parent page.
             context.getPageCollection().remove(page);
@@ -428,7 +423,7 @@ public class BTreeIndex {
             val toUpdate = new ArrayList<PageEntry>(upp.size());
             for (int i = 0; i < upp.size(); i++) {
                 PagePointer cp = upp.get(i);
-                ByteArraySegment key = cp.key;
+                ByteArraySegment key = cp.getKey();
                 if (i == 0 && parentPage.getPage().getCount() == 0) {
                     // Special case for index nodes. Since each Page Pointer points to a Page which contains all Keys
                     // larger than their Pointer Key (but smaller than the next Pointer Key), the first entry must
@@ -463,7 +458,7 @@ public class BTreeIndex {
                         pageCollection.initialize(state.length);
                     }
 
-                    if (state.rootPageOffset == NO_OFFSET && pageCollection.getCount() == 0) {
+                    if (state.rootPageOffset == PagePointer.NO_OFFSET && pageCollection.getCount() == 0) {
                         // No data. Return an empty (leaf) page, which will serve as the root for now.
                         return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
                     }
@@ -504,12 +499,12 @@ public class BTreeIndex {
      * @return A CompletableFuture containing a PageWrapper for the sought page.
      */
     private CompletableFuture<PageWrapper> fetchPage(PagePointer pagePointer, PageWrapper parentPage, PageCollection pageCollection, Duration timeout) {
-        PageWrapper fromCache = pageCollection.get(pagePointer.offset);
+        PageWrapper fromCache = pageCollection.get(pagePointer.getOffset());
         if (fromCache != null) {
             return CompletableFuture.completedFuture(fromCache);
         }
 
-        return readPage(pagePointer.offset, pagePointer.length, timeout)
+        return readPage(pagePointer.getOffset(), pagePointer.getLength(), timeout)
                 .thenApply(data -> {
                     val pageConfig = BTreePage.isIndexPage(data) ? this.indexPageConfig : this.leafPageConfig;
                     return pageCollection.insert(PageWrapper.wrapExisting(new BTreePage(pageConfig, data), parentPage, pagePointer));
@@ -532,8 +527,8 @@ public class BTreeIndex {
 
     private ByteArraySegment serializePointer(PagePointer pointer) {
         ByteArraySegment result = new ByteArraySegment(new byte[Long.BYTES + Integer.BYTES]);
-        BitConverter.writeLong(result, 0, pointer.offset);
-        BitConverter.writeInt(result, Long.BYTES, pointer.length);
+        BitConverter.writeLong(result, 0, pointer.getOffset());
+        BitConverter.writeInt(result, Long.BYTES, pointer.getLength());
         return result;
     }
 
@@ -578,10 +573,10 @@ public class BTreeIndex {
 
         // Collect the data to be written.
         val streams = new ArrayList<InputStream>();
-        long offset = NO_OFFSET;
+        long offset = PagePointer.NO_OFFSET;
         AtomicInteger length = new AtomicInteger();
         PageWrapper lastPage = null;
-        for (PageWrapper p : pageCollection.orderPagesByIndex()) {
+        for (PageWrapper p : pageCollection.getPagesSortedByOffset()) {
             if (offset >= 0) {
                 Preconditions.checkArgument(p.getOffset() == offset, "Expecting Page offset %s, found %s.", offset, p.getOffset());
             }
@@ -627,7 +622,7 @@ public class BTreeIndex {
                 .apply(timer.getRemaining())
                 .thenCompose(length -> {
                     if (length <= FOOTER_LENGTH) {
-                        return CompletableFuture.completedFuture(setState(length, NO_OFFSET, 0));
+                        return CompletableFuture.completedFuture(setState(length, PagePointer.NO_OFFSET, 0));
                     }
 
                     return this.read
@@ -661,185 +656,7 @@ public class BTreeIndex {
 
     //endregion
 
-    //region Page Wrappers
-
-    /**
-     * Pointer to a BTreePage.
-     */
-    private static class PagePointer {
-        final ByteArraySegment key;
-        final long offset;
-        final int length;
-
-        PagePointer(ByteArraySegment key, long offset, int length) {
-            // Make a copy of the key. ByteArraySegments are views into another array (of the BTreePage). As such, if the
-            // BTreePage is modified (in case the first key is deleted), this view may return a different set of bytes.
-            this.key = key == null ? null : new ByteArraySegment(key.getCopy());
-            this.offset = offset;
-            this.length = length;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Offset = %s, Length = %s", this.offset, this.length);
-        }
-    }
-
-    /**
-     * Wraps a BTreePage by adding additional metadata, such as parent information and offset.
-     */
-    private static class PageWrapper {
-        private final AtomicReference<BTreePage> page;
-        @Getter
-        private final PageWrapper parent;
-        @Getter
-        private final PagePointer pointer;
-        @Getter
-        private final boolean newPage;
-        private final AtomicLong offset;
-
-        private PageWrapper(BTreePage page, PageWrapper parent, PagePointer pointer, boolean newPage) {
-            this.page = new AtomicReference<>(page);
-            this.parent = parent;
-            this.pointer = pointer;
-            this.newPage = newPage;
-            this.offset = new AtomicLong(this.pointer == null ? NO_OFFSET : this.pointer.offset);
-        }
-
-        /**
-         * Creates a new instance of the PageWrapper class for an existing Page.
-         *
-         * @param page    Page to wrap.
-         * @param parent  Page's Parent.
-         * @param pointer Page Pointer.
-         */
-        static PageWrapper wrapExisting(BTreePage page, PageWrapper parent, PagePointer pointer) {
-            return new PageWrapper(page, parent, pointer, false);
-        }
-
-        /**
-         * Creates a new instance of the PageWrapper class for a new Page.
-         *
-         * @param page    Page to wrap.
-         * @param parent  Page's Parent.
-         * @param pointer Page Pointer.
-         */
-        static PageWrapper wrapNew(BTreePage page, PageWrapper parent, PagePointer pointer) {
-            return new PageWrapper(page, parent, pointer, true);
-        }
-
-        BTreePage getPage() {
-            return this.page.get();
-        }
-
-        boolean isIndexPage() {
-            return getPage().getConfig().isIndexPage();
-        }
-
-        void setPage(BTreePage page) {
-            this.page.set(page);
-        }
-
-        long getOffset() {
-            return this.offset.get();
-        }
-
-        void setOffset(long value) {
-            if (this.pointer != null && this.offset.get() != this.pointer.offset) {
-                // We have already assigned an offset to this.
-                throw new IllegalStateException("Cannot assign offset more than once.");
-            }
-
-            this.offset.set(value);
-        }
-
-        ByteArraySegment getPageKey() {
-            ByteArraySegment r = this.pointer == null ? null : this.pointer.key;
-            if (r == null && getPage().getCount() > 0) {
-                r = getPage().getKeyAt(0);
-            }
-            return r;
-        }
-    }
-
-    /**
-     * A Collection of BTreePages, indexed by Offset. This can serve as a cache for any operation (but should not be used
-     * cross-operations).
-     */
-    private static class PageCollection {
-        private final HashMap<Long, PageWrapper> pageByOffset = new HashMap<>();
-        private final AtomicLong incompleteNewPageOffset = new AtomicLong(NO_OFFSET);
-        private final AtomicLong indexLength = new AtomicLong(-1);
-
-        void initialize(long indexLength) {
-            if (!this.indexLength.compareAndSet(-1, indexLength)) {
-                throw new IllegalStateException("Already initialized.");
-            }
-        }
-
-        boolean isInitialized() {
-            return this.indexLength.get() >= 0;
-        }
-
-        long getIndexLength() {
-            return this.indexLength.get();
-        }
-
-        int getCount() {
-            return this.pageByOffset.size();
-        }
-
-        PageWrapper get(long offset) {
-            return this.pageByOffset.getOrDefault(offset, null);
-        }
-
-        PageWrapper insert(PageWrapper page) {
-            Preconditions.checkArgument(this.incompleteNewPageOffset.get() == NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
-            if (page.isNewPage()) {
-                this.incompleteNewPageOffset.set(page.getOffset());
-            }
-
-            this.pageByOffset.put(page.getOffset(), page);
-            return page;
-        }
-
-        void remove(PageWrapper page) {
-            this.pageByOffset.remove(page.getOffset());
-            this.incompleteNewPageOffset.compareAndSet(page.getOffset(), NO_OFFSET);
-            page.setOffset(NO_OFFSET);
-        }
-
-        void complete(PageWrapper page) {
-            Preconditions.checkArgument(this.pageByOffset.containsKey(page.getOffset()), "Given page is not registered.");
-            Preconditions.checkArgument(this.incompleteNewPageOffset.get() == NO_OFFSET || this.incompleteNewPageOffset.get() == page.getOffset(),
-                    "Not expecting this page to be completed.");
-            this.incompleteNewPageOffset.set(NO_OFFSET);
-            long pageOffset = this.indexLength.getAndAdd(page.getPage().getLength());
-            this.pageByOffset.remove(page.getOffset());
-            page.setOffset(pageOffset);
-            this.pageByOffset.put(page.getOffset(), page);
-        }
-
-        void collectLeafPages(Collection<PageWrapper> target) {
-            this.pageByOffset.values().stream().filter(p -> !p.isIndexPage()).forEach(target::add);
-        }
-
-        void collectPages(Collection<Long> offsets, Collection<PageWrapper> target) {
-            offsets.forEach(offset -> {
-                PageWrapper p = this.pageByOffset.getOrDefault(offset, null);
-                if (p != null) {
-                    target.add(p);
-                }
-            });
-        }
-
-        List<PageWrapper> orderPagesByIndex() {
-            return this.pageByOffset
-                    .values().stream()
-                    .sorted(Comparator.comparingLong(PageWrapper::getOffset))
-                    .collect(Collectors.toList());
-        }
-    }
+    //region PageModificationContext
 
     @RequiredArgsConstructor
     @Getter
@@ -868,162 +685,6 @@ public class BTreeIndex {
         @Override
         public String toString() {
             return String.format("Length = %s, RootOffset = %s, RootLength = %s", this.length, this.rootPageOffset, this.rootPageLength);
-        }
-    }
-
-    //endregion
-
-    //region KeyIterator
-
-    /**
-     * Iterator for keys in a BTreeIndex.
-     */
-    private static class KeyIterator implements AsyncIterator<List<ByteArraySegment>> {
-        private final ByteArraySegment firstKey;
-        private final boolean firstKeyInclusive;
-        private final ByteArraySegment lastKey;
-        private final boolean lastKeyInclusive;
-        private final LocatePage locatePage;
-        private final Duration fetchTimeout;
-        private final AtomicBoolean finished;
-        private final PageCollection pageCollection;
-        private final AtomicReference<PageWrapper> lastPage;
-        private final AtomicInteger processedPageCount;
-
-        KeyIterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive, @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive,
-                    @NonNull LocatePage locatePage, @NonNull Duration fetchTimeout) {
-            // First, verify correctness.
-            int c = KEY_COMPARATOR.compare(firstKey, lastKey);
-            if (firstKeyInclusive && lastKeyInclusive) {
-                Preconditions.checkArgument(c <= 0, "firstKey must be smaller than or equal to lastKey.");
-            } else {
-                Preconditions.checkArgument(c < 0, "firstKey must be smaller than lastKey.");
-            }
-
-            // firstKey and firstKeyInclusive will change as we make progress in our iteration.
-            this.firstKey = firstKey;
-            this.firstKeyInclusive = firstKeyInclusive;
-            this.lastKey = lastKey;
-            this.lastKeyInclusive = lastKeyInclusive;
-            this.locatePage = locatePage;
-            this.fetchTimeout = fetchTimeout;
-            this.pageCollection = new PageCollection();
-            this.lastPage = new AtomicReference<>(null);
-            this.finished = new AtomicBoolean();
-            this.processedPageCount = new AtomicInteger();
-        }
-
-        public CompletableFuture<List<ByteArraySegment>> getNext() {
-            if (this.finished.get()) {
-                return CompletableFuture.completedFuture(null);
-            }
-
-            TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
-            return locateNextPage(timer)
-                    .thenApply(pageWrapper -> {
-                        // Remember this page (for next time).
-                        this.lastPage.set(pageWrapper);
-                        if (pageWrapper == null) {
-                            this.finished.set(true);
-                            return null;
-                        }
-
-                        // Extract the intermediate results from the page.
-                        List<ByteArraySegment> result = extractFromPage(pageWrapper);
-                        this.processedPageCount.incrementAndGet();
-
-                        // Check if we have reached the last page that could possibly contain some result.
-                        if (result == null) {
-                            this.finished.set(true);
-                        }
-
-                        return result;
-                    });
-        }
-
-        private CompletableFuture<PageWrapper> locateNextPage(TimeoutTimer timer) {
-            if (this.lastPage.get() == null) {
-                // This is our very first invocation. Find the page containing the first key.
-                return this.locatePage.apply(this.firstKey, this.pageCollection, timer);
-            } else {
-                // We already have a pointer to a page; find next page.
-                return getNextLeafPage(timer);
-            }
-        }
-
-        private CompletableFuture<PageWrapper> getNextLeafPage(TimeoutTimer timer) {
-            // Walk up the parent chain as long as the page's Key is the last key in that parent key list.
-            // Once we found a Page which has a next key, look up the first Leaf page that exists down that path.
-            PageWrapper lastPage = this.lastPage.get();
-            assert lastPage != null;
-            int pageKeyPos;
-            do {
-                PageWrapper parentPage = lastPage.getParent();
-                if (parentPage == null) {
-                    // We have reached the end. No more pages.
-                    return CompletableFuture.completedFuture(null);
-                }
-
-                // Look up the current page's PageKey in the parent and make note of its position.
-                ByteArraySegment pageKey = lastPage.getPointer().key;
-                val pos = parentPage.getPage().search(pageKey, 0);
-                assert pos.isExactMatch() : "expecting exact match";
-                pageKeyPos = pos.getPosition() + 1;
-
-                // We no longer need this page. Remove it from the PageCollection.
-                this.pageCollection.remove(lastPage);
-                lastPage = parentPage;
-            } while (pageKeyPos == lastPage.getPage().getCount());
-
-            ByteArraySegment referenceKey = lastPage.getPage().getKeyAt(pageKeyPos);
-            return this.locatePage.apply(referenceKey, this.pageCollection, timer);
-        }
-
-        private List<ByteArraySegment> extractFromPage(PageWrapper pageWrapper) {
-            BTreePage page = pageWrapper.getPage();
-            assert !page.getConfig().isIndexPage() : "expecting leaf page";
-
-            // Search for the first and last keys' positions. Note that they may not exist in our Key collection.
-            int firstIndex;
-            if (this.processedPageCount.get() == 0) {
-                // This is the first page we are searching in. The first Key we are looking for may be in the middle.
-                val startPos = page.search(this.firstKey, 0);
-
-                // Adjust first index if we were requested not to include the first key. If we don't have an exact match,
-                // then this is already pointing to the next key.
-                firstIndex = startPos.getPosition();
-                if (startPos.isExactMatch() && !this.firstKeyInclusive) {
-                    firstIndex++;
-                }
-            } else {
-                // This is not the first page we are searching in. We should include any results from the very beginning.
-                firstIndex = 0;
-            }
-
-            // Adjust the last index if we were requested not to include the last key.
-            val endPos = page.search(this.lastKey, 0);
-            int lastIndex = endPos.getPosition();
-            if (!endPos.isExactMatch() || endPos.isExactMatch() && !this.lastKeyInclusive) {
-                lastIndex--;
-            }
-
-            if (firstIndex > lastIndex) {
-                // Either the first key is the last in this page but firstKeyInclusive is false or the first key would
-                // have belonged in this page but it is not. Return an empty list to indicate that we should continue
-                // iterating on next pages.
-                return Collections.emptyList();
-            } else if (lastIndex < 0) {
-                // The last key is not to be found in this page. We are done. Return null to indicate that we should stop.
-                return null;
-            } else {
-                // Construct the result. Based on firstIndex and lastIndex, this may turn out to be empty.
-                return page.getKeys(firstIndex, lastIndex);
-            }
-        }
-
-        @FunctionalInterface
-        interface LocatePage {
-            CompletableFuture<PageWrapper> apply(ByteArraySegment key, PageCollection pageCollection, TimeoutTimer timeout);
         }
     }
 

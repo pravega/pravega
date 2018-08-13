@@ -37,11 +37,12 @@ public interface AsyncIterator<T> {
     /**
      * Processes the remaining elements in the AsyncIterator.
      *
-     * @param consumer A Consumer that will be invoked for each remaining element.
+     * @param consumer A Consumer that will be invoked for each remaining element. The consumer will be invoked using the
+     *                 given Executor, but any new invocation will wait for the previous invocation to complete.
      * @param executor An Executor to run async tasks on.
      * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
      */
-    default CompletableFuture<Void> processRemaining(Consumer<T> consumer, Executor executor) {
+    default CompletableFuture<Void> forEachRemaining(Consumer<? super T> consumer, Executor executor) {
         AtomicBoolean canContinue = new AtomicBoolean(true);
         return Futures.loop(
                 canContinue::get,

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util.btree;
 
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
@@ -198,26 +198,25 @@ public class BTreePageTests {
     }
 
     /**
-     * Tests the getKeys() and getAllKeys() method.
+     * Tests the getEntries() method.
      */
     @Test
-    public void testGetKeys() {
+    public void testGetEntries() {
         int count = 20; // This test is doing O(count^2) array comparisons, so let's keep this small.
         val page = new BTreePage(CONFIG);
 
         // Populate the page.
         val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
-        val serializedKeys = serialize(entries.keySet(), true);
-        page.update(serialize(entries, false));
+        val serializedEntries = serialize(entries, true);
+        page.update(serializedEntries);
 
-        val allKeys = page.getAllKeys();
-        AssertExtensions.assertListEquals("Unexpected result from getAllKeys().", serializedKeys, allKeys, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
         for (int i = 0; i < count; i++) {
             for (int j = i; j < count; j++) {
-                val keyRange = page.getKeys(i, j);
-                val expectedKeys = serializedKeys.subList(i, j + 1);
-                AssertExtensions.assertListEquals("Unexpected result from getKeys(" + i + ", " + j + ").",
-                        expectedKeys, keyRange, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
+                val entryRange = page.getEntries(i, j);
+                val expectedEntries = serializedEntries.subList(i, j + 1);
+                AssertExtensions.assertListEquals("Unexpected result from getEntries(" + i + ", " + j + ").",
+                        expectedEntries, entryRange,
+                        (e, a) -> KEY_COMPARATOR.compare(e.getKey(), a.getKey()) == 0 && KEY_COMPARATOR.compare(e.getValue(), a.getValue()) == 0);
             }
         }
     }

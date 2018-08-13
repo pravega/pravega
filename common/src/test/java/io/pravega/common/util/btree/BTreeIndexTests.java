@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
@@ -144,7 +144,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to iterate through keys using iterateKeys().
+     * Tests the ability to iterate through keys using iterator().
      */
     @Test
     public void testIterateKeys() {
@@ -153,26 +153,26 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         val entries = generate(count);
         index.insert(entries, TIMEOUT).join();
-        val keys = entries.stream().map(PageEntry::getKey).sorted(KEY_COMPARATOR::compare).collect(Collectors.toList());
+        sort(entries);
 
-        for (int i = 0; i < keys.size() / 2; i++) {
+        for (int i = 0; i < entries.size() / 2; i++) {
             int startIndex = i;
-            int endIndex = keys.size() - i - 1;
-            ByteArraySegment firstKey = keys.get(startIndex);
-            ByteArraySegment lastKey = keys.get(endIndex);
+            int endIndex = entries.size() - i - 1;
+            ByteArraySegment firstKey = entries.get(startIndex).getKey();
+            ByteArraySegment lastKey = entries.get(endIndex).getKey();
 
             // We make sure that throughout the test we check all possible combinations of firstInclusive & lastInclusive.
             boolean firstInclusive = i % 2 == 0;
             boolean lastInclusive = i % 4 < 2;
-            if (i == keys.size() / 2) {
+            if (i == entries.size() / 2) {
                 // For same keys, they must both be inclusive.
                 firstInclusive = true;
                 lastInclusive = true;
             }
 
-            val iterator = index.iterateKeys(firstKey, firstInclusive, lastKey, lastInclusive, TIMEOUT);
-            val actualKeys = new ArrayList<ByteArraySegment>();
-            iterator.processRemaining(actualKeys::addAll, executorService()).join();
+            val iterator = index.iterator(firstKey, firstInclusive, lastKey, lastInclusive, TIMEOUT);
+            val actualEntries = new ArrayList<PageEntry>();
+            iterator.forEachRemaining(actualEntries::addAll, executorService()).join();
 
             // Determine expected keys.
             if (!firstInclusive) {
@@ -181,8 +181,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             if (!lastInclusive) {
                 endIndex--;
             }
-            val expectedKeys = keys.subList(startIndex, endIndex + 1);
-            AssertExtensions.assertListEquals("Wrong result for " + i + ".", expectedKeys, actualKeys, (e, a) -> KEY_COMPARATOR.compare(e, a) == 0);
+            val expectedEntries = entries.subList(startIndex, endIndex + 1);
+            AssertExtensions.assertListEquals("Wrong result for " + i + ".", expectedEntries, actualEntries,
+                    (e, a) -> KEY_COMPARATOR.compare(e.getKey(), a.getKey()) == 0 && KEY_COMPARATOR.compare(e.getValue(), a.getValue()) == 0);
         }
     }
 
@@ -237,8 +238,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         Arrays.fill(maxKey, Byte.MAX_VALUE);
 
         val count = new AtomicInteger();
-        index.iterateKeys(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)
-             .processRemaining(k -> count.addAndGet(k.size()), executorService()).join();
+        index.iterator(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)
+             .forEachRemaining(k -> count.addAndGet(k.size()), executorService()).join();
         return count.get();
     }
 

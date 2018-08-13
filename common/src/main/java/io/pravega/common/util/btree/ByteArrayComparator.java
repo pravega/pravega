@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util.collect;
+package io.pravega.common.util.btree;
 
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Comparator;
