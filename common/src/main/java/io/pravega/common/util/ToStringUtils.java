@@ -14,10 +14,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import io.pravega.common.Exceptions;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.apache.commons.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,6 +28,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toMap;
@@ -80,10 +83,10 @@ public class ToStringUtils {
      * Convert the given string to its compressed base64 representation.
      * @param string String to be compressed to base64.
      * @return String Compressed Base64 representation of the input string.
-     * @throws IOException If an I/O exception occurs.
      * @throws NullPointerException If string is null.
      */
-    public static String compressToBase64(final String string) throws IOException {
+    @SneakyThrows(IOException.class)
+    public static String compressToBase64(final String string) {
         Preconditions.checkNotNull(string, "string");
         @Cleanup
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -100,19 +103,23 @@ public class ToStringUtils {
      * Get the original string from its compressed base64 representation.
      * @param base64CompressedString Compressed Base64 representation of the string.
      * @return The original string.
-     * @throws IOException If an I/O exception occurs.
      * @throws NullPointerException If base64CompressedString is null.
-     * @throws IllegalArgumentException If base64CompressedString is not null, but has a length of zero.
+     * @throws IllegalArgumentException If base64CompressedString is not null, but has a length of zero or if the input is invalid.
      */
-    public static String decompressFromBase64(final String base64CompressedString) throws IOException {
+    @SneakyThrows(IOException.class)
+    public static String decompressFromBase64(final String base64CompressedString) {
         Exceptions.checkNotNullOrEmpty(base64CompressedString, "base64CompressedString");
-        @Cleanup
-        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(base64CompressedString.getBytes(UTF_8));
-        @Cleanup
-        final InputStream base64InputStream = Base64.getDecoder().wrap(byteArrayInputStream);
-        @Cleanup
-        final GZIPInputStream gzipInputStream = new GZIPInputStream(base64InputStream);
-        return IOUtils.toString(gzipInputStream, UTF_8);
+        try {
+            @Cleanup
+            final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(base64CompressedString.getBytes(UTF_8));
+            @Cleanup
+            final InputStream base64InputStream = Base64.getDecoder().wrap(byteArrayInputStream);
+            @Cleanup
+            final GZIPInputStream gzipInputStream = new GZIPInputStream(base64InputStream);
+            return IOUtils.toString(gzipInputStream, UTF_8);
+        } catch (ZipException | EOFException e) { // exceptions thrown for invalid encoding and partial data.
+            throw new IllegalArgumentException("Invalid base64 input.", e);
+        }
     }
 
 }

@@ -10,9 +10,7 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
-import lombok.SneakyThrows;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -71,7 +69,6 @@ public interface StreamCut extends Serializable {
      *
      * @return Base64 representation of the StreamCut.
      */
-    @SneakyThrows(IOException.class)
     default String asText() {
         return compressToBase64(this.toString());
     }
@@ -82,7 +79,6 @@ public interface StreamCut extends Serializable {
      * @param base64String Base64 representation of StreamCut obtained using {@link StreamCut#asText()}
      * @return The StreamCut object
      */
-    @SneakyThrows(IOException.class)
     static StreamCut from(String base64String) {
         if (base64String.equals(UNBOUNDED.asText())) {
             return UNBOUNDED;

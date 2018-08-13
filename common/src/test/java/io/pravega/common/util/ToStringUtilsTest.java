@@ -66,8 +66,8 @@ public class ToStringUtilsTest {
         AssertExtensions.assertThrows(NullPointerException.class, () -> compressToBase64(null));
         AssertExtensions.assertThrows(NullPointerException.class, () -> decompressFromBase64(null));
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64(""));
-        AssertExtensions.assertThrows(IOException.class, () -> decompressFromBase64("Invalid base64 String"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64("Invalid base64 String"));
         // test with partial base64 string.
-        AssertExtensions.assertThrows(IOException.class, () -> decompressFromBase64("H4sIAAAAAAAAAFvz"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64("H4sIAAAAAAAAAFvz"));
     }
 }
