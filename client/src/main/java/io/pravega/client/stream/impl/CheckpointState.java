@@ -137,8 +137,8 @@ public class CheckpointState {
         return !uncheckpointedHosts.isEmpty();
     }
 
-    int getUnCheckpointedHostsSize() {
-        return uncheckpointedHosts.size();
+    int getOutstandingCheckpoints() {
+        return checkpoints.size();
     }
     
     void clearCheckpointsBefore(String checkpointId) {

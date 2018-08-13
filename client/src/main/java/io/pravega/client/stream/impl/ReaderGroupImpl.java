@@ -111,8 +111,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         synchronizer.fetchUpdates();
         int maxOutstandingCheckpointRequest = this.synchronizer.getState().getConfig().getMaxOutstandingCheckpointRequest();
-        int currentOutstandingCheckpointRequest = synchronizer.getState().getCheckpointState().getUnCheckpointedHostsSize();
-        if (currentOutstandingCheckpointRequest == maxOutstandingCheckpointRequest) {
+        int currentOutstandingCheckpointRequest = synchronizer.getState().getCheckpointState().getOutstandingCheckpoints();
+        if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
             String errorMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit: " + maxOutstandingCheckpointRequest;
             log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {}",
                     maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, errorMessage);

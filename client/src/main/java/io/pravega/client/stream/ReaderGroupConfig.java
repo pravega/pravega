@@ -203,6 +203,10 @@ public class ReaderGroupConfig implements Serializable {
            //basic check to verify if endStreamCut > startStreamCut.
            validateStartAndEndStreamCuts(startingStreamCuts, endingStreamCuts);
 
+           //basic check to verify if maxOutstandingCheckpointRequest value > 0
+           Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
+                   "Outstanding checkpoint request should be greater than zero");
+
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
                    startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest);
        }
