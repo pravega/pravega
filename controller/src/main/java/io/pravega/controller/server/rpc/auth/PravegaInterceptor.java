@@ -30,12 +30,9 @@ import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
 public class PravegaInterceptor implements ServerInterceptor {
-    private static final boolean AUTH_ENABLED = true;
     private static final String AUTH_CONTEXT = "PravegaContext";
-    private static final String DELEGATION_CONTEXT = "PravegaDelegationContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<String> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
-    private static final Context.Key<String> DELEGATION_CONTEXT_TOKEN = Context.key(DELEGATION_CONTEXT);
     public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     private final AuthHandler handler;
@@ -78,26 +75,12 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     /**
-     * Retrieves the current delegation token if one exists.
-     * @param context The `grpc` context for the call.
-     * @return The current delegation token. Empty string if a token does not exist.
-     */
-    public static String retrieveDelegationToken(Context context) {
-        PravegaInterceptor interceptor = INTERCEPTOR_OBJECT.get(context);
-        if (interceptor != null) {
-            return interceptor.getDelegationToken(context);
-        } else {
-            return "";
-        }
-    }
-
-    /**
      * Retrieves a master token for internal controller to segmentstore communication.
      * @param tokenSigningKey Signing key for the JWT token.
      * @return A new master token which has highest privileges.
      * Throws an error if this is called from a grpc context.
      */
-    public static String retrieveMastertoken(String tokenSigningKey) {
+    public static String retrieveMasterToken(String tokenSigningKey) {
         Map<String, Object> claims = new HashMap<>();
 
         claims.put("*", String.valueOf(READ_UPDATE));
@@ -108,26 +91,5 @@ public class PravegaInterceptor implements ServerInterceptor {
                    .setClaims(claims)
                    .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
                    .compact();
-    }
-
-    private String getDelegationToken(Context context) {
-        return DELEGATION_CONTEXT_TOKEN.get(context);
-    }
-
-    public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
-        Context context = Context.current();
-        if (AUTH_ENABLED) {
-            Map<String, Object> claims = new HashMap<>();
-
-            claims.put(resource, String.valueOf(expectedLevel));
-
-            String delegationToken = Jwts.builder()
-                                         .setSubject("segmentstoreresource")
-                                         .setAudience("segmentstore")
-                                         .setClaims(claims)
-                                         .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                                         .compact();
-            context = context.withValue(DELEGATION_CONTEXT_TOKEN, delegationToken);
-        }
     }
 }

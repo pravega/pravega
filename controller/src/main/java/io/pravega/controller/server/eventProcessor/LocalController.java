@@ -379,7 +379,7 @@ public class LocalController implements Controller {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         } else {
             return StringUtils.EMPTY;
         }
@@ -389,7 +389,7 @@ public class LocalController implements Controller {
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         String retVal = "";
         if (authorizationEnabled) {
-            retVal = PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
+            retVal = PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
     }

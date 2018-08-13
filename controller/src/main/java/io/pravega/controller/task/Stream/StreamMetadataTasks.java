@@ -811,7 +811,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     public String retrieveDelegationToken() {
         if (authEnabled) {
-            return PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         } else {
             return "";
         }

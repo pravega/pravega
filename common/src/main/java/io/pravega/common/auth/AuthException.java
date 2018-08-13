@@ -11,7 +11,7 @@ package io.pravega.common.auth;
 
 //Represents exceptions during authorization/authentication
 
-public class AuthException extends Exception {
+public class AuthException extends RuntimeException {
     private static final long serialVersionUID = 1L;
     private final int responseCode;
 

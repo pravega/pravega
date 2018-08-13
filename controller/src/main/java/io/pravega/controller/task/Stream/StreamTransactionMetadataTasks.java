@@ -682,7 +682,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveMastertoken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         } else {
             return "";
         }
