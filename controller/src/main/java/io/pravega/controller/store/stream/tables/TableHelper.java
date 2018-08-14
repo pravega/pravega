@@ -80,6 +80,8 @@ public class TableHelper {
                 creationTime = historyRecord.get().getScaleTime();
             }
 
+            // Ensure that the segment number requested matches the segment number read from segment table.
+            assert getSegmentNumber(segmentId) == record.getSegmentNumber();
             return new Segment(segmentId,
                     creationTime,
                     record.getRoutingKeyStart(),
@@ -94,13 +96,14 @@ public class TableHelper {
     }
 
     /**
-     * This method reads segment table and returns total number of segments in the table.
+     * This method reads segment table and returns the next segment number to be created in the stream (i.e., highest
+     * segment number + 1).
      *
      * @param segmentIndex segment table index
      * @param segmentTable segment table
-     * @return total number of segments in the stream.
+     * @return next segment number to be created in the stream.
      */
-    public static int getSegmentCount(final byte[] segmentIndex, final byte[] segmentTable) {
+    public static int getNextSegmentNumber(final byte[] segmentIndex, final byte[] segmentTable) {
         Optional<SegmentRecord> segmentRecord = SegmentRecord.readLatest(segmentIndex, segmentTable);
         assert segmentRecord.isPresent();
         return segmentRecord.get().getSegmentNumber() + 1;
@@ -961,10 +964,10 @@ public class TableHelper {
         Preconditions.checkState(activeEpoch.getSegments().containsAll(segmentsToSeal), "Invalid epoch transition request");
 
         int newEpoch = activeEpoch.getEpoch() + 1;
-        int segmentCount = getSegmentCount(segmentIndex, segmentTable);
+        int nextSegmentNumber = getNextSegmentNumber(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
         IntStream.range(0, newRanges.size()).forEach(x -> {
-            newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
+            newSegments.put(computeSegmentId(nextSegmentNumber + x, newEpoch), newRanges.get(x));
         });
         return new EpochTransitionRecord(activeEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));

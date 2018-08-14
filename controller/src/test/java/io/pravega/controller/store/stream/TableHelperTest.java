@@ -46,7 +46,7 @@ public class TableHelperTest {
             Pair<byte[], byte[]> segmentTableAndIndex = createSegmentTableAndIndex(5, time, startingSegmentNumber);
             byte[] segmentTable = segmentTableAndIndex.getValue();
             byte[] segmentIndex = segmentTableAndIndex.getKey();
-            assertEquals(startingSegmentNumber + 5, TableHelper.getSegmentCount(segmentIndex, segmentTable));
+            assertEquals(startingSegmentNumber + 5, TableHelper.getNextSegmentNumber(segmentIndex, segmentTable));
             byte[] historyTable = TableHelper.createHistoryTable(time, startSegments);
             byte[] historyIndex = TableHelper.createHistoryIndex();
 
@@ -63,7 +63,7 @@ public class TableHelperTest {
             segmentTableAndIndex = updateSegmentTableAndIndex(segmentIndex, segmentTable, 5, epoch, time);
             segmentTable = segmentTableAndIndex.getValue();
             segmentIndex = segmentTableAndIndex.getKey();
-            assertEquals(startingSegmentNumber + 10, TableHelper.getSegmentCount(segmentIndex, segmentTable));
+            assertEquals(startingSegmentNumber + 10, TableHelper.getNextSegmentNumber(segmentIndex, segmentTable));
 
             List<Long> newSegments = Lists.newArrayList(computeSegmentId(startingSegmentNumber + 5, 1),
                     computeSegmentId(startingSegmentNumber + 6, 1),
@@ -94,7 +94,7 @@ public class TableHelperTest {
             AssertExtensions.assertThrows(StoreException.class, () ->
                     TableHelper.getSegment(computeSegmentId(s10, 1),
                     segmentIndex2, segmentTablecopy, historyIndexCopy, historyTablecopy));
-            assertEquals(startingSegmentNumber + 10, TableHelper.getSegmentCount(segmentIndex2, segmentTable));
+            assertEquals(startingSegmentNumber + 10, TableHelper.getNextSegmentNumber(segmentIndex2, segmentTable));
 
             segmentTableAndIndex = updateSegmentTableAndIndex(segmentIndex2, segmentTable, 5, 2, time);
             byte[] segmentTable3 = segmentTableAndIndex.getValue();
@@ -113,7 +113,7 @@ public class TableHelperTest {
             segment = TableHelper.getSegment(computeSegmentId(startingSegmentNumber + 10, 2),
                     segmentIndex3, segmentTable3, historyIndex, historyTable);
             assertEquals(segment.segmentId(), computeSegmentId(startingSegmentNumber + 10, 2));
-            assertEquals(startingSegmentNumber + 15, TableHelper.getSegmentCount(segmentIndex3, segmentTable3));
+            assertEquals(startingSegmentNumber + 15, TableHelper.getNextSegmentNumber(segmentIndex3, segmentTable3));
         }
     }
 
