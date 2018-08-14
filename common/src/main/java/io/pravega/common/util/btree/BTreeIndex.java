@@ -625,7 +625,8 @@ public class BTreeIndex {
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 
         // Collect the data to be written.
-        val result = new ArrayList<Map.Entry<Long, ByteArraySegment>>();
+        val pages = new ArrayList<Map.Entry<Long, ByteArraySegment>>();
+        val oldOffsets = new ArrayList<Long>();
         long offset = state.length;
         PageWrapper lastPage = null;
         for (PageWrapper p : pageCollection.getPagesSortedByOffset()) {
@@ -633,7 +634,12 @@ public class BTreeIndex {
                 Preconditions.checkArgument(p.getOffset() == offset, "Expecting Page offset %s, found %s.", offset, p.getOffset());
             }
 
-            result.add(new AbstractMap.SimpleImmutableEntry<>(offset, p.getPage().getContents()));
+            // Collect the page, as well as its previous offset.
+            pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, p.getPage().getContents()));
+            if (p.getPointer() != null && p.getPointer().getOffset() >= 0) {
+                oldOffsets.add(p.getPointer().getOffset());
+            }
+
             offset = p.getOffset() + p.getPage().getLength();
             lastPage = p;
         }
@@ -641,12 +647,18 @@ public class BTreeIndex {
         // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
-        result.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset())));
+        pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset())));
+
+        // Also collect the old footer's offset, as it will be replaced by a more recent value.
+        long oldFooterOffset = getFooterOffset(state.length);
+        if (oldFooterOffset >= 0) {
+            oldOffsets.add(oldFooterOffset);
+        }
 
         // Write it.
         long lastPageOffset = lastPage.getOffset();
         int lastPageLength = lastPage.getPage().getContents().getLength();
-        return this.write.apply(result, timeout)
+        return this.write.apply(pages, oldOffsets, timeout)
                          .thenApply(indexLength -> setState(indexLength, lastPageOffset, lastPageLength).length);
     }
 
@@ -669,11 +681,12 @@ public class BTreeIndex {
                         return CompletableFuture.completedFuture(setState(length, PagePointer.NO_OFFSET, 0));
                     }
 
+                    long footerOffset = getFooterOffset(length);
                     return this.read
-                            .apply(length - FOOTER_LENGTH, FOOTER_LENGTH, timer.getRemaining())
+                            .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
                             .thenApply(footer -> {
                                 long rootPageOffset = getRootPageOffset(footer);
-                                return setState(length, rootPageOffset, (int) (length - FOOTER_LENGTH - rootPageOffset));
+                                return setState(length, rootPageOffset, (int) (footerOffset - rootPageOffset));
                             });
                 });
     }
@@ -682,6 +695,10 @@ public class BTreeIndex {
         IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
         this.state.set(s);
         return s;
+    }
+
+    private long getFooterOffset(long indexLength) {
+        return indexLength - FOOTER_LENGTH;
     }
 
     private ByteArraySegment getFooter(long rootPageOffset) {
@@ -769,15 +786,18 @@ public class BTreeIndex {
         /**
          * Persists the contents of multiple, contiguous Pages to an external data source.
          *
-         * @param pageContents An ordered List of Offset-ByteArraySegments pairs representing the contents of the individual
-         *                     pages mapped to their assigned Offsets. The list is ordered by Offset (Keys). All entries
-         *                     should be contiguous (an entry's offset is equal to the previous entry's offset + the previous
-         *                     entry's length).
-         * @param timeout      Timeout for the operation.
+         * @param pageContents    An ordered List of Offset-ByteArraySegments pairs representing the contents of the
+         *                        individual pages mapped to their assigned Offsets. The list is ordered by Offset (Keys).
+         *                        All entries should be contiguous (an entry's offset is equal to the previous entry's
+         *                        offset + the previous entry's length).
+         * @param obsoleteOffsets A Collection of offsets for Pages that are no longer relevant. It should be safe to evict
+         *                        these from any caching structure involved, however the data should not be removed from
+         *                        the data source.
+         * @param timeout         Timeout for the operation.
          * @return A CompletableFuture that, when completed, will contain the current length (in bytes) of the index in the
          * external data source.
          */
-        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Duration timeout);
+        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Collection<Long> obsoleteOffsets, Duration timeout);
     }
 
     //endregion

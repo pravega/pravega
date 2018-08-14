@@ -19,12 +19,15 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -262,12 +265,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     public void testConcurrentModification() {
         final int count = 1000;
         val ds1 = new DataSource();
+        ds1.setCheckOffsets(false); // Disable offset checking in this case; it's really hard to keep track of the right values.
         val index1 = defaultBuilder(ds1).build();
         val entries1 = generate(count);
         long version = index1.put(entries1, TIMEOUT).join();
 
         // Create a second index using a cloned DataSource, but which share the exact storage (same EnhancedByteArrayOutputStream).
         val ds2 = new DataSource(ds1);
+        ds2.setCheckOffsets(false);
         val index2 = defaultBuilder(ds2).build();
         check("Expected second index to be identical prior to any change.", index2, entries1, 0);
 
@@ -454,18 +459,27 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     private class DataSource {
         @GuardedBy("data")
         private final EnhancedByteArrayOutputStream data;
+        @GuardedBy("data")
+        private final HashSet<Long> offsets;
         private final AtomicReference<CompletableFuture<Void>> writeInterceptor = new AtomicReference<>();
+        private final AtomicBoolean checkOffsets = new AtomicBoolean(true);
 
         DataSource() {
             this.data = new EnhancedByteArrayOutputStream();
+            this.offsets = new HashSet<>();
         }
 
         DataSource(DataSource other) {
             this.data = other.data;
+            this.offsets = new HashSet<>();
         }
 
         void setWriteInterceptor(CompletableFuture<Void> wi) {
             this.writeInterceptor.set(wi);
+        }
+
+        void setCheckOffsets(boolean check) {
+            this.checkOffsets.set(check);
         }
 
         CompletableFuture<Long> getLength(Duration timeout) {
@@ -479,28 +493,35 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         CompletableFuture<ByteArraySegment> read(long offset, int length, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
+                    if (this.checkOffsets.get()) {
+                        // We want to make sure that we actually read pages that we wrote, and not from arbitrary locations
+                        // in the data source.
+                        Preconditions.checkArgument(this.offsets.isEmpty() || this.offsets.contains(offset), "Offset not registered: " + offset);
+                    }
+
                     return new ByteArraySegment(this.data.getData().subSegment((int) offset, length).getCopy());
 
                 }
             }, executorService());
         }
 
-        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Duration timeout) {
+        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, Duration timeout) {
             val wi = this.writeInterceptor.get();
             if (wi != null) {
-                return wi.thenCompose(v -> writeInternal(toWrite));
+                return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets));
             } else {
-                return writeInternal(toWrite);
+                return writeInternal(toWrite, obsoleteOffsets);
             }
         }
 
-        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite) {
+        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
                     if (toWrite.isEmpty()) {
                         return (long) this.data.size();
                     }
 
+                    long originalOffset = this.data.size();
                     long expectedOffset = this.data.size();
                     for (val e : toWrite) {
                         Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.", expectedOffset, e.getKey());
@@ -510,14 +531,23 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                             throw new CompletionException(ex);
                         }
 
+                        this.offsets.add(e.getKey());
                         expectedOffset += e.getValue().getLength();
                     }
 
                     assert expectedOffset == this.data.size() : "unexpected number of bytes copied";
+
+                    // Now, validate and clear obsolete offsets.
+                    if(this.checkOffsets.get()) {
+                        for (long offset : obsoleteOffsets) {
+                            boolean exists = this.offsets.isEmpty() || this.offsets.contains(offset);
+                            Assert.assertTrue("Unexpected offset removed: " + offset, exists || offset < originalOffset);
+                        }
+                    }
+
                     return (long) this.data.size();
                 }
             }, executorService());
         }
-
     }
 }
