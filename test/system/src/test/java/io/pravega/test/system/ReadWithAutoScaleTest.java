@@ -126,9 +126,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.2 Create readers.
         CompletableFuture<Void> reader1 = startReading(clientFactory.createReader("reader1", READER_GROUP_NAME,
-                new JavaSerializer(), ReaderConfig.builder().build()), stopReadFlag);
+                new JavaSerializer<>(), ReaderConfig.builder().build()), stopReadFlag);
         CompletableFuture<Void> reader2 = startReading(clientFactory.createReader("reader2", READER_GROUP_NAME,
-                new JavaSerializer(), ReaderConfig.builder().build()), stopReadFlag);
+                new JavaSerializer<>(), ReaderConfig.builder().build()), stopReadFlag);
 
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
