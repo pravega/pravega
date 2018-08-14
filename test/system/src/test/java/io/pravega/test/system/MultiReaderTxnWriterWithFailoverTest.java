@@ -48,9 +48,11 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
+
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
+
     private final String scope = "testMultiReaderWriterTxnScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testMultiReaderWriterTxnReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);

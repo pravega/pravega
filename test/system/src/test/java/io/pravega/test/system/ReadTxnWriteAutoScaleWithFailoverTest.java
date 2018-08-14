@@ -173,5 +173,4 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
             testState.cancelAllPendingWork();
         }
     }
-
 }
