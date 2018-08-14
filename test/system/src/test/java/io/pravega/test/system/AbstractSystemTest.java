@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
  * Abstract class containing utilities to initialize Pravega services that are necessary in most system tests.
  */
 @Slf4j
-public class AbstractSystemTest {
+abstract class AbstractSystemTest {
 
     static URI startZookeeperInstance() {
         Service zkService = Utils.createZookeeperService();
