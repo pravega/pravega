@@ -27,37 +27,27 @@ class PageCollection {
     //region Private
 
     @GuardedBy("this")
-    private final HashMap<Long, PageWrapper> pageByOffset = new HashMap<>();
+    private final HashMap<Long, PageWrapper> pageByOffset;
     @GuardedBy("this")
-    private long incompleteNewPageOffset = PagePointer.NO_OFFSET;
+    private long incompleteNewPageOffset;
     @GuardedBy("this")
-    private long indexLength = -1;
+    private long indexLength;
 
     //endregion
 
-    //region Operations
-
     /**
-     * Initializes the PageCollection with the given index length.
+     * Creates a new instance of the PageCollection class.
      *
-     * @param indexLength The Index Length (in bytes). This value will be used to assign offsets to new and modified Pages.
+     * @param indexLength The current length of the index.
      */
-    synchronized void initialize(long indexLength) {
-        if (isInitialized()) {
-            throw new IllegalStateException("Already initialized.");
-        }
-
+    PageCollection(long indexLength) {
+        Preconditions.checkArgument(indexLength >= 0, "indexLength must be a non-negative number.");
         this.indexLength = indexLength;
+        this.pageByOffset = new HashMap<>();
+        this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
     }
 
-    /**
-     * Gets a value indicating whether the PageCollection is initialized or not.
-     *
-     * @return True if initialized, false otherwise.
-     */
-    synchronized boolean isInitialized() {
-        return this.indexLength >= 0;
-    }
+    //region Operations
 
     /**
      * Gets a value indicating the length of the index. The value returned will change as new pages are marked as "completed".

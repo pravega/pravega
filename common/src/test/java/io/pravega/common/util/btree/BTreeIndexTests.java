@@ -136,6 +136,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         final int count = 10000;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         sort(entries);
         index.put(entries, TIMEOUT).join();
@@ -184,6 +185,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         final int count = 500;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         for (val e : entries) {
             index.put(Collections.singleton(e), TIMEOUT).join();
@@ -200,6 +202,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         final int count = 1000;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         index.put(entries, TIMEOUT).join();
         sort(entries);
@@ -230,6 +233,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             if (!lastInclusive) {
                 endIndex--;
             }
+
             val expectedEntries = entries.subList(startIndex, endIndex + 1);
             AssertExtensions.assertListEquals("Wrong result for " + i + ".", expectedEntries, actualEntries,
                     (e, a) -> KEY_COMPARATOR.compare(e.getKey(), a.getKey()) == 0 && KEY_COMPARATOR.compare(e.getValue(), a.getValue()) == 0);
@@ -244,6 +248,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         final int count = 1000;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         index.put(entries, TIMEOUT).join();
 
@@ -267,6 +272,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val ds1 = new DataSource();
         ds1.setCheckOffsets(false); // Disable offset checking in this case; it's really hard to keep track of the right values.
         val index1 = defaultBuilder(ds1).build();
+        index1.initialize(TIMEOUT).join();
         val entries1 = generate(count);
         long version = index1.put(entries1, TIMEOUT).join();
 
@@ -274,6 +280,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val ds2 = new DataSource(ds1);
         ds2.setCheckOffsets(false);
         val index2 = defaultBuilder(ds2).build();
+        index2.initialize(TIMEOUT).join();
         check("Expected second index to be identical prior to any change.", index2, entries1, 0);
 
         // We will try to add one entry to one index, and another to the second index. Both have the same keys but different values.
@@ -312,6 +319,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         // Verify that only the correct updates made it to the data source.
         val index3 = defaultBuilder(ds1).build();
+        index3.initialize(TIMEOUT).join();
         check("Expected recovered index to reflect changes now", index3, entries2, 0);
     }
 
@@ -319,6 +327,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         final int checkEvery = count / 10; // checking is very expensive; we don't want to do it every time.
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         long lastRetVal = index.put(entries, TIMEOUT).join();
 
@@ -351,6 +360,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         // Verify again, after a full recovery.
         val recoveredIndex = defaultBuilder(ds).build();
+        recoveredIndex.initialize(TIMEOUT).join();
         check("after recovery", recoveredIndex, entries, entries.size());
     }
 
@@ -369,6 +379,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     private void testInsert(int count, boolean sorted, boolean bulk) {
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
+        index.initialize(TIMEOUT).join();
         val entries = generate(count);
         if (sorted) {
             sort(entries);
@@ -390,6 +401,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         // Verify index after a full recovery.
         val recoveredIndex = defaultBuilder(ds).build();
+        recoveredIndex.initialize(TIMEOUT).join();
         check("after recovery", recoveredIndex, entries, 0);
     }
 

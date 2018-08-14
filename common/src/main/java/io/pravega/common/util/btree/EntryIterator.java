@@ -55,10 +55,11 @@ class EntryIterator implements AsyncIterator<List<PageEntry>> {
      * @param lastKeyInclusive  If true, lastKey will be included in the iteration (provided it exists), otherwise it will
      *                          be excluded.
      * @param locatePage        A Function that can be used to locate a specific BTreePage.
+     * @param indexLength       The current index length.
      * @param fetchTimeout      Timeout for each invocation of locatePage.
      */
     EntryIterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive, @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive,
-                  @NonNull LocatePage locatePage, @NonNull Duration fetchTimeout) {
+                  @NonNull LocatePage locatePage, long indexLength, @NonNull Duration fetchTimeout) {
         // First, verify correctness.
         int c = KEY_COMPARATOR.compare(firstKey, lastKey);
         if (firstKeyInclusive && lastKeyInclusive) {
@@ -74,7 +75,7 @@ class EntryIterator implements AsyncIterator<List<PageEntry>> {
         this.lastKeyInclusive = lastKeyInclusive;
         this.locatePage = locatePage;
         this.fetchTimeout = fetchTimeout;
-        this.pageCollection = new PageCollection();
+        this.pageCollection = new PageCollection(indexLength);
         this.lastPage = new AtomicReference<>(null);
         this.finished = new AtomicBoolean();
         this.processedPageCount = new AtomicInteger();

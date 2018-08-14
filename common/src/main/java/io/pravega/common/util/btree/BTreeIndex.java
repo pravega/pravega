@@ -125,6 +125,35 @@ public class BTreeIndex {
     //region Operations
 
     /**
+     * Initializes the BTreeIndex by fetching metadata from the external data source. This method must be invoked (and
+     * completed) prior to executing any other operation on this instance.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     */
+    public CompletableFuture<Void> initialize(Duration timeout) {
+        Preconditions.checkArgument(this.state.get() == null, "BTreeIndex is already initialized.");
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.getLength
+                .apply(timer.getRemaining())
+                .thenCompose(length -> {
+                    if (length <= FOOTER_LENGTH) {
+                        // Empty index.
+                        setState(length, PagePointer.NO_OFFSET, 0);
+                        return CompletableFuture.completedFuture(null);
+                    }
+
+                    long footerOffset = getFooterOffset(length);
+                    return this.read
+                            .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
+                            .thenAccept(footer -> {
+                                long rootPageOffset = getRootPageOffset(footer);
+                                setState(length, rootPageOffset, (int) (footerOffset - rootPageOffset));
+                            });
+                });
+    }
+
+    /**
      * Looks up the value of a single key.
      *
      * @param key     A ByteArraySegment representing the key to look up.
@@ -134,10 +163,11 @@ public class BTreeIndex {
      * will be completed with the appropriate exception.
      */
     public CompletableFuture<ByteArraySegment> get(@NonNull ByteArraySegment key, @NonNull Duration timeout) {
+        ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Lookup the page where the Key should exist (if at all).
-        PageCollection pageCollection = new PageCollection();
+        PageCollection pageCollection = new PageCollection(this.state.get().length);
         return locatePage(key, pageCollection, timer)
                 .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor);
     }
@@ -160,17 +190,14 @@ public class BTreeIndex {
 
         // Lookup all the keys in parallel, and make sure to apply their resulting values in the same order that their keys
         // where provided to us.
+        ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        PageCollection pageCollection = new PageCollection();
-        return getState(timer.getRemaining())
-                .thenApplyAsync(state -> {
-                    pageCollection.initialize(state.length);
-                    return keys.stream()
-                               .map(key -> locatePage(key, pageCollection, timer)
-                                       .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
-                               .collect(Collectors.toList());
-                }, this.executor)
-                .thenCompose(Futures::allOfWithResults);
+        PageCollection pageCollection = new PageCollection(this.state.get().length);
+        val gets = keys.stream()
+                .map(key -> locatePage(key, pageCollection, timer)
+                        .thenApplyAsync(page -> page.getPage().searchExact(key), this.executor))
+                .collect(Collectors.toList());
+        return Futures.allOfWithResults(gets);
     }
 
     /**
@@ -183,6 +210,7 @@ public class BTreeIndex {
      * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
     public CompletableFuture<Long> put(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
+        ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return insertIntoPages(entries, timer)
                 .thenApply(this::processModifiedPages)
@@ -199,6 +227,7 @@ public class BTreeIndex {
      * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
     public CompletableFuture<Long> remove(@NonNull Collection<ByteArraySegment> keys, @NonNull Duration timeout) {
+        ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return deleteFromPages(keys, timer)
                 .thenApply(this::processModifiedPages)
@@ -220,7 +249,8 @@ public class BTreeIndex {
      */
     public AsyncIterator<List<PageEntry>> iterator(@NonNull ByteArraySegment firstKey, boolean firstKeyInclusive,
                                                    @NonNull ByteArraySegment lastKey, boolean lastKeyInclusive, Duration fetchTimeout) {
-        return new EntryIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, fetchTimeout);
+        ensureInitialized();
+        return new EntryIterator(firstKey, firstKeyInclusive, lastKey, lastKeyInclusive, this::locatePage, this.state.get().length, fetchTimeout);
     }
 
     //endregion
@@ -239,7 +269,7 @@ public class BTreeIndex {
         // to the same page.
         val toDelete = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
 
-        PageCollection pageCollection = new PageCollection();
+        PageCollection pageCollection = new PageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageKeys = new ArrayList<ByteArraySegment>();
         return Futures.loop(
@@ -292,7 +322,7 @@ public class BTreeIndex {
                               .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
                               .iterator();
 
-        PageCollection pageCollection = new PageCollection();
+        PageCollection pageCollection = new PageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageEntries = new ArrayList<PageEntry>();
         return Futures.loop(
@@ -497,42 +527,36 @@ public class BTreeIndex {
      */
     private CompletableFuture<PageWrapper> locatePage(ByteArraySegment key, PageCollection pageCollection, TimeoutTimer timer) {
         Preconditions.checkArgument(key.getLength() == this.leafPageConfig.getKeyLength(), "Invalid key length.");
-        return getState(timer.getRemaining())
-                .thenComposeAsync(state -> {
-                    if (pageCollection.isInitialized()) {
-                        Preconditions.checkArgument(pageCollection.getIndexLength() == state.length, "Unexpected length.");
-                    } else {
-                        pageCollection.initialize(state.length);
-                    }
+        Preconditions.checkArgument(pageCollection.getIndexLength() == this.state.get().length, "Unexpected length.");
 
-                    if (state.rootPageOffset == PagePointer.NO_OFFSET && pageCollection.getCount() == 0) {
-                        // No data. Return an empty (leaf) page, which will serve as the root for now.
-                        return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
-                    }
+        if (this.state.get().rootPageOffset == PagePointer.NO_OFFSET && pageCollection.getCount() == 0) {
+            // No data. Return an empty (leaf) page, which will serve as the root for now.
+            return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
+        }
 
-                    AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, state.rootPageOffset, state.rootPageLength));
-                    CompletableFuture<PageWrapper> result = new CompletableFuture<>();
-                    AtomicReference<PageWrapper> parentPage = new AtomicReference<>(null);
-                    Futures.loop(
-                            () -> !result.isDone(),
-                            () -> fetchPage(pagePointer.get(), parentPage.get(), pageCollection, timer.getRemaining())
-                                    .thenAccept(page -> {
-                                        if (page.isIndexPage()) {
-                                            PagePointer childPointer = getPagePointer(key, page.getPage());
-                                            pagePointer.set(childPointer);
-                                            parentPage.set(page);
-                                        } else {
-                                            // Leaf (data) page. We are done.
-                                            result.complete(page);
-                                        }
-                                    }),
-                            this.executor)
-                           .exceptionally(ex -> {
-                               result.completeExceptionally(ex);
-                               return null;
-                           });
-                    return result;
-                }, this.executor);
+        AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, this.state.get().rootPageOffset, this.state.get().rootPageLength));
+        CompletableFuture<PageWrapper> result = new CompletableFuture<>();
+        AtomicReference<PageWrapper> parentPage = new AtomicReference<>(null);
+        Futures.loop(
+                () -> !result.isDone(),
+                () -> fetchPage(pagePointer.get(), parentPage.get(), pageCollection, timer.getRemaining())
+                        .thenAccept(page -> {
+                            if (page.isIndexPage()) {
+                                PagePointer childPointer = getPagePointer(key, page.getPage());
+                                pagePointer.set(childPointer);
+                                parentPage.set(page);
+                            } else {
+                                // Leaf (data) page. We are done.
+                                result.complete(page);
+                            }
+                        }),
+                this.executor)
+                .exceptionally(ex -> {
+                    result.completeExceptionally(ex);
+                    return null;
+                });
+
+        return result;
     }
 
     /**
@@ -662,35 +686,6 @@ public class BTreeIndex {
                          .thenApply(indexLength -> setState(indexLength, lastPageOffset, lastPageLength).length);
     }
 
-    /**
-     * Fetches the state of the index from the external data source. This value may be cached.
-     *
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture with the State.
-     */
-    private CompletableFuture<IndexState> getState(Duration timeout) {
-        if (this.state.get() != null) {
-            return CompletableFuture.completedFuture(this.state.get());
-        }
-
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.getLength
-                .apply(timer.getRemaining())
-                .thenCompose(length -> {
-                    if (length <= FOOTER_LENGTH) {
-                        return CompletableFuture.completedFuture(setState(length, PagePointer.NO_OFFSET, 0));
-                    }
-
-                    long footerOffset = getFooterOffset(length);
-                    return this.read
-                            .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
-                            .thenApply(footer -> {
-                                long rootPageOffset = getRootPageOffset(footer);
-                                return setState(length, rootPageOffset, (int) (footerOffset - rootPageOffset));
-                            });
-                });
-    }
-
     private IndexState setState(long length, long rootPageOffset, int rootPageLength) {
         IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
         this.state.set(s);
@@ -713,6 +708,10 @@ public class BTreeIndex {
         }
 
         return BitConverter.readLong(footer, 0);
+    }
+
+    private void ensureInitialized() {
+        Preconditions.checkArgument(this.state.get() != null, "BTreeIndex is not initialized.");
     }
 
     //endregion
