@@ -282,7 +282,7 @@ public class CheckpointTest {
         } catch (ExecutionException e) {
             assertTrue(e.getCause() instanceof CheckpointFailedException);
             assertTrue(e.getCause().getMessage()
-                    .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit: " + maxOutstandingCheckpointRequest));
+                    .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
         }
 
         EventRead<String> read = reader1.readNextEvent(60000);

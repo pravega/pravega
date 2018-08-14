@@ -109,17 +109,29 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
 
-        synchronizer.fetchUpdates();
-        int maxOutstandingCheckpointRequest = this.synchronizer.getState().getConfig().getMaxOutstandingCheckpointRequest();
-        int currentOutstandingCheckpointRequest = synchronizer.getState().getCheckpointState().getOutstandingCheckpoints();
-        if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
-            String errorMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit: " + maxOutstandingCheckpointRequest;
-            log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {}",
-                    maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, errorMessage);
-            return Futures.failedFuture(new CheckpointFailedException(errorMessage));
+        String rejectMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit";
+
+        boolean canPerformCheckpoint = synchronizer.updateState((state, updates) -> {
+            ReaderGroupConfig config = state.getConfig();
+            CheckpointState checkpointState = state.getCheckpointState();
+            int maxOutstandingCheckpointRequest = config.getMaxOutstandingCheckpointRequest();
+            int currentOutstandingCheckpointRequest = checkpointState.getOutstandingCheckpoints();
+            if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
+                String errorMessage = rejectMessage + maxOutstandingCheckpointRequest;
+                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {}",
+                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, errorMessage);
+                return false;
+            } else {
+                updates.add(new CreateCheckpoint(checkpointName));
+                return true;
+            }
+
+        });
+
+        if (!canPerformCheckpoint) {
+            return Futures.failedFuture(new CheckpointFailedException(rejectMessage));
         }
 
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
         return Futures.loop(checkpointPending::get, () -> {
