@@ -139,6 +139,7 @@ public class RetentionTest {
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
         //create a writer
+        @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());

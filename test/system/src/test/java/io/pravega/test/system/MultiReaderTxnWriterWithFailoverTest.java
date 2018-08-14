@@ -108,7 +108,6 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
                                         controllerExecutorService);
         testState = new TestState(true);
         //read and write count variables
-        testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -120,7 +119,6 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();

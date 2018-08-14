@@ -117,7 +117,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
                                     .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
         testState = new TestState(true);
-        testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -130,7 +129,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();

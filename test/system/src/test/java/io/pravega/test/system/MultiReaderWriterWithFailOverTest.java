@@ -43,7 +43,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
+public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
 
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
@@ -109,7 +109,6 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
 
         testState = new TestState(false);
         //read and write count variables
-        testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);

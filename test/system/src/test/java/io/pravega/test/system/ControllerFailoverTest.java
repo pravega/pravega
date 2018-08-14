@@ -48,12 +48,12 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private Service controllerService1 = null;
     private URI controllerURIDirect = null;
 
     @Environment
-    public static void setup() throws MarathonException, ExecutionException {
+    public static void initialize() throws MarathonException, ExecutionException {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();
@@ -101,7 +101,6 @@ public class ControllerFailoverTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-
     @Before
     public void getControllerInfo() {
         Service zkService = Utils.createZookeeperService();
@@ -136,13 +135,12 @@ public class ControllerFailoverTest {
         newRangesToCreate.put(0.0, 0.25);
         newRangesToCreate.put(0.25, 0.5);
         long lease = 29000;
-        long maxExecutionTime = 60000;
 
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
                                     .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
-                                    .build(), EXECUTOR_SERVICE);
+                                    .build(), executorService);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -183,7 +181,7 @@ public class ControllerFailoverTest {
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
                                     .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
-                                    .build(), EXECUTOR_SERVICE);
+                                    .build(), executorService);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

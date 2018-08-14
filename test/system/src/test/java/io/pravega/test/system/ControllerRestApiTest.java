@@ -91,7 +91,7 @@ public class ControllerRestApiTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws MarathonException {
+    public static void initialize() throws MarathonException {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();

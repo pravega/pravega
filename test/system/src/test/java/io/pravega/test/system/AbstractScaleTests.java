@@ -30,7 +30,7 @@ import lombok.extern.slf4j.Slf4j;
  * Abstract scale tests. This contains all the common methods used for auto scale related tests.
  */
 @Slf4j
-abstract class AbstractScaleTests {
+abstract class AbstractScaleTests extends AbstractReadWriteTest {
     protected final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
@@ -69,5 +69,4 @@ abstract class AbstractScaleTests {
     class ScaleOperationNotDoneException extends RuntimeException {
         private static final long serialVersionUID = 1L;
     }
-
 }

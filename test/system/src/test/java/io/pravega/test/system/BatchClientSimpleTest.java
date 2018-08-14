@@ -20,11 +20,6 @@ import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -43,13 +38,11 @@ import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -58,13 +51,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class BatchClientSimpleTest {
+public class BatchClientSimpleTest extends AbstractReadWriteTest {
 
     private static final String STREAM = "testBatchClientStream";
     private static final String SCOPE = "testBatchClientScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -170,10 +162,10 @@ public class BatchClientSimpleTest {
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
         // Write events to the Stream.
-        writeDummyEvents(clientFactory, STREAM, totalEvents);
+        writeEvents(clientFactory, STREAM, totalEvents);
 
         // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
+        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
         Futures.allOf(futures).join();
 
         // Create a stream cut on the specified offset position.
@@ -198,7 +190,7 @@ public class BatchClientSimpleTest {
         StreamCut currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
         int readEvents = 0;
         for (int i = 0; i < batchIterations; i++) {
-            writeDummyEvents(clientFactory, STREAM, totalEvents);
+            writeEvents(clientFactory, STREAM, totalEvents);
 
             // Read all the existing events in parallel segments from the previous tail to the current one.
             ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
@@ -236,43 +228,6 @@ public class BatchClientSimpleTest {
                                                }))
                 .collect(Collectors.toList());
         return eventCounts.stream().map(CompletableFuture::join).mapToInt(Integer::intValue).sum();
-    }
-
-    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        for (int i = 0; i < totalEvents; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
-            log.debug("Writing event: {} to stream {}", i, streamName);
-        }
-    }
-
-    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory client, String rGroup, int numReaders, int limit) {
-        List<EventStreamReader<String>> readers = new ArrayList<>();
-        for (int i = 0; i < numReaders; i++) {
-            readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
-        }
-
-        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
-    }
-
-    @SneakyThrows
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
-        EventRead<T> event;
-        int validEvents = 0;
-        try {
-            do {
-                event = reader.readNextEvent(1000);
-                if (event.getEvent() != null) {
-                    validEvents++;
-                }
-            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
-        } finally {
-            reader.close();
-        }
-
-        return validEvents;
     }
 
     // End utils region

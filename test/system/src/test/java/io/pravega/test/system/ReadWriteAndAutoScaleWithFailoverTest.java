@@ -109,11 +109,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         controller = new ControllerImpl(ControllerImplConfig.builder()
                                                             .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
                                                             .maxBackoffMillis(5000).build(),
-
                                         controllerExecutorService);
         testState = new TestState(false);
-        testState.writersListComplete.add(0, testState.writersComplete);
-        testState.writersListComplete.add(1, testState.newWritersComplete);
         streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, AUTO_SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -127,7 +124,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();

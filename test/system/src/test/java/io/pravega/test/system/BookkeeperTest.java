@@ -30,7 +30,7 @@ public class BookkeeperTest {
      * @throws MarathonException if error in setup
      */
     @Environment
-    public static void setup() throws MarathonException {
+    public static void initialize() throws MarathonException {
         Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);

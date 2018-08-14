@@ -9,18 +9,15 @@
  */
 package io.pravega.test.system;
 
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -34,14 +31,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -66,14 +62,15 @@ public class AutoScaleTest extends AbstractScaleTests {
 
     private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+
+    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
     //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
     @Environment
-    public static void setup() {
+    public static void initialize() {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createZookeeperService();
@@ -122,11 +119,11 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, ExecutionException {
+    public void setup() throws InterruptedException, ExecutionException {
 
         //create a scope
         Controller controller = getController();
-
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "AutoScaleTest-main");
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
         log.debug("create scope status {}", createScopeStatus);
 
@@ -146,15 +143,24 @@ public class AutoScaleTest extends AbstractScaleTests {
         Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
                 Collections.singletonList(0L),
                 keyRanges,
-                EXECUTOR_SERVICE).getFuture().get();
+                executorService).getFuture().get();
         assertTrue(status);
 
         createStreamStatus = controller.createStream(CONFIG_TXN).get();
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
+    @After
+    public void tearDown() {
+        getClientFactory().close();
+        getConnectionFactory().close();
+        getController().close();
+        ExecutorServiceHelpers.shutdown(executorService, scaleExecutorService);
+    }
+
     @Test
     public void scaleTests() {
+        testState = new TestState(false);
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
@@ -169,25 +175,17 @@ public class AutoScaleTest extends AbstractScaleTests {
 
     /**
      * Invoke the simple scale up Test, produce traffic from multiple writers in parallel.
-     * The test will periodically check if a scale event has occured by talking to controller via
+     * The test will periodically check if a scale event has occurred by talking to controller via
      * controller client.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
     private CompletableFuture<Void> scaleUpTest() {
-
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
-
         final AtomicBoolean exit = new AtomicBoolean(false);
-
-        startNewWriter(clientFactory, exit);
-        startNewWriter(clientFactory, exit);
-        startNewWriter(clientFactory, exit);
-        startNewWriter(clientFactory, exit);
-        startNewWriter(clientFactory, exit);
-        startNewWriter(clientFactory, exit);
+        createWriters(clientFactory, 6, SCOPE, SCALE_UP_STREAM_NAME);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.
         return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
@@ -200,25 +198,21 @@ public class AutoScaleTest extends AbstractScaleTests {
                                 throw new ScaleOperationNotDoneException();
                             } else {
                                 log.info("scale up done successfully");
-
                                 exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE);
+                        }), scaleExecutorService);
     }
 
     /**
      * Invoke the simple scale down Test, produce no into a stream.
-     * The test will periodically check if a scale event has occured by talking to controller via
+     * The test will periodically check if a scale event has occurred by talking to controller via
      * controller client.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
     private CompletableFuture<Void> scaleDownTest() {
-
         final ControllerImpl controller = getController();
-
-        final AtomicBoolean exit = new AtomicBoolean(false);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale down, whichever happens first.
         return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
@@ -230,30 +224,24 @@ public class AutoScaleTest extends AbstractScaleTests {
                                 throw new ScaleOperationNotDoneException();
                             } else {
                                 log.info("scale down done successfully");
-
-                                exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE);
+                        }), scaleExecutorService);
     }
 
     /**
-     * Invoke the scale up Test with transactional writes. Produce traffic from multiple writers in parallel.
-     * Each writer writes using transactions.
-     * Transactions are committed quickly to give
-     * The test will periodically check if a scale event has occured by talking to controller via
-     * controller client.
+     * Invoke the scale up Test with transactional writes. Produce traffic from multiple writers in parallel. Each
+     * writer writes using transactions. The test will periodically check if a scale event has occurred by talking to
+     * controller via controller client.
      *
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
     private CompletableFuture<Void> scaleUpTxnTest() {
-
         ControllerImpl controller = getController();
-
         final AtomicBoolean exit = new AtomicBoolean(false);
-
         ClientFactory clientFactory = getClientFactory();
-        startNewTxnWriter(clientFactory, exit);
+        startWritingIntoTxn(clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
+                EventWriterConfig.builder().build()), exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.
         return Retry.withExpBackoff(10, 10, 30, Duration.ofSeconds(10).toMillis())
@@ -267,54 +255,6 @@ public class AutoScaleTest extends AbstractScaleTests {
                                 log.info("txn test scale up done successfully");
                                 exit.set(true);
                             }
-                        }), EXECUTOR_SERVICE);
-    }
-
-    private void startNewWriter(ClientFactory clientFactory, AtomicBoolean exit) {
-        CompletableFuture.runAsync(() -> {
-            @Cleanup
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_STREAM_NAME,
-                    new JavaSerializer<>(),
-                    EventWriterConfig.builder().build());
-
-            while (!exit.get()) {
-                try {
-                    writer.writeEvent("0", "test").get();
-                } catch (Throwable e) {
-                    log.warn("test exception writing events: {}", e);
-                    break;
-                }
-            }
-        });
-    }
-
-    private void startNewTxnWriter(ClientFactory clientFactory, AtomicBoolean exit) {
-        CompletableFuture.runAsync(() -> {
-            @Cleanup
-            EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
-                    new JavaSerializer<>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).build());
-
-            while (!exit.get()) {
-                try {
-                    Transaction<String> transaction = writer.beginTxn();
-
-                    for (int i = 0; i < 100; i++) {
-                        transaction.writeEvent("0", "txntest");
-                    }
-
-                    transaction.commit();
-                } catch (Throwable e) {
-                    if (!(e instanceof RuntimeException && e.getCause() != null &&
-                            e.getCause() instanceof io.grpc.StatusRuntimeException &&
-                            ((io.grpc.StatusRuntimeException) e.getCause()).getStatus().getCode().equals(Status.Code.INTERNAL) &&
-                            Objects.equals(((StatusRuntimeException) e.getCause()).getStatus().getDescription(),
-                                    "io.pravega.controller.task.Stream.StreamTransactionMetadataTasks not yet ready"))) {
-                        log.warn("test exception writing events in a transaction : {}", e);
-                        break;
-                    }
-                }
-            }
-        });
+                        }), scaleExecutorService);
     }
 }
