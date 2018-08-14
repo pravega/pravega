@@ -73,6 +73,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
      * validation logic on the events processed.
      */
     static class TestState {
+
         //read and write count variables
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);

@@ -48,6 +48,7 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest extends AbstractSystemTest {
+
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private Service controllerService1 = null;
     private URI controllerURIDirect = null;

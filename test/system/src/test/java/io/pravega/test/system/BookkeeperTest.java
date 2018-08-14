@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
+
     /**
      * This is used to setup the various services required by the system test framework.
      *

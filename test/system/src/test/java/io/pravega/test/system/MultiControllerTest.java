@@ -43,6 +43,7 @@ import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
+
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();

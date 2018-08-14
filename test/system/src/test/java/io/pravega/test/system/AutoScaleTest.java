@@ -70,45 +70,11 @@ public class AutoScaleTest extends AbstractScaleTests {
     private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
     @Environment
-    public static void initialize() {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
-        URI segUri = segUris.get(0);
+    public static void initialize() throws ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     /**
