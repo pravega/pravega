@@ -33,6 +33,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
+import static io.pravega.common.util.ToStringUtils.compressToBase64;
 import static io.pravega.common.util.ToStringUtils.stringToMap;
 
 /**
@@ -72,11 +73,16 @@ public class StreamCutImpl extends StreamCutInternal {
 
     @Override
     public String toString() {
-        return stream.getScopedName() + ":" + TO_STRING_VERSION + ":"
+        return stream.getScopedName() + ":"
                 + ToStringUtils.mapToString(positions.entrySet()
                                                      .stream()
                                                      .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
                                                                                e -> e.getValue())));
+    }
+
+    @Override
+    public String asText() {
+        return compressToBase64(TO_STRING_VERSION + ":" + toString());
     }
 
     public static StreamCutInternal from(String textualRepresentation) {
@@ -84,7 +90,7 @@ public class StreamCutImpl extends StreamCutInternal {
         String[] split = textualRepresentation.split(":", 3);
         Preconditions.checkArgument(split.length == 3, "Invalid string representation of StreamCut");
 
-        final Stream stream = Stream.of(split[0]);
+        final Stream stream = Stream.of(split[1]);
         final Map<Segment, Long> positions = stringToMap(split[2],
                                                          s -> new Segment(stream.getScope(), stream.getStreamName(), Long.valueOf(s)),
                                                          Long::valueOf);

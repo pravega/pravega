@@ -38,6 +38,11 @@ public interface StreamCut extends Serializable {
         }
 
         @Override
+        public String asText() {
+            return compressToBase64(toString());
+        }
+
+        @Override
         public StreamCutInternal asImpl() {
             return null;
         }
@@ -69,9 +74,7 @@ public interface StreamCut extends Serializable {
      *
      * @return Base64 representation of the StreamCut.
      */
-    default String asText() {
-        return compressToBase64(this.toString());
-    }
+    String asText();
 
     /**
      * Obtains the a StreamCut object from its Base64 representation obtained via {@link StreamCut#asText()}.

@@ -29,12 +29,17 @@ public class StreamCutTest {
 
     @Test
     public void testStreamCutSerialization() throws Exception {
-        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"),
-                ImmutableMap.of(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L,
-                        new Segment("scope", "stream", computeSegmentId(2, 1)), 20L,
-                        new Segment("scope", "stream", computeSegmentId(3, 1)), 30L,
-                        new Segment("scope", "stream", computeSegmentId(4, 1)), 40L));
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .build();
 
+        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         byte[] buf = serialize(sc);
         String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
