@@ -125,6 +125,15 @@ public class BTreeIndex {
     //region Operations
 
     /**
+     * Gets a value indicating whether this BTreeIndex instance is initialized or not.
+     *
+     * @return True if initialized, false otherwise.
+     */
+    public boolean isInitialized() {
+        return this.state.get() != null;
+    }
+
+    /**
      * Initializes the BTreeIndex by fetching metadata from the external data source. This method must be invoked (and
      * completed) prior to executing any other operation on this instance.
      *
@@ -132,7 +141,7 @@ public class BTreeIndex {
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
-        Preconditions.checkArgument(this.state.get() == null, "BTreeIndex is already initialized.");
+        Preconditions.checkArgument(!isInitialized(), "BTreeIndex is already initialized.");
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.getLength
                 .apply(timer.getRemaining())
@@ -711,7 +720,7 @@ public class BTreeIndex {
     }
 
     private void ensureInitialized() {
-        Preconditions.checkArgument(this.state.get() != null, "BTreeIndex is not initialized.");
+        Preconditions.checkArgument(isInitialized(), "BTreeIndex is not initialized.");
     }
 
     //endregion

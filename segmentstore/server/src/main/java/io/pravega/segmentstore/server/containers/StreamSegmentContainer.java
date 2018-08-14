@@ -122,7 +122,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
-        this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage, this.durableLog);
+        this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.attributeIndex, this.storage);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);

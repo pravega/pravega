@@ -43,7 +43,7 @@ public class ContainerAttributeIndexFactoryImpl implements AttributeIndexFactory
     }
 
     @Override
-    public ContainerAttributeIndexImpl createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage, OperationLog operationLog) {
-        return new ContainerAttributeIndexImpl(containerMetadata, storage, operationLog, this.cacheFactory, this.cacheManager, this.config, this.executor);
+    public ContainerAttributeIndexImpl createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage) {
+        return new ContainerAttributeIndexImpl(containerMetadata, storage, this.cacheFactory, this.cacheManager, this.config, this.executor);
     }
 }
