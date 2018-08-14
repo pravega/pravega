@@ -48,6 +48,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
+
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
@@ -114,7 +115,6 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerURIDirect).build());
-
     }
 
     @After

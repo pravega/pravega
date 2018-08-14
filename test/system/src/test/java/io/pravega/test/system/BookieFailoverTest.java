@@ -133,7 +133,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         readerGroupManager = ReaderGroupManager.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
-
     @After
     public void tearDown() {
         testState.stopReadFlag.set(true);
@@ -146,8 +145,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         readerGroupManager.close();
         ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
     }
-
-
 
     @Test
     public void bookieFailoverTest() throws ExecutionException, InterruptedException {

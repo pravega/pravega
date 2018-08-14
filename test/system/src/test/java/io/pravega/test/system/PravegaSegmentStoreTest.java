@@ -55,7 +55,6 @@ public class PravegaSegmentStoreTest {
      * Invoke the segmentstore test.
      * The test fails incase segmentstore is not running on given port.
      */
-
     @Test(timeout = 5 * 60 * 1000)
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
