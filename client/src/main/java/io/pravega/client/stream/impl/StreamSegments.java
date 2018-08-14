@@ -84,8 +84,9 @@ public class StreamSegments {
                 // last value was the same segment, it can be consolidated.
                 continue;
             }
-            if (existingSegment.equals(replacedSegment)) {
-                // segment needs to be replaced.
+            if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
+                // Invariant: The successor segment(s)'s range should be limited to the replaced segment's range, thereby
+                // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
                 replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
                         result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment())));
             } else {
