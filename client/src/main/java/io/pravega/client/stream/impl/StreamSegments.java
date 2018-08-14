@@ -78,21 +78,21 @@ public class StreamSegments {
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         Optional<List<SegmentWithRange>> replacements = Optional.ofNullable(replacedRanges.get(replacedSegment.getSegmentId()));
         Segment lastSegmentValue = null;
-        for (Entry<Double, Segment> exitingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
-            final Segment exitingSegment = exitingEntry.getValue();
-            if (exitingSegment.equals(lastSegmentValue)) {
+        for (Entry<Double, Segment> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
+            final Segment existingSegment = existingEntry.getValue();
+            if (existingSegment.equals(lastSegmentValue)) {
                 // last value was the same segment, it can be consolidated.
                 continue;
             }
-            if (exitingSegment.equals(replacedSegment)) {
+            if (existingSegment.equals(replacedSegment)) {
                 // segment needs to be replaced.
                 replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
-                        result.put(Math.min(segmentWithRange.getHigh(), exitingEntry.getKey()), segmentWithRange.getSegment())));
+                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment())));
             } else {
                 // update remaining values.
-                result.put(exitingEntry.getKey(), exitingEntry.getValue());
+                result.put(existingEntry.getKey(), existingEntry.getValue());
             }
-            lastSegmentValue = exitingSegment; // update lastSegmentValue to reduce number of entries in the map.
+            lastSegmentValue = existingSegment; // update lastSegmentValue to reduce number of entries in the map.
         }
         return new StreamSegments(result, delegationToken);
     }
