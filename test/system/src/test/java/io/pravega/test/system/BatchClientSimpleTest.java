@@ -40,6 +40,7 @@ import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -79,45 +80,11 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
      * @throws MarathonException When error in setup.
      */
     @Environment
-    public static void initialize() throws MarathonException {
-
-        // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        // Get the zk ip details and pass it to bk, host, controller.
-        URI zkUri = zkUris.get(0);
-
-        // 2. Check if bk is running, otherwise start, get the zk ip.
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        // 3. Start controller.
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega controller service details: {}", conUris);
-
-        // 4.Start segmentstore.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service details: {}", segUris);
+    public static void initialize() throws MarathonException, ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     @Before

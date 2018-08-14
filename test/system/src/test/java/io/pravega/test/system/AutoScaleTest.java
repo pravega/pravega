@@ -63,11 +63,11 @@ public class AutoScaleTest extends AbstractScaleTests {
     private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
-    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
-
     //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10 * 60);
+
+    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
     @Environment
     public static void initialize() {

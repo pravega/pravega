@@ -48,49 +48,17 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiSegmentStoreTest {
+public class MultiSegmentStoreTest extends AbstractSystemTest {
 
     private Service segmentServiceInstance = null;
     private Service controllerInstance = null;
 
     @Environment
-    public static void initialize() throws MarathonException {
-
-        // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.info("zookeeper service details: {}", zkUris);
-        URI zkUri = zkUris.get(0);
-        // 2. Check if bk is running, otherwise start it.
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.info("bookkeeper service details: {}", bkUris);
-
-        // 3. Start controller.
-        Service controllerService = Utils.createPravegaControllerService(zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service instance details: {}", conUris);
-
-        // 4. Start segment store.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.info("pravega host service details: {}", segUris);
+    public static void initialize() throws MarathonException, ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     @Before

@@ -47,58 +47,17 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ControllerFailoverTest {
+public class ControllerFailoverTest extends AbstractSystemTest {
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private Service controllerService1 = null;
     private URI controllerURIDirect = null;
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service controllerService = Utils.createPravegaControllerService(zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
-        log.debug("Pravega Controller service  details: {}", conUris);
-        // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     @Before

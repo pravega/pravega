@@ -31,7 +31,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 abstract class AbstractScaleTests extends AbstractReadWriteTest {
-    protected final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+
+    final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
     @Getter(lazy = true)

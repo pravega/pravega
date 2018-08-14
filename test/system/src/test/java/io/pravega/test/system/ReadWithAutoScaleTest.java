@@ -25,8 +25,6 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -59,45 +57,17 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
 
-    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
-
     @Rule
     public Timeout globalTimeout = Timeout.seconds(12 * 60);
 
+    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
+
     @Environment
-    public static void initialize() {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-
-        //get the zk ip details and pass it to bk, host, controller
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUris.get(0));
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-        log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUris.get(0));
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-        log.debug("Pravega host service details: {}", segService.getServiceDetails());
+    public static void initialize() throws ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     /**

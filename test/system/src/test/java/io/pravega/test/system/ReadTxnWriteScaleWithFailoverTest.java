@@ -77,7 +77,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
-
     @Before
     public void setup() {
         // Get zk details to verify if controller, segmentstore are running

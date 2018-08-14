@@ -50,7 +50,7 @@ import static org.junit.Assert.fail;
  * Abstract class that provides convenient event read/write methods for testing purposes.
  */
 @Slf4j
-abstract class AbstractReadWriteTest {
+abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
     static final String RK_VALUE_SEPARATOR = ":";
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
@@ -489,7 +489,7 @@ abstract class AbstractReadWriteTest {
     }
 
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {
-        return readEvents(reader,limit,false);
+        return readEvents(reader, limit, false);
     }
 
     private <T> int readEvents(EventStreamReader<T> reader, int limit, boolean reinitializationExpected) {
