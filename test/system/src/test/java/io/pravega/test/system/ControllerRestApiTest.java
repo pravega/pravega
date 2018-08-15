@@ -95,8 +95,8 @@ public class ControllerRestApiTest extends AbstractSystemTest {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
     }
 
     @Test(timeout = 300000)

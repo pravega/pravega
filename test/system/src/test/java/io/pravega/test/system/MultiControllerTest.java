@@ -39,10 +39,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
+import static io.pravega.test.system.framework.Utils.createZookeeperService;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiControllerTest {
+public class MultiControllerTest extends AbstractSystemTest {
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
@@ -51,21 +52,8 @@ public class MultiControllerTest {
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.info("Zookeeper service details: {}", zkUris);
-
-        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
-
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
+        URI zkUris = startZookeeperInstance();
+        startPravegaControllerInstances(zkUris, 2);
     }
 
     @Before

@@ -43,15 +43,15 @@ abstract class AbstractSystemTest {
         log.debug("Bookkeeper service details: {}", bkUris);
     }
 
-    static URI startPravegaControllerInstances(final URI zkUri) throws ExecutionException {
+    static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount) throws ExecutionException {
         Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerService.scaleService(instanceCount), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
-        log.debug("Pravega Controller service  details: {}", conUris);
+        log.info("Pravega Controller service  details: {}", conUris);
+
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
                 : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
@@ -62,13 +62,13 @@ abstract class AbstractSystemTest {
         return controllerURI;
     }
 
-    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) throws ExecutionException {
+    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final int instanceCount) throws ExecutionException {
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
-        Futures.getAndHandleExceptions(segService.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segService.scaleService(instanceCount), ExecutionException::new);
         List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega Segmentstore service details: {}", segUris);
+        log.info("Pravega Segmentstore service details: {}", segUris);
     }
 }

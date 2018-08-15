@@ -45,6 +45,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -83,8 +84,8 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     public static void initialize() throws ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
     }
 
     @Before
@@ -93,6 +94,11 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, streamConfig));
+    }
+
+    @After
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(readerExecutor);
     }
 
     @Test
