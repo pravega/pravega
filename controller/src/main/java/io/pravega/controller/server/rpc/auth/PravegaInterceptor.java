@@ -21,11 +21,9 @@ import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
+import io.pravega.common.auth.AuthConstants;
 import java.util.HashMap;
 import java.util.Map;
-
-import io.pravega.common.auth.AuthConstants;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
@@ -34,13 +32,13 @@ import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 public class PravegaInterceptor implements ServerInterceptor {
     private static final boolean AUTH_ENABLED = true;
     private static final String AUTH_CONTEXT = "PravegaContext";
+    private static final String DELEGATION_CONTEXT = "PravegaDelegationContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<String> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
+    private static final Context.Key<String> DELEGATION_CONTEXT_TOKEN = Context.key(DELEGATION_CONTEXT);
     public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     private final AuthHandler handler;
-    @Getter
-    private String delegationToken;
 
     PravegaInterceptor(AuthHandler handler) {
         Preconditions.checkNotNull(handler, "handler can not be null");
@@ -97,18 +95,24 @@ public class PravegaInterceptor implements ServerInterceptor {
             }
     }
 
+    private String getDelegationToken() {
+        return DELEGATION_CONTEXT_TOKEN.get();
+    }
+
     public void setDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
         if (AUTH_ENABLED) {
+            Context context = Context.current();
             Map<String, Object> claims = new HashMap<>();
 
             claims.put(resource, String.valueOf(expectedLevel));
 
-            delegationToken = Jwts.builder()
-                                  .setSubject("segmentstoreresource")
-                                  .setAudience("segmentstore")
-                                  .setClaims(claims)
-                                  .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                                  .compact();
+            String delegationToken = Jwts.builder()
+                                         .setSubject("segmentstoreresource")
+                                         .setAudience("segmentstore")
+                                         .setClaims(claims)
+                                         .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                                         .compact();
+            context = context.withValue(DELEGATION_CONTEXT_TOKEN, delegationToken);
         }
     }
 }
