@@ -53,8 +53,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     private static final String SEGMENT_NAME = "Segment";
     private static final long SEGMENT_ID = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(10000);
-    private static final AttributeIndexConfig NO_SNAPSHOT_CONFIG = AttributeIndexConfig
+    private static final AttributeIndexConfig DEFAULT_CONFIG = AttributeIndexConfig
             .builder()
+            .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 4 * 1024)
+            .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 16 * 1024)
             .build();
 
     @Override
@@ -67,7 +69,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSingleUpdates() {
-        testRegularOperations(1000, 1, 5, NO_SNAPSHOT_CONFIG);
+        testRegularOperations(1000, 1, 5, DEFAULT_CONFIG);
     }
 
     /**
@@ -75,16 +77,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchedUpdates() {
-        testRegularOperations(1000, 50, 5, NO_SNAPSHOT_CONFIG);
-    }
-
-
-    /**
-     * Tests the ability to process Cache Eviction signals and re-caching evicted values.
-     */
-    @Test
-    public void testCacheEviction() {
-        Assert.fail("implement me");
+        testRegularOperations(1000, 50, 5, DEFAULT_CONFIG);
     }
 
     /**
@@ -96,8 +89,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
         val config = AttributeIndexConfig
                 .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, DEFAULT_CONFIG.getMaxIndexPageSize())
                 .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10)
                 .build();
+
         @Cleanup
         val context = new TestContext(config);
         populateSegments(context);
@@ -130,21 +125,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to Seal an Attribute Segment for a Segment that is concurrently being Deleted/Merged/Sealed.
-     */
-    @Test
-    public void testSealInexistentSegment() {
-        // TODO: figure out if we still need this.
-        Assert.fail("implement me");
-    }
-
-    /**
      * Tests the ability to delete all AttributeData for a particular Segment.
      */
     @Test
     public void testDelete() {
         @Cleanup
-        val context = new TestContext(NO_SNAPSHOT_CONFIG);
+        val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
 
         // 1. Populate and verify first index.
@@ -160,7 +146,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        // Check index before sealing.
+        AssertExtensions.assertThrows(
+                "seal() worked after delete().",
+                () -> idx.seal(TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // Check index after deleting.
         checkIndex(idx, Collections.emptyMap());
     }
 
@@ -171,11 +162,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testStorageFailure() {
         val attributeId = UUID.randomUUID();
-        val config = AttributeIndexConfig.builder()
-                .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
-                .build();
         @Cleanup
-        val context = new TestContext(config);
+        val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
         val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
 
@@ -200,38 +188,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests a scenario where there are multiple concurrent updates to the Attribute Segment, at least one of which involves
-     * a Snapshot.
-     */
-    @Test
-    public void testConditionalUpdates() {
-        val attributeId = UUID.randomUUID();
-        val attributeId2 = UUID.randomUUID();
-        val lastWrittenValue = new AtomicLong(0);
-        val config = AttributeIndexConfig.builder()
-                .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 4)
-                .build();
-        @Cleanup
-        val context = new TestContext(config);
-        populateSegments(context);
-        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-
-        // Write as much as we can until we are about to create a snapshot (but don't do it yet).
-        context.storage.writeInterceptor = null;
-
-        // We intercept the Storage write. When doing so, we write a new value for the attribute behind the scenes -
-        // we will then verify that this attribute was preserved.
-        // TODO implement this.
-        Assert.fail("implement me");
-    }
-
-    /**
      * Verifies we cannot create indices for Deleted Segments.
      */
     @Test
     public void testSegmentNotExists() {
         @Cleanup
-        val context = new TestContext(NO_SNAPSHOT_CONFIG);
+        val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
 
         // Verify we cannot create new indices for deleted segments.
@@ -247,32 +209,82 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(deletedSegment.getName()), TIMEOUT).join());
 
         // Create one index before main segment deletion.
-        val idx1 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        idx1.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
-        // Evict that segment from memory (otherwise we just serve results from the cache, and create a cache-free index).
-        context.index.cleanup(Collections.singleton(SEGMENT_ID));
-        val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        // Clear the cache (otherwise we'll just end up serving cached entries and not try to access Storage).
+        idx.removeAllCacheEntries();
 
-        // Delete Segment.
-        context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID).markDeleted();
-        context.storage.delete(context.storage.openWrite(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME)).join(), TIMEOUT).join();
+        // Delete the Segment.
+        val sm = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
+        sm.markDeleted();
+        context.index.delete(sm.getName(), TIMEOUT).join();
 
         // Verify relevant operations cannot proceed.
         AssertExtensions.assertThrows(
                 "put() worked on deleted segment.",
-                () -> idx2.put(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
+                () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
                 "get() worked on deleted segment.",
-                () -> idx2.get(Collections.singleton(UUID.randomUUID()), TIMEOUT),
+                () -> idx.get(Collections.singleton(UUID.randomUUID()), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
                 "seal() worked on deleted segment.",
-                () -> idx2.seal(TIMEOUT),
+                () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
+     * Tests a scenario where there are multiple concurrent updates to the Attribute Segment, at least one of which involves
+     * a Snapshot.
+     */
+    @Test
+    public void testConditionalUpdates() {
+        val attributeId = UUID.randomUUID();
+        val attributeId2 = UUID.randomUUID();
+        val lastWrittenValue = new AtomicLong(0);
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+        // Write some data first.
+        context.storage.writeInterceptor = null;
+        idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+
+        // We intercept the Storage write. When doing so, we write a new value for the attribute behind the scenes -
+        // we will then verify that this attribute was preserved.
+
+        AtomicBoolean intercepted = new AtomicBoolean(false);
+        context.storage.writeInterceptor = (segmentName, offset, data, length, wrappedStorage) -> {
+            if (intercepted.compareAndSet(false, true)) {
+                // Write some other random value.
+                return idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT);
+            } else {
+                // Already intercepted.
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+
+        // This call should trigger a conditional update conflict. We want to use a different attribute so that we can
+        // properly test the reconciliation algorithm by validating the written value for another attribute.
+        idx.put(Collections.singletonMap(attributeId2, 0L), TIMEOUT).join();
+        val value1 = idx.get(Collections.singleton(attributeId), TIMEOUT).join().get(attributeId);
+        val value2 = idx.get(Collections.singleton(attributeId2), TIMEOUT).join().get(attributeId2);
+        Assert.assertEquals("Unexpected value after reconciliation.", lastWrittenValue.get(), (long) value1);
+        Assert.assertEquals("Unexpected value for second attribute after reconciliation.", 0L, (long) value2);
+        Assert.assertTrue("No interception was done.", intercepted.get());
+    }
+
+    /**
+     * Tests the ability to process Cache Eviction signals and re-caching evicted values.
+     */
+    @Test
+    public void testCacheEviction() {
+        Assert.fail("implement me");
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config) {

@@ -35,6 +35,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -77,6 +78,7 @@ import lombok.val;
  * such a decision.
  */
 @NotThreadSafe
+@Slf4j
 public class BTreeIndex {
     //region Members
 
@@ -134,6 +136,16 @@ public class BTreeIndex {
     }
 
     /**
+     * Gets a value indicating the presumed Index Length in the external Data Source.
+     *
+     * @return The Index Length.
+     */
+    public long getIndexLength() {
+        IndexState s = this.state.get();
+        return s == null ? -1 : s.length;
+    }
+
+    /**
      * Initializes the BTreeIndex by fetching metadata from the external data source. This method must be invoked (and
      * completed) prior to executing any other operation on this instance.
      *
@@ -141,7 +153,10 @@ public class BTreeIndex {
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
-        Preconditions.checkArgument(!isInitialized(), "BTreeIndex is already initialized.");
+        if (isInitialized()) {
+            log.warn("Reinitializing.");
+        }
+
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.getLength
                 .apply(timer.getRemaining())
@@ -698,6 +713,7 @@ public class BTreeIndex {
     private IndexState setState(long length, long rootPageOffset, int rootPageLength) {
         IndexState s = new IndexState(length, rootPageOffset, rootPageLength);
         this.state.set(s);
+        log.debug("IndexLength = {}, RootPageOffset = {}, RootPageLength = {}.", length, rootPageOffset, rootPageLength);
         return s;
     }
 
