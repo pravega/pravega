@@ -155,43 +155,43 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime) {
+    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime, final int startingSegmentNumber) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
         return store.checkExists(creationPath).thenCompose(exists -> {
             if (!exists) {
                 return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                        configuration, creationTime));
+                        configuration, creationTime, startingSegmentNumber));
             }
 
             return getCreationTime().thenCompose(storedCreationTime ->
                     store.checkExists(configurationPath).thenCompose(configExists -> {
                         if (configExists) {
-                            return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
+                            return handleConfigExists(storedCreationTime, startingSegmentNumber, storedCreationTime == creationTime);
                         } else {
                             return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                    configuration, storedCreationTime));
+                                    configuration, storedCreationTime, startingSegmentNumber));
                         }
                     }));
         });
     }
 
-    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
+    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
         return getConfiguration().thenCompose(config -> store.checkExists(statePath)
                 .thenCompose(stateExists -> {
                     if (!stateExists) {
-                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime));
+                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime, startingSegmentNumber));
                     }
 
                     return getState(false).thenApply(state -> {
                         if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                            return new CreateStreamResponse(status, config, creationTime);
+                            return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
                         } else {
                             return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                    config, creationTime);
+                                    config, creationTime, startingSegmentNumber);
                         }
                     });
                 }));

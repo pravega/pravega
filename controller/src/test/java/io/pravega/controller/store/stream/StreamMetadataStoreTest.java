@@ -1017,5 +1017,35 @@ public abstract class StreamMetadataStoreTest {
         store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
         // endregion
     }
-}
 
+    @Test
+    public void getSafeStartingSegmentNumberForTest() {
+        final String scope = "RecreationScope";
+        final String stream = "RecreatedStream";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+                                                                     .scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).join();
+
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i * policy.getMinNumSegments(), (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+            store.createStream(scope, stream, configuration, start, null, executor).join();
+            store.setState(scope, stream, State.ACTIVE, null, executor).join();
+            store.setSealed(scope, stream, null, executor).join();
+            store.deleteStream(scope, stream, null, executor).join();
+        }
+    }
+
+    @Test
+    public void recordLastStreamSegmentTest() {
+        final String scope = "RecreationScope2";
+        final String stream = "RecreatedStream2";
+
+        for (int i = 0; i < 10; i++) {
+            ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
+            assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+        }
+    }
+}

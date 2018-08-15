@@ -585,8 +585,12 @@ public class StreamMetadataTasks extends TaskBase {
                     // segments and change the state of the stream to active.
                     if (response.getStatus().equals(CreateStreamResponse.CreateStatus.NEW) ||
                             response.getStatus().equals(CreateStreamResponse.CreateStatus.EXISTS_CREATING)) {
-                        List<Long> newSegments = IntStream.range(0, response.getConfiguration().getScalingPolicy()
-                                .getMinNumSegments()).boxed().map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0)).collect(Collectors.toList());
+                        final int startingSegmentNumber = response.getStartingSegmentNumber();
+                        final int minNumSegments = response.getConfiguration().getScalingPolicy().getMinNumSegments();
+                        List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
+                                                           .boxed()
+                                                           .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
+                                                           .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);

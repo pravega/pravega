@@ -84,64 +84,64 @@ public class StreamTest {
         long creationTime2 = creationTime1 + 1;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(5);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(6);
-
+        final int startingSegmentNumber = 0;
         final StreamConfiguration streamConfig1 = StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(policy1).build();
         final StreamConfiguration streamConfig2 = StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(policy2).build();
 
-        CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
         stream.storeCreationTimeIfAbsent(creationTime1).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
         stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1)).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
         stream.createStateIfAbsent(State.UNKNOWN).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
         stream.updateState(State.CREATING).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
         stream.updateState(State.ACTIVE).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
 
         stream.updateState(State.SEALING).get();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
     }
 
