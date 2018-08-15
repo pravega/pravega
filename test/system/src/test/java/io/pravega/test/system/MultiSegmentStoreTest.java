@@ -54,11 +54,27 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
     private Service controllerInstance = null;
 
     @Environment
-    public static void initialize() throws MarathonException, ExecutionException {
+    public static void initialize() throws MarathonException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+
+        // Start controller.
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
+
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.info("Pravega Controller service instance details: {}", conUris);
+
+        // Start segment store.
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
+        if (!segService.isRunning()) {
+            segService.start(true);
+        }
+
+        List<URI> segUris = segService.getServiceDetails();
+        log.info("pravega host service details: {}", segUris);
     }
 
     @Before
