@@ -9,11 +9,10 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.common.auth.AuthConstants;
-import lombok.EqualsAndHashCode;
-
+import io.pravega.auth.AuthConstants;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import lombok.EqualsAndHashCode;
 
 /**
  * Username/password credentials for basic authentication.
