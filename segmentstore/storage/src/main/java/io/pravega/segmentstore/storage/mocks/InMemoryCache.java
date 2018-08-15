@@ -94,7 +94,7 @@ public class InMemoryCache implements Cache {
         // Make sure we return a copy of the data; if we return a pointer to the array, then someone can simply modify
         // the data in the cache, which is not allowed.
         byte[] data = this.map.get(key);
-        return Arrays.copyOf(data, data.length);
+        return data == null ? null : Arrays.copyOf(data, data.length);
     }
 
     @Override

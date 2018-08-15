@@ -10,7 +10,9 @@
 
 package io.pravega.segmentstore.server.attributes;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
@@ -19,17 +21,16 @@ import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCache;
+import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collections;
@@ -37,10 +38,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -249,24 +250,30 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
-        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
 
         // Write some data first.
         context.storage.writeInterceptor = null;
         idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
 
-        // We intercept the Storage write. When doing so, we write a new value for the attribute behind the scenes -
-        // we will then verify that this attribute was preserved.
-
+        // We intercept the Storage write. When doing so, we essentially duplicate whatever was already in there. This
+        // does not corrupt the index (which would have happened in case of writing some random value), but it does test
+        // our reconciliation mechanism.
         AtomicBoolean intercepted = new AtomicBoolean(false);
         context.storage.writeInterceptor = (segmentName, offset, data, length, wrappedStorage) -> {
             if (intercepted.compareAndSet(false, true)) {
-                // Write some other random value.
-                return idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT);
-            } else {
-                // Already intercepted.
-                return CompletableFuture.completedFuture(null);
+                try {
+                    // Duplicate the current index.
+                    byte[] buffer = new byte[(int) offset];
+                    wrappedStorage.read(idx.getAttributeSegmentHandle(), 0, buffer, 0, buffer.length);
+                    wrappedStorage.write(idx.getAttributeSegmentHandle(), buffer.length, new ByteArrayInputStream(buffer), buffer.length);
+                } catch (StreamSegmentException ex) {
+                    throw new CompletionException(ex);
+                }
             }
+
+            // Complete the interception.
+            return CompletableFuture.completedFuture(null);
         };
 
         // This call should trigger a conditional update conflict. We want to use a different attribute so that we can
@@ -284,7 +291,53 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCacheEviction() {
-        Assert.fail("implement me");
+        int attributeCount = 1000;
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        val config = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 1024)
+                .build();
+
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val expectedValues = new HashMap<UUID, Long>();
+
+        // Populate data.
+        AtomicLong nextValue = new AtomicLong(0);
+        for (UUID attributeId : attributes) {
+            long value = nextValue.getAndIncrement();
+            expectedValues.put(attributeId, value);
+        }
+        idx.put(expectedValues, TIMEOUT).join();
+
+        // Everything should already be cached, so four our first check we don't expect any Storage reads.
+        context.storage.readInterceptor = (String streamSegmentName, long offset, SyncStorage wrappedStorage) ->
+                Futures.failedFuture(new AssertionError("Not expecting storage reads yet."));
+        checkIndex(idx, expectedValues);
+        val cacheStatus = idx.getCacheStatus();
+        Assert.assertEquals("Not expecting different generations yet.", cacheStatus.getOldestGeneration(), cacheStatus.getNewestGeneration());
+        val newGen = cacheStatus.getNewestGeneration() + 1;
+        val removedSize = idx.updateGenerations(newGen, newGen);
+        AssertExtensions.assertGreaterThan("Expecting something to be evicted.", 0, removedSize);
+
+        // Re-check the index and verify at least one Storage Read happened.
+        AtomicBoolean intercepted = new AtomicBoolean(false);
+        context.storage.readInterceptor = (String streamSegmentName, long offset, SyncStorage wrappedStorage) -> {
+            intercepted.set(true);
+            return CompletableFuture.completedFuture(null);
+        };
+
+        checkIndex(idx, expectedValues);
+        Assert.assertTrue("Expected at least one Storage read.", intercepted.get());
+
+        // Now everything should be cached again.
+        intercepted.set(false);
+        checkIndex(idx, expectedValues);
+        Assert.assertFalse("Not expecting any Storage read.", intercepted.get());
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config) {
@@ -300,7 +353,6 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Record every time we read from Storage.
         AtomicBoolean storageRead = new AtomicBoolean(false);
         context.storage.readInterceptor = (name, offset, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
-
 
         // Populate data.
         val updateBatch = new HashMap<UUID, Long>();
@@ -361,7 +413,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         final TestContext.TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
-        final TestContext.TestCacheFactory cacheFactory;
+        final InMemoryCacheFactory cacheFactory;
         final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
@@ -373,7 +425,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.memoryStorage.initialize(1);
             this.storage = new TestContext.TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new TestContext.TestCacheFactory();
+            this.cacheFactory = new InMemoryCacheFactory();
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
@@ -430,38 +482,6 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 } else {
                     return super.seal(handle, timeout);
                 }
-            }
-        }
-
-        private class TestCache extends InMemoryCache {
-            Consumer<CacheKey> removeCallback;
-
-            TestCache(String id) {
-                super(id);
-            }
-
-            @Override
-            public void remove(Cache.Key key) {
-                Consumer<CacheKey> callback = this.removeCallback;
-                if (callback != null) {
-                    callback.accept((CacheKey) key);
-                }
-
-                super.remove(key);
-            }
-        }
-
-        private class TestCacheFactory implements CacheFactory {
-            final TestContext.TestCache cache = new TestContext.TestCache("Test");
-
-            @Override
-            public Cache getCache(String id) {
-                return this.cache;
-            }
-
-            @Override
-            public void close() {
-                this.cache.close();
             }
         }
     }

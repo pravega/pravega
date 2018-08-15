@@ -83,7 +83,7 @@ public class BTreeIndex {
     //region Members
 
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
-    private static final int FOOTER_LENGTH = Long.BYTES;
+    private static final int FOOTER_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     private final BTreePage.Config indexPageConfig;
     private final BTreePage.Config leafPageConfig;
@@ -170,11 +170,30 @@ public class BTreeIndex {
                     long footerOffset = getFooterOffset(length);
                     return this.read
                             .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
-                            .thenAccept(footer -> {
-                                long rootPageOffset = getRootPageOffset(footer);
-                                setState(length, rootPageOffset, (int) (footerOffset - rootPageOffset));
-                            });
+                            .thenAccept(footer -> initialize(footer, footerOffset, length));
                 });
+    }
+
+    /**
+     * Initializes the BTreeIndex using information from the given footer.
+     *
+     * @param footer       A ByteArraySegment representing the footer that was written with the last update.
+     * @param footerOffset The offset within the data source where the footer is located at.
+     * @param indexLength  The length of the index, in bytes, in the data source.
+     */
+    private void initialize(ByteArraySegment footer, long footerOffset, long indexLength) {
+        if (footer.getLength() != FOOTER_LENGTH) {
+            throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
+        }
+
+        long rootPageOffset = getRootPageOffset(footer);
+        int rootPageLength = getRootPageLength(footer);
+        if (rootPageOffset + rootPageLength > footerOffset) {
+            throw new IllegalDataFormatException(String.format("Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
+                    rootPageOffset, rootPageLength, footerOffset));
+        }
+
+        setState(indexLength, rootPageOffset, rootPageLength);
     }
 
     /**
@@ -695,7 +714,7 @@ public class BTreeIndex {
         // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
-        pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset())));
+        pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
 
         // Also collect the old footer's offset, as it will be replaced by a more recent value.
         long oldFooterOffset = getFooterOffset(state.length);
@@ -721,18 +740,19 @@ public class BTreeIndex {
         return indexLength - FOOTER_LENGTH;
     }
 
-    private ByteArraySegment getFooter(long rootPageOffset) {
+    private ByteArraySegment getFooter(long rootPageOffset, int rootPageLength) {
         byte[] result = new byte[FOOTER_LENGTH];
         BitConverter.writeLong(result, 0, rootPageOffset);
+        BitConverter.writeInt(result, Long.BYTES, rootPageLength);
         return new ByteArraySegment(result);
     }
 
     private long getRootPageOffset(ByteArraySegment footer) {
-        if (footer.getLength() != FOOTER_LENGTH) {
-            throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
-        }
-
         return BitConverter.readLong(footer, 0);
+    }
+
+    private int getRootPageLength(ByteArraySegment footer) {
+        return BitConverter.readInt(footer, Long.BYTES);
     }
 
     private void ensureInitialized() {

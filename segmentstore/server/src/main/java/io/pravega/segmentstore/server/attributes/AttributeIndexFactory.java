@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.attributes;
 
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.storage.Storage;
 
 /**

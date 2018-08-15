@@ -334,6 +334,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     //region Helpers
 
     /**
+     * Gets a pointer to the SegmentHandle for the Attribute Segment.
+     */
+    @VisibleForTesting
+    SegmentHandle getAttributeSegmentHandle() {
+        return this.handle.get();
+    }
+
+    /**
      * Executes the given Index Operation with retries. Retries are only performed in case of conditional update failures,
      * represented by BadOffsetException.
      *
