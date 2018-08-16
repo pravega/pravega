@@ -20,7 +20,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -49,7 +48,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -161,10 +159,6 @@ public class RetentionTest {
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-
-        //try reading the event that was written earlier.
-        //expectation is it should have been truncated and we should find stream to be empty
-        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(6000));
 
         //verify reader functionality is unaffected post truncation
         String event = "newEvent";

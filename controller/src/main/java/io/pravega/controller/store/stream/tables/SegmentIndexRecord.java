@@ -53,4 +53,13 @@ public class SegmentIndexRecord {
     int getIndexOffset() {
         return segmentNumber * INDEX_RECORD_SIZE;
     }
+
+    static int getStartingSegmentNumberFromIndex(byte[] segmentIndex) {
+        int offset = 0;
+        while (offset < segmentIndex.length && BitConverter.readInt(segmentIndex, offset) == 0) {
+            offset += INDEX_RECORD_SIZE;
+        }
+
+        return offset / INDEX_RECORD_SIZE - 1;
+    }
 }

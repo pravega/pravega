@@ -134,7 +134,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean canReadWithoutBlocking() {
+    public boolean isSegmentReady() {
         return true;
     }
 

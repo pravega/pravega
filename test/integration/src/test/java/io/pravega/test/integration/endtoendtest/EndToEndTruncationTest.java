@@ -352,8 +352,6 @@ public class EndToEndTruncationTest {
         final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
                 newReaderGroupName, new JavaSerializer<>(), ReaderConfig.builder().build());
 
-        // Check that we get a TruncatedDataException after truncating the active segment and then read the expected event.
-        assertThrows(TruncatedDataException.class, () -> newReader.readNextEvent(1000).getEvent());
         assertEquals("Expected read event: ", "1", newReader.readNextEvent(1000).getEvent());
         assertNull(newReader.readNextEvent(1000).getEvent());
     }
@@ -364,50 +362,52 @@ public class EndToEndTruncationTest {
      * (truncatedEvents). The tests asserts that readers gets a TruncatedDataException after truncation and then it
      * (only) reads the remaining events that have not been truncated.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 600000)
     public void testParallelSegmentOffsetTruncation() {
         final String scope = "truncationTests";
         final String streamName = "testParallelSegmentOffsetTruncation";
-        final String readerGroupName = "RGTestParallelSegmentOffsetTruncation";
         final int parallelism = 2;
-        final int totalEvents = 200;
-        final int truncatedEvents = 50;
-
+        final int totalEvents = 100;
+        final int truncatedEvents = 25;
         StreamConfiguration streamConf = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
-        StreamManager streamManager = StreamManager.create(controllerURI);
-        streamManager.createScope(scope);
-        streamManager.createStream(scope, streamName, streamConf);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        StreamManager streamManager = StreamManager.create(controllerURI);
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
-        groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                .stream(scope + "/" + streamName).build());
-        ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        streamManager.createScope(scope);
 
-        // Write events to the Stream.
-        writeDummyEvents(clientFactory, streamName, totalEvents);
+        // Test truncation in new and re-created tests.
+        for (int i = 0; i < 4; i++) {
+            final String readerGroupName = "RGTestParallelSegmentOffsetTruncation" + i;
+            streamManager.createStream(scope, streamName, streamConf);
+            groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                             .stream(Stream.of(scope, streamName)).build());
+            ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
-        // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroupName, parallelism, truncatedEvents);
-        Futures.allOf(futures).join();
+            // Write events to the Stream.
+            writeDummyEvents(clientFactory, streamName, totalEvents);
 
-        // Perform truncation on stream segment
-        Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint", executor).join();
-        StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
-        assertTrue(streamManager.truncateStream(scope, streamName, streamCut));
+            // Instantiate readers to consume from Stream up to truncatedEvents.
+            List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, readerGroupName, parallelism, truncatedEvents);
+            Futures.allOf(futures).join();
 
-        // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
-        final String newGroupName = readerGroupName + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, parallelism)).join());
+            // Perform truncation on stream segment
+            Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint" + i, executor).join();
+            StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
+            assertTrue(streamManager.truncateStream(scope, streamName, streamCut));
 
-        // Read again, now expecting to read from the offset defined in truncate call onwards.
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
-        futures = readDummyEvents(clientFactory, newGroupName, parallelism);
-        Futures.allOf(futures).join();
-        assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
-                (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
+            // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
+            final String newGroupName = readerGroupName + "new";
+            groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
+            futures = readDummyEvents(clientFactory, newGroupName, parallelism);
+            Futures.allOf(futures).join();
+            assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
+                    (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
+            assertTrue(streamManager.sealStream(scope, streamName));
+            assertTrue(streamManager.deleteStream(scope, streamName));
+        }
     }
 
     /**

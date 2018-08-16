@@ -20,7 +20,10 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.pravega.auth.AuthConstants;
+import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
@@ -33,7 +36,7 @@ public class PravegaInterceptor implements ServerInterceptor {
     private static final boolean AUTH_ENABLED = true;
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
-    private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
+    private static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
     public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     private final AuthHandler handler;
@@ -48,38 +51,39 @@ public class PravegaInterceptor implements ServerInterceptor {
     @Override
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
 
-        Map<String, String> paramMap = new HashMap<>();
-        headers.keys().stream()
-               .filter(key -> !key.endsWith(Metadata.BINARY_HEADER_SUFFIX))
-               .forEach(key -> {
-                   try {
-                       paramMap.put(key,
-                               headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
-                   } catch (IllegalArgumentException e) {
-                       log.warn("Error while marshalling some of the headers {}", e.toString());
-                   }
-               });
-        String method = paramMap.get("method");
         Context context = Context.current();
-        if (!Strings.isNullOrEmpty(method)) {
-            if (method.equals(handler.getHandlerName())) {
 
-                if (!handler.authenticate(paramMap)) {
-                    call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
-                    return null;
+        String credentials = headers.get(Metadata.Key.of(AuthConstants.AUTHORIZATION, Metadata.ASCII_STRING_MARSHALLER));
+        if (!Strings.isNullOrEmpty(credentials)) {
+            String[] parts = credentials.split("\\s+", 2);
+            if (parts.length == 2) {
+                String method = parts[0];
+                String token = parts[1];
+                if (!Strings.isNullOrEmpty(method)) {
+                    if (method.equals(handler.getHandlerName())) {
+                        Principal principal;
+                        try {
+                            if ((principal = handler.authenticate(token)) == null) {
+                                call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+                                return null;
+                            }
+                        } catch (AuthException e) {
+                            call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+                            return null;
+                        }
+                        context = context.withValue(AUTH_CONTEXT_TOKEN, principal);
+                        context = context.withValue(INTERCEPTOR_OBJECT, this);
+                    }
                 }
-                context = context.withValue(AUTH_CONTEXT_PARAMS, paramMap);
-                context = context.withValue(INTERCEPTOR_OBJECT, this);
             }
-        } else {
-            call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
-            return null;
         }
+
+        // reaching this point means that the handler wasn't applicable to this request.
         return Contexts.interceptCall(context, call, headers, next);
     }
 
     public AuthHandler.Permissions authorize(String resource) {
-        return this.handler.authorize(resource, AUTH_CONTEXT_PARAMS.get());
+        return this.handler.authorize(resource, AUTH_CONTEXT_TOKEN.get());
     }
 
     public static String retrieveDelegationToken(String tokenSigningKey) {

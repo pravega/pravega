@@ -203,9 +203,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         String parentSegment = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-        return this.streamSegmentStore
-                .sealStreamSegment(transactionName, timer.getRemaining())
-                .thenCompose(v -> this.streamSegmentStore.mergeStreamSegment(parentSegment, transactionName, timer.getRemaining()));
+        return Futures.toVoid(this.streamSegmentStore.mergeStreamSegment(parentSegment, transactionName, timer.getRemaining()));
     }
 
     @Override
