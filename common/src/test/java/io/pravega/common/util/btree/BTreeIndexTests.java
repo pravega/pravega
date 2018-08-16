@@ -550,7 +550,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     assert expectedOffset == this.data.size() : "unexpected number of bytes copied";
 
                     // Now, validate and clear obsolete offsets.
-                    if(this.checkOffsets.get()) {
+                    if (this.checkOffsets.get()) {
                         for (long offset : obsoleteOffsets) {
                             boolean exists = this.offsets.isEmpty() || this.offsets.contains(offset);
                             Assert.assertTrue("Unexpected offset removed: " + offset, exists || offset < originalOffset);
