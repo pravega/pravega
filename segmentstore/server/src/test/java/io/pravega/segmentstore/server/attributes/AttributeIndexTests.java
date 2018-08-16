@@ -11,12 +11,14 @@
 package io.pravega.segmentstore.server.attributes;
 
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -136,6 +138,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // 1. Populate and verify first index.
         val sm = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
+        @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
 
         // We intentionally delete twice to make sure the operation is idempotent.
@@ -210,6 +213,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(deletedSegment.getName()), TIMEOUT).join());
 
         // Create one index before main segment deletion.
+        @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
@@ -250,6 +254,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
+        @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
 
         // Write some data first.
@@ -272,8 +277,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 }
             }
 
-            // Complete the interception.
-            return CompletableFuture.completedFuture(null);
+            // Complete the interception and indicate (false) that we haven't written anything.
+            return CompletableFuture.completedFuture(false);
         };
 
         // This call should trigger a conditional update conflict. We want to use a different attribute so that we can
@@ -303,6 +308,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         populateSegments(context);
 
         // 1. Populate and verify first index.
+        @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
         val expectedValues = new HashMap<UUID, Long>();
 
@@ -338,6 +344,65 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         intercepted.set(false);
         checkIndex(idx, expectedValues);
         Assert.assertFalse("Not expecting any Storage read.", intercepted.get());
+    }
+
+    /**
+     * Tests the ability to identify throw the correct exception when the Index gets corrupted.
+     */
+    @Test
+    public void testIndexCorruption() {
+        val attributeId = UUID.randomUUID();
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+
+        // Create an index.
+        @Cleanup
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+        // Intercept the write and corrupt a value, then write the corrupted data to Storage.
+        context.storage.writeInterceptor = (segmentName, offset, data, length, wrappedStorage) -> {
+            try {
+                byte[] buffer = StreamHelpers.readAll(data, length);
+                // Offset 2 should correspond to the root page's ID; if we corrupt that, the BTreeIndex will refuse to
+                // load that page, thinking it was reading garbage data.
+                buffer[2] = (byte) (buffer[2] + 1);
+                wrappedStorage.write(idx.getAttributeSegmentHandle(), offset, new ByteArrayInputStream(buffer), buffer.length);
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+
+            // Complete the interception and indicate (true) that we did write the data.
+            return CompletableFuture.completedFuture(true);
+        };
+
+        // This will attempt to write something; the interceptor above will take care of it.
+        idx.put(Collections.singletonMap(attributeId, 1L), TIMEOUT).join();
+        context.storage.writeInterceptor = null; // Clear this so it doesn't interfere with us.
+
+        // Clear the cache (so that we may read directly from Storage).
+        idx.removeAllCacheEntries();
+
+        // Verify an exception is thrown when we write something
+        AssertExtensions.assertThrows(
+                "",
+                () -> idx.put(Collections.singletonMap(attributeId, 2L), TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+
+        // Verify an exception is thrown when we read something.
+        AssertExtensions.assertThrows(
+                "",
+                () -> idx.get(Collections.singleton(attributeId), TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+
+        // Verify an exception si thrown when we remove something.
+        AssertExtensions.assertThrows(
+                "",
+                () -> idx.remove(Collections.singleton(attributeId), TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+
+        // Verify an exception is thrown when we try to initialize.
+        context.index.cleanup(Collections.singleton(SEGMENT_ID));
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config) {
@@ -456,7 +521,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 WriteInterceptor wi = this.writeInterceptor;
                 if (wi != null) {
                     return wi.apply(handle.getSegmentName(), offset, data, length, this.wrappedStorage)
-                            .thenCompose(v -> super.write(handle, offset, data, length, timeout));
+                             .thenCompose(handled -> handled ? CompletableFuture.completedFuture(null) : super.write(handle, offset, data, length, timeout));
                 } else {
                     return super.write(handle, offset, data, length, timeout);
                 }
@@ -488,7 +553,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
     @FunctionalInterface
     interface WriteInterceptor {
-        CompletableFuture<Void> apply(String streamSegmentName, long offset, InputStream data, int length, SyncStorage wrappedStorage);
+        CompletableFuture<Boolean> apply(String streamSegmentName, long offset, InputStream data, int length, SyncStorage wrappedStorage);
     }
 
     @FunctionalInterface

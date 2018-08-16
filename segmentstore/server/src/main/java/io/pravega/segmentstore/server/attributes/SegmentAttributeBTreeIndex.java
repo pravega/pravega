@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
@@ -26,6 +27,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -52,6 +54,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -143,7 +146,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                         () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
                                           .thenComposeAsync(si -> this.storage.openWrite(attributeSegmentName).thenAccept(this.handle::set), this.executor))
                 .thenComposeAsync(v -> this.index.initialize(timer.getRemaining()), this.executor)
-                .thenRun(() -> log.debug("{}: Initialized.", this.traceObjectId));
+                .thenRun(() -> log.debug("{}: Initialized.", this.traceObjectId))
+                .exceptionally(this::handleIndexOperationException);
     }
 
     /**
@@ -294,7 +298,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
                     // The index search result is a list of values in the same order as the keys we passed in, so we need
                     // to use the list index to match them.
-                    HashMap<UUID, Long> result = new HashMap<>();
+                    Map<UUID, Long> result = new HashMap<>();
                     for (int i = 0; i < keyList.size(); i++) {
                         ByteArraySegment v = entries.get(i);
                         if (v != null) {
@@ -304,7 +308,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     }
 
                     return result;
-                });
+                })
+                .exceptionally(this::handleIndexOperationException);
     }
 
     @Override
@@ -354,6 +359,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return INDEX_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
+                .exceptionally(this::handleIndexOperationException)
                 .thenAccept(Callbacks::doNothing);
     }
 
@@ -383,10 +389,6 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     // Make sure the exception bubbles up.
                     return Futures.failedFuture(ex);
                 });
-    }
-
-    private void ensureInitialized() {
-        Preconditions.checkState(this.index.isInitialized(), "SegmentAttributeIndex is not initialized.");
     }
 
     private PageEntry serialize(Map.Entry<UUID, Long> entry) {
@@ -527,6 +529,22 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private void removeFromCache(CacheEntry e) {
         this.cache.remove(e.getKey());
         this.cacheEntries.remove(e.getOffset());
+    }
+
+    private void ensureInitialized() {
+        Preconditions.checkState(this.index.isInitialized(), "SegmentAttributeIndex is not initialized.");
+    }
+
+    @SneakyThrows
+    private <T> T handleIndexOperationException(Throwable ex) {
+        // BTreeIndex throws IllegalDataFormatException (since DataCorruptionException does not exist at that level),
+        // so we must convert that so that upstream layers can take appropriate action.
+        ex = Exceptions.unwrap(ex);
+        if (ex instanceof IllegalDataFormatException) {
+            throw new DataCorruptionException("BTreeIndex operation failed. Index corrupted.", ex);
+        }
+
+        throw ex;
     }
 
     //endregion

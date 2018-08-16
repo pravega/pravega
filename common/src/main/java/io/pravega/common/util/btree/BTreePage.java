@@ -53,7 +53,10 @@ class BTreePage {
     //region Format
 
     /**
-     * Format Version related fields.
+     * Format Version related fields. The version itself is the first byte of the serialization. When we will have to
+     * support multiple versions, we will need to read this byte and choose the appropriate deserialization approach.
+     * We cannot use VersionedSerializer in here - doing so would prevent us from efficiently querying and modifying the
+     * page contents itself, as it would force us to load everything in memory (as objects) and then reserialize them.
      */
     private static final byte CURRENT_VERSION = 0;
     private static final int VERSION_OFFSET = 0;
@@ -65,13 +68,14 @@ class BTreePage {
     private static final int FLAGS_OFFSET = VERSION_OFFSET + VERSION_LENGTH;
     private static final int FLAGS_LENGTH = 1; // Maximum 8 flags.
     private static final byte FLAG_NONE = 0;
-    private static final byte FLAG_INDEX_PAGE = 1;
+    private static final byte FLAG_INDEX_PAGE = 1; // If set, indicates this is an Index Page; if not, it's a Leaf Page.
 
     /**
-     * Page Id.
+     * Page Id: Randomly generated Integer that is written both in the Header and Footer. This enables us to validate
+     * that whatever ByteArraySegment we receive for deserialization has the appropriate length.
      */
     private static final int ID_OFFSET = FLAGS_OFFSET + FLAGS_LENGTH;
-    private static final int ID_LENGTH = 4; //
+    private static final int ID_LENGTH = 4;
 
     /**
      * Element Count.
@@ -82,7 +86,11 @@ class BTreePage {
     /**
      * Data (contents).
      */
-    private static final int DATA_OFFSET = COUNT_OFFSET + COUNT_LENGTH; // Also doubles for Header Length.
+    private static final int DATA_OFFSET = COUNT_OFFSET + COUNT_LENGTH;
+
+    /**
+     * Footer: Contains just the Page Id, which should match the value written in the Header.
+     */
     private static final int FOOTER_LENGTH = ID_LENGTH;
 
     //endregion
@@ -93,15 +101,28 @@ class BTreePage {
     private static final Random ID_GENERATOR = new Random();
 
     /**
-     * The entire ByteArraySegment that makes up this BTreePage. This includes header, data and footer.
+     * The entire ByteArraySegment that makes up this BTreePage. This includes Header, Data and Footer.
      */
     @Getter
     private ByteArraySegment contents;
+    /**
+     * The Footer section of the BTreePage ByteArraySegment.
+     */
     private ByteArraySegment header;
+    /**
+     * The Data section of the BTreePage ByteArraySegment.
+     */
     private ByteArraySegment data;
+    /**
+     * The Footer section of the BTreePage ByteArraySegment.
+     */
     private ByteArraySegment footer;
     @Getter
     private final Config config;
+    /**
+     * The number of items in this BTreePage as reflected in its header.
+     */
+    @Getter
     private int count;
 
     //endregion
@@ -220,13 +241,6 @@ class BTreePage {
      */
     int getLength() {
         return this.contents.getLength();
-    }
-
-    /**
-     * Gets the number of items in this BTreePage as reflected in its header.
-     */
-    int getCount() {
-        return this.count;
     }
 
     /**

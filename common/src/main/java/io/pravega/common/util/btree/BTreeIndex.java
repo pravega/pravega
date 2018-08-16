@@ -76,6 +76,17 @@ import lombok.val;
  * will become unavailable for writing and will present an outdated view of the data for reading. This mechanism allows
  * the caller to decide how to properly recover from the situation - the BTreeIndex has insufficient information to make
  * such a decision.
+ *
+ * Versioning:
+ * * BTreePages have built-in versioning; please refer to the BTreePage class for details. It is possible to mix different
+ * BTreePage versions in the same BTreeIndex structure.
+ * * BTreeIndex has no built-in versioning, as we would not be able to mix different versions of the BTreeIndex in the same
+ * data source - that is, we cannot begin writing at version X, then after a while we switch to version Y in the same file.
+ * * For BTreeIndex versioning (when it will be needed), a suggested approach is to pass in the version via the constructor
+ * which should tell the BTreeIndex how to interpret the data in the external data source. Once a BTreeIndex is written in
+ * one version in a file, it can only be "upgraded" if it is bulk-loaded into a different file (such a feature is not yet
+ * supported). This versioning would have to be maintained externally (i.e., in a Segment Core Attribute or by file naming
+ * conventions).
  */
 @NotThreadSafe
 @Slf4j
