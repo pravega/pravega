@@ -26,7 +26,8 @@ To deploy our HDFS and ZooKeeper:
 docker stack up --compose-file hdfs.yml pravega
 docker stack up --compose-file zookeeper.yml pravega
 ```
-Please refer to `hdfs.yml` and `zookeeper.yml' at https://github.com/pravega/pravega/tree/master/docker/compose/swarm
+Please refer to `hdfs.yml` and `zookeeper.yml` at https://github.com/pravega/pravega/tree/master/docker/compose/swarm
+
 This runs a single node HDFS container and single node ZooKeeper inside the `pravega_default` overlay network, and adds
 them to the `pravega`stack. HDFS is reachable inside the swarm as `hdfs://hdfs:8020`, and ZooKeeper at 
 `tcp://zookeeper:2181`.
