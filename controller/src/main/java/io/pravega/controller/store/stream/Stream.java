@@ -55,7 +55,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp, final int startingSegmentNumber);
 
     /**
      * Deletes an already SEALED stream.
@@ -468,6 +468,13 @@ interface Stream {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
+
+    /**
+     * This method returns the base number that will be used to create segment ids in this stream.
+     *
+     * @return Starting segment number.
+     */
+    CompletableFuture<Integer> getStartingSegmentNumber();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

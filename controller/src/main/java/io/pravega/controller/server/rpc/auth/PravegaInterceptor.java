@@ -21,9 +21,11 @@ import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
-import io.pravega.common.auth.AuthConstants;
 import java.util.HashMap;
 import java.util.Map;
+
+import io.pravega.common.auth.AuthConstants;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
@@ -32,7 +34,7 @@ import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 public class PravegaInterceptor implements ServerInterceptor {
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
-    private static final Context.Key<String> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
+    private static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
     public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     private final AuthHandler handler;
@@ -55,11 +57,17 @@ public class PravegaInterceptor implements ServerInterceptor {
                 String token = parts[1];
                 if (!Strings.isNullOrEmpty(method)) {
                     if (method.equals(handler.getHandlerName())) {
-                        if (!handler.authenticate(token)) {
+                        Principal principal;
+                        try {
+                            if ((principal = handler.authenticate(token)) == null) {
+                                call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+                                return null;
+                            }
+                        } catch (AuthException e) {
                             call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                             return null;
                         }
-                        context = context.withValue(AUTH_CONTEXT_TOKEN, token);
+                        context = context.withValue(AUTH_CONTEXT_TOKEN, principal);
                         context = context.withValue(INTERCEPTOR_OBJECT, this);
                     }
                 }
