@@ -74,7 +74,7 @@ public class MultiControllerTest extends AbstractSystemTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
