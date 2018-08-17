@@ -20,12 +20,12 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.pravega.auth.AuthConstants;
+import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
-
-import io.pravega.common.auth.AuthConstants;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
