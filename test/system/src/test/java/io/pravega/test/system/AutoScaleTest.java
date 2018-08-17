@@ -22,14 +22,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -70,11 +67,11 @@ public class AutoScaleTest extends AbstractScaleTests {
     private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
     @Environment
-    public static void initialize() throws ExecutionException {
+    public static void initialize() {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     /**

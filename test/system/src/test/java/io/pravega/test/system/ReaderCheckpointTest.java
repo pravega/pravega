@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -81,11 +80,11 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     private URI controllerURI;
 
     @Environment
-    public static void initialize() throws ExecutionException {
+    public static void initialize() {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before

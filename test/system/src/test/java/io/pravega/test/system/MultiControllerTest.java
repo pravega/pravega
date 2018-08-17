@@ -57,7 +57,14 @@ public class MultiControllerTest extends AbstractSystemTest {
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUris = startZookeeperInstance();
-        startPravegaControllerInstances(zkUris, 2);
+        Service controllerService = Utils.createPravegaControllerService(zkUris, "multicontroller");
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
+        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
+
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.debug("Pravega Controller service  details: {}", conUris);
     }
 
     @Before

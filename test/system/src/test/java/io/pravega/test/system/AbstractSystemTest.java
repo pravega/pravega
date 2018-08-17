@@ -43,6 +43,28 @@ abstract class AbstractSystemTest {
         log.debug("Bookkeeper service details: {}", bkUris);
     }
 
+    static URI ensureControllerRunning(final URI zkUri) {
+        Service conService = Utils.createPravegaControllerService(zkUri);
+        if (!conService.isRunning()) {
+            conService.start(true);
+        }
+
+        List<URI> conUris = conService.getServiceDetails();
+        log.debug("Pravega Controller service details: {}", conUris);
+        return conUris.get(0);
+    }
+
+    static List<URI> ensureSegmentStoreRunning(final URI zkUri, final URI controllerURI) {
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
+        if (!segService.isRunning()) {
+            segService.start(true);
+        }
+
+        List<URI> segUris = segService.getServiceDetails();
+        log.debug("Pravega segmentstore service details: {}", segUris);
+        return segUris;
+    }
+
     static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount) throws ExecutionException {
         Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {

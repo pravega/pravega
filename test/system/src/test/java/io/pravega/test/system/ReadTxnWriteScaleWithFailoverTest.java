@@ -73,8 +73,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 3);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 3);
     }
 
     @Before

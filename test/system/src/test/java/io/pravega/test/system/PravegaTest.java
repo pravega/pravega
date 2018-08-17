@@ -75,11 +75,11 @@ public class PravegaTest extends AbstractSystemTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void initialize() throws MarathonException, ExecutionException {
+    public static void initialize() throws MarathonException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri, 1);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @BeforeClass
