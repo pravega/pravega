@@ -54,7 +54,7 @@ Note that `ZK_URL` and `HDFS_URL` don't include the protocol. They default to `z
 can omit them if they're reachable at those addresses (which they will be if you've deployed
 `zookeeper.yml`/`hdfs.yml`).
 
-Your clients must then be deployed into the swarm, with something like:
+Your clients must then be deployed into the swarm as given below:
 
 `docker service create --name=myapp --network=pravega_default mycompany/myapp`
 
