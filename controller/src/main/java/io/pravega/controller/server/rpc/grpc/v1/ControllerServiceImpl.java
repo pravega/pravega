@@ -367,7 +367,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
-    private String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) throws AuthorizationException {
+    private String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
         if (isAuthEnabled) {
             PravegaInterceptor currentInterceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
 
@@ -379,13 +379,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 allowedLevel = currentInterceptor.authorize(resource);
             }
             if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
-                throw new AuthorizationException("Access not allowed");
+                throw new RuntimeException(new AuthorizationException("Access not allowed"));
             }
         }
         return "";
     }
 
-    private String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) throws AuthorizationException {
+    private String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
         if (isAuthEnabled) {
             checkAuthorization(resource, expectedLevel);
             return createDelegationToken(resource, expectedLevel, tokenSigningKey);
