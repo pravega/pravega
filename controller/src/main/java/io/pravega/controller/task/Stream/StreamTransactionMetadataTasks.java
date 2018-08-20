@@ -19,7 +19,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
@@ -87,8 +87,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
-    private final boolean authorizationEnabled;
-    private final String tokenSigningKey;
+    private final AuthHelper authHelper;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -105,16 +104,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
                                           final ConnectionFactory connectionFactory,
-                                          boolean authorizationEnabled,
-                                          String tokenSigningKey) {
+                                          AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
-        this.authorizationEnabled = authorizationEnabled;
-        this.tokenSigningKey = tokenSigningKey;
+        this.authHelper = authHelper;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -125,7 +122,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory, boolean authorizationEnabled, String tokenSigningKey) {
+                                          final ConnectionFactory connectionFactory, AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -133,8 +130,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
-        this.authorizationEnabled = authorizationEnabled;
-        this.tokenSigningKey = tokenSigningKey;
+        this.authHelper = authHelper;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -144,10 +140,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final ConnectionFactory connectionFactory,
-                                          boolean authorizationEnabled,
-                                          String tokenSigningKey) {
+                                          AuthHelper authHelper) {
         this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory, authorizationEnabled, tokenSigningKey);
+                TimeoutServiceConfig.defaultConfig(), connectionFactory, authHelper);
     }
 
     protected void setReady() {
@@ -681,11 +676,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public String retrieveDelegationToken() {
-        if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
-        } else {
-            return "";
-        }
+        return authHelper.retrieveMasterToken();
     }
 
     @Override

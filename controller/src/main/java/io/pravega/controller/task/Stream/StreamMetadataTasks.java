@@ -25,7 +25,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -98,32 +98,30 @@ public class StreamMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
-    private final String tokenSigningKey;
     private ClientFactory clientFactory;
     private String requestStreamName;
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
-    private final boolean authEnabled;
+    private final AuthHelper authHelper;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                               final ConnectionFactory connectionFactory, boolean authEnabled, String tokenSigningKey) {
+                               final ConnectionFactory connectionFactory, AuthHelper authHelper) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
-                connectionFactory, authEnabled, tokenSigningKey);
+                connectionFactory, authHelper);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-                                ConnectionFactory connectionFactory, boolean authEnabled, String tokenSigningKey) {
+                                ConnectionFactory connectionFactory, AuthHelper authHelper) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
-        this.authEnabled = authEnabled;
-        this.tokenSigningKey = tokenSigningKey;
+        this.authHelper = authHelper;
         this.setReady();
     }
 
@@ -805,8 +803,7 @@ public class StreamMetadataTasks extends TaskBase {
                 executor,
                 context,
                 connectionFactory,
-                authEnabled,
-                tokenSigningKey);
+                authHelper);
     }
 
     @Override
@@ -814,10 +811,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public String retrieveDelegationToken() {
-        if (authEnabled) {
-            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
-        } else {
-            return "";
-        }
+        return authHelper.retrieveMasterToken();
     }
 }

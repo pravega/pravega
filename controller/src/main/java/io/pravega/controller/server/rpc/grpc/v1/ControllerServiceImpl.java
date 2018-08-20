@@ -11,14 +11,11 @@ package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -49,8 +46,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -68,8 +63,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
-    private final String tokenSigningKey;
-    private final boolean isAuthEnabled;
+    private final AuthHelper authHelper;
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
@@ -368,44 +362,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     private String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
-        if (isAuthEnabled) {
-            PravegaInterceptor currentInterceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
-
-            AuthHandler.Permissions allowedLevel;
-            if (currentInterceptor == null) {
-                //No interceptor, and authorization is enabled. Means no access is granted.
-                allowedLevel = AuthHandler.Permissions.NONE;
-            } else {
-                allowedLevel = currentInterceptor.authorize(resource);
-            }
-            if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
-                throw new RuntimeException(new AuthorizationException("Access not allowed"));
-            }
-        }
-        return "";
+        return this.authHelper.checkAuthorization(resource, expectedLevel);
     }
 
     private String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
-        if (isAuthEnabled) {
-            checkAuthorization(resource, expectedLevel);
-            return createDelegationToken(resource, expectedLevel, tokenSigningKey);
-        }
-        return "";
-    }
+        return this.authHelper.checkAuthorizationAndCreateToken(resource, expectedLevel);
 
-    private String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
-        if (isAuthEnabled) {
-            Map<String, Object> claims = new HashMap<>();
-
-            claims.put(resource, String.valueOf(expectedLevel));
-
-            return Jwts.builder()
-                       .setSubject("segmentstoreresource")
-                       .setAudience("segmentstore")
-                       .setClaims(claims)
-                       .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                       .compact();
-        }
-        return "";
     }
 }
