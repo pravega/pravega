@@ -154,7 +154,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test
-    public void initiateCheckpointFailue() {
+    public void initiateCheckpointFailure() {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(false);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
         assertTrue("expecting a checkpoint failure", result.isCompletedExceptionally());
