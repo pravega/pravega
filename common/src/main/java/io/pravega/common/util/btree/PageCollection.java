@@ -165,5 +165,14 @@ class PageCollection {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Gets a pointer to the Root Page.
+     */
+    synchronized PageWrapper getRootPage() {
+        return this.pageByOffset.values().stream()
+                                .filter(page -> page.getParent() == null)
+                                .findFirst().orElse(null);
+    }
+
     //endregion
 }

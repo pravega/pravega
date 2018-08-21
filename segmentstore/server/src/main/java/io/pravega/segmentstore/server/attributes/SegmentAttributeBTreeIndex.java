@@ -435,7 +435,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                            }, this.executor);
     }
 
-    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets, Duration timeout) {
+    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
+                                               long truncateOffset, Duration timeout) {
         // The write offset is the offset of the first page to be written in the list.
         long writeOffset = pages.get(0).getKey();
 
@@ -455,14 +456,25 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
         // Stitch the collected Input Streams and write them to Storage.
         val toWrite = new SequenceInputStream(Collections.enumeration(streams));
-        return this.storage.write(this.handle.get(), writeOffset, toWrite, length.get(), timeout)
-                           .thenApplyAsync(v -> {
-                               // Store data in cache and remove obsolete pages.
-                               storeInCache(pages, obsoleteOffsets);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.storage
+                .write(this.handle.get(), writeOffset, toWrite, length.get(), timer.getRemaining())
+                .thenComposeAsync(v -> {
+                    if (this.storage.supportsTruncation() && truncateOffset >= 0) {
+                        return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
+                    } else {
+                        log.debug("{}: Not truncating attribute segment. SupportsTruncation = {}, TruncateOffset = {}.",
+                                this.traceObjectId, this.storage.supportsTruncation(), truncateOffset);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
+                .thenApplyAsync(v -> {
+                    // Store data in cache and remove obsolete pages.
+                    storeInCache(pages, obsoleteOffsets);
 
-                               // Return the current length of the Segment Attribute Index.
-                               return writeOffset + length.get();
-                           }, this.executor);
+                    // Return the current length of the Segment Attribute Index.
+                    return writeOffset + length.get();
+                }, this.executor);
     }
 
     private byte[] getFromCache(long offset, int length) {

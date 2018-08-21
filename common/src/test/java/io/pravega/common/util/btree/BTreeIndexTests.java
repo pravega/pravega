@@ -76,7 +76,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInsertSortedSequential() {
-        testInsert(10000, true, false);
+        testInsert(100, true, false);
     }
 
     /**
@@ -517,21 +517,23 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }, executorService());
         }
 
-        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, Duration timeout) {
+        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, long truncateOffset, Duration timeout) {
             val wi = this.writeInterceptor.get();
             if (wi != null) {
-                return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets));
+                return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets, truncateOffset));
             } else {
-                return writeInternal(toWrite, obsoleteOffsets);
+                return writeInternal(toWrite, obsoleteOffsets, truncateOffset);
             }
         }
 
-        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets) {
+        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, long truncateOffset) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
                     if (toWrite.isEmpty()) {
                         return (long) this.data.size();
                     }
+
+                    System.out.println("TRUNCATE OFFSET (please integrate): " + truncateOffset);
 
                     long originalOffset = this.data.size();
                     long expectedOffset = this.data.size();
