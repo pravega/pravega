@@ -364,9 +364,9 @@ public class BTreeIndex {
      * @param <T>     Type of the action to execute.
      * @return A CompletableFuture that will contain a PageCollection with all touched pages.
      */
-    private <T> CompletableFuture<PageCollection> applyUpdates(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
-                                                               BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
-        PageCollection pageCollection = new PageCollection(this.state.get().length);
+    private <T> CompletableFuture<UpdateablePageCollection> applyUpdates(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
+                                                                         BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
+        UpdateablePageCollection pageCollection = new UpdateablePageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageUpdates = new ArrayList<T>();
         return Futures.loop(
@@ -442,9 +442,9 @@ public class BTreeIndex {
      * - All non-leaf pages will be updated to point to the same leaf pages, but with new offsets.
      * - A new root (index) page may be created.
      *
-     * @param pageCollection A PageCollection containing pages to be processed.
+     * @param pageCollection An UpdateablePageCollection containing pages to be processed.
      */
-    private void processModifiedPages(PageCollection pageCollection) {
+    private void processModifiedPages(UpdateablePageCollection pageCollection) {
         val currentBatch = new ArrayList<PageWrapper>();
         pageCollection.collectLeafPages(currentBatch);
         while (!currentBatch.isEmpty()) {
@@ -781,11 +781,11 @@ public class BTreeIndex {
     /**
      * Writes the contents of all the BTreePages in the given PageCollection to the external data source.
      *
-     * @param pageCollection PageCollection with pages.
+     * @param pageCollection UpdateablePageCollection with pages.
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture with a Long representing the current length of the index in the external data source.
      */
-    private CompletableFuture<Long> writePages(PageCollection pageCollection, Duration timeout) {
+    private CompletableFuture<Long> writePages(UpdateablePageCollection pageCollection, Duration timeout) {
         IndexState state = this.state.get();
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 
@@ -870,7 +870,7 @@ public class BTreeIndex {
     @Getter
     private static class PageModificationContext {
         private final PageWrapper pageWrapper;
-        private final PageCollection pageCollection;
+        private final UpdateablePageCollection pageCollection;
         private final List<PagePointer> updatedPagePointers = new ArrayList<>();
         @Setter
         private ByteArraySegment deletedPageKey;
