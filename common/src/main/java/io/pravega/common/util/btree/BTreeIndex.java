@@ -23,11 +23,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
@@ -266,9 +269,13 @@ public class BTreeIndex {
     public CompletableFuture<Long> put(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return insertIntoPages(entries, timer)
-                .thenApply(this::processModifiedPages)
-                .thenComposeAsync(pageCollection -> writePages(pageCollection, timer.getRemaining()), this.executor);
+
+        // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-insert
+        // entries belonging to the same page.
+        val toInsert = entries.stream()
+                              .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
+                              .iterator();
+        return performUpdate(toInsert, PageEntry::getKey, BTreePage::update, timer);
     }
 
     /**
@@ -283,9 +290,11 @@ public class BTreeIndex {
     public CompletableFuture<Long> remove(@NonNull Collection<ByteArraySegment> keys, @NonNull Duration timeout) {
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return deleteFromPages(keys, timer)
-                .thenApply(this::processModifiedPages)
-                .thenComposeAsync(pageCollection -> writePages(pageCollection, timer.getRemaining()), this.executor);
+
+        // Process the keys in sorted order; this makes the operation more efficient as we can batch-delete keys belonging
+        // to the same page.
+        val toDelete = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
+        return performUpdate(toDelete, key -> key, BTreePage::delete, timer);
     }
 
     /**
@@ -312,107 +321,62 @@ public class BTreeIndex {
     //region Helpers
 
     /**
-     * Removes the given Keys and their associated values from the Index.
-     *
-     * @param keys  A Collection of Keys to remove.
-     * @param timer Timer for the operation.
-     * @return A CompletableFuture that will contain a PageCollection of touched pages.
+     * Executes the given updates on the index and persists the changes to the external data source.
+     * @param updates An Iterator of the updates to execute. The Iterator must return the updates in sorted order (by key).
+     * @param getKey  A Function that, when applied to an Update, will return the Key which it updates.
+     * @param action  A BiConsumer that, when applied to a BTreePage and a Collection of actions that need to operate on
+     *                that page, will apply the actions to that BTreePage.
+     * @param timer   Timer for the operation.
+     * @param <T>     Type of the action to execute.
+     * @return A CompletableFuture that, when completed normally, will indicate that the updates have been applied
+     * successfully and will contain the current version of the index (any modifications to the index will result in a
+     * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
-    private CompletableFuture<PageCollection> deleteFromPages(Collection<ByteArraySegment> keys, TimeoutTimer timer) {
-        // Process the keys in sorted order; this makes the operation more efficient as we can batch-delete keys belonging
-        // to the same page.
-        val toDelete = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
-
+    private <T> CompletableFuture<Long> performUpdate(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
+                                                      BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
         PageCollection pageCollection = new PageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageKeys = new ArrayList<ByteArraySegment>();
+        val lastPageUpdates = new ArrayList<T>();
         return Futures.loop(
-                toDelete::hasNext,
+                updates::hasNext,
                 () -> {
-                    // Locate the page where the key is to be removed from. Do not yet delete it as it is more efficient
-                    // to bulk-delete multiple at once. Collect all keys for each Page, and only delete them
-                    // once we have "moved on" to another page.
-                    val key = toDelete.next();
+                    // Locate the page where the update is to be executed. Do not apply it yet as it is more efficient
+                    // to bulk-apply multiple at once. Collect all updates for each Page, and only apply them once we have
+                    // "moved on" to another page.
+                    T next = updates.next();
+                    val key = getKey.apply(next);
                     return locatePage(key, pageCollection, timer)
                             .thenAccept(page -> {
                                 PageWrapper last = lastPage.get();
                                 if (page != last) {
-                                    // This key goes to a different page than the one we were looking at.
+                                    // This update goes to a different page than the one we were looking at.
                                     if (last != null) {
-                                        // Commit the outstanding entries.
-                                        last.getPage().delete(lastPageKeys);
+                                        // Commit the outstanding updates.
+                                        action.accept(last.getPage(), lastPageUpdates);
                                     }
 
                                     // Update the pointers.
                                     lastPage.set(page);
-                                    lastPageKeys.clear();
+                                    lastPageUpdates.clear();
                                 }
 
-                                // Record the current key.
-                                lastPageKeys.add(key);
+                                // Record the current update.
+                                lastPageUpdates.add(next);
                             });
                 },
                 this.executor)
-                      .thenApply(v -> {
-                          // We need not forget to delete the last batch of keys from the last page.
+                      .thenComposeAsync(v -> {
+                          // We need not forget to apply the last batch of updates from the last page.
                           if (lastPage.get() != null) {
-                              lastPage.get().getPage().delete(lastPageKeys);
+                              action.accept(lastPage.get().getPage(), lastPageUpdates);
                           }
-                          return pageCollection;
-                      });
-    }
 
-    /**
-     * Inserts the given Page Entries into the Index.
-     *
-     * @param entries A Collection of Page Entries to insert.
-     * @param timer   Timer for the operation.
-     * @return A CompletableFuture that will contain a PageCollection of touched pages.
-     */
-    private CompletableFuture<PageCollection> insertIntoPages(Collection<PageEntry> entries, TimeoutTimer timer) {
-        // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-insert
-        // entries belonging to the same page.
-        val toInsert = entries.stream()
-                              .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
-                              .iterator();
+                          // Process all modified pages: resolve splits, empty pages, assign offsets, etc.
+                          processModifiedPages(pageCollection);
 
-        PageCollection pageCollection = new PageCollection(this.state.get().length);
-        AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageEntries = new ArrayList<PageEntry>();
-        return Futures.loop(
-                toInsert::hasNext,
-                () -> {
-                    // Locate the page where the entry is to be inserted. Do not yet insert it as it is more efficient
-                    // to bulk-insert multiple at once. Collect all entries for each Page, and only insert them
-                    // once we have "moved on" to another page.
-                    val entry = toInsert.next();
-                    return locatePage(entry.getKey(), pageCollection, timer)
-                            .thenAccept(page -> {
-                                PageWrapper last = lastPage.get();
-                                if (page != last) {
-                                    // This entry goes to a different page than the one we were looking at.
-                                    if (last != null) {
-                                        // Commit the outstanding entries.
-                                        last.getPage().update(lastPageEntries);
-                                    }
-
-                                    // Update the pointers.
-                                    lastPage.set(page);
-                                    lastPageEntries.clear();
-                                }
-
-                                // Record the current entry.
-                                lastPageEntries.add(new PageEntry(entry.getKey(), entry.getValue()));
-                            });
-                },
-                this.executor)
-                      .thenApply(v -> {
-                          // We need not forget to insert the last batch of entries into the last page.
-                          if (lastPage.get() != null) {
-                              lastPage.get().getPage().update(lastPageEntries);
-                          }
-                          return pageCollection;
-                      });
+                          // Write pages to the external data source.
+                          return writePages(pageCollection, timer.getRemaining());
+                      }, this.executor);
     }
 
     /**
@@ -428,9 +392,8 @@ public class BTreeIndex {
      * - A new root (index) page may be created.
      *
      * @param pageCollection A PageCollection containing pages to be processed.
-     * @return The PageCollection passed in.
      */
-    private PageCollection processModifiedPages(PageCollection pageCollection) {
+    private void processModifiedPages(PageCollection pageCollection) {
         val currentBatch = new ArrayList<PageWrapper>();
         pageCollection.collectLeafPages(currentBatch);
         while (!currentBatch.isEmpty()) {
@@ -469,8 +432,6 @@ public class BTreeIndex {
             currentBatch.clear();
             pageCollection.collectPages(parents, currentBatch);
         }
-
-        return pageCollection;
     }
 
     /**
