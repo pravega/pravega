@@ -9,11 +9,10 @@
  */
 package io.pravega.segmentstore.contracts;
 
-import com.google.common.base.Preconditions;
 import java.util.UUID;
 import java.util.function.Function;
-import javax.annotation.Nonnull;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -24,21 +23,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public abstract class Reference<T> {
     /**
-     * A Function that, given the reference value of another Attribute, returns the desired Attribute Id.
+     * A Function that transforms the value of an Attribute into another value.
      */
     @Getter
     private final Function<Long, T> transformation;
-
-    /**
-     * Identity function that returns its argument.
-     *
-     * @param value The value to return.
-     * @param <T>   Type of the value.
-     * @return The value.
-     */
-    public static <T> T identity(T value) {
-        return value;
-    }
 
     /**
      * A Reference to the current Segment's length.
@@ -51,7 +39,7 @@ public abstract class Reference<T> {
          *
          * @param transformation A Function that, given the reference value, returns the desired value to be set for this Attribute.
          */
-        public SegmentLength(Function<Long, T> transformation) {
+        public SegmentLength(@NonNull Function<Long, T> transformation) {
             super(transformation);
         }
 
@@ -77,9 +65,9 @@ public abstract class Reference<T> {
          * @param attributeId    The Attribute Id to fetch the value of.
          * @param transformation A Function that, given the reference value, returns the desired value to be set for this Attribute.
          */
-        public Attribute(@Nonnull UUID attributeId, Function<Long, T> transformation) {
+        public Attribute(@NonNull UUID attributeId, Function<Long, T> transformation) {
             super(transformation);
-            this.attributeId = Preconditions.checkNotNull(attributeId, "attributeId");
+            this.attributeId = attributeId;
         }
 
         @Override
