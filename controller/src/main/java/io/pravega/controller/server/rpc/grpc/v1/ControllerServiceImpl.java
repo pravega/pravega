@@ -78,7 +78,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         log.info("createStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver);
