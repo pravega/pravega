@@ -57,7 +57,7 @@ import org.junit.Test;
 public class AttributeLoadTests extends ThreadPooledTestSuite {
     private static final String OUTPUT_DIR_NAME = "/tmp/pravega/attribute_load_test";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final int SEGMENT_ROLLING_SIZE = 4 * 1024 * 1024;
+    private static final int SEGMENT_ROLLING_SIZE = 16 * 1024 * 1024;
     private static final int REPORT_EVERY = 500 * 1000;
     private static final int UPDATE_INSERT_BATCH_SIZE = 1000 * 1000;
     private static final int[] BATCH_SIZES = new int[]{10, 100, 1000, 1000 * 1000};

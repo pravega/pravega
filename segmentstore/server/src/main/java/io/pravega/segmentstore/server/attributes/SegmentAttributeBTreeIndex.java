@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -69,9 +70,19 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
      * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
      */
-    private static final Retry.RetryAndThrowBase<Exception> INDEX_RETRY = Retry
+    private static final Retry.RetryAndThrowBase<Exception> UPDATE_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
             .retryingOn(BadOffsetException.class)
+            .throwingOn(Exception.class);
+
+    /**
+     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
+     * if we stumble upon a segment truncation.
+     */
+    private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
+            .withExpBackoff(10, 2, 10, 1000)
+            .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
 
     private static final int KEY_LENGTH = 2 * Long.BYTES; // UUID
@@ -291,8 +302,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             serializedKeys.add(serializeKey(key));
         }
 
-        return this.index
-                .get(serializedKeys, timeout)
+        // Fetch the raw data from the index, but retry (as needed) if we run across a truncated part of the attribute
+        // segment file (see READ_RETRY Javadoc).
+        return READ_RETRY.runAsync(() -> this.index.get(serializedKeys, timeout), this.executor)
                 .thenApply(entries -> {
                     assert entries.size() == keys.size() : "Unexpected number of entries returned by the index search.";
 
@@ -310,6 +322,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     return result;
                 })
                 .exceptionally(this::handleIndexOperationException);
+
     }
 
     @Override
@@ -357,7 +370,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private CompletableFuture<Void> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return INDEX_RETRY
+        return UPDATE_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
                 .exceptionally(this::handleIndexOperationException)
                 .thenAccept(Callbacks::doNothing);

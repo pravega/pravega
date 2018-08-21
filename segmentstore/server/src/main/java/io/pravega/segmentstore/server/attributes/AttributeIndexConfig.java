@@ -22,9 +22,10 @@ import lombok.Getter;
 public class AttributeIndexConfig {
     //region Config Names
 
-    public static final Property<Integer> MAX_INDEX_PAGE_SIZE = Property.named("maxIndexPageSize", 32 * 1024);
-    public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegmentRollingSizeBytes", 4 * 1024 * 1024);
-    private static final int MIN_INDEX_PAGE_SIZE = 1024;
+    public static final Property<Integer> MAX_INDEX_PAGE_SIZE = Property.named("maxIndexPageSizeBytes", 16 * 1024);
+    public static final Property<Integer> ATTRIBUTE_SEGMENT_ROLLING_SIZE = Property.named("attributeSegmentRollingSizeBytes", 16 * 1024 * 1024);
+    private static final int MAX_INDEX_PAGE_SIZE_VALUE = (int) Short.MAX_VALUE; // Max allowed by BTreeIndex.
+    private static final int MIN_INDEX_PAGE_SIZE_VALUE = 1024;
     private static final String COMPONENT_CODE = "attributeindex";
 
     //endregion
@@ -62,9 +63,9 @@ public class AttributeIndexConfig {
         this.attributeSegmentRollingPolicy = new SegmentRollingPolicy(rollingSize);
 
         this.maxIndexPageSize = properties.getInt(MAX_INDEX_PAGE_SIZE);
-        if (this.maxIndexPageSize < MIN_INDEX_PAGE_SIZE) {
-            throw new ConfigurationException(String.format("Property '%s' must at least %s; found '%d'.",
-                    ATTRIBUTE_SEGMENT_ROLLING_SIZE, MIN_INDEX_PAGE_SIZE, rollingSize));
+        if (this.maxIndexPageSize < MIN_INDEX_PAGE_SIZE_VALUE || this.maxIndexPageSize > MAX_INDEX_PAGE_SIZE_VALUE) {
+            throw new ConfigurationException(String.format("Property '%s' must at least %s and at most %s; found '%d'.",
+                    ATTRIBUTE_SEGMENT_ROLLING_SIZE, MIN_INDEX_PAGE_SIZE_VALUE, MAX_INDEX_PAGE_SIZE_VALUE, rollingSize));
         }
     }
 
