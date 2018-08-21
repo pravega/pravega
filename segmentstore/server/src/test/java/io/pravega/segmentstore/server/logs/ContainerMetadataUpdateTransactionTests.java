@@ -9,11 +9,14 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.Reference;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -244,6 +247,7 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testStreamSegmentAppendWithAttributes() throws Exception {
         testWithAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+        testWithAttributesByReference(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
     }
 
     /**
@@ -264,6 +268,7 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testUpdateAttributes() throws Exception {
         testWithAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+        testWithAttributesByReference(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
     /**
@@ -342,6 +347,115 @@ public class ContainerMetadataUpdateTransactionTests {
         verifyAttributeUpdates("after commit+acceptOperation", txn, attributeUpdates, expectedValues);
 
         // Final step: commit Append #3, and verify final segment metadata.
+        txn.commit(metadata);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after final commit.",
+                expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
+    }
+
+    private void testWithAttributesByReference(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
+        final UUID referenceAttributeId = UUID.randomUUID();
+        final UUID attributeSegmentLength = UUID.randomUUID();
+        final UUID attributeAccumulate = UUID.randomUUID();
+        final UUID attributeReplaceIfEquals = UUID.randomUUID();
+        final long initialAttributeValue = 1234567;
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        metadata.getStreamSegmentMetadata(SEGMENT_ID)
+                .updateAttributes(ImmutableMap.of(
+                        referenceAttributeId, initialAttributeValue,
+                        attributeAccumulate, initialAttributeValue,
+                        attributeReplaceIfEquals, initialAttributeValue));
+
+        val txn = createUpdateTransaction(metadata);
+
+        // Update #1 (Value-by-reference).
+        Collection<AttributeUpdate> attributeUpdates = Arrays.asList(
+                new AttributeUpdateByReference(
+                        attributeSegmentLength,
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 1)), // SegmentLength + 1
+                new AttributeUpdateByReference(
+                        attributeAccumulate,
+                        AttributeUpdateType.Accumulate,
+                        new Reference.Attribute<>(referenceAttributeId, v -> v + 2)), // PrevValue + Reference + 2
+                new AttributeUpdateByReference(
+                        attributeReplaceIfEquals,
+                        AttributeUpdateType.ReplaceIfEquals,
+                        new Reference.Attribute<>(referenceAttributeId, v -> v + 3), initialAttributeValue)); // Reference + 3
+
+        Map<UUID, Long> expectedValues = ImmutableMap.of(
+                referenceAttributeId, initialAttributeValue,
+                attributeSegmentLength, SEGMENT_LENGTH + 1,
+                attributeAccumulate, initialAttributeValue + initialAttributeValue + 2,
+                attributeReplaceIfEquals, initialAttributeValue + 3);
+
+        Operation op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
+
+        // Verify result.
+        verifyAttributeUpdates("after acceptOperation (1)", txn, attributeUpdates, expectedValues);
+
+        // Update #2 (Value-by-reference).
+        attributeUpdates = Arrays.asList(
+                new AttributeUpdateByReference(
+                        attributeSegmentLength,
+                        AttributeUpdateType.Replace,
+                        new Reference.SegmentLength<>(v -> v + 10)), // SegmentLength + 10
+                new AttributeUpdateByReference(
+                        attributeAccumulate,
+                        AttributeUpdateType.Accumulate,
+                        new Reference.Attribute<>(attributeSegmentLength, v -> v + 20)), // PrevValue + Attr[SegmentLength] + 20
+                new AttributeUpdateByReference(
+                        attributeReplaceIfEquals,
+                        AttributeUpdateType.ReplaceIfEquals,
+                        new Reference.Attribute<>(attributeSegmentLength, v -> v + 30), expectedValues.get(attributeReplaceIfEquals))); // Attr[SegmentLength] + 30
+
+        expectedValues = ImmutableMap.of(
+                referenceAttributeId, initialAttributeValue,
+                attributeSegmentLength, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 10,
+                attributeAccumulate, expectedValues.get(attributeAccumulate) + expectedValues.get(attributeSegmentLength) + 20,
+                attributeReplaceIfEquals, expectedValues.get(attributeSegmentLength) + 30);
+
+        op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
+
+        // Verify result.
+        verifyAttributeUpdates("after acceptOperation (2)", txn, attributeUpdates, expectedValues);
+
+        // Update 3 (Id-by-reference).
+        // We create two new Attributes based on the value of other attributes. One is updated in the current transaction,
+        // while another is not.
+        attributeUpdates = Arrays.asList(
+                new AttributeUpdateByReference(
+                        new Reference.Attribute<>(referenceAttributeId, value -> new UUID(value, Long.MIN_VALUE)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 10)), // SegmentLength + 10
+                new AttributeUpdateByReference(
+                        new Reference.Attribute<>(attributeSegmentLength, length -> new UUID(Long.MAX_VALUE, length)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 20)), // SegmentLength + 20
+                new AttributeUpdateByReference(
+                        new Reference.SegmentLength<>(length -> new UUID(Long.MIN_VALUE, length)),
+                        AttributeUpdateType.None,
+                        new Reference.SegmentLength<>(v -> v + 30))); // SegmentLength + 20
+
+        val segmentLength = txn.getStreamSegmentMetadata(SEGMENT_ID).getLength();
+        expectedValues = ImmutableMap.<UUID, Long>builder()
+                .putAll(expectedValues)
+                .put(new UUID(expectedValues.get(referenceAttributeId), Long.MIN_VALUE), segmentLength + 10)
+                .put(new UUID(Long.MAX_VALUE, expectedValues.get(attributeSegmentLength)), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 20)
+                .put(new UUID(Long.MIN_VALUE, segmentLength), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength() + 30)
+                .build();
+
+        op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
+
+        // Verify result.
+        verifyAttributeUpdates("after acceptOperation (3-id-by-ref)", txn, attributeUpdates, expectedValues);
+
         txn.commit(metadata);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after final commit.",
                 expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));

@@ -13,10 +13,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.Reference;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -401,7 +403,18 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         for (AttributeUpdate u : attributeUpdates) {
-            AttributeUpdateType updateType = u.getUpdateType();
+            // Process by-reference updates, if needed.
+            boolean byRef = u instanceof AttributeUpdateByReference;
+            long newValue;
+            if (byRef) {
+                AttributeUpdateByReference ur = (AttributeUpdateByReference) u;
+                ur.setAttributeId(getAttributeId(ur));
+                newValue = getAttributeValue(ur);
+            } else {
+                newValue = u.getValue();
+            }
+
+            // Get the current value, if any.
             boolean hasValue = false;
             long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
             if (this.attributeUpdates.containsKey(u.getAttributeId())) {
@@ -413,10 +426,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             }
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
+            AttributeUpdateType updateType = u.getUpdateType();
             switch (updateType) {
                 case ReplaceIfGreater:
                     // Verify value against existing value, if any.
-                    if (hasValue && u.getValue() <= previousValue) {
+                    if (hasValue && newValue <= previousValue) {
                         throw new BadAttributeUpdateException(this.name, u, false,
                                 String.format("Expected greater than '%s'.", previousValue));
                     }
@@ -441,7 +455,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     break;
                 case Accumulate:
                     if (hasValue) {
-                        u.setValue(previousValue + u.getValue());
+                        newValue += previousValue;
+                        u.setValue(newValue);
                     }
 
                     break;
@@ -450,7 +465,79 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 default:
                     throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
+
+            // For updates by reference, we need to set the actual value.
+            if (byRef) {
+                u.setValue(newValue);
+            }
         }
+    }
+
+    /**
+     * Evaluates the AttributeId of an update-by-reference.
+     *
+     * @param updateByRef The AttributeUpdateByReference to evaluate.
+     * @return The value.
+     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
+     */
+    private UUID getAttributeId(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        Reference<UUID> ref = updateByRef.getIdReference();
+        if (ref == null) {
+            // The exact ID was passed in. No need to evaluate anything else.
+            return updateByRef.getAttributeId();
+        }
+
+        return getReferenceValue(ref, updateByRef);
+    }
+
+    /**
+     * Evaluates the AttributeValue of an update-by-reference.
+     *
+     * @param updateByRef The AttributeUpdateByReference to evaluate.
+     * @return The value.
+     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
+     */
+    private long getAttributeValue(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        Reference<Long> ref = updateByRef.getValueReference();
+        if (ref == null) {
+            // The exact value was passed in. No need to evaluate anything else.
+            return updateByRef.getValue();
+        }
+
+        return getReferenceValue(updateByRef.getValueReference(), updateByRef);
+    }
+
+    /**
+     * Evaluates the given reference.
+     *
+     * @param ref         The Reference to evaluate.
+     * @param updateByRef The AttributeUpdateByReference that this is part of.
+     * @param <T>         Return type.
+     * @return The evaluated reference.
+     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
+     */
+    private <T> T getReferenceValue(Reference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        long result;
+        if (ref instanceof Reference.SegmentLength) {
+            // Segment Length.
+            result = getLength();
+        } else if (ref instanceof Reference.Attribute) {
+            // Attribute reference. First pick a value from this UpdateTransaction, then fail back to base attributes.
+            UUID attributeId = ((Reference.Attribute) ref).getAttributeId();
+            if (this.attributeUpdates.containsKey(attributeId)) {
+                result = this.attributeUpdates.get(attributeId);
+            } else if (this.baseAttributeValues.containsKey(attributeId)) {
+                result = this.baseAttributeValues.get(attributeId);
+            } else {
+                throw new BadAttributeUpdateException(this.name, updateByRef, true,
+                        String.format("%s refers to an Attribute that is not set (%s).", ref.getClass().getSimpleName(), attributeId));
+            }
+        } else {
+            throw new IllegalArgumentException("Unsupported AttributeValueReference: " + ref.getClass().getSimpleName());
+        }
+
+        // Finally, transform the result.
+        return ref.getTransformation().apply(result);
     }
 
     //endregion
