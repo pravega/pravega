@@ -73,8 +73,6 @@ public class PravegaAuthManager {
                 throw new AuthenticationException("Authentication failure");
             }
             retVal = handler.authorize(resource, principal).ordinal() >= level.ordinal();
-        } catch (RuntimeException e) {
-            throw new AuthenticationException(e);
         } catch (AuthException e) {
             throw new AuthenticationException("Authentication failure");
         }
