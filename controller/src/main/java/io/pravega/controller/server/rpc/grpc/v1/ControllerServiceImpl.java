@@ -88,7 +88,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
     }
@@ -97,7 +97,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("truncateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.truncateStream(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
@@ -106,7 +106,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("sealStream called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
     }
@@ -114,7 +114,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
         log.info("deleteStream called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
     }
@@ -122,7 +122,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorizationAndCreateToken(request.getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                        .thenApply(segmentRanges -> SegmentRanges.newBuilder()
@@ -136,7 +136,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
         log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -159,7 +159,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegmentsImmediatlyFollowing(SegmentId segmentId,
                                                StreamObserver<SuccessorResponse> responseObserver) {
         log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(segmentId.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(segmentId.getStreamInfo().getScope() + "/" +
                         segmentId.getStreamInfo().getStream(), AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getSegmentsImmediatelyFollowing(segmentId)
                                        .thenApply(ModelHelper::createSuccessorResponse)
@@ -175,7 +175,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope + "/" + stream, AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
                                 segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
@@ -187,7 +187,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
         log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.scale(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -202,7 +202,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
         log.debug("check scale status called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                         request.getEpoch()), responseObserver);
@@ -212,7 +212,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentId());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getURI(request),
                 responseObserver);
@@ -223,7 +223,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                StreamObserver<SegmentValidityResponse> responseObserver) {
         log.info("isSegmentValid called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentId());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -236,7 +236,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
         log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -253,7 +253,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -265,7 +265,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        authenticateExecuteAndProcessResults( () -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults( () -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -277,7 +277,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ),
                delegationToken  -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -290,7 +290,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
@@ -302,7 +302,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createScope(ScopeInfo request,
                             StreamObserver<CreateScopeStatus> responseObserver) {
         log.info("createScope called for scope {}.", request.getScope());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
                 responseObserver);
     }
@@ -311,7 +311,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void deleteScope(ScopeInfo request,
                             StreamObserver<DeleteScopeStatus> responseObserver) {
         log.info("deleteScope called for scope {}.", request.getScope());
-        authenticateExecuteAndProcessResults(() -> checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
                 responseObserver);
     }
@@ -321,7 +321,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                    io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver)  {
         log.info("createStream called for stream {}/{}.", request.getScope(),
                 request.getStream());
-        authenticateExecuteAndProcessResults(() -> checkAuthorizationAndCreateToken(request.getScope() + "/" +
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> CompletableFuture.completedFuture(Controller.DelegationToken
                         .newBuilder()
@@ -359,14 +359,5 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     .withDescription("Authentication failed")
                     .asRuntimeException());
         }
-    }
-
-    private String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
-        return this.authHelper.checkAuthorization(resource, expectedLevel);
-    }
-
-    private String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
-        return this.authHelper.checkAuthorizationAndCreateToken(resource, expectedLevel);
-
     }
 }

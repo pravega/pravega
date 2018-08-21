@@ -86,7 +86,6 @@ public class PravegaInterceptor implements ServerInterceptor {
      * Retrieves a master token for internal controller to segmentstore communication.
      * @param tokenSigningKey Signing key for the JWT token.
      * @return A new master token which has highest privileges.
-     * Throws an error if this is called from a grpc context.
      */
     public static String retrieveMasterToken(String tokenSigningKey) {
         Map<String, Object> claims = new HashMap<>();
