@@ -117,9 +117,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             int maxOutstandingCheckpointRequest = config.getMaxOutstandingCheckpointRequest();
             int currentOutstandingCheckpointRequest = checkpointState.getOutstandingCheckpoints();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
-                String errorMessage = rejectMessage + maxOutstandingCheckpointRequest;
-                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {}",
-                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, errorMessage);
+                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
+                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
                 return false;
             } else {
                 updates.add(new CreateCheckpoint(checkpointName));
