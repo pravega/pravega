@@ -788,7 +788,6 @@ public class BTreeIndex {
     private CompletableFuture<Long> writePages(PageCollection pageCollection, Duration timeout) {
         IndexState state = this.state.get();
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
-        //System.out.println("NEW WRITE");
 
         // Collect the data to be written.
         val pages = new ArrayList<Map.Entry<Long, ByteArraySegment>>();
@@ -808,7 +807,6 @@ public class BTreeIndex {
 
             offset = p.getOffset() + p.getPage().getLength();
             lastPage = p;
-            //System.out.println(String.format("\tPage %d: Offset = %s, MinOffset = %s", p.getPage().getHeaderId(), p.getOffset(), p.getMinOffset()));
         }
 
         // Write a footer with information about locating the root page.
@@ -816,11 +814,14 @@ public class BTreeIndex {
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
         pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
 
-        // Also collect the old footer's offset, as it will be replaced by a more recent value.
+        // Collect the old footer's offset, as it will be replaced by a more recent value.
         long oldFooterOffset = getFooterOffset(state.length);
         if (oldFooterOffset >= 0) {
             oldOffsets.add(oldFooterOffset);
         }
+
+        // Collect the offsets of removed pages. These are no longer needed.
+        pageCollection.collectRemovedPageOffsets(oldOffsets);
 
         // Write it.
         long rootOffset = lastPage.getOffset();

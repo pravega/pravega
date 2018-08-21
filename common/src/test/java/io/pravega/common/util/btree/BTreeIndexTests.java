@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -76,7 +76,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInsertSortedSequential() {
-        testInsert(100, true, false);
+        testInsert(10000, true, false);
     }
 
     /**
@@ -266,6 +266,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         check("Expecting the new entry to have been added.", index, entries, 0);
     }
 
+    /**
+     * Tests the behavior of the BTreeIndex when there are more than one writers modifying the index at the same time.
+     */
     @Test
     public void testConcurrentModification() {
         final int count = 1000;
@@ -472,18 +475,18 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         @GuardedBy("data")
         private final EnhancedByteArrayOutputStream data;
         @GuardedBy("data")
-        private final HashSet<Long> offsets;
+        private final HashMap<Long, Boolean> offsets; // Key: Offset, Value: valid(true), obsolete(false).
         private final AtomicReference<CompletableFuture<Void>> writeInterceptor = new AtomicReference<>();
         private final AtomicBoolean checkOffsets = new AtomicBoolean(true);
 
         DataSource() {
             this.data = new EnhancedByteArrayOutputStream();
-            this.offsets = new HashSet<>();
+            this.offsets = new HashMap<>();
         }
 
         DataSource(DataSource other) {
             this.data = other.data;
-            this.offsets = new HashSet<>();
+            this.offsets = new HashMap<>();
         }
 
         void setWriteInterceptor(CompletableFuture<Void> wi) {
@@ -508,7 +511,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     if (this.checkOffsets.get()) {
                         // We want to make sure that we actually read pages that we wrote, and not from arbitrary locations
                         // in the data source.
-                        Preconditions.checkArgument(this.offsets.isEmpty() || this.offsets.contains(offset), "Offset not registered: " + offset);
+                        Preconditions.checkArgument(this.offsets.isEmpty() || this.offsets.getOrDefault(offset, false),
+                                "Offset not registered or already obsolete: " + offset);
                     }
 
                     return new ByteArraySegment(this.data.getData().subSegment((int) offset, length).getCopy());
@@ -517,7 +521,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }, executorService());
         }
 
-        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, long truncateOffset, Duration timeout) {
+        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets,
+                                      long truncateOffset, Duration timeout) {
             val wi = this.writeInterceptor.get();
             if (wi != null) {
                 return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets, truncateOffset));
@@ -526,26 +531,26 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }
         }
 
-        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, long truncateOffset) {
+        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite,
+                                                      Collection<Long> obsoleteOffsets, long truncateOffset) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
                     if (toWrite.isEmpty()) {
                         return (long) this.data.size();
                     }
 
-                    System.out.println("TRUNCATE OFFSET (please integrate): " + truncateOffset);
-
                     long originalOffset = this.data.size();
                     long expectedOffset = this.data.size();
                     for (val e : toWrite) {
-                        Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.", expectedOffset, e.getKey());
+                        Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.",
+                                expectedOffset, e.getKey());
                         try {
                             e.getValue().writeTo(this.data);
                         } catch (Exception ex) {
                             throw new CompletionException(ex);
                         }
 
-                        this.offsets.add(e.getKey());
+                        this.offsets.put(e.getKey(), true);
                         expectedOffset += e.getValue().getLength();
                     }
 
@@ -554,11 +559,28 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     // Now, validate and clear obsolete offsets.
                     if (this.checkOffsets.get()) {
                         for (long offset : obsoleteOffsets) {
-                            boolean exists = this.offsets.isEmpty() || this.offsets.contains(offset);
+                            boolean exists = this.offsets.isEmpty() || this.offsets.getOrDefault(offset, false);
                             Assert.assertTrue("Unexpected offset removed: " + offset, exists || offset < originalOffset);
+                            if (this.offsets.containsKey(offset)) {
+                                // Mark as obsolete.
+                                this.offsets.put(offset, false);
+                            }
                         }
+
+                        // Validate that the given truncation offset is correct - we do not want to truncate live data.
+                        long expectedTruncationOffset = this.offsets.entrySet().stream()
+                                .filter(Map.Entry::getValue)
+                                .map(Map.Entry::getKey)
+                                .min(Long::compare)
+                                .orElse((long) this.data.size());
+                        Assert.assertEquals("Unexpected truncation offset.", expectedTruncationOffset, truncateOffset);
                     }
 
+                    // Truncate data out of the data source.
+                    val toRemove = this.offsets.keySet().stream()
+                            .filter(offset -> offset < truncateOffset)
+                            .collect(Collectors.toList());
+                    toRemove.forEach(this.offsets::remove);
                     return (long) this.data.size();
                 }
             }, executorService());

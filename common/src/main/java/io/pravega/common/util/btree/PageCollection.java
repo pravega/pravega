@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -33,6 +34,9 @@ class PageCollection {
     @GuardedBy("this")
     private long indexLength;
 
+    @GuardedBy("this")
+    private final HashSet<Long> deletedPageOffsets;
+
     //endregion
 
     /**
@@ -45,6 +49,7 @@ class PageCollection {
         this.indexLength = indexLength;
         this.pageByOffset = new HashMap<>();
         this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
+        this.deletedPageOffsets = new HashSet<>();
     }
 
     //region Operations
@@ -107,6 +112,7 @@ class PageCollection {
             this.incompleteNewPageOffset = PagePointer.NO_OFFSET;
         }
 
+        this.deletedPageOffsets.add(page.getOffset());
         page.setOffset(PagePointer.NO_OFFSET);
     }
 
@@ -128,6 +134,15 @@ class PageCollection {
         this.pageByOffset.remove(page.getOffset());
         page.setOffset(pageOffset);
         this.pageByOffset.put(page.getOffset(), page);
+    }
+
+    /**
+     * Collects the offsets of all removed (deleted) pages.
+     *
+     * @param target A Collection to collect the offsets into.
+     */
+    synchronized void collectRemovedPageOffsets(Collection<Long> target) {
+        target.addAll(this.deletedPageOffsets);
     }
 
     /**
